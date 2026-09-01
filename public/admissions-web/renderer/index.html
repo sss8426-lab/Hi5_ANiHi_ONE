@@ -1,0 +1,47 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>입시 컨설팅</title>
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="dashboard.css">
+<link rel="stylesheet" href="student-management.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">입시 컨설팅<small>미술·만화·웹툰·게임일러스트</small></div>
+    <nav id="nav">
+      <button class="active" data-page="dashboard">대시보드</button>
+      <button data-page="students">학생 관리</button>
+      <button data-page="cases">합격·불합격 사례</button>
+      <button data-page="strategy">지원 전략</button>
+      <button data-page="admin">대학 데이터 관리</button>
+      <button data-page="awards">공모전 및 실기대회 수상작</button>
+      <button data-page="settings">설정 / 백업</button>
+    </nav>
+  </aside>
+  <main class="main">
+    <section id="dashboard" class="page"></section>
+    <section id="students" class="page hidden"></section>
+    <section id="cases" class="page hidden"></section>
+    <section id="strategy" class="page hidden"></section>
+    <section id="admin" class="page hidden"></section>
+    <section id="awards" class="page hidden"></section>
+      <section id="settings" class="page hidden"></section>
+  </main>
+</div>
+<script src="../src/services/gradeConversion/roundingService.js"></script>
+<script src="../src/services/gradeConversion/gradeConverter.js"></script>
+<script src="../src/services/gradeConversion/subjectSelector.js"></script>
+<script src="../src/services/gradeConversion/weightCalculator.js"></script>
+<script src="../src/services/gradeConversion/calculationExplainer.js"></script>
+<script src="../src/services/gradeConversion/ruleInterpreter.js"></script>
+<script src="../src/services/gradeConversion/admissionRuleEngine.js"></script>
+<script src="../src/services/gradeConversion/gradeConversionService.js"></script>
+<script src="web-desktop-api.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
+

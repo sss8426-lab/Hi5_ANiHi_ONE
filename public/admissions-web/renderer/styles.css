@@ -1,0 +1,178 @@
+﻿:root{--bg:#f5f7fb;--panel:#fff;--navy:#172554;--blue:#315dcc;--line:#e5e7eb;--text:#152033;--muted:#667085;--green:#177a4a;--orange:#b36b00;--red:#bd3737}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:"Segoe UI","Noto Sans KR",sans-serif}.app{display:grid;grid-template-columns:240px 1fr;min-height:100vh}.sidebar{background:#fff;border-right:1px solid var(--line);padding:24px 15px}.brand{font-size:22px;font-weight:800;margin:0 10px 28px}.brand small{display:block;font-size:11px;color:var(--muted);margin-top:5px;font-weight:600}nav button{display:block;width:100%;padding:13px 14px;margin:4px 0;border:0;border-radius:11px;background:transparent;text-align:left;font-size:15px;cursor:pointer}nav button.active,nav button:hover{background:#edf3ff;color:var(--blue);font-weight:700}.main{padding:28px}.hidden{display:none!important}.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}.top h1{margin:0;font-size:26px}.top p{margin:5px 0 0;color:var(--muted)}.actions{display:flex;gap:8px}.btn{padding:10px 14px;border:1px solid var(--line);background:#fff;border-radius:10px;cursor:pointer}.btn.primary{background:var(--navy);color:#fff;border-color:var(--navy)}.grid{display:grid;grid-template-columns:1.05fr 1.55fr;gap:16px}.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:0 2px 12px rgba(16,24,40,.035)}.hero{grid-column:1/-1;background:linear-gradient(135deg,#eef4ff,#fff);display:grid;grid-template-columns:1fr 1.5fr;gap:18px;align-items:end}.form-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.field label{display:block;color:var(--muted);font-size:12px;margin-bottom:6px}.field input,.field select{width:100%;padding:11px;border:1px solid #d6dae3;border-radius:9px;background:#fff}.full{grid-column:1/-1}.section-title{margin:0 0 14px;font-size:18px}.sub{font-size:13px;color:var(--muted)}table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:11px 8px;border-bottom:1px solid #eef0f4;text-align:left}th{font-size:12px;color:var(--muted)}tr.clickable{cursor:pointer}tr.clickable:hover{background:#f8faff}.badge{display:inline-block;padding:4px 8px;border-radius:999px;font-size:12px;font-weight:700}.safe{background:#e7f6ee;color:var(--green)}.fit{background:#fff2da;color:var(--orange)}.reach{background:#fde8e8;color:var(--red)}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.metric{border:1px solid var(--line);border-radius:12px;padding:14px}.metric b{display:block;font-size:20px;margin-top:5px}.compare{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}.case{border:1px solid var(--line);border-radius:12px;padding:14px}.case h4{margin:0 0 8px}.art{height:105px;border-radius:10px;background:linear-gradient(135deg,#dfe6f4,#f7f9fc);display:flex;align-items:center;justify-content:center;color:#718096;font-weight:700;margin-top:10px}.notice{margin-top:14px;padding:12px;border-left:4px solid var(--blue);background:#f8fafc;border-radius:8px;font-size:13px}.admin-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.muted{color:var(--muted)}.danger{color:var(--red)}@media(max-width:1100px){.grid,.hero{grid-template-columns:1fr}.form-row{grid-template-columns:1fr 1fr}.metrics{grid-template-columns:1fr 1fr}}
+
+.awards-layout {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 16px;
+}
+
+.awards-sidebar h2,
+.awards-main h2 {
+  margin-top: 0;
+  color: #0f1b34;
+}
+
+.awards-folder-create {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.award-folder-list {
+  display: grid;
+  gap: 8px;
+  max-height: 620px;
+  overflow: auto;
+  padding-right: 6px;
+}
+
+.award-folder-item {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  text-align: left;
+}
+
+.award-folder-item b {
+  color: #0f1b34;
+  font-size: 16px;
+}
+
+.award-folder-item span {
+  color: #69758a;
+  font-size: 13px;
+}
+
+.award-folder-item.selected {
+  background: #eef5ff;
+  border-color: #8bb3ff;
+}
+
+.awards-toolbar {
+  align-items: end;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.award-year-actions {
+  align-items: end;
+  display: flex;
+  gap: 8px;
+}
+
+.award-gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.award-thumb {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin: 0;
+  overflow: hidden;
+  padding: 8px;
+}
+
+.award-thumb button {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  display: block;
+  padding: 0;
+  width: 100%;
+}
+
+.award-thumb img {
+  aspect-ratio: 4 / 3;
+  background: #f1f5fb;
+  border-radius: 8px;
+  display: block;
+  height: auto;
+  object-fit: cover;
+  width: 100%;
+}
+
+.award-thumb figcaption {
+  color: #43516a;
+  font-size: 12px;
+  margin-top: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty-state {
+  background: #f8fbff;
+  border: 1px dashed #d7e1f0;
+  border-radius: 10px;
+  color: #69758a;
+  padding: 28px;
+  text-align: center;
+}
+
+.award-viewer-backdrop {
+  background: rgba(15, 23, 42, .56);
+  display: grid;
+  inset: 0;
+  padding: 24px;
+  place-items: center;
+  position: fixed;
+  z-index: 1000;
+}
+
+.award-viewer {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 24px 80px rgba(0,0,0,.24);
+  max-height: 94vh;
+  max-width: 94vw;
+  overflow: auto;
+  width: min(1100px, 94vw);
+}
+
+.award-viewer-head {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  padding: 16px 18px;
+}
+
+.award-viewer-head h2 {
+  font-size: 18px;
+  margin: 0 0 4px;
+}
+
+.award-viewer-body {
+  background: #f4f7fb;
+  padding: 18px;
+  text-align: center;
+}
+
+.award-viewer-body img {
+  max-height: calc(94vh - 150px);
+  max-width: 100%;
+  object-fit: contain;
+}
+
+@media (max-width: 1000px) {
+  .awards-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .awards-toolbar,
+  .award-year-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
