@@ -3,7 +3,9 @@ import { DataCoreAccessError, requireAuthenticatedAccess, requireSignedInAccess,
 
 export const AUTH_COOKIE_NAME = "data_core_session";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 8;
-const PASSWORD_ITERATIONS = 310_000;
+// Cloudflare Workers currently rejects PBKDF2 requests above this limit.
+const PASSWORD_ITERATIONS = 100_000;
+const MAX_PASSWORD_ITERATIONS = 100_000;
 const MAX_FAILED_LOGINS = 5;
 const LOCK_MINUTES = 15;
 
@@ -44,6 +46,9 @@ async function sha256(value: string) {
 }
 
 async function passwordHash(password: string, salt: string, iterations: number) {
+  if (!Number.isInteger(iterations) || iterations < 1 || iterations > MAX_PASSWORD_ITERATIONS) {
+    throw new DataCoreAccessError(409, "이 로그인 계정은 비밀번호 재설정이 필요합니다.");
+  }
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
   const bits = await crypto.subtle.deriveBits(
     { name: "PBKDF2", hash: "SHA-256", salt: fromBase64(salt), iterations },

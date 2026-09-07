@@ -363,6 +363,12 @@ test("standalone accounts use secure sessions, enforce first password change, lo
     assert.equal(created.response.status, 201, JSON.stringify(created.body));
     assert.equal(created.body.account.loginId, "campus-a-teacher");
 
+    const accountId = created.body.account.id;
+    const createdAccount = await h.env.DB.prepare("SELECT password_iterations FROM auth_accounts WHERE id = ?")
+      .bind(accountId)
+      .first();
+    assert.equal(createdAccount.password_iterations, 100_000);
+
     for (let index = 0; index < 5; index += 1) {
       const failed = await h.request("POST", "/api/auth/login", undefined, { loginId: "campus-a-teacher", password: "wrong-password" });
       assert.equal(failed.response.status, 401);
@@ -370,7 +376,6 @@ test("standalone accounts use secure sessions, enforce first password change, lo
     const locked = await h.request("POST", "/api/auth/login", undefined, { loginId: "campus-a-teacher", password: temporaryPassword });
     assert.equal(locked.response.status, 423);
 
-    const accountId = created.body.account.id;
     const reset = await h.request("PATCH", `/api/auth/accounts/${accountId}`, users.admin, { temporaryPassword, revokeSessions: true });
     assert.equal(reset.response.status, 200);
     const login = await h.request("POST", "/api/auth/login", undefined, { loginId: "campus-a-teacher", password: temporaryPassword });
@@ -419,6 +424,13 @@ test("standalone accounts use secure sessions, enforce first password change, lo
     assert.equal(disabled.response.status, 200);
     const disabledLogin = await h.request("POST", "/api/auth/login", undefined, { loginId: "campus-a-teacher", password: "Changed-pass-456" });
     assert.equal(disabledLogin.response.status, 401);
+
+    await h.env.DB.prepare("UPDATE auth_accounts SET status = 'active', password_iterations = ? WHERE id = ?")
+      .bind(100_001, accountId)
+      .run();
+    const unsupportedLegacyAccount = await h.request("POST", "/api/auth/login", undefined, { loginId: "campus-a-teacher", password: "Changed-pass-456" });
+    assert.equal(unsupportedLegacyAccount.response.status, 409);
+    assert.match(unsupportedLegacyAccount.body.error, /비밀번호 재설정/);
   } finally {
     await h.mf.dispose();
   }
