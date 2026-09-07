@@ -1,4 +1,4 @@
-# HI5·ANiHi 콘텐츠 허브
+# HI5·ANiHi 블로그/인스타 자동화
 
 기준일: 2026-09-07
 
@@ -6,11 +6,18 @@
 
 블로그 자동화와 인스타 자동화가 별도 저장소를 만들지 않고 DATA CORE 파일과 `data_records`를 함께 사용하도록 한다.
 
+사용자 화면에서는 `콘텐츠 허브`라는 단일 메뉴명 대신 업무용 모드 안에서 다음 두 메뉴로 분리한다.
+
+- 블로그 자동화
+- 인스타 자동화
+
 ## 경로
 
 - `/data-core/content`
 - `/data-core/content/blog`
 - `/data-core/content/instagram`
+
+`/data-core/content`는 기존 deep link 호환용으로 유지하며 기본 블로그 자동화 화면으로 진입한다.
 
 ## API
 
