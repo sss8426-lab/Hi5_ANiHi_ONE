@@ -112,7 +112,7 @@ export async function runDataCoreDiagnostics(
     await timedCheck("r2-read", "R2 읽기", async () => {
       const object = await files.get(probeKey);
       if (!object) throw new Error("업로드한 진단 객체를 찾지 못했습니다.");
-      const text = await object.text();
+      const text = await new Response(object.body).text();
       if (text !== probeValue) throw new Error("R2에서 읽은 probe 내용이 일치하지 않습니다.");
       return "진단 객체 읽기/내용 검증 성공";
     }),
