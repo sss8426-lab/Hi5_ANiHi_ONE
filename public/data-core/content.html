@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>콘텐츠 허브 | HI5·ANiHi DATA CORE</title>
+  <link rel="stylesheet" href="/data-core/content.css">
+</head>
+<body>
+  <div class="content-shell">
+    <header class="content-header">
+      <a class="brand" href="/data-core">
+        <span class="brand-mark">H5</span>
+        <span><strong>HI5·ANiHi</strong><small>CONTENT HUB</small></span>
+      </a>
+      <nav>
+        <a href="/data-core">자료보관함</a>
+        <a href="/data-core/roadmap">꿈·전공 로드맵</a>
+        <a href="/">입시 컨설팅</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div>
+          <p class="eyebrow">ONE DATA → MULTI CONTENT</p>
+          <h1>한 번 올린 자료로<br>블로그와 인스타를 함께 만듭니다.</h1>
+          <p>DATA CORE의 같은 원본 사진을 재사용하고, 글·캡션·편집본·게시상태까지 한 곳에서 축적합니다.</p>
+        </div>
+        <button class="primary-btn" id="newContentBtn">+ 새 콘텐츠</button>
+      </section>
+
+      <section class="notice hidden" id="notice"></section>
+
+      <section class="toolbar-card">
+        <div class="platform-tabs" id="platformTabs">
+          <button class="active" data-platform="blog">블로그</button>
+          <button data-platform="instagram">인스타그램</button>
+        </div>
+        <div class="toolbar-filters">
+          <select id="campusFilter"></select>
+          <select id="statusFilter">
+            <option value="">전체 상태</option>
+            <option value="draft">초안</option>
+            <option value="review">검수중</option>
+            <option value="ready">게시 준비</option>
+            <option value="published">게시 완료</option>
+            <option value="archived">보관</option>
+          </select>
+          <input id="searchInput" placeholder="제목·본문·키워드 검색">
+          <button class="ghost-btn" id="searchBtn">검색</button>
+        </div>
+      </section>
+
+      <section class="stats" id="stats">
+        <article><span>전체</span><strong id="statTotal">0</strong></article>
+        <article><span>초안</span><strong id="statDraft">0</strong></article>
+        <article><span>게시 준비</span><strong id="statReady">0</strong></article>
+        <article><span>게시 완료</span><strong id="statPublished">0</strong></article>
+      </section>
+
+      <section class="content-list" id="contentList"></section>
+      <section class="empty hidden" id="contentEmpty">
+        <strong>아직 콘텐츠가 없습니다.</strong>
+        <p>DATA CORE 자료를 골라 첫 콘텐츠를 만들어보세요.</p>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal-backdrop hidden" id="editorModal">
+    <div class="editor-modal">
+      <div class="editor-head">
+        <div>
+          <p class="eyebrow" id="editorEyebrow">BLOG CONTENT</p>
+          <h2 id="editorTitleText">새 콘텐츠</h2>
+        </div>
+        <button class="icon-btn" id="closeEditorBtn">×</button>
+      </div>
+
+      <div class="editor-grid">
+        <section class="editor-main">
+          <div class="field-grid two">
+            <label><span>플랫폼</span><select id="editPlatform"><option value="blog">블로그</option><option value="instagram">인스타그램</option></select></label>
+            <label><span>캠퍼스</span><select id="editCampus"></select></label>
+          </div>
+          <label><span>제목</span><input id="editTitle" placeholder="콘텐츠 제목"></label>
+          <div class="field-grid two">
+            <label><span>콘텐츠 유형</span><select id="editContentType"><option value="class">수업</option><option value="admissions">입시</option><option value="award">수상·성과</option><option value="competition">공모전</option><option value="brand">브랜드·교육철학</option><option value="event">이벤트</option><option value="other">기타</option></select></label>
+            <label><span>상태</span><select id="editStatus"><option value="draft">초안</option><option value="review">검수중</option><option value="ready">게시 준비</option><option value="published">게시 완료</option><option value="archived">보관</option></select></label>
+          </div>
+          <label><span>요약</span><textarea id="editSummary" rows="3" placeholder="이 콘텐츠의 핵심 요약"></textarea></label>
+          <label><span id="contentBodyLabel">블로그 본문</span><textarea id="editContent" rows="14" placeholder="생성하거나 작성한 본문을 저장합니다."></textarea></label>
+          <label><span>태그</span><input id="editTags" placeholder="웹툰, 고2, 상황표현처럼 쉼표로 구분"></label>
+          <div class="instagram-spec hidden" id="instagramSpec">
+            <strong>인스타 이미지 규격</strong><span>2160 × 2700px · 4:5 고정</span>
+          </div>
+          <div class="editor-actions">
+            <button class="danger-link hidden" id="deleteContentBtn" type="button">콘텐츠 삭제</button>
+            <span></span>
+            <button class="ghost-btn" id="closeEditorBottomBtn" type="button">닫기</button>
+            <button class="primary-btn" id="saveContentBtn" type="button">저장</button>
+          </div>
+        </section>
+
+        <aside class="media-panel">
+          <div class="media-panel-head">
+            <div><strong>연결 자료</strong><small>같은 원본을 여러 콘텐츠에 재사용합니다.</small></div>
+            <button class="ghost-btn small" id="openFilePickerBtn" type="button">+ 자료 연결</button>
+          </div>
+          <div class="linked-media" id="linkedMedia"></div>
+          <div class="linked-empty" id="linkedEmpty">연결된 사진·파일이 없습니다.</div>
+          <a class="library-link" href="/data-core" target="_blank">자료보관함에서 새 파일 업로드 ↗</a>
+        </aside>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="filePickerModal">
+    <div class="file-picker-modal">
+      <div class="editor-head">
+        <div><p class="eyebrow">DATA CORE FILES</p><h2>사용할 자료 선택</h2></div>
+        <button class="icon-btn" id="closeFilePickerBtn">×</button>
+      </div>
+      <div class="file-picker-search">
+        <select id="fileRole"><option value="source">원본(source)</option><option value="cover">대표(cover)</option><option value="gallery">갤러리(gallery)</option><option value="output">편집본(output)</option></select>
+        <input id="fileSearchInput" placeholder="파일명 또는 분류 검색">
+        <button class="ghost-btn" id="fileSearchBtn">검색</button>
+      </div>
+      <div class="file-picker-list" id="filePickerList"></div>
+      <div class="empty hidden" id="filePickerEmpty"><strong>조건에 맞는 자료가 없습니다.</strong></div>
+    </div>
+  </div>
+
+  <div class="toast hidden" id="toast"></div>
+  <script src="/data-core/content.js"></script>
+</body>
+</html>
