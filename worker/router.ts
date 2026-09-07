@@ -27,6 +27,10 @@ import {
   updateContentDraft,
   type ContentDraftInput,
 } from "./data-core-content";
+import {
+  generateContentDraft as generateContentWithProvider,
+  type ContentGenerationInput,
+} from "./data-core-content-generation";
 import { runDataCoreDiagnostics } from "./data-core-diagnostics";
 import {
   listDataCoreFiles,
@@ -387,6 +391,18 @@ async function handleContentApi(request: Request, env: Env) {
         { status: 201 },
       );
     }
+  }
+
+  if (url.pathname === "/api/data-core/content/generate") {
+    if (request.method !== "POST") {
+      return jsonResponse({ error: "지원하지 않는 콘텐츠 생성 API 요청입니다." }, { status: 405 });
+    }
+    const generation = await generateContentWithProvider(
+      env.DB,
+      context,
+      await readJson<ContentGenerationInput>(request),
+    );
+    return jsonResponse(generation, { status: generation.available ? 200 : 503 });
   }
 
   const draftMatch = url.pathname.match(/^\/api\/data-core\/content\/([^/]+)$/);
