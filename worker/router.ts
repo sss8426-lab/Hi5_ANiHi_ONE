@@ -215,15 +215,24 @@ async function handleCompetitionApi(request: Request, env: Env) {
 const worker = {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
-    if (
-      request.method === "GET" &&
-      (url.pathname === "/data-core" || url.pathname === "/data-core/")
-    ) {
-      url.pathname = "/data-core/index.html";
-      return baseWorker.fetch(
-        new Request(url.toString(), { headers: request.headers }),
-        env,
-      );
+    if (request.method === "GET") {
+      if (url.pathname === "/data-core" || url.pathname === "/data-core/") {
+        url.pathname = "/data-core/index.html";
+        return baseWorker.fetch(
+          new Request(url.toString(), { headers: request.headers }),
+          env,
+        );
+      }
+      if (
+        url.pathname === "/data-core/operations" ||
+        url.pathname === "/data-core/operations/"
+      ) {
+        url.pathname = "/data-core/operations.html";
+        return baseWorker.fetch(
+          new Request(url.toString(), { headers: request.headers }),
+          env,
+        );
+      }
     }
 
     try {
