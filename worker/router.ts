@@ -49,11 +49,14 @@ import {
   logoutStandalone,
   updateStandaloneAccount,
 } from "./data-core-auth";
+import { handleKkumeumApi } from "./kkumeum-router";
 
 interface Env {
   ASSETS?: Fetcher;
   DB?: D1Database;
   FILES?: R2Bucket;
+  FAMILY_DB?: D1Database;
+  FAMILY_FILES?: R2Bucket;
   DATA_CORE_SUPER_ADMIN_EMAILS?: string;
 }
 
@@ -83,6 +86,8 @@ function isProtectedDataCoreUiPath(pathname: string) {
   return (
     pathname === "/data-core/work" ||
     pathname.startsWith("/data-core/work/") ||
+    pathname === "/data-core/kkumeum" ||
+    pathname === "/data-core/kkumeum/" ||
     pathname === "/data-core/accounts" ||
     pathname === "/data-core/accounts/" ||
     pathname === "/data-core/accounts.html" ||
@@ -100,6 +105,24 @@ function isProtectedDataCoreUiPath(pathname: string) {
     pathname === "/data-core/readiness/" ||
     pathname === "/data-core/readiness.html"
   );
+}
+
+async function dataCoreIndexResponse(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  url.pathname = "/data-core/index.html";
+  const response = await baseWorker.fetch(new Request(url.toString(), { headers: request.headers }), env);
+  if (!response.ok) return response;
+  const type = response.headers.get("content-type") || "";
+  if (!type.includes("text/html")) return response;
+  const html = await response.text();
+  const scriptTag = '<script src="/data-core/work/kkumeum-nav.js"></script>';
+  const body = html.includes("/data-core/work/kkumeum-nav.js")
+    ? html
+    : html.replace("</body>", `${scriptTag}\n</body>`);
+  const headers = new Headers(response.headers);
+  headers.delete("content-length");
+  headers.set("cache-control", "no-store");
+  return new Response(body, { status: response.status, headers });
 }
 
 async function handleStandaloneAuthApi(request: Request, env: Env) {
@@ -446,6 +469,10 @@ const worker = {
           return loginPageResponse(request, env, url.pathname.replace(/\/$/, "") || "/data-core/work");
         }
       }
+      if (url.pathname === "/data-core/kkumeum" || url.pathname === "/data-core/kkumeum/") {
+        url.pathname = "/data-core/work/kkumeum.html";
+        return baseWorker.fetch(new Request(url.toString(), { headers: request.headers }), env);
+      }
       if (
         url.pathname === "/data-core" ||
         url.pathname === "/data-core/" ||
@@ -458,11 +485,7 @@ const worker = {
         url.pathname === "/data-core/work/library" ||
         url.pathname === "/data-core/work/library/"
       ) {
-        url.pathname = "/data-core/index.html";
-        return baseWorker.fetch(
-          new Request(url.toString(), { headers: request.headers }),
-          env,
-        );
+        return dataCoreIndexResponse(request, env);
       }
       if (
         url.pathname === "/data-core/operations" ||
@@ -495,6 +518,15 @@ const worker = {
     try {
       const authResponse = await handleStandaloneAuthApi(request, env);
       if (authResponse) return authResponse;
+
+      if (url.pathname.startsWith("/api/kkumeum")) {
+        if (!env.DB) {
+          throw new DataCoreAccessError(503, "CORE 인증 데이터베이스가 연결되지 않았습니다.");
+        }
+        const context = await resolveDataCoreAccess(request, env.DB, env.DATA_CORE_SUPER_ADMIN_EMAILS);
+        const kkumeumResponse = await handleKkumeumApi(request, env, context, jsonResponse);
+        if (kkumeumResponse) return kkumeumResponse;
+      }
 
       if (env.DB && url.pathname.startsWith("/api/data-core/") && url.pathname !== "/api/data-core/health") {
         const context = await resolveDataCoreAccess(request, env.DB, env.DATA_CORE_SUPER_ADMIN_EMAILS);
