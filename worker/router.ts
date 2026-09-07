@@ -36,6 +36,15 @@ import {
   uploadDataCoreFile,
 } from "./data-core-files";
 import { ensureDataCoreMigrations } from "./data-core-migrations";
+import {
+  AUTH_COOKIE_NAME,
+  changeStandalonePassword,
+  createStandaloneAccount,
+  listStandaloneAccounts,
+  loginStandalone,
+  logoutStandalone,
+  updateStandaloneAccount,
+} from "./data-core-auth";
 
 interface Env {
   ASSETS?: Fetcher;
@@ -56,6 +65,43 @@ async function readJson<T>(request: Request): Promise<T> {
   } catch {
     throw new DataCoreAccessError(400, "JSON 요청 형식이 올바르지 않습니다.");
   }
+}
+
+async function handleStandaloneAuthApi(request: Request, env: Env) {
+  const url = new URL(request.url);
+  if (!url.pathname.startsWith("/api/auth/")) return null;
+  if (!env.DB) throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
+  await ensureDataCoreMigrations(env.DB);
+
+  if (url.pathname === "/api/auth/login" && request.method === "POST") {
+    const result = await loginStandalone(env.DB, request, await readJson<{ loginId?: unknown; password?: unknown }>(request));
+    return jsonResponse(
+      { authenticated: true, mustChangePassword: result.mustChangePassword, expiresAt: result.session.expiresAt },
+      { headers: { "set-cookie": `${AUTH_COOKIE_NAME}=${result.session.rawToken}; Max-Age=28800; Path=/; Secure; HttpOnly; SameSite=Lax` } },
+    );
+  }
+  if (url.pathname === "/api/auth/logout" && request.method === "POST") {
+    const result = await logoutStandalone(env.DB, request);
+    return jsonResponse({ ok: true }, { headers: result.headers });
+  }
+
+  const context = await resolveDataCoreAccess(request, env.DB, env.DATA_CORE_SUPER_ADMIN_EMAILS);
+  if (url.pathname === "/api/auth/session" && request.method === "GET") return jsonResponse(context);
+  if (url.pathname === "/api/auth/password" && request.method === "PUT") {
+    const result = await changeStandalonePassword(env.DB, request, context, await readJson(request));
+    return jsonResponse({ ok: true }, { headers: { "set-cookie": `${AUTH_COOKIE_NAME}=${result.session.rawToken}; Max-Age=28800; Path=/; Secure; HttpOnly; SameSite=Lax` } });
+  }
+  if (url.pathname === "/api/auth/accounts" && request.method === "GET") {
+    return jsonResponse({ accounts: await listStandaloneAccounts(env.DB, context) });
+  }
+  if (url.pathname === "/api/auth/accounts" && request.method === "POST") {
+    return jsonResponse({ account: await createStandaloneAccount(env.DB, request, context, await readJson(request)) }, { status: 201 });
+  }
+  const accountMatch = url.pathname.match(/^\/api\/auth\/accounts\/([^/]+)$/);
+  if (accountMatch && request.method === "PATCH") {
+    return jsonResponse(await updateStandaloneAccount(env.DB, request, context, decodeURIComponent(accountMatch[1]), await readJson(request)));
+  }
+  return jsonResponse({ error: "지원하지 않는 인증 API 요청입니다." }, { status: 405 });
 }
 
 async function handleFileMetadataApi(request: Request, env: Env) {
@@ -340,6 +386,22 @@ const worker = {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     if (request.method === "GET") {
+      if (url.pathname === "/login" || url.pathname === "/data-core/login") {
+        url.pathname = "/data-core/login.html";
+        return baseWorker.fetch(new Request(url.toString(), { headers: request.headers }), env);
+      }
+      if (
+        env.DB &&
+        (url.pathname === "/data-core/work" || url.pathname === "/data-core/work/" || url.pathname === "/data-core/work/library" || url.pathname === "/data-core/work/library/")
+      ) {
+        const context = await resolveDataCoreAccess(request, env.DB, env.DATA_CORE_SUPER_ADMIN_EMAILS);
+        if (!context.authenticated) {
+          const loginUrl = new URL(request.url);
+          loginUrl.pathname = "/data-core/login.html";
+          loginUrl.searchParams.set("next", url.pathname.replace(/\/$/, "") || "/data-core/work");
+          return baseWorker.fetch(new Request(loginUrl.toString(), { headers: request.headers }), env);
+        }
+      }
       if (
         url.pathname === "/data-core" ||
         url.pathname === "/data-core/" ||
@@ -368,6 +430,10 @@ const worker = {
           env,
         );
       }
+      if (url.pathname === "/data-core/accounts" || url.pathname === "/data-core/accounts/") {
+        url.pathname = "/data-core/accounts.html";
+        return baseWorker.fetch(new Request(url.toString(), { headers: request.headers }), env);
+      }
       if (
         url.pathname === "/data-core/content" ||
         url.pathname === "/data-core/content/" ||
@@ -383,6 +449,9 @@ const worker = {
     }
 
     try {
+      const authResponse = await handleStandaloneAuthApi(request, env);
+      if (authResponse) return authResponse;
+
       const fileMetadataResponse = await handleFileMetadataApi(request, env);
       if (fileMetadataResponse) return fileMetadataResponse;
 

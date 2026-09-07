@@ -41,4 +41,6 @@ jobs:
           node --check public/data-core/operations.js
           node --check public/data-core/roadmap.js
           node --check public/data-core/readiness.js
+          node --check public/data-core/login.js
+          node --check public/data-core/accounts.js
           node --check public/admissions-web/renderer/data-core-upload-bridge.js

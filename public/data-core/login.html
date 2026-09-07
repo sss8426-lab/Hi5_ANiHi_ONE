@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DATA CORE 로그인</title>
+  <link rel="stylesheet" href="/data-core/login.css">
+</head>
+<body>
+  <main class="login-shell">
+    <section class="login-panel" aria-labelledby="loginTitle">
+      <div class="brand"><span>H5</span><div><strong>HI5·ANiHi</strong><small>DATA CORE</small></div></div>
+      <div id="loginFormWrap">
+        <p class="eyebrow">업무용 자료 보호</p>
+        <h1 id="loginTitle">로그인</h1>
+        <form id="loginForm">
+          <label>로그인 ID<input id="loginId" name="loginId" autocomplete="username" required></label>
+          <label>비밀번호<input id="password" name="password" type="password" autocomplete="current-password" required></label>
+          <p class="message" id="message" role="alert"></p>
+          <button type="submit">로그인</button>
+        </form>
+      </div>
+      <div id="passwordFormWrap" class="hidden">
+        <p class="eyebrow">첫 로그인</p>
+        <h1>비밀번호 변경</h1>
+        <form id="passwordForm">
+          <label>현재 비밀번호<input id="currentPassword" type="password" autocomplete="current-password" required></label>
+          <label>새 비밀번호<input id="nextPassword" type="password" autocomplete="new-password" minlength="12" required></label>
+          <label>새 비밀번호 확인<input id="confirmPassword" type="password" autocomplete="new-password" minlength="12" required></label>
+          <p class="message" id="passwordMessage" role="alert"></p>
+          <button type="submit">변경 후 시작하기</button>
+        </form>
+      </div>
+      <a class="back" href="/data-core/counseling">공개 상담 화면으로 돌아가기</a>
+    </section>
+  </main>
+  <script type="module" src="/data-core/login.js"></script>
+</body>
+</html>

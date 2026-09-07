@@ -124,3 +124,9 @@ SUPER_ADMIN에게만:
 - 파일 열기/업로드/삭제/복원 실사용 확인
 - 계정 1개 생성 후 해당 캠퍼스만 보이는지 확인
 - logout 후 protected API 401 확인
+
+## 구현 상태 (Issue #28)
+- `worker/data-core-auth.ts`에 PBKDF2-HMAC-SHA-256 비밀번호 hash, 256-bit session token hash, 실패 잠금, audit 기록을 구현했다.
+- 기존 OpenAI authenticated headers를 우선 사용하고, 일반 브라우저는 Secure/HttpOnly/SameSite=Lax cookie session으로 인증한다.
+- `/data-core/login`, `/data-core/accounts`, `/api/auth/*`, `npm run auth:create-master`를 추가했다.
+- 마스터 계정의 실제 ID와 비밀번호는 이 문서, Git, 대화에 기록하지 않는다. production 배포 후 로컬 terminal에서만 bootstrap을 실행한다.

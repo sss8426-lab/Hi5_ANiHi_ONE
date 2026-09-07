@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DATA CORE 계정 관리</title>
+  <link rel="stylesheet" href="/data-core/styles.css">
+  <link rel="stylesheet" href="/data-core/accounts.css">
+</head>
+<body>
+  <main class="accounts-shell">
+    <header class="accounts-header">
+      <div><p class="eyebrow">HI5·ANiHi DATA CORE</p><h1>계정 관리</h1><p>학교별 업무 계정과 로그인 상태를 관리합니다.</p></div>
+      <a class="ghost-btn link-btn" href="/data-core/operations">운영관리로 돌아가기</a>
+    </header>
+    <section class="notice hidden" id="notice"></section>
+    <section class="panel account-create" id="createPanel">
+      <div class="panel-head"><div><h2>계정 만들기</h2><p>임시 비밀번호는 생성 직후 한 번만 표시됩니다.</p></div></div>
+      <form id="createForm" class="account-form">
+        <label>이름<input id="displayName" required></label>
+        <label>로그인 ID<input id="loginId" required autocomplete="off"></label>
+        <label>역할<select id="role"><option value="TEACHER">교사</option><option value="STAFF">직원</option><option value="CAMPUS_DIRECTOR">캠퍼스 원장</option><option value="SUPER_ADMIN">마스터 관리자</option></select></label>
+        <label id="campusField">캠퍼스<select id="campusId"></select></label>
+        <label>임시 비밀번호<input id="temporaryPassword" type="password" minlength="12" required autocomplete="new-password"></label>
+        <button class="primary-btn" type="submit">계정 만들기</button>
+      </form>
+      <div class="temporary-password hidden" id="temporaryResult"></div>
+    </section>
+    <section class="panel"><div class="panel-head"><div><h2>계정 목록</h2><p>비활성화하거나 세션을 해제하면 해당 계정은 즉시 다시 로그인해야 합니다.</p></div><button class="ghost-btn" id="refreshBtn">새로고침</button></div>
+      <div class="table-wrap"><table><thead><tr><th>이름</th><th>로그인 ID</th><th>권한</th><th>상태</th><th>마지막 로그인</th><th></th></tr></thead><tbody id="accountsBody"></tbody></table><div class="empty-state hidden" id="empty">표시할 계정이 없습니다.</div></div>
+    </section>
+  </main>
+  <script type="module" src="/data-core/accounts.js"></script>
+</body>
+</html>

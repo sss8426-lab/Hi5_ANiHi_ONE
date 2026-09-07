@@ -1,4 +1,5 @@
 import { ensureDataCoreDatabase } from "./data-core";
+import { ensureStandaloneAuthSchema } from "./data-core-auth";
 
 let migrationsReady: Promise<void> | null = null;
 
@@ -14,6 +15,7 @@ export async function ensureDataCoreMigrations(db: D1Database): Promise<void> {
 
 async function runMigrations(db: D1Database) {
   await ensureDataCoreDatabase(db);
+  await ensureStandaloneAuthSchema(db);
   await ensureColumn(db, "data_records", "content_text", "TEXT");
   await ensureColumn(db, "file_objects", "source_app", "TEXT NOT NULL DEFAULT 'legacy'");
   await db.exec(

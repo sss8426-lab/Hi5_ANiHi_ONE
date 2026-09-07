@@ -35,6 +35,7 @@ export type DataCoreAccessContext = {
   isSuperAdmin: boolean;
   campusIds: string[];
   canWrite: boolean;
+  mustChangePassword?: boolean;
 };
 
 const DEFAULT_CAMPUSES = [
@@ -115,7 +116,7 @@ export async function resolveDataCoreAccess(
   bootstrapAdminEmails?: string,
 ): Promise<DataCoreAccessContext> {
   const identity = requestIdentity(request);
-  if (!identity) {
+  if (!identity && !db) {
     return {
       authenticated: false,
       database: Boolean(db),
@@ -126,7 +127,7 @@ export async function resolveDataCoreAccess(
     };
   }
 
-  if (!db) {
+  if (identity && !db) {
     return {
       authenticated: true,
       database: false,
@@ -141,9 +142,42 @@ export async function resolveDataCoreAccess(
     };
   }
 
+  if (!db) {
+    return {
+      authenticated: false,
+      database: false,
+      memberships: [],
+      isSuperAdmin: false,
+      campusIds: [],
+      canWrite: false,
+    };
+  }
+
   await ensureDefaultCampuses(db);
-  const internalUserId = await syncRequestUser(db, identity);
-  await ensureBootstrapSuperAdmin(db, internalUserId, identity.email, bootstrapAdminEmails);
+  let user: NonNullable<DataCoreAccessContext["user"]>;
+  let mustChangePassword = false;
+  if (identity) {
+    const internalUserId = await syncRequestUser(db, identity);
+    await ensureBootstrapSuperAdmin(db, internalUserId, identity.email, bootstrapAdminEmails);
+    user = { ...identity, internalUserId };
+  } else {
+    // Dynamic import keeps the OAI access helper usable without a module cycle.
+    const { ensureStandaloneAuthSchema, standaloneSessionIdentity } = await import("./data-core-auth");
+    await ensureStandaloneAuthSchema(db);
+    const sessionIdentity = await standaloneSessionIdentity(db, request);
+    if (!sessionIdentity) {
+      return {
+        authenticated: false,
+        database: true,
+        memberships: [],
+        isSuperAdmin: false,
+        campusIds: [],
+        canWrite: false,
+      };
+    }
+    user = sessionIdentity;
+    mustChangePassword = sessionIdentity.mustChangePassword;
+  }
 
   const result = await db
     .prepare(
@@ -165,7 +199,7 @@ export async function resolveDataCoreAccess(
          END,
          c.name`,
     )
-    .bind(internalUserId, DEFAULT_ORGANIZATION_ID)
+    .bind(user.internalUserId, DEFAULT_ORGANIZATION_ID)
     .all<{
       id: string;
       organization_id: string;
@@ -189,14 +223,12 @@ export async function resolveDataCoreAccess(
   return {
     authenticated: true,
     database: true,
-    user: {
-      ...identity,
-      internalUserId,
-    },
+    user,
     memberships,
     isSuperAdmin,
     campusIds,
     canWrite: isSuperAdmin || memberships.length > 0,
+    mustChangePassword,
   };
 }
 
@@ -211,6 +243,9 @@ export function requireAuthenticatedAccess(context: DataCoreAccessContext): void
 
 export function requireWriteAccess(context: DataCoreAccessContext): void {
   requireAuthenticatedAccess(context);
+  if (context.mustChangePassword) {
+    throw new DataCoreAccessError(403, "첫 로그인 비밀번호를 먼저 변경하세요.");
+  }
   if (!context.canWrite) {
     throw new DataCoreAccessError(403, "DATA CORE 사용 권한이 아직 부여되지 않았습니다.");
   }
