@@ -124,7 +124,9 @@ export async function updateKkumeumGuardianLink(
   manager(context, campusId);
   await ensureKkumeumGuardianAuthSchema(familyDb);
   await studentInCampus(familyDb, campusId, studentId);
-  const link = await familyDb.prepare("SELECT guardian_id FROM student_guardians WHERE guardian_id = ? AND student_id = ?").bind(guardianId, studentId).first();
+  const link = await familyDb.prepare(
+    "SELECT guardian_id, relationship_label, can_view_reports, can_view_photos FROM student_guardians WHERE guardian_id = ? AND student_id = ?",
+  ).bind(guardianId, studentId).first<{ guardian_id: string; relationship_label: string | null; can_view_reports: number; can_view_photos: number }>();
   if (!link) throw new DataCoreAccessError(404, "보호자 연결을 찾을 수 없습니다.");
   const status = input.status === undefined ? null : text(input.status, 20);
   if (status && !["active", "disabled"].includes(status)) throw new DataCoreAccessError(400, "보호자 상태값이 올바르지 않습니다.");
@@ -132,7 +134,13 @@ export async function updateKkumeumGuardianLink(
     familyDb.prepare(
       `UPDATE student_guardians SET relationship_label = ?, can_view_reports = ?, can_view_photos = ?
        WHERE guardian_id = ? AND student_id = ?`,
-    ).bind(text(input.relationshipLabel, 80) || null, input.canViewReports === false ? 0 : 1, input.canViewPhotos === false ? 0 : 1, guardianId, studentId),
+    ).bind(
+      input.relationshipLabel === undefined ? link.relationship_label : text(input.relationshipLabel, 80) || null,
+      input.canViewReports === undefined ? link.can_view_reports : input.canViewReports === false ? 0 : 1,
+      input.canViewPhotos === undefined ? link.can_view_photos : input.canViewPhotos === false ? 0 : 1,
+      guardianId,
+      studentId,
+    ),
   ];
   if (status) statements.push(familyDb.prepare("UPDATE family_guardians SET status = ?, updated_at = ? WHERE id = ?").bind(status, new Date().toISOString(), guardianId));
   if (status === "disabled") {

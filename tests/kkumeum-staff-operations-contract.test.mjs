@@ -69,7 +69,7 @@ test('guardian management is isolated to FAMILY_DB, returns a one-time password,
     assert.equal(createdClass.response.status, 201);
     const student = await request('/api/kkumeum/students', 'POST', { campusId: CAMPUS, name: '검증용 학생', classId: createdClass.body.class.id, status: 'active' });
     assert.equal(student.response.status, 201);
-    const guardian = await request('/api/kkumeum/guardians', 'POST', { campusId: CAMPUS, studentId: student.body.student.id, displayName: '검증용 보호자', loginId: 'operations-guardian', relationshipLabel: '부모' });
+    const guardian = await request('/api/kkumeum/guardians', 'POST', { campusId: CAMPUS, studentId: student.body.student.id, displayName: '검증용 보호자', loginId: 'operations-guardian', relationshipLabel: '부모', canViewReports: false, canViewPhotos: false });
     assert.equal(guardian.response.status, 201);
     assert.match(guardian.body.temporaryPassword, /^[A-Za-z0-9]+$/);
     const saved = await env.FAMILY_DB.prepare('SELECT password_hash, password_salt FROM family_guardians WHERE id = ?').bind(guardian.body.guardian.id).first();
@@ -81,6 +81,11 @@ test('guardian management is isolated to FAMILY_DB, returns a one-time password,
     assert.equal(list.response.status, 200);
     assert.equal(list.response.headers.get('cache-control'), 'private, no-store');
     assert.equal(list.body.guardians[0].loginId, 'operations-guardian');
+    const disabled = await request(`/api/kkumeum/guardians/${guardian.body.guardian.id}`, 'PATCH', { campusId: CAMPUS, studentId: student.body.student.id, status: 'disabled' });
+    assert.equal(disabled.response.status, 200);
+    const preservedPermissions = await env.FAMILY_DB.prepare('SELECT can_view_reports, can_view_photos FROM student_guardians WHERE guardian_id = ? AND student_id = ?').bind(guardian.body.guardian.id, student.body.student.id).first();
+    assert.equal(preservedPermissions.can_view_reports, 0);
+    assert.equal(preservedPermissions.can_view_photos, 0);
   } finally {
     await mf.dispose();
   }
