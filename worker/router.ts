@@ -14,6 +14,11 @@ import {
   type CompetitionInput,
   type CompetitionResultInput,
 } from "./data-core-competitions";
+import {
+  listDeletedDataCoreFiles,
+  purgeDataCoreFile,
+  restoreDataCoreFile,
+} from "./data-core-files";
 
 interface Env {
   ASSETS?: Fetcher;
@@ -34,6 +39,50 @@ async function readJson<T>(request: Request): Promise<T> {
   } catch {
     throw new DataCoreAccessError(400, "JSON 요청 형식이 올바르지 않습니다.");
   }
+}
+
+async function handleTrashApi(request: Request, env: Env) {
+  const url = new URL(request.url);
+  if (!url.pathname.startsWith("/api/data-core/trash/files")) return null;
+  if (!env.DB || !env.FILES) {
+    throw new DataCoreAccessError(503, "DATA CORE의 D1과 R2가 모두 연결되어야 합니다.");
+  }
+
+  const context = await resolveDataCoreAccess(
+    request,
+    env.DB,
+    env.DATA_CORE_SUPER_ADMIN_EMAILS,
+  );
+
+  if (url.pathname === "/api/data-core/trash/files" && request.method === "GET") {
+    return jsonResponse({ files: await listDeletedDataCoreFiles(env.DB, context, url) });
+  }
+
+  const restoreMatch = url.pathname.match(/^\/api\/data-core\/trash\/files\/([^/]+)\/restore$/);
+  if (restoreMatch && request.method === "POST") {
+    return jsonResponse(
+      await restoreDataCoreFile(
+        env.DB,
+        env.FILES,
+        context,
+        decodeURIComponent(restoreMatch[1]),
+      ),
+    );
+  }
+
+  const purgeMatch = url.pathname.match(/^\/api\/data-core\/trash\/files\/([^/]+)$/);
+  if (purgeMatch && request.method === "DELETE") {
+    return jsonResponse(
+      await purgeDataCoreFile(
+        env.DB,
+        env.FILES,
+        context,
+        decodeURIComponent(purgeMatch[1]),
+      ),
+    );
+  }
+
+  return jsonResponse({ error: "지원하지 않는 휴지통 API 요청입니다." }, { status: 405 });
 }
 
 async function handleCompetitionApi(request: Request, env: Env) {
@@ -133,15 +182,18 @@ const worker = {
     }
 
     try {
+      const trashResponse = await handleTrashApi(request, env);
+      if (trashResponse) return trashResponse;
+
       const competitionResponse = await handleCompetitionApi(request, env);
       if (competitionResponse) return competitionResponse;
     } catch (error) {
       if (error instanceof DataCoreAccessError) {
         return jsonResponse({ error: error.message }, { status: error.status });
       }
-      console.error("Competition DATA CORE API error", error);
+      console.error("DATA CORE domain router error", error);
       return jsonResponse(
-        { error: "공모전/실기대회 데이터를 처리하는 중 오류가 발생했습니다." },
+        { error: "DATA CORE 요청을 처리하는 중 오류가 발생했습니다." },
         { status: 500 },
       );
     }
