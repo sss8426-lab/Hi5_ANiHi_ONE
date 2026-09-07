@@ -7,7 +7,17 @@ import {
   KkumeumBindings,
   kkumeumBindingStatus,
   requireFamilyDatabase,
+  requireFamilyFiles,
 } from "./kkumeum-core";
+import {
+  getKkumeumArtwork,
+  listKkumeumArtworks,
+  readKkumeumFamilyFile,
+  restoreKkumeumArtwork,
+  trashKkumeumArtwork,
+  updateKkumeumArtwork,
+  uploadKkumeumArtwork,
+} from "./kkumeum-artworks";
 import { requireKkumeumReportEditAccess } from "./kkumeum-report-access";
 import {
   createMonthlyReport,
@@ -100,6 +110,82 @@ export async function handleKkumeumApi(
 
   requireKkumeumBindingsReady(context, env);
   const familyDb = requireFamilyDatabase(context, env.FAMILY_DB);
+
+  const familyFileMatch = url.pathname.match(/^\/api\/kkumeum\/files\/([^/]+)$/);
+  if (familyFileMatch) {
+    if (request.method !== "GET") {
+      return respond({ error: "지원하지 않는 꿈이음 파일 요청입니다." }, { status: 405 });
+    }
+    return readKkumeumFamilyFile(
+      familyDb,
+      requireFamilyFiles(context, env.FAMILY_FILES),
+      context,
+      decodeURIComponent(familyFileMatch[1]),
+    );
+  }
+
+  if (url.pathname === "/api/kkumeum/artworks") {
+    if (request.method === "GET") {
+      return respond({
+        artworks: await listKkumeumArtworks(
+          familyDb,
+          context,
+          requiredCampusId(url),
+          requiredStudentId(url),
+        ),
+      });
+    }
+    if (request.method === "POST") {
+      return respond(
+        {
+          artwork: await uploadKkumeumArtwork(
+            request,
+            familyDb,
+            requireFamilyFiles(context, env.FAMILY_FILES),
+            context,
+          ),
+        },
+        { status: 201 },
+      );
+    }
+    return respond({ error: "지원하지 않는 꿈이음 작품 요청입니다." }, { status: 405 });
+  }
+
+  const artworkRestoreMatch = url.pathname.match(/^\/api\/kkumeum\/artworks\/([^/]+)\/restore$/);
+  if (artworkRestoreMatch) {
+    if (request.method !== "POST") {
+      return respond({ error: "지원하지 않는 꿈이음 작품 복원 요청입니다." }, { status: 405 });
+    }
+    return respond(
+      await restoreKkumeumArtwork(
+        familyDb,
+        context,
+        decodeURIComponent(artworkRestoreMatch[1]),
+      ),
+    );
+  }
+
+  const artworkMatch = url.pathname.match(/^\/api\/kkumeum\/artworks\/([^/]+)$/);
+  if (artworkMatch) {
+    const artworkId = decodeURIComponent(artworkMatch[1]);
+    if (request.method === "GET") {
+      return respond({ artwork: await getKkumeumArtwork(familyDb, context, artworkId) });
+    }
+    if (request.method === "PATCH") {
+      return respond({
+        artwork: await updateKkumeumArtwork(
+          familyDb,
+          context,
+          artworkId,
+          await readJson(request),
+        ),
+      });
+    }
+    if (request.method === "DELETE") {
+      return respond(await trashKkumeumArtwork(familyDb, context, artworkId));
+    }
+    return respond({ error: "지원하지 않는 꿈이음 작품 요청입니다." }, { status: 405 });
+  }
 
   if (url.pathname === "/api/kkumeum/reports/generate") {
     if (request.method !== "POST") {
