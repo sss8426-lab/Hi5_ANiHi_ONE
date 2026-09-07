@@ -36,6 +36,18 @@ function requiredCampusId(url: URL): string {
   return campusId;
 }
 
+function requireKkumeumBindingsReady(
+  context: DataCoreAccessContext,
+  env: KkumeumRouterEnv,
+): void {
+  const status = kkumeumBindingStatus(context, env);
+  if (status.ok) return;
+  throw new DataCoreAccessError(
+    503,
+    "꿈이음 전용 FAMILY_DB/FAMILY_FILES 연결이 아직 완료되지 않았습니다. 학생·보호자 데이터는 기존 DATA CORE에 대신 저장하지 않습니다.",
+  );
+}
+
 export async function handleKkumeumApi(
   request: Request,
   env: KkumeumRouterEnv,
@@ -54,6 +66,7 @@ export async function handleKkumeumApi(
     return jsonResponse({ status }, { status: status.ok ? 200 : 503 });
   }
 
+  requireKkumeumBindingsReady(context, env);
   const familyDb = requireFamilyDatabase(context, env.FAMILY_DB);
 
   if (url.pathname === "/api/kkumeum/classes") {
