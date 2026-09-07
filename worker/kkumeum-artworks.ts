@@ -194,8 +194,11 @@ export async function uploadKkumeumArtwork(
   const createdAt = new Date().toISOString();
   // Deliberately exclude names, phones, schools and original file names from the private R2 key.
   const r2Key = ["kkumeum", "private", campusId, studentId, fileId].join("/");
+  // File size is capped at 30MB. Buffering gives R2/Miniflare a known content length and avoids
+  // ambiguous streaming semantics while keeping a strict, bounded memory ceiling.
+  const fileBytes = await file.arrayBuffer();
 
-  await familyFiles.put(r2Key, file.stream(), {
+  await familyFiles.put(r2Key, fileBytes, {
     httpMetadata: { contentType: file.type || "application/octet-stream" },
     customMetadata: { familyFileId: fileId, campusId, studentId, purpose: "artwork" },
   });
