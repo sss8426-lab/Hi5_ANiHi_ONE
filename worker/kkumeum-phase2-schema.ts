@@ -31,7 +31,8 @@ const PHASE2_SCHEMA = [
     teacher_note TEXT,
     growth_points_json TEXT NOT NULL DEFAULT '{}',
     next_month_focus TEXT,
-    status TEXT NOT NULL DEFAULT 'draft',
+    status TEXT NOT NULL DEFAULT 'draft'
+      CHECK (status IN ('draft', 'ready', 'sent')),
     sent_at TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
