@@ -123,6 +123,21 @@ function metric(value) {
   return '확인 필요';
 }
 
+function textOrEmpty(value) {
+  return typeof value === 'string' || typeof value === 'number' ? String(value).trim() : '';
+}
+
+function sourceUrl(value) {
+  const candidate = textOrEmpty(value);
+  if (!candidate) return '';
+  try {
+    const url = new URL(candidate);
+    return /^https?:$/.test(url.protocol) ? url.href : '';
+  } catch {
+    return '';
+  }
+}
+
 function deepScoreValue(value, wantedKeys) {
   if (!value || typeof value !== 'object') return null;
   const stack = [value];
@@ -157,6 +172,9 @@ function programRow(program) {
     admission: metadata.admission || '',
     practical: metadata.practicalType || '',
     year: metadata.year || '',
+    schoolType: metadata.schoolType || metadata.degreeType || '',
+    source: sourceUrl(metadata.officialSourceUrl || metadata.sourceUrl || metadata.officialUrl),
+    verification: textOrEmpty(metadata.verificationStatus || metadata.reviewStatus || metadata.verifiedAt),
   };
 }
 
@@ -166,7 +184,7 @@ function renderUniversities(roadmap) {
   const rows = programs.map(programRow);
   for (const university of universities) {
     if (!rows.some((row) => row.university === university.name)) {
-      rows.push({ university: university.name, department: '학과 정보 연결 중', region: '확인 필요', skillRatio: '확인 필요', gradeRatio: '확인 필요', competition: '확인 필요', average: '확인 필요', minimum: '확인 필요', admission: '', practical: '', year: '' });
+      rows.push({ university: university.name, department: '학과 정보 연결 중', region: '확인 필요', skillRatio: '확인 필요', gradeRatio: '확인 필요', competition: '확인 필요', average: '확인 필요', minimum: '확인 필요', admission: '', practical: '', year: '', schoolType: '', source: '', verification: '' });
     }
   }
 
@@ -179,11 +197,12 @@ function renderUniversities(roadmap) {
   }
 
   $('universityContent').innerHTML = `<div class="university-table-wrap"><table class="university-table">
-    <thead><tr><th>대학</th><th>학과</th><th>지역</th><th>실기반영비</th><th>성적반영비</th><th>경쟁률</th><th>합격평균성적</th><th>최저성적</th></tr></thead>
+    <thead><tr><th>대학명</th><th>학과명</th><th>지역</th><th>실기반영비</th><th>성적반영비</th><th>경쟁률</th><th>합격평균성적</th><th>최저성적</th><th>출처·검수</th></tr></thead>
     <tbody>${rows.map((row) => `<tr>
       <td><strong>${h(row.university)}</strong>${row.year ? `<small>${h(row.year)}학년도</small>` : ''}</td>
-      <td>${h(row.department)}${row.practical ? `<small>${h(row.practical)}</small>` : ''}</td>
+      <td>${h(row.department)}${[row.schoolType, row.admission, row.practical].filter(Boolean).length ? `<small>${h([row.schoolType, row.admission, row.practical].filter(Boolean).join(' · '))}</small>` : ''}</td>
       <td>${h(row.region)}</td><td>${h(row.skillRatio)}</td><td>${h(row.gradeRatio)}</td><td>${h(row.competition)}</td><td>${h(row.average)}</td><td>${h(row.minimum)}</td>
+      <td><small>${row.source ? `<a class="source-link" href="${h(row.source)}" target="_blank" rel="noopener">공식 출처</a>` : '공식 출처 확인 필요'}${row.verification ? `<br>검수: ${h(row.verification)}` : '<br>검수 상태 확인 필요'}</small></td>
     </tr>`).join('')}</tbody>
   </table></div>`;
 }
