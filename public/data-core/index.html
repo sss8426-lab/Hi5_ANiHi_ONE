@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HI5·ANiHi DATA CORE</title>
+  <link rel="stylesheet" href="/data-core/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark">H5</span>
+        <div>
+          <strong>HI5·ANiHi</strong>
+          <small>DATA CORE</small>
+        </div>
+      </div>
+
+      <nav class="nav" id="nav">
+        <button class="nav-item active" data-view="library">
+          <span class="nav-icon">▦</span>
+          <span>자료보관함</span>
+        </button>
+        <button class="nav-item" data-view="search">
+          <span class="nav-icon">⌕</span>
+          <span>통합검색</span>
+        </button>
+        <button class="nav-item" data-view="competitions">
+          <span class="nav-icon">☆</span>
+          <span>공모전·실기대회</span>
+        </button>
+        <button class="nav-item hidden" data-view="admin" id="adminNav">
+          <span class="nav-icon">⚙</span>
+          <span>권한관리</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-bottom">
+        <div class="connection-card" id="connectionCard">
+          <span class="status-dot"></span>
+          <div>
+            <strong>연결 확인 중</strong>
+            <small>DATA CORE</small>
+          </div>
+        </div>
+        <a class="back-link" href="/">입시 컨설팅으로 돌아가기</a>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">HI5·ANiHi 통합 데이터 허브</p>
+          <h1 id="pageTitle">자료보관함</h1>
+        </div>
+        <div class="user-chip" id="userChip">
+          <div class="avatar">H</div>
+          <div>
+            <strong>사용자 확인 중</strong>
+            <small>로그인 정보를 불러오고 있습니다</small>
+          </div>
+        </div>
+      </header>
+
+      <section class="notice hidden" id="globalNotice"></section>
+
+      <section class="view active" id="view-library">
+        <div class="hero-row">
+          <div>
+            <h2>모든 자료를 한 곳에서 관리합니다</h2>
+            <p>어느 기능에서 올린 자료든 HI5·ANiHi DATA CORE에 모이고, 다른 기능에서 다시 사용할 수 있습니다.</p>
+          </div>
+          <button class="primary-btn" id="openUploadBtn">+ 파일 업로드</button>
+        </div>
+
+        <div class="stats-grid">
+          <article class="stat-card">
+            <span>현재 표시 파일</span>
+            <strong id="fileCount">0</strong>
+            <small>검색 조건 기준</small>
+          </article>
+          <article class="stat-card">
+            <span>접근 가능 캠퍼스</span>
+            <strong id="campusCount">0</strong>
+            <small>로그인 권한 기준</small>
+          </article>
+          <article class="stat-card">
+            <span>중앙 저장 상태</span>
+            <strong id="storageStatus">확인 중</strong>
+            <small>D1 + R2</small>
+          </article>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <h3>중앙 자료</h3>
+              <p>캠퍼스·분류·파일명으로 필요한 자료를 빠르게 찾습니다.</p>
+            </div>
+            <button class="ghost-btn" id="refreshFilesBtn">새로고침</button>
+          </div>
+
+          <div class="filters file-filters">
+            <label>
+              <span>캠퍼스</span>
+              <select id="fileCampusFilter"></select>
+            </label>
+            <label>
+              <span>분류</span>
+              <select id="fileCategoryFilter">
+                <option value="">전체 분류</option>
+                <option value="student-artwork">학생작품</option>
+                <option value="class-photo">수업사진</option>
+                <option value="academy-photo">학원사진</option>
+                <option value="competition-poster">공모전 포스터</option>
+                <option value="competition-guide">공모전 요강</option>
+                <option value="award-work">수상작</option>
+                <option value="admission-guide">입시요강</option>
+                <option value="research-work">연구작</option>
+                <option value="document">문서</option>
+              </select>
+            </label>
+            <label class="search-field">
+              <span>검색</span>
+              <input id="fileSearchInput" placeholder="파일명 또는 분류 검색">
+            </label>
+            <button class="secondary-btn filter-button" id="fileSearchBtn">검색</button>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>파일</th>
+                  <th>캠퍼스</th>
+                  <th>분류</th>
+                  <th>크기</th>
+                  <th>등록일</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="fileTableBody"></tbody>
+            </table>
+            <div class="empty-state hidden" id="fileEmpty">조건에 맞는 자료가 없습니다.</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-search">
+        <div class="hero-row">
+          <div>
+            <h2>축적된 모든 정보를 한 번에 검색합니다</h2>
+            <p>블로그, 공모전, 입시, 교육자료, 전공 로드맵의 제목·내용·태그를 함께 검색합니다.</p>
+          </div>
+        </div>
+
+        <div class="search-hero panel">
+          <div class="global-search-box">
+            <input id="globalSearchInput" placeholder="예: 청강대, 웹툰, 상황표현, 고2 연구작">
+            <button class="primary-btn" id="globalSearchBtn">DATA CORE 검색</button>
+          </div>
+          <div class="search-options">
+            <select id="searchSourceFilter">
+              <option value="">모든 서비스</option>
+              <option value="competition">공모전·실기대회</option>
+              <option value="admissions">입시</option>
+              <option value="blog">블로그</option>
+              <option value="instagram">인스타그램</option>
+              <option value="education">교육·수업</option>
+              <option value="dream-roadmap">꿈·전공 로드맵</option>
+            </select>
+            <select id="searchCampusFilter"></select>
+          </div>
+        </div>
+        <div class="search-results" id="searchResults"></div>
+      </section>
+
+      <section class="view" id="view-competitions">
+        <div class="hero-row">
+          <div>
+            <h2>공모전·실기대회 정보 공유</h2>
+            <p>일정과 요강을 공유하고 출품·수상 데이터를 쌓아 장기적으로 성과를 분석합니다.</p>
+          </div>
+          <button class="primary-btn" id="openCompetitionBtn">+ 대회 등록</button>
+        </div>
+        <div class="competition-list" id="competitionList"></div>
+      </section>
+
+      <section class="view" id="view-admin">
+        <div class="hero-row">
+          <div>
+            <h2>사용자·캠퍼스 권한 관리</h2>
+            <p>마스터 관리자만 접근할 수 있습니다. 사용자가 한 번 로그인한 뒤 권한을 부여할 수 있습니다.</p>
+          </div>
+        </div>
+
+        <div class="admin-grid">
+          <div class="panel">
+            <div class="panel-head"><h3>권한 부여</h3></div>
+            <form id="membershipForm" class="form-stack">
+              <label><span>사용자 이메일</span><input id="memberEmail" type="email" required placeholder="teacher@example.com"></label>
+              <label><span>캠퍼스</span><select id="memberCampus"></select></label>
+              <label><span>역할</span>
+                <select id="memberRole">
+                  <option value="TEACHER">교사</option>
+                  <option value="STAFF">직원</option>
+                  <option value="CAMPUS_DIRECTOR">캠퍼스 원장</option>
+                  <option value="SUPER_ADMIN">마스터 관리자</option>
+                </select>
+              </label>
+              <button class="primary-btn" type="submit">권한 부여</button>
+            </form>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h3>현재 권한</h3><button class="ghost-btn" id="refreshMembershipsBtn">새로고침</button></div>
+            <div class="membership-list" id="membershipList"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal-backdrop hidden" id="uploadModal">
+    <div class="modal">
+      <div class="modal-head">
+        <div><h3>DATA CORE 파일 업로드</h3><p>한 번 올린 자료는 여러 서비스에서 다시 사용할 수 있습니다.</p></div>
+        <button class="icon-btn" data-close-modal="uploadModal">×</button>
+      </div>
+      <form id="uploadForm" class="form-stack">
+        <label><span>캠퍼스</span><select id="uploadCampus" required></select></label>
+        <label><span>자료 영역</span>
+          <select id="uploadArea">
+            <option value="documents-private">내부 자료</option>
+            <option value="student-private">학생 비공개 자료</option>
+            <option value="academy-public">공유·홍보 가능 자료</option>
+            <option value="exports-temporary">임시 출력물</option>
+          </select>
+        </label>
+        <label><span>분류</span>
+          <select id="uploadCategory">
+            <option value="student-artwork">학생작품</option>
+            <option value="class-photo">수업사진</option>
+            <option value="academy-photo">학원사진</option>
+            <option value="competition-poster">공모전 포스터</option>
+            <option value="competition-guide">공모전 요강</option>
+            <option value="award-work">수상작</option>
+            <option value="admission-guide">입시요강</option>
+            <option value="research-work">연구작</option>
+            <option value="document">기타 문서</option>
+          </select>
+        </label>
+        <label class="file-drop" id="fileDrop">
+          <input id="uploadFile" type="file" required>
+          <strong>파일을 선택하거나 이곳에 놓으세요</strong>
+          <small id="selectedFileName">최대 100MB</small>
+        </label>
+        <button class="primary-btn" type="submit" id="uploadSubmitBtn">중앙 저장소에 업로드</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="competitionModal">
+    <div class="modal modal-wide">
+      <div class="modal-head">
+        <div><h3>공모전·실기대회 등록</h3><p>핵심 정보를 구조화해서 이후 검색·분석에 활용합니다.</p></div>
+        <button class="icon-btn" data-close-modal="competitionModal">×</button>
+      </div>
+      <form id="competitionForm" class="form-grid">
+        <label class="span-2"><span>대회명</span><input id="competitionTitle" required></label>
+        <label><span>관련 캠퍼스</span><select id="competitionCampus"></select></label>
+        <label><span>연도</span><input id="competitionYear" type="number" min="2000" max="2200"></label>
+        <label><span>주최·주관</span><input id="competitionOrganizer"></label>
+        <label><span>관련 대학</span><input id="competitionSchool"></label>
+        <label><span>접수 시작</span><input id="competitionStart" type="date"></label>
+        <label><span>접수 마감</span><input id="competitionEnd" type="date"></label>
+        <label><span>대회일</span><input id="competitionDate" type="date"></label>
+        <label><span>발표일</span><input id="competitionResultDate" type="date"></label>
+        <label class="span-2"><span>전공 (쉼표로 구분)</span><input id="competitionMajors" placeholder="웹툰, 만화, 애니메이션"></label>
+        <label class="span-2"><span>실기유형 (쉼표로 구분)</span><input id="competitionTypes" placeholder="상황표현, 칸만화"></label>
+        <label class="span-2"><span>요약</span><textarea id="competitionSummary" rows="3"></textarea></label>
+        <label class="span-2"><span>상세 정보</span><textarea id="competitionContent" rows="6" placeholder="요강 핵심, 준비 포인트, 내부 안내사항"></textarea></label>
+        <div class="span-2 form-actions"><button class="primary-btn" type="submit">대회 정보 저장</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="toast hidden" id="toast"></div>
+  <script src="/data-core/app.js"></script>
+</body>
+</html>
