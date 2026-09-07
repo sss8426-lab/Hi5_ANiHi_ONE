@@ -11,6 +11,8 @@ import {
   listCompetitionResults,
   listCompetitions,
   updateCompetition,
+  type CompetitionInput,
+  type CompetitionResultInput,
 } from "./data-core-competitions";
 
 interface Env {
@@ -26,9 +28,9 @@ function jsonResponse(value: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(value), { ...init, headers });
 }
 
-async function readJson(request: Request) {
+async function readJson<T>(request: Request): Promise<T> {
   try {
-    return await request.json() as Record<string, unknown>;
+    return await request.json() as T;
   } catch {
     throw new DataCoreAccessError(400, "JSON 요청 형식이 올바르지 않습니다.");
   }
@@ -53,7 +55,13 @@ async function handleCompetitionApi(request: Request, env: Env) {
     }
     if (request.method === "POST") {
       return jsonResponse(
-        { competition: await createCompetition(env.DB, context, await readJson(request)) },
+        {
+          competition: await createCompetition(
+            env.DB,
+            context,
+            await readJson<CompetitionInput>(request),
+          ),
+        },
         { status: 201 },
       );
     }
@@ -76,7 +84,7 @@ async function handleCompetitionApi(request: Request, env: Env) {
             env.DB,
             context,
             competitionId,
-            await readJson(request),
+            await readJson<CompetitionResultInput>(request),
           ),
         },
         { status: 201 },
@@ -98,7 +106,7 @@ async function handleCompetitionApi(request: Request, env: Env) {
           env.DB,
           context,
           competitionId,
-          await readJson(request),
+          await readJson<CompetitionInput>(request),
         ),
       });
     }
