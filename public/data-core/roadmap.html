@@ -9,30 +9,36 @@
 <body>
   <div class="roadmap-shell">
     <header class="roadmap-header">
-      <a class="brand" href="/data-core">
+      <a class="brand" href="/data-core/counseling">
         <span class="brand-mark">H5</span>
         <span><strong>HI5·ANiHi</strong><small>꿈·전공 로드맵</small></span>
       </a>
       <nav class="header-links">
-        <a href="/data-core">DATA CORE</a>
-        <a href="/">입시 컨설팅</a>
+        <a href="/data-core/counseling">상담용 홈</a>
+        <a href="/">대학 합격 로드맵</a>
       </nav>
     </header>
 
     <main>
       <section class="hero">
-        <p class="eyebrow">DREAM → MAJOR → UNIVERSITY → SKILL → CURRICULUM</p>
-        <h1>당신의 꿈은 무엇인가요?</h1>
-        <p class="hero-copy">꿈에서 역산해 필요한 전공과 미술 역량, 앞으로 배워야 할 수업 순서를 설계합니다.</p>
+        <p class="eyebrow">DREAM → MAJOR → UNIVERSITY → PRACTICAL ROADMAP</p>
+        <h1>너의 꿈은 무엇이니?</h1>
+        <p class="hero-copy">대학부터 고르는 대신, 먼저 하고 싶은 일을 선택하세요. 꿈과 연결되는 전공·대학·입시정보와 앞으로 준비할 실기 순서를 한 번에 보여줍니다.</p>
 
         <form class="goal-search" id="goalSearchForm">
-          <input id="goalSearchInput" autocomplete="off" placeholder="예: 웹툰 작가, 게임 캐릭터 디자이너, 시각디자이너">
-          <button type="submit">로드맵 보기</button>
+          <input id="goalSearchInput" autocomplete="off" placeholder="꿈이나 전공을 직접 검색해도 됩니다. 예: 웹툰 작가, 패션 디자이너">
+          <button type="submit">검색</button>
         </form>
 
-        <div class="goal-section">
-          <div class="section-label">추천 목표</div>
-          <div class="goal-grid" id="goalGrid"></div>
+        <div class="catalog-section" id="catalogSection">
+          <div class="catalog-heading">
+            <div>
+              <span class="section-label">꿈·전공 전체 보기</span>
+              <h2>아이콘을 눌러 관심 분야를 선택하세요</h2>
+            </div>
+            <div class="group-tabs" id="groupTabs"></div>
+          </div>
+          <div class="dream-grid" id="goalGrid"></div>
         </div>
       </section>
 
@@ -40,16 +46,19 @@
 
       <section class="roadmap-result hidden" id="roadmapResult">
         <div class="result-heading">
-          <div>
-            <p class="eyebrow">GOAL ROADMAP</p>
-            <h2 id="resultGoal">-</h2>
-            <p id="resultGoalSummary"></p>
+          <div class="selected-goal-heading">
+            <div class="selected-goal-icon" id="resultGoalIcon">✦</div>
+            <div>
+              <p class="eyebrow">SELECTED DREAM / MAJOR</p>
+              <h2 id="resultGoal">-</h2>
+              <p id="resultGoalSummary"></p>
+            </div>
           </div>
           <button class="ghost-button" id="changeGoalBtn">다른 꿈 선택</button>
         </div>
 
         <div class="flow-strip" aria-label="로드맵 단계">
-          <span>꿈</span><i>→</i><span>전공</span><i>→</i><span>대학·전형</span><i>→</i><span>필요 역량</span><i>→</i><span>미술 진도</span>
+          <span>꿈</span><i>→</i><span>관련 전공</span><i>→</i><span>대학·입시정보</span><i>→</i><span>실기 준비</span><i>→</i><span>진로</span>
         </div>
 
         <section class="roadmap-card" id="majorSection">
@@ -58,7 +67,7 @@
             <div class="card-title-row">
               <div>
                 <p class="mini-label">RELATED MAJOR</p>
-                <h3>꿈과 연결되는 전공</h3>
+                <h3>이 꿈과 연결되는 전공</h3>
               </div>
               <span class="count-pill" id="majorCount">0</span>
             </div>
@@ -66,13 +75,14 @@
           </div>
         </section>
 
-        <section class="roadmap-card" id="universitySection">
+        <section class="roadmap-card university-card" id="universitySection">
           <div class="card-number">02</div>
           <div class="card-content">
             <div class="card-title-row">
               <div>
                 <p class="mini-label">UNIVERSITY & ADMISSION</p>
-                <h3>관련 대학·학과와 입시 준비</h3>
+                <h3>관련 대학·학과와 입시정보</h3>
+                <p class="card-description">확인되지 않은 수치는 임의로 만들지 않고 ‘확인 필요’로 표시합니다. 실제 지원 시 최신 모집요강을 기준으로 합니다.</p>
               </div>
             </div>
             <div id="universityContent"></div>
@@ -85,7 +95,7 @@
             <div class="card-title-row">
               <div>
                 <p class="mini-label">REQUIRED SKILLS</p>
-                <h3>이 꿈을 위해 필요한 미술 역량</h3>
+                <h3>이 꿈을 위해 필요한 핵심 역량</h3>
               </div>
               <span class="count-pill" id="skillCount">0</span>
             </div>
@@ -98,9 +108,9 @@
           <div class="card-content">
             <div class="card-title-row">
               <div>
-                <p class="mini-label">LEARNING ROADMAP</p>
-                <h3>앞으로 배워 나갈 미술 진도</h3>
-                <p class="card-description">기초부터 전공·입시까지 필요한 학습을 순서대로 보여줍니다.</p>
+                <p class="mini-label">PRACTICAL PREPARATION</p>
+                <h3>꿈을 이루기 위한 실기 준비 로드맵</h3>
+                <p class="card-description">학원 내부 36개월 세부안 전체가 아니라 상담에 필요한 핵심 준비 순서를 보여줍니다.</p>
               </div>
             </div>
             <div class="timeline" id="curriculumTimeline"></div>
@@ -111,17 +121,18 @@
           <div>
             <p class="mini-label">HI5·ANiHi EDUCATION</p>
             <h3>꿈을 목표로. 성장을 시스템으로.</h3>
-            <p>대학과 입시요강 데이터가 연결될수록 이 로드맵은 더 구체적인 학교별 준비 과정으로 확장됩니다.</p>
+            <p>꿈에서 출발해 전공과 대학을 찾고, 실제로 필요한 미술 수업까지 역산해 준비합니다.</p>
           </div>
-          <a href="/data-core">DATA CORE에서 자료 보기</a>
+          <a href="/data-core/counseling">상담용 홈으로 돌아가기</a>
         </section>
       </section>
     </main>
   </div>
 
   <div class="loading hidden" id="loading">
-    <div class="loading-card"><span class="spinner"></span><strong>꿈에서 역산하는 중입니다</strong><small>전공·필요 역량·교육순서를 연결하고 있습니다.</small></div>
+    <div class="loading-card"><span class="spinner"></span><strong>꿈에서 역산하는 중입니다</strong><small>전공·대학·필요 역량·교육순서를 연결하고 있습니다.</small></div>
   </div>
+  <script src="/data-core/dream-catalog.js"></script>
   <script src="/data-core/roadmap.js"></script>
 </body>
 </html>
