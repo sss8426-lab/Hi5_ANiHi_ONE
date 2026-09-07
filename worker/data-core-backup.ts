@@ -21,6 +21,14 @@ function requireSuperAdmin(context: DataCoreAccessContext) {
   }
 }
 
+async function tableExists(db: D1Database, tableName: string) {
+  const row = await db
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?")
+    .bind(tableName)
+    .first<{ name: string }>();
+  return Boolean(row?.name);
+}
+
 async function fetchOrganizations(db: D1Database, offset: number) {
   const result = await db
     .prepare(
@@ -104,6 +112,22 @@ async function fetchRecordTags(db: D1Database, offset: number) {
   return result.results || [];
 }
 
+async function fetchContentMediaLinks(db: D1Database, offset: number) {
+  if (!(await tableExists(db, "content_media_links"))) return [];
+  const result = await db
+    .prepare(
+      `SELECT cml.id, cml.organization_id, cml.content_record_id,
+              cml.file_object_id, cml.role, cml.position,
+              cml.metadata_json, cml.created_at
+       FROM content_media_links cml
+       WHERE cml.organization_id = ?
+       ORDER BY cml.id LIMIT ? OFFSET ?`,
+    )
+    .bind(DEFAULT_ORGANIZATION_ID, PAGE_SIZE, offset)
+    .all<Record<string, unknown>>();
+  return result.results || [];
+}
+
 async function fetchKnowledgeNodes(db: D1Database, offset: number) {
   const result = await db
     .prepare(
@@ -141,6 +165,7 @@ const SECTIONS: BackupSection[] = [
   { name: "file_objects", fetchPage: fetchFileObjects },
   { name: "tags", fetchPage: fetchTags },
   { name: "data_record_tags", fetchPage: fetchRecordTags },
+  { name: "content_media_links", fetchPage: fetchContentMediaLinks },
   { name: "knowledge_nodes", fetchPage: fetchKnowledgeNodes },
   { name: "knowledge_edges", fetchPage: fetchKnowledgeEdges },
 ];
@@ -212,7 +237,7 @@ export async function createDataCoreBackup(
     const manifestKey = `${prefix}/manifest.json`;
     const manifest = {
       schema: "hi5-anihi-data-core-operational-backup",
-      version: 2,
+      version: 3,
       backupId: id,
       organizationId: DEFAULT_ORGANIZATION_ID,
       createdAt,
