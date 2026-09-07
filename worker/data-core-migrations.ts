@@ -15,6 +15,10 @@ export async function ensureDataCoreMigrations(db: D1Database): Promise<void> {
 async function runMigrations(db: D1Database) {
   await ensureDataCoreDatabase(db);
   await ensureColumn(db, "data_records", "content_text", "TEXT");
+  await ensureColumn(db, "file_objects", "source_app", "TEXT NOT NULL DEFAULT 'legacy'");
+  await db.exec(
+    "CREATE INDEX IF NOT EXISTS file_objects_source_app_idx ON file_objects(source_app)",
+  );
   await ensureBackupTable(db);
 }
 
