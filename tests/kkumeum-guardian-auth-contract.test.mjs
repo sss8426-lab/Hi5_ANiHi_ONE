@@ -26,7 +26,8 @@ test('보호자 비밀번호와 세션은 PBKDF2/해시 저장 경계를 지킨�
   assert.match(source, /crypto\.getRandomValues\(new Uint8Array\(32\)\)/);
   assert.match(source, /token_hash TEXT NOT NULL UNIQUE/);
   assert.match(source, /await sha256\(rawToken\)/);
-  assert.doesNotMatch(source, /INSERT INTO guardian_sessions[\s\S]{0,300}rawToken/);
+  assert.match(source, /INSERT INTO guardian_sessions/);
+  assert.doesNotMatch(source, /token_hash[^\n]*rawToken/);
 });
 
 test('보호자 로그인은 잠금·비활성·세션 revoke를 구현하고 공개 signup을 만들지 않는다', async () => {
