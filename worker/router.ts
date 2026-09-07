@@ -4,6 +4,11 @@ import {
   resolveDataCoreAccess,
 } from "./data-core-access";
 import {
+  createDataCoreBackup,
+  listDataCoreBackups,
+  readBackupManifest,
+} from "./data-core-backup";
+import {
   createCompetition,
   createCompetitionResult,
   deleteCompetition,
@@ -39,6 +44,46 @@ async function readJson<T>(request: Request): Promise<T> {
   } catch {
     throw new DataCoreAccessError(400, "JSON 요청 형식이 올바르지 않습니다.");
   }
+}
+
+async function handleBackupApi(request: Request, env: Env) {
+  const url = new URL(request.url);
+  if (!url.pathname.startsWith("/api/data-core/admin/backups")) return null;
+  if (!env.DB || !env.FILES) {
+    throw new DataCoreAccessError(503, "DATA CORE의 D1과 R2가 모두 연결되어야 합니다.");
+  }
+
+  const context = await resolveDataCoreAccess(
+    request,
+    env.DB,
+    env.DATA_CORE_SUPER_ADMIN_EMAILS,
+  );
+
+  if (url.pathname === "/api/data-core/admin/backups") {
+    if (request.method === "GET") {
+      return jsonResponse({ backups: await listDataCoreBackups(env.DB, context) });
+    }
+    if (request.method === "POST") {
+      return jsonResponse(
+        { backup: await createDataCoreBackup(env.DB, env.FILES, context) },
+        { status: 201 },
+      );
+    }
+  }
+
+  const manifestMatch = url.pathname.match(
+    /^\/api\/data-core\/admin\/backups\/([^/]+)\/manifest$/,
+  );
+  if (manifestMatch && request.method === "GET") {
+    return readBackupManifest(
+      env.DB,
+      env.FILES,
+      context,
+      decodeURIComponent(manifestMatch[1]),
+    );
+  }
+
+  return jsonResponse({ error: "지원하지 않는 백업 API 요청입니다." }, { status: 405 });
 }
 
 async function handleTrashApi(request: Request, env: Env) {
@@ -182,6 +227,9 @@ const worker = {
     }
 
     try {
+      const backupResponse = await handleBackupApi(request, env);
+      if (backupResponse) return backupResponse;
+
       const trashResponse = await handleTrashApi(request, env);
       if (trashResponse) return trashResponse;
 
