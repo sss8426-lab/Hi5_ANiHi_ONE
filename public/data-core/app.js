@@ -1,22 +1,27 @@
-const ORGANIZATION_FOLDERS = [
-  { label: '공통자료', category: 'document' },
-  { label: '대학요강', category: 'admission-guide' },
-  { label: '공모전원본', category: 'competition-guide' },
-  { label: '로드맵기준자료', category: 'research-work' },
-  { label: '브랜드자료', category: 'academy-photo' },
+const LIBRARY_CATEGORIES = [
+  { key: 'class-photo', label: '수업사진' },
+  { key: 'student-artwork', label: '학생그림' },
+  { key: 'academy-photo', label: '학원사진' },
+  { key: 'competition-material', label: '공모전·실기대회' },
+  { key: 'admission-material', label: '입시자료' },
+  { key: 'counseling-material', label: '상담자료' },
+  { key: 'blog-source', label: '블로그소스', sourceApp: 'blog' },
+  { key: 'instagram-source', label: '인스타소스', sourceApp: 'instagram' },
+  { key: 'promotion-material', label: '홍보자료' },
 ];
 
-const CAMPUS_FOLDERS = [
-  { label: '수업사진', category: 'class-photo' },
-  { label: '학생그림', category: 'student-artwork' },
-  { label: '학원사진', category: 'academy-photo' },
-  { label: '공모전·실기대회', category: 'competition-poster' },
-  { label: '입시자료', category: 'admission-guide' },
-  { label: '상담자료', category: 'document' },
-  { label: '블로그소스', category: 'class-photo', sourceApp: 'blog' },
-  { label: '인스타소스', category: 'academy-photo', sourceApp: 'instagram' },
-  { label: '홍보자료', category: 'academy-photo' },
-];
+const CAMPUS_PRESENTATION = {
+  'design-admission': { name: '부천 디자인 입시관', group: '입시관', order: 1 },
+  'anihi-admission': { name: '부천 애니 입시관', group: '입시관', order: 2 },
+  gwangjin: { name: '서울 광진 입시관', group: '입시관', order: 3 },
+  ulsan: { name: '울산 송정 입시관', group: '입시관', order: 4 },
+  ansan: { name: '안산 입시관', group: '입시관', order: 5 },
+  paju: { name: '파주 입시관', group: '입시관', order: 6 },
+  beombak: { name: '부천 범박 캠퍼스', group: '예비관', order: 1 },
+  wonjong: { name: '부천 원종 캠퍼스', group: '예비관', order: 2 },
+  jungdong: { name: '부천 중동 캠퍼스', group: '예비관', order: 3 },
+  okgil: { name: '부천 옥길 캠퍼스', group: '예비관', order: 4 },
+};
 
 const state = {
   health: null,
@@ -87,15 +92,15 @@ function formatDate(value) {
 
 function categoryLabel(category) {
   return ({
-    'student-artwork': '학생작품',
+    'student-artwork': '학생그림',
     'class-photo': '수업사진',
     'academy-photo': '학원사진',
-    'competition-poster': '공모전 포스터',
-    'competition-guide': '공모전 요강',
-    'award-work': '수상작',
-    'admission-guide': '입시요강',
-    'research-work': '연구작',
-    'document': '문서',
+    'competition-material': '공모전·실기대회',
+    'admission-material': '입시자료',
+    'counseling-material': '상담자료',
+    'blog-source': '블로그소스',
+    'instagram-source': '인스타소스',
+    'promotion-material': '홍보자료',
   })[category] || category || '기타';
 }
 
@@ -247,17 +252,33 @@ function fillCampusSelect(select, options = {}) {
   const rows = [];
   if (all) rows.push('<option value="">전체 캠퍼스</option>');
   if (allowOrganization && isSuperAdmin()) rows.push('<option value="">조직 공통</option>');
-  rows.push(...state.campuses.map((campus) => `<option value="${h(campus.id)}">${h(campus.name)}</option>`));
+  rows.push(...orderedCampuses().map((campus) => `<option value="${h(campus.id)}">${h(campusDisplayName(campus))}</option>`));
   select.innerHTML = rows.join('');
+}
+
+function campusPresentation(campus) {
+  return CAMPUS_PRESENTATION[campus.code] || { name: campus.name, group: '기타', order: 999 };
+}
+
+function campusDisplayName(campus) {
+  return campusPresentation(campus).name || campus.name;
+}
+
+function orderedCampuses() {
+  const groupOrder = { 입시관: 1, 예비관: 2, 기타: 3 };
+  return [...state.campuses].sort((left, right) => {
+    const a = campusPresentation(left);
+    const b = campusPresentation(right);
+    return (groupOrder[a.group] - groupOrder[b.group]) || (a.order - b.order) || campusDisplayName(left).localeCompare(campusDisplayName(right), 'ko');
+  });
 }
 
 function folderButton(folder, campusId = '') {
   const selected = state.selectedFolder
-    && state.selectedFolder.campusId === campusId
-    && state.selectedFolder.category === (folder.category || '')
-    && state.selectedFolder.sourceApp === (folder.sourceApp || '');
+    && state.selectedFolder.key === `${campusId}:${folder.key}`;
   const attrs = [
-    `data-folder-category="${h(folder.category || '')}"`,
+    `data-folder-key="${h(`${campusId}:${folder.key}`)}"`,
+    `data-folder-category="${h(folder.key)}"`,
     `data-folder-campus="${h(campusId)}"`,
     `data-folder-label="${h(folder.label)}"`,
   ];
@@ -271,26 +292,28 @@ function folderButton(folder, campusId = '') {
 function renderLibraryFolders() {
   const container = $('folderGroups');
   if (!container) return;
-  const campusGroups = state.campuses.map((campus) => `<article class="folder-group" data-campus-folder="${h(campus.id)}">
-    <div class="folder-title">
-      <strong>${h(campus.name)}</strong>
-      <small>캠퍼스 폴더</small>
-    </div>
-    <div class="folder-chip-grid">${CAMPUS_FOLDERS.map((folder) => folderButton(folder, campus.id)).join('')}</div>
-  </article>`).join('');
-  container.innerHTML = `
-    <article class="folder-group organization-folder">
-      <div class="folder-title">
-        <strong>조직 공통</strong>
-        <small>캠퍼스와 분리된 공통 자료</small>
-      </div>
-      <div class="folder-chip-grid">${ORGANIZATION_FOLDERS.map((folder) => folderButton(folder)).join('')}</div>
-    </article>
-    ${campusGroups || '<div class="empty-state">로그인 후 접근 가능한 캠퍼스 폴더가 표시됩니다.</div>'}
-  `;
-  document.querySelectorAll('[data-folder-category]').forEach((button) => {
+  const groups = new Map();
+  orderedCampuses().forEach((campus) => {
+    const presentation = campusPresentation(campus);
+    if (!groups.has(presentation.group)) groups.set(presentation.group, []);
+    groups.get(presentation.group).push(campus);
+  });
+  container.innerHTML = groups.size
+    ? [...groups.entries()].map(([group, campuses]) => `<section class="campus-folder-section" data-campus-group="${h(group)}">
+        <h4>${h(group)}</h4>
+        ${campuses.map((campus) => `<article class="folder-group" data-campus-folder="${h(campus.id)}">
+          <div class="folder-title">
+            <strong>${h(campusDisplayName(campus))}</strong>
+            <small>캠퍼스 폴더</small>
+          </div>
+          <div class="folder-chip-grid">${LIBRARY_CATEGORIES.map((folder) => folderButton(folder, campus.id)).join('')}</div>
+        </article>`).join('')}
+      </section>`).join('')
+    : '<div class="empty-state">로그인 후 접근 가능한 캠퍼스 폴더가 표시됩니다.</div>';
+  document.querySelectorAll('[data-folder-key]').forEach((button) => {
     button.onclick = () => {
       state.selectedFolder = {
+        key: button.dataset.folderKey,
         campusId: button.dataset.folderCampus || '',
         category: button.dataset.folderCategory || '',
         sourceApp: button.dataset.folderSource || '',
@@ -452,7 +475,6 @@ async function uploadFile(event) {
     const form = new FormData();
     form.append('file', file);
     form.append('campusId', $('uploadCampus').value || '');
-    form.append('area', $('uploadArea').value);
     form.append('category', $('uploadCategory').value);
     form.append('sourceApp', 'data-core-library');
     form.append('ownerId', 'shared');

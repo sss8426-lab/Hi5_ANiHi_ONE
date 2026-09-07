@@ -2,6 +2,7 @@ import {
   DEFAULT_ORGANIZATION_ID,
   DataCoreFileArea,
   ensureDataCoreDatabase,
+  fileAreaForPurpose,
   recordFileObject,
   visibilityForArea,
 } from "./data-core";
@@ -20,6 +21,17 @@ const FILE_AREAS: DataCoreFileArea[] = [
   "academy-public",
   "exports-temporary",
 ];
+const LIBRARY_FILE_CATEGORIES = new Set([
+  "class-photo",
+  "student-artwork",
+  "academy-photo",
+  "competition-material",
+  "admission-material",
+  "counseling-material",
+  "blog-source",
+  "instagram-source",
+  "promotion-material",
+]);
 const BLOCKED_EXTENSIONS = new Set([
   "exe",
   "dll",
@@ -53,6 +65,23 @@ function fileExtension(fileName: string) {
 function normalizeArea(value: unknown): DataCoreFileArea {
   const area = cleanText(value, 40) as DataCoreFileArea;
   return FILE_AREAS.includes(area) ? area : "documents-private";
+}
+
+function libraryFileProfile(category: string, campusId: string | null) {
+  if (!LIBRARY_FILE_CATEGORIES.has(category)) {
+    throw new DataCoreAccessError(400, "자료보관함 분류가 올바르지 않습니다.");
+  }
+  if (category === "student-artwork") {
+    return { area: "student-private" as const, visibility: "private" as const, sourceApp: "data-core" };
+  }
+  if (category === "promotion-material") {
+    return { area: "academy-public" as const, visibility: "public" as const, sourceApp: "data-core" };
+  }
+  return {
+    area: "documents-private" as const,
+    visibility: campusId ? ("campus" as const) : ("organization" as const),
+    sourceApp: category === "blog-source" ? "blog" : category === "instagram-source" ? "instagram" : "data-core",
+  };
 }
 
 function canReadFileRow(context: DataCoreAccessContext, row: Record<string, unknown>) {
@@ -172,9 +201,16 @@ export async function uploadDataCoreFile(
   }
   if (campusId) requireCampusAccess(context, campusId);
 
-  const area = normalizeArea(form.get("area"));
   const category = cleanText(form.get("category") || form.get("purpose") || "general", 80) || "general";
-  const sourceApp = cleanText(form.get("sourceApp") || "data-core", 80) || "data-core";
+  const isLibraryUpload = new URL(request.url).pathname === "/api/data-core/files";
+  const profile = isLibraryUpload
+    ? libraryFileProfile(category, campusId)
+    : {
+      area: fileAreaForPurpose(category),
+      visibility: visibilityForArea(fileAreaForPurpose(category)),
+      sourceApp: cleanText(form.get("sourceApp") || "data-core", 80) || "data-core",
+    };
+  const { area, visibility, sourceApp } = profile;
   const recordId = cleanText(form.get("recordId"), 120) || null;
   const year = cleanText(form.get("year"), 8).replace(/[^0-9]/g, "");
   const ownerRef = cleanText(form.get("ownerId"), 120) || "shared";
@@ -195,7 +231,7 @@ export async function uploadDataCoreFile(
     `${Date.now()}-${id}-${safeFileName(file.name)}`,
   ].join("/");
 
-  await files.put(key, file.stream(), {
+  await files.put(key, file, {
     httpMetadata: {
       contentType: file.type || "application/octet-stream",
     },
@@ -208,12 +244,12 @@ export async function uploadDataCoreFile(
     },
   });
 
-  const visibility = visibilityForArea(area);
   await recordFileObject(db, {
     id,
     campusId,
     dataRecordId: recordId,
     ownerUserId: context.user.internalUserId,
+    sourceApp,
     area,
     category,
     r2Key: key,

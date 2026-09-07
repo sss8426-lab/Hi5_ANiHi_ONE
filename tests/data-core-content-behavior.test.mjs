@@ -93,6 +93,21 @@ async function createHarness() {
     return { response, body: parsed };
   }
 
+  async function requestForm(pathname, user, form, extraHeaders = {}) {
+    const headers = new Headers(user ? authHeaders(user) : undefined);
+    for (const [name, value] of Object.entries(extraHeaders)) headers.set(name, value);
+    const response = await worker.fetch(
+      new Request(`http://localhost${pathname}`, { method: "POST", headers, body: form }),
+      env,
+      { waitUntil() {}, passThroughOnException() {} },
+    );
+    const type = response.headers.get("content-type") || "";
+    const parsed = type.includes("application/json")
+      ? await response.json()
+      : await response.text();
+    return { response, body: parsed };
+  }
+
   async function seedMembership(user, campusId, role = "TEACHER") {
     await request("GET", "/api/data-core/context", user);
     const now = new Date().toISOString();
@@ -165,7 +180,7 @@ async function createHarness() {
   await seedFile({ id: "file-private-b", campusId: CAMPUS_A, ownerUserId: users.b.id, visibility: "private" });
   await seedFile({ id: "file-other-campus", campusId: CAMPUS_B, ownerUserId: users.b.id, visibility: "public" });
 
-  return { mf, env, request, createDraft, seedFile };
+  return { mf, env, request, requestForm, createDraft, seedFile };
 }
 
 test("content API enforces draft lifecycle, file reuse, filters, and permissions", async () => {
@@ -555,6 +570,73 @@ test("DATA CORE source folders apply blog and Instagram sourceApp filters", asyn
     assert.equal(instagramFiles.response.status, 200);
     assert.deepEqual(instagramFiles.body.files.map((file) => file.id), ["file-instagram-source"]);
     assert.equal(instagramFiles.body.files[0].sourceApp, "instagram");
+  } finally {
+    await h.mf.dispose();
+  }
+});
+
+test("library uploads accept exactly nine categories and derive storage metadata on the server", async () => {
+  const h = await createHarness();
+  try {
+    const categories = [
+      "class-photo",
+      "student-artwork",
+      "academy-photo",
+      "competition-material",
+      "admission-material",
+      "counseling-material",
+      "blog-source",
+      "instagram-source",
+      "promotion-material",
+    ];
+
+    for (const category of categories) {
+      const form = new FormData();
+      form.append("file", new File([category], `${category}.txt`, { type: "text/plain" }));
+      form.append("campusId", CAMPUS_A);
+      form.append("category", category);
+      form.append("area", "academy-public");
+      form.append("sourceApp", "forged-client-value");
+      const uploaded = await h.requestForm("/api/data-core/files", users.a, form);
+      assert.equal(uploaded.response.status, 201, JSON.stringify(uploaded.body));
+      assert.equal(uploaded.body.file.category, category);
+
+      const expectedArea = category === "student-artwork"
+        ? "student-private"
+        : category === "promotion-material"
+          ? "academy-public"
+          : "documents-private";
+      const expectedVisibility = category === "student-artwork"
+        ? "private"
+        : category === "promotion-material"
+          ? "public"
+          : "campus";
+      const expectedSourceApp = category === "blog-source"
+        ? "blog"
+        : category === "instagram-source"
+          ? "instagram"
+          : "data-core";
+      assert.equal(uploaded.body.file.area, expectedArea);
+      assert.equal(uploaded.body.file.visibility, expectedVisibility);
+      assert.equal(uploaded.body.file.sourceApp, expectedSourceApp);
+
+      const stored = await h.env.DB
+        .prepare("SELECT area, visibility, source_app FROM file_objects WHERE id = ?")
+        .bind(uploaded.body.file.id)
+        .first();
+      assert.deepEqual(stored, {
+        area: expectedArea,
+        visibility: expectedVisibility,
+        source_app: expectedSourceApp,
+      });
+    }
+
+    const rejected = new FormData();
+    rejected.append("file", new File(["legacy"], "legacy.txt", { type: "text/plain" }));
+    rejected.append("campusId", CAMPUS_A);
+    rejected.append("category", "document");
+    const response = await h.requestForm("/api/data-core/files", users.a, rejected);
+    assert.equal(response.response.status, 400);
   } finally {
     await h.mf.dispose();
   }

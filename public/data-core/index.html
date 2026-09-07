@@ -239,15 +239,15 @@
               <span>분류</span>
               <select id="fileCategoryFilter">
                 <option value="">전체 분류</option>
-                <option value="student-artwork">학생작품</option>
+                <option value="student-artwork">학생그림</option>
                 <option value="class-photo">수업사진</option>
                 <option value="academy-photo">학원사진</option>
-                <option value="competition-poster">공모전 포스터</option>
-                <option value="competition-guide">공모전 요강</option>
-                <option value="award-work">수상작</option>
-                <option value="admission-guide">입시요강</option>
-                <option value="research-work">연구작</option>
-                <option value="document">문서</option>
+                <option value="competition-material">공모전·실기대회</option>
+                <option value="admission-material">입시자료</option>
+                <option value="counseling-material">상담자료</option>
+                <option value="blog-source">블로그소스</option>
+                <option value="instagram-source">인스타소스</option>
+                <option value="promotion-material">홍보자료</option>
               </select>
             </label>
             <label class="search-field">
@@ -367,25 +367,17 @@
       </div>
       <form id="uploadForm" class="form-stack">
         <label><span>캠퍼스</span><select id="uploadCampus" required></select></label>
-        <label><span>자료 영역</span>
-          <select id="uploadArea">
-            <option value="documents-private">내부 자료</option>
-            <option value="student-private">학생 비공개 자료</option>
-            <option value="academy-public">공유·홍보 가능 자료</option>
-            <option value="exports-temporary">임시 출력물</option>
-          </select>
-        </label>
         <label><span>분류</span>
           <select id="uploadCategory">
-            <option value="student-artwork">학생작품</option>
             <option value="class-photo">수업사진</option>
+            <option value="student-artwork">학생그림</option>
             <option value="academy-photo">학원사진</option>
-            <option value="competition-poster">공모전 포스터</option>
-            <option value="competition-guide">공모전 요강</option>
-            <option value="award-work">수상작</option>
-            <option value="admission-guide">입시요강</option>
-            <option value="research-work">연구작</option>
-            <option value="document">기타 문서</option>
+            <option value="competition-material">공모전·실기대회</option>
+            <option value="admission-material">입시자료</option>
+            <option value="counseling-material">상담자료</option>
+            <option value="blog-source">블로그소스</option>
+            <option value="instagram-source">인스타소스</option>
+            <option value="promotion-material">홍보자료</option>
           </select>
         </label>
         <label class="file-drop" id="fileDrop">
