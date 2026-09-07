@@ -2,7 +2,7 @@ export const DEFAULT_ORGANIZATION_ID = "org-hi5-anihi";
 export const DEFAULT_ORGANIZATION_SLUG = "hi5-anihi";
 export const DEFAULT_ORGANIZATION_NAME = "HI5·ANiHi";
 
-export const DATA_CORE_VERSION = "foundation-v1.2";
+export const DATA_CORE_VERSION = "foundation-v1.3";
 
 export type DataCoreFileArea =
   | "student-private"
@@ -16,6 +16,7 @@ export interface FileObjectInput {
   campusId?: string | null;
   dataRecordId?: string | null;
   ownerUserId?: string | null;
+  sourceApp?: string | null;
   area: DataCoreFileArea;
   category: string;
   r2Key: string;
@@ -124,6 +125,7 @@ async function initializeSchema(db: D1Database): Promise<void> {
       owner_user_id TEXT,
       area TEXT NOT NULL,
       category TEXT NOT NULL,
+      source_app TEXT NOT NULL DEFAULT 'legacy',
       r2_key TEXT NOT NULL UNIQUE,
       original_file_name TEXT NOT NULL,
       mime_type TEXT NOT NULL,
@@ -138,6 +140,7 @@ async function initializeSchema(db: D1Database): Promise<void> {
     )`,
     `CREATE INDEX IF NOT EXISTS file_objects_campus_idx ON file_objects(campus_id)`,
     `CREATE INDEX IF NOT EXISTS file_objects_category_idx ON file_objects(category)`,
+    `CREATE INDEX IF NOT EXISTS file_objects_source_app_idx ON file_objects(source_app)`,
     `CREATE INDEX IF NOT EXISTS file_objects_record_idx ON file_objects(data_record_id)`,
     `CREATE TABLE IF NOT EXISTS tags (
       id TEXT PRIMARY KEY NOT NULL,
@@ -197,9 +200,9 @@ export async function recordFileObject(db: D1Database, input: FileObjectInput): 
     .prepare(
       `INSERT INTO file_objects (
         id, organization_id, campus_id, data_record_id, owner_user_id,
-        area, category, r2_key, original_file_name, mime_type,
+        area, category, source_app, r2_key, original_file_name, mime_type,
         size_bytes, visibility, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       input.id,
@@ -209,6 +212,7 @@ export async function recordFileObject(db: D1Database, input: FileObjectInput): 
       input.ownerUserId || null,
       input.area,
       input.category,
+      input.sourceApp || "legacy",
       input.r2Key,
       input.originalFileName,
       input.mimeType || "application/octet-stream",
