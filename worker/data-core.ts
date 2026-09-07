@@ -2,7 +2,7 @@ const DEFAULT_ORGANIZATION_ID = "org-hi5-anihi";
 const DEFAULT_ORGANIZATION_SLUG = "hi5-anihi";
 const DEFAULT_ORGANIZATION_NAME = "HI5·ANiHi";
 
-export const DATA_CORE_VERSION = "foundation-v1";
+export const DATA_CORE_VERSION = "foundation-v1.1";
 
 export type DataCoreFileArea =
   | "student-private"
@@ -229,5 +229,88 @@ export async function dataCoreHealth(db?: D1Database, files?: R2Bucket) {
       files: Boolean(files),
     },
     mode: db && files ? "central" : "degraded",
+  };
+}
+
+export type DataCoreRequestIdentity = {
+  userId: string;
+  email: string;
+  displayName: string;
+};
+
+const AUTH_USER_ID_HEADER = "oai-authenticated-user-id";
+const AUTH_USER_EMAIL_HEADER = "oai-authenticated-user-email";
+const AUTH_USER_FULL_NAME_HEADER = "oai-authenticated-user-full-name";
+const AUTH_USER_FULL_NAME_ENCODING_HEADER = "oai-authenticated-user-full-name-encoding";
+
+function safeDecodeHeader(value: string | null, encoding: string | null): string | null {
+  if (!value) return null;
+  if (encoding !== "percent-encoded-utf-8") return value;
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return null;
+  }
+}
+
+export function requestIdentity(request: Request): DataCoreRequestIdentity | null {
+  const userId = request.headers.get(AUTH_USER_ID_HEADER);
+  const email = request.headers.get(AUTH_USER_EMAIL_HEADER);
+  if (!userId || !email) return null;
+  const fullName = safeDecodeHeader(
+    request.headers.get(AUTH_USER_FULL_NAME_HEADER),
+    request.headers.get(AUTH_USER_FULL_NAME_ENCODING_HEADER),
+  );
+  return { userId, email, displayName: fullName || email };
+}
+
+export async function syncRequestUser(db: D1Database, identity: DataCoreRequestIdentity): Promise<string> {
+  await ensureDataCoreDatabase(db);
+  const now = new Date().toISOString();
+  const id = `oai:${identity.userId}`;
+  await db
+    .prepare(
+      `INSERT INTO users (id, email, display_name, status, auth_subject, created_at, updated_at)
+       VALUES (?, ?, ?, 'active', ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         email = excluded.email,
+         display_name = excluded.display_name,
+         auth_subject = excluded.auth_subject,
+         updated_at = excluded.updated_at`,
+    )
+    .bind(id, identity.email, identity.displayName, identity.userId, now, now)
+    .run();
+  return id;
+}
+
+export async function dataCoreContext(request: Request, db?: D1Database) {
+  const identity = requestIdentity(request);
+  if (!identity) return { authenticated: false, database: Boolean(db), memberships: [] };
+  if (!db) {
+    return {
+      authenticated: true,
+      database: false,
+      user: identity,
+      memberships: [],
+    };
+  }
+
+  const internalUserId = await syncRequestUser(db, identity);
+  const result = await db
+    .prepare(
+      `SELECT m.id, m.organization_id, m.campus_id, m.role, c.name AS campus_name
+       FROM memberships m
+       LEFT JOIN campuses c ON c.id = m.campus_id
+       WHERE m.user_id = ?
+       ORDER BY m.role, c.name`,
+    )
+    .bind(internalUserId)
+    .all();
+
+  return {
+    authenticated: true,
+    database: true,
+    user: { ...identity, internalUserId },
+    memberships: result.results || [],
   };
 }
