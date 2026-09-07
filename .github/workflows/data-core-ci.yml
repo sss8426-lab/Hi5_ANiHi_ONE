@@ -34,6 +34,7 @@ jobs:
       - name: Check DATA CORE browser scripts
         run: |
           node --check public/data-core/app.js
+          node --check public/data-core/content.js
           node --check public/data-core/operations.js
           node --check public/data-core/roadmap.js
           node --check public/data-core/readiness.js

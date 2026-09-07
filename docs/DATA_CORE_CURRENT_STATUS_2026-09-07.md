@@ -160,6 +160,37 @@ data-core/{area}/{organization}/{campus}/{category}/{owner}/{year}/{uuid-file}
 - 꿈·전공 로드맵 이동
 - 운영관리 이동
 
+## 7-1. 콘텐츠 허브
+
+경로:
+
+`/data-core/content`
+
+현재 기능:
+
+- 블로그 초안 작성
+- 인스타그램 캡션 초안 작성
+- 캠퍼스 선택
+- DATA CORE 파일 검색/선택
+- 같은 원본 fileId를 블로그와 인스타 양쪽에서 재사용
+- 제목/요약/본문 또는 캡션/태그 저장
+- 초안 상태 관리: draft, review, ready, published, archived
+- 초안 불러오기/수정/삭제
+- 인스타그램 기본 출력 규격 `2160 x 2700px (4:5)` metadata 기록
+
+저장 구조:
+
+- 블로그: `data_records.record_type=blog-draft`, `source_app=blog`
+- 인스타그램: `data_records.record_type=instagram-draft`, `source_app=instagram`
+- 본문/캡션: `content_text`
+- 연결 파일: `metadata_json.relatedFileIds`
+
+주의:
+
+- 실제 네이버/인스타 게시 API는 아직 연결하지 않았다.
+- AI 생성 결과를 운영 기능처럼 가장하지 않고, 편집 가능한 초안 저장 흐름까지만 제공한다.
+- 운영 배포환경에서 실제 CRUD는 별도 검증해야 한다.
+
 ## 8. DATA CORE 범용 텍스트
 
 `data_records`에는 다음을 저장 가능하다.
@@ -455,21 +486,21 @@ GitHub Actions `DATA CORE CI` 적용.
 
 블로그가 별도 사진 저장소를 만들지 않는다.
 
-- DATA CORE 파일 검색
-- 수업사진/학생작품 선택
-- 생성 원문을 data_records/content_text 저장
-- sourceApp=blog
-- 게시 이력 축적
+- DATA CORE 파일 검색: 1차 구현
+- 수업사진/학생작품 선택: 1차 구현
+- 생성 원문을 data_records/content_text 저장: 1차 구현
+- sourceApp=blog: 1차 구현
+- 게시 이력 축적: 외부 게시 API 연결 후 후속 구현
 
 ### 3순위: 인스타 자동화 → DATA CORE
 
 같은 원본 사진을 재사용한다.
 
-- sourceApp=instagram
-- 이미지 편집 결과
-- 캡션
-- 해시태그
-- 게시 이력
+- sourceApp=instagram: 1차 구현
+- 이미지 편집 결과: 파생 파일 metadata 계약 준비, 실제 편집 엔진은 후속 구현
+- 캡션: 1차 구현
+- 해시태그: 1차 구현
+- 게시 이력: 외부 게시 API 연결 후 후속 구현
 
 ### 4순위: 입시 지식 고도화
 

@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>콘텐츠 허브 · HI5·ANiHi DATA CORE</title>
+  <link rel="stylesheet" href="/data-core/styles.css">
+  <link rel="stylesheet" href="/data-core/content.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark">H5</span>
+        <div>
+          <strong>HI5·ANiHi</strong>
+          <small>DATA CORE</small>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <a class="nav-item" href="/data-core">
+          <span class="nav-icon">▦</span>
+          <span>자료보관함</span>
+        </a>
+        <a class="nav-item active" href="/data-core/content">
+          <span class="nav-icon">✎</span>
+          <span>콘텐츠 허브</span>
+        </a>
+        <a class="nav-item" href="/data-core/roadmap">
+          <span class="nav-icon">◇</span>
+          <span>꿈·전공 로드맵</span>
+        </a>
+        <a class="nav-item" href="/data-core/operations">
+          <span class="nav-icon">↺</span>
+          <span>운영관리</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-bottom">
+        <div class="connection-card" id="connectionCard">
+          <span class="status-dot"></span>
+          <div>
+            <strong>연결 확인 중</strong>
+            <small>DATA CORE</small>
+          </div>
+        </div>
+        <a class="back-link" href="/">입시 컨설팅으로 돌아가기</a>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">공통 파일을 재사용하는 콘텐츠 작업실</p>
+          <h1>콘텐츠 허브</h1>
+        </div>
+        <div class="user-chip" id="userChip">
+          <div class="avatar">H</div>
+          <div>
+            <strong>사용자 확인 중</strong>
+            <small>로그인 정보를 불러오고 있습니다</small>
+          </div>
+        </div>
+      </header>
+
+      <section class="notice hidden" id="globalNotice"></section>
+
+      <section class="view active content-workspace">
+        <div class="hero-row content-hero">
+          <div>
+            <h2>블로그와 인스타가 같은 원본 자료를 사용합니다</h2>
+            <p>DATA CORE 파일을 선택하고, 블로그 글이나 인스타 캡션 초안을 중앙 레코드로 저장합니다.</p>
+          </div>
+          <div class="source-tabs" role="tablist" aria-label="콘텐츠 종류">
+            <button class="source-tab active" data-source-tab="blog" type="button">블로그</button>
+            <button class="source-tab" data-source-tab="instagram" type="button">인스타그램</button>
+          </div>
+        </div>
+
+        <div class="content-grid">
+          <section class="panel editor-panel">
+            <div class="panel-head">
+              <div>
+                <h3 id="editorTitle">블로그 초안</h3>
+                <p id="editorHint">수업 흐름, 피드백, 성장 포인트를 본문으로 남깁니다.</p>
+              </div>
+              <button class="ghost-btn hidden" id="newDraftBtn" type="button">새 초안</button>
+            </div>
+
+            <form id="draftForm" class="form-stack">
+              <label>
+                <span>캠퍼스</span>
+                <select id="draftCampus"></select>
+              </label>
+              <label>
+                <span>콘텐츠 목적</span>
+                <select id="contentPurpose">
+                  <option value="class-story">수업 성장 스토리</option>
+                  <option value="student-artwork">학생작품 소개</option>
+                  <option value="academy-news">학원 소식</option>
+                  <option value="competition-result">공모전·수상</option>
+                  <option value="admission-info">입시 정보</option>
+                </select>
+              </label>
+              <label>
+                <span>제목</span>
+                <input id="draftTitle" required placeholder="내부에서 찾기 쉬운 제목">
+              </label>
+              <label>
+                <span>요약</span>
+                <input id="draftSummary" placeholder="목록과 검색에 보일 짧은 설명">
+              </label>
+              <label>
+                <span id="contentLabel">본문</span>
+                <textarea id="draftContent" rows="12" placeholder="초안 내용을 적어두세요."></textarea>
+              </label>
+              <label>
+                <span>태그</span>
+                <input id="draftTags" placeholder="웹툰, 고2, 상황표현 처럼 쉼표로 구분">
+              </label>
+              <label>
+                <span>게시 상태</span>
+                <select id="publishStatus">
+                  <option value="draft">초안</option>
+                  <option value="review">검토</option>
+                  <option value="ready">게시 준비</option>
+                  <option value="published">게시 완료</option>
+                  <option value="archived">보관</option>
+                </select>
+              </label>
+
+              <div class="instagram-spec hidden" id="instagramSpec">
+                <strong>인스타 기본 규격</strong>
+                <span>2160 × 2700px · 4:5</span>
+              </div>
+
+              <div class="selected-files">
+                <div class="selected-files-head">
+                  <strong>연결된 DATA CORE 파일</strong>
+                  <button class="ghost-btn" id="clearFilesBtn" type="button">비우기</button>
+                </div>
+                <div id="selectedFiles" class="selected-file-list"></div>
+              </div>
+
+              <div class="form-actions">
+                <button class="danger-btn hidden" id="deleteDraftBtn" type="button">삭제</button>
+                <button class="primary-btn" id="saveDraftBtn" type="submit">초안 저장</button>
+              </div>
+            </form>
+          </section>
+
+          <section class="panel file-picker-panel">
+            <div class="panel-head">
+              <div>
+                <h3>DATA CORE 파일 선택</h3>
+                <p>원본 파일은 복사하지 않고 fileId만 연결합니다.</p>
+              </div>
+            </div>
+            <div class="filters content-filters">
+              <label>
+                <span>캠퍼스</span>
+                <select id="fileCampusFilter"></select>
+              </label>
+              <label>
+                <span>분류</span>
+                <select id="fileCategoryFilter">
+                  <option value="">전체 분류</option>
+                  <option value="student-artwork">학생작품</option>
+                  <option value="class-photo">수업사진</option>
+                  <option value="academy-photo">학원사진</option>
+                  <option value="research-work">연구작</option>
+                  <option value="award-work">수상작</option>
+                  <option value="admission-guide">입시요강</option>
+                </select>
+              </label>
+              <label class="search-field">
+                <span>검색</span>
+                <input id="fileSearchInput" placeholder="파일명 검색">
+              </label>
+              <button class="secondary-btn filter-button" id="fileSearchBtn" type="button">검색</button>
+            </div>
+            <div class="file-pick-list" id="filePickList"></div>
+          </section>
+        </div>
+
+        <section class="panel draft-list-panel">
+          <div class="panel-head">
+            <div>
+              <h3>저장된 초안</h3>
+              <p>블로그와 인스타 초안을 불러와 다시 수정할 수 있습니다.</p>
+            </div>
+            <div class="draft-tools">
+              <select id="draftStatusFilter">
+                <option value="">전체 상태</option>
+                <option value="draft">초안</option>
+                <option value="review">검토</option>
+                <option value="ready">게시 준비</option>
+                <option value="published">게시 완료</option>
+                <option value="archived">보관</option>
+              </select>
+              <input id="draftSearchInput" placeholder="초안 검색">
+              <button class="ghost-btn" id="refreshDraftsBtn" type="button">새로고침</button>
+            </div>
+          </div>
+          <div class="draft-list" id="draftList"></div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast hidden" id="toast"></div>
+  <script src="/data-core/content.js"></script>
+</body>
+</html>
