@@ -33,10 +33,13 @@ const state = {
   competitionResults: [],
   competitionFiles: [],
   selectedCompetitionId: null,
+  awardFolders: [],
+  awardFiles: [],
+  selectedAwardFolderId: null,
   guideDraft: null,
   currentMode: 'mode',
   currentView: 'mode-home',
-  droppedFile: null,
+  droppedFiles: [],
 };
 
 const $ = (id) => document.getElementById(id);
@@ -175,7 +178,10 @@ function switchView(view, options = {}) {
 
   if (state.context !== null) renderUser();
   if (view === 'library') loadFiles();
-  if (view === 'competitions') loadCompetitions();
+  if (view === 'competitions') {
+    loadCompetitions();
+    loadAwardFolders();
+  }
   if (view === 'admin' && isSuperAdmin()) loadMemberships();
 }
 
@@ -355,6 +361,7 @@ function renderCampusSelectors() {
   fillCampusSelect($('fileCampusFilter'), { all: true });
   fillCampusSelect($('uploadCampus'), { allowOrganization: true });
   fillCampusSelect($('competitionCampus'), { allowOrganization: true });
+  fillCampusSelect($('awardFolderCampus'), { allowOrganization: true });
   fillCampusSelect($('memberCampus'), { all: false });
   $('campusCount').textContent = state.campuses.length;
   renderLibraryFolders();
@@ -465,27 +472,33 @@ function closeModal(id) {
 async function uploadFile(event) {
   event.preventDefault();
   const input = $('uploadFile');
-  const file = state.droppedFile || input.files?.[0];
-  if (!file) return toast('업로드할 파일을 선택하세요.', 'error');
+  const files = state.droppedFiles.length ? state.droppedFiles : Array.from(input.files || []);
+  if (!files.length) return toast('업로드할 파일을 선택하세요.', 'error');
 
   const button = $('uploadSubmitBtn');
   button.disabled = true;
   button.textContent = '업로드 중...';
   try {
-    const form = new FormData();
-    form.append('file', file);
-    form.append('campusId', $('uploadCampus').value || '');
-    form.append('category', $('uploadCategory').value);
-    form.append('sourceApp', 'data-core-library');
-    form.append('ownerId', 'shared');
-    form.append('year', String(new Date().getFullYear()));
-    await api('/api/data-core/files', { method: 'POST', body: form });
-    toast('DATA CORE에 파일을 저장했습니다.');
+    for (const file of files) {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('campusId', $('uploadCampus').value || '');
+      form.append('category', $('uploadCategory').value);
+      form.append('sourceApp', 'data-core-library');
+      form.append('recordId', $('uploadRecordId').value || '');
+      form.append('ownerId', 'shared');
+      form.append('year', String(new Date().getFullYear()));
+      await api('/api/data-core/files', { method: 'POST', body: form });
+    }
+    toast(files.length === 1 ? 'DATA CORE에 파일을 저장했습니다.' : `${files.length}개 파일을 DATA CORE에 저장했습니다.`);
     closeModal('uploadModal');
     event.target.reset();
-    state.droppedFile = null;
+    state.droppedFiles = [];
+    $('uploadRecordId').value = '';
+    $('uploadTargetNotice').classList.add('hidden');
     $('selectedFileName').textContent = '최대 100MB';
     await loadFiles();
+    await loadAwardFiles();
   } catch (error) {
     toast(error.message, 'error');
   } finally {
@@ -496,6 +509,17 @@ async function uploadFile(event) {
 
 function competitionMetadata(competition) {
   return competition?.metadata || {};
+}
+
+function applicationDday(value) {
+  if (!value) return '접수 마감일 확인 필요';
+  const end = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(end.getTime())) return '접수 마감일 확인 필요';
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Math.round((end.getTime() - today.getTime()) / 86400000);
+  if (days === 0) return 'D-day';
+  return days > 0 ? `D-${days}` : `마감 ${Math.abs(days)}일 경과`;
 }
 
 function arrayIncludes(list, query) {
@@ -577,6 +601,7 @@ function renderCompetitions() {
       <strong>${h(competition.title)}</strong>
       <small>${h(meta.organizer || meta.hostSchool || '주최/주관 확인 필요')}</small>
       <span>${dates ? `접수 ${h(dates)}` : '접수기간 확인 필요'}</span>
+      <span class="competition-dday">${h(applicationDday(meta.applicationEnd))}</span>
       <span>${h([meta.hostSchool, ...grades, ...majors, ...practicalTypes].filter(Boolean).slice(0, 5).join(' · '))}</span>
     </button>`;
   }).join('');
@@ -621,7 +646,7 @@ function renderCompetitionPoster(competition, files = []) {
   </figure>`;
 }
 
-function renderAwardFiles(files = []) {
+function renderCompetitionAwardFiles(files = []) {
   const awardFiles = files.filter((file) => file.category === 'award-work');
   if (!awardFiles.length) {
     return '<div class="empty-state compact">연결된 수상작 파일이 없습니다.</div>';
@@ -635,6 +660,136 @@ function renderAwardFiles(files = []) {
       <small>${h(categoryLabel(file.category))}</small>
     </a>`;
   }).join('')}</div>`;
+}
+
+function selectedAwardFolder() {
+  return state.awardFolders.find((folder) => folder.id === state.selectedAwardFolderId) || null;
+}
+
+function renderAwardFolders() {
+  const list = $('awardFolderList');
+  if (!list) return;
+  const folder = selectedAwardFolder();
+  list.innerHTML = state.awardFolders.length
+    ? state.awardFolders.map((item) => `<button class="award-folder-tab ${item.id === state.selectedAwardFolderId ? 'active' : ''}" data-award-folder-id="${h(item.id)}">
+        <strong>${h(item.title)}</strong><small>${h(item.campusName || '조직 공통')}</small>
+      </button>`).join('')
+    : '<div class="empty-state compact">등록된 수상작 폴더가 없습니다.</div>';
+  document.querySelectorAll('[data-award-folder-id]').forEach((button) => {
+    button.onclick = async () => {
+      state.selectedAwardFolderId = button.dataset.awardFolderId;
+      renderAwardFolders();
+      await loadAwardFiles();
+    };
+  });
+  $('selectedAwardFolderTitle').textContent = folder?.title || '수상작 폴더를 선택하세요';
+  $('selectedAwardFolderMeta').textContent = folder
+    ? `${folder.campusName || '조직 공통'} · 폴더를 지워도 원본 파일은 보존됩니다.`
+    : '폴더를 지워도 원본 파일은 보존됩니다.';
+  $('openAwardUploadBtn').disabled = !folder || !canWrite();
+  $('deleteAwardFolderBtn').disabled = !folder || !canWrite();
+}
+
+function renderAwardLibraryFiles() {
+  const root = $('awardLibraryFiles');
+  if (!root) return;
+  if (!selectedAwardFolder()) {
+    root.innerHTML = '<div class="empty-state compact">좌측 폴더를 먼저 선택하세요.</div>';
+    return;
+  }
+  root.innerHTML = state.awardFiles.length ? state.awardFiles.map((file) => {
+    const url = fileUrl(file);
+    const image = String(file.mimeType || '').startsWith('image/');
+    return `<a class="award-library-file" href="${url}" target="_blank" rel="noopener">
+      ${image ? `<img src="${url}" alt="${h(file.fileName || '수상작')}">` : '<span class="award-file-icon">파일</span>'}
+      <strong>${h(file.fileName || '수상작 파일')}</strong>
+      <small>${h(formatDate(file.createdAt))}</small>
+    </a>`;
+  }).join('') : '<div class="empty-state compact">이 폴더에 연결된 수상작이 없습니다.</div>';
+}
+
+async function loadAwardFolders() {
+  if (!state.context?.authenticated) return;
+  try {
+    const response = await api('/api/data-core/records?recordType=competition-award-folder&sourceApp=competition&limit=100');
+    state.awardFolders = response.records || [];
+    if (!state.awardFolders.some((folder) => folder.id === state.selectedAwardFolderId)) {
+      state.selectedAwardFolderId = state.awardFolders[0]?.id || null;
+    }
+    renderAwardFolders();
+    await loadAwardFiles();
+  } catch (error) {
+    state.awardFolders = [];
+    state.awardFiles = [];
+    renderAwardFolders();
+    renderAwardLibraryFiles();
+    if (error.status !== 401) toast(error.message, 'error');
+  }
+}
+
+async function loadAwardFiles() {
+  const folder = selectedAwardFolder();
+  if (!folder || !state.context?.authenticated) {
+    state.awardFiles = [];
+    renderAwardLibraryFiles();
+    return;
+  }
+  try {
+    const response = await api(`/api/data-core/files?recordId=${encodeURIComponent(folder.id)}&category=competition-material&limit=100`);
+    state.awardFiles = response.files || [];
+  } catch (error) {
+    state.awardFiles = [];
+    if (error.status !== 401) toast(error.message, 'error');
+  }
+  renderAwardLibraryFiles();
+}
+
+async function createAwardFolder(event) {
+  event.preventDefault();
+  try {
+    const response = await api('/api/data-core/records', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        recordType: 'competition-award-folder',
+        sourceApp: 'competition',
+        title: $('awardFolderTitle').value.trim(),
+        campusId: $('awardFolderCampus').value || null,
+        visibility: isSuperAdmin() ? 'organization' : 'campus',
+        tags: ['competition-award-library'],
+      }),
+    });
+    state.selectedAwardFolderId = response.record.id;
+    event.target.reset();
+    toast('수상작 폴더를 만들었습니다.');
+    await loadAwardFolders();
+  } catch (error) {
+    toast(error.message, 'error');
+  }
+}
+
+async function deleteAwardFolder() {
+  const folder = selectedAwardFolder();
+  if (!folder || !confirm(`'${folder.title}' 폴더만 삭제할까요? 연결된 원본 파일은 DATA CORE에 보존됩니다.`)) return;
+  try {
+    await api(`/api/data-core/records/${encodeURIComponent(folder.id)}`, { method: 'DELETE' });
+    state.selectedAwardFolderId = null;
+    toast('수상작 폴더를 삭제했습니다. 원본 파일은 보존됩니다.');
+    await loadAwardFolders();
+  } catch (error) {
+    toast(error.message, 'error');
+  }
+}
+
+function openAwardUpload() {
+  const folder = selectedAwardFolder();
+  if (!folder) return toast('수상작 폴더를 먼저 선택하세요.', 'error');
+  $('uploadRecordId').value = folder.id;
+  $('uploadCategory').value = 'competition-material';
+  if (folder.campusId) $('uploadCampus').value = folder.campusId;
+  $('uploadTargetNotice').textContent = `'${folder.title}' 폴더에 연결해 업로드합니다.`;
+  $('uploadTargetNotice').classList.remove('hidden');
+  openModal('uploadModal');
 }
 
 function competitionGuideTemplate(competition) {
@@ -728,7 +883,7 @@ function renderCompetitionDetail(competition) {
     </section>
     <section class="detail-section">
       <h4>수상작 파일/이미지</h4>
-      ${renderAwardFiles(state.competitionFiles)}
+      ${renderCompetitionAwardFiles(state.competitionFiles)}
     </section>
   `;
   bindCompetitionDetailEvents(competition);
@@ -900,6 +1055,9 @@ function bindEvents() {
   $('uploadForm').onsubmit = uploadFile;
   $('openCompetitionBtn').onclick = () => openModal('competitionModal');
   $('competitionForm').onsubmit = createCompetitionFromForm;
+  $('awardFolderForm').onsubmit = createAwardFolder;
+  $('openAwardUploadBtn').onclick = openAwardUpload;
+  $('deleteAwardFolderBtn').onclick = deleteAwardFolder;
   $('competitionSearchBtn').onclick = () => { renderCompetitions(); loadSelectedCompetition(); };
   ['competitionStatusFilter', 'competitionGradeFilter', 'competitionMajorFilter', 'competitionPracticalFilter'].forEach((id) => {
     $(id).onchange = () => { renderCompetitions(); loadSelectedCompetition(); };
@@ -935,9 +1093,11 @@ function bindEvents() {
   });
 
   $('uploadFile').onchange = () => {
-    state.droppedFile = null;
-    const file = $('uploadFile').files?.[0];
-    $('selectedFileName').textContent = file ? `${file.name} · ${formatBytes(file.size)}` : '최대 100MB';
+    state.droppedFiles = [];
+    const files = Array.from($('uploadFile').files || []);
+    $('selectedFileName').textContent = files.length
+      ? files.map((file) => `${file.name} · ${formatBytes(file.size)}`).join(' / ')
+      : '최대 100MB';
   };
   const drop = $('fileDrop');
   ['dragenter', 'dragover'].forEach((name) => drop.addEventListener(name, (event) => {
@@ -949,10 +1109,10 @@ function bindEvents() {
     drop.classList.remove('dragging');
   }));
   drop.addEventListener('drop', (event) => {
-    const file = event.dataTransfer?.files?.[0];
-    if (!file) return;
-    state.droppedFile = file;
-    $('selectedFileName').textContent = `${file.name} · ${formatBytes(file.size)}`;
+    const files = Array.from(event.dataTransfer?.files || []);
+    if (!files.length) return;
+    state.droppedFiles = files;
+    $('selectedFileName').textContent = files.map((file) => `${file.name} · ${formatBytes(file.size)}`).join(' / ');
   });
 
   window.addEventListener('popstate', () => switchView(initialViewFromPath(), { push: false }));
@@ -967,7 +1127,7 @@ async function init() {
     await loadFiles();
   }
   if (state.context?.authenticated && state.currentView === 'competitions') {
-    await loadCompetitions();
+    await Promise.all([loadCompetitions(), loadAwardFolders()]);
   }
 }
 

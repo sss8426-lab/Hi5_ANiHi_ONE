@@ -281,12 +281,37 @@
         <div class="hero-row">
           <div>
             <h2>공모전·실기대회</h2>
-            <p>대회 정보를 좌측에서 찾고, 우측에서 요강·접수·출품·수상 현황을 확인합니다.</p>
+            <p>수상작 원본은 DATA CORE에 한 번만 보관하고, 대회 소식과 함께 상담에 활용합니다.</p>
           </div>
           <button class="primary-btn" id="openCompetitionBtn">+ 대회 등록</button>
         </div>
-        <div class="competition-split">
-          <aside class="panel competition-browser">
+        <div class="competition-workspace">
+          <aside class="panel award-library">
+            <div class="panel-head">
+              <div>
+                <h3>공모전 및 실기대회 수상작</h3>
+                <p>폴더와 원본 파일 연결은 DATA CORE에서 관리합니다.</p>
+              </div>
+            </div>
+            <form class="award-folder-form" id="awardFolderForm">
+              <label><span>새 폴더</span><input id="awardFolderTitle" required maxlength="240" placeholder="예: 2026 청강대 실기대전"></label>
+              <label><span>캠퍼스</span><select id="awardFolderCampus"></select></label>
+              <button class="secondary-btn" type="submit">새 폴더</button>
+            </form>
+            <div class="award-folder-list" id="awardFolderList"></div>
+            <div class="award-library-head">
+              <div><strong id="selectedAwardFolderTitle">수상작 폴더를 선택하세요</strong><small id="selectedAwardFolderMeta">폴더를 지워도 원본 파일은 보존됩니다.</small></div>
+              <div class="row-actions">
+                <button class="ghost-btn" id="openAwardUploadBtn" type="button">수상작 업로드</button>
+                <button class="danger-btn" id="deleteAwardFolderBtn" type="button">폴더 삭제</button>
+              </div>
+            </div>
+            <div class="award-library-grid" id="awardLibraryFiles"></div>
+          </aside>
+          <section class="panel competition-news">
+            <div class="panel-head">
+              <div><h3>공모전·실기대회 소식</h3><p>등록된 일정과 공식 원문·요강 링크만 표시합니다.</p></div>
+            </div>
             <div class="competition-filter-stack">
               <label>
                 <span>대회 검색</span>
@@ -320,8 +345,8 @@
               <button class="secondary-btn" id="competitionSearchBtn">검색</button>
             </div>
             <div class="competition-list" id="competitionList"></div>
-          </aside>
-          <section class="panel competition-detail" id="competitionDetail"></section>
+            <section class="competition-detail" id="competitionDetail"></section>
+          </section>
         </div>
       </section>
 
@@ -366,6 +391,8 @@
         <button class="icon-btn" data-close-modal="uploadModal">×</button>
       </div>
       <form id="uploadForm" class="form-stack">
+        <input id="uploadRecordId" type="hidden">
+        <p class="selected-folder-notice hidden" id="uploadTargetNotice" role="status"></p>
         <label><span>캠퍼스</span><select id="uploadCampus" required></select></label>
         <label><span>분류</span>
           <select id="uploadCategory">
@@ -381,8 +408,8 @@
           </select>
         </label>
         <label class="file-drop" id="fileDrop">
-          <input id="uploadFile" type="file" required>
-          <strong>파일을 선택하거나 이곳에 놓으세요</strong>
+          <input id="uploadFile" type="file" multiple required>
+          <strong>파일을 선택하거나 여러 파일을 이곳에 놓으세요</strong>
           <small id="selectedFileName">최대 100MB</small>
         </label>
         <button class="primary-btn" type="submit" id="uploadSubmitBtn">중앙 저장소에 업로드</button>

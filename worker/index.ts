@@ -59,7 +59,7 @@ function appShell() {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>입시 컨설팅</title>
+    <title>대학 합격 로드맵</title>
     <style>
       html, body, iframe {
         border: 0;
@@ -73,7 +73,7 @@ function appShell() {
     </style>
   </head>
   <body>
-    <iframe src="/admissions-web/renderer/index.html" title="입시 컨설팅"></iframe>
+    <iframe src="/admissions-web/renderer/index.html" title="대학 합격 로드맵"></iframe>
   </body>
 </html>`,
     { headers: { "content-type": "text/html; charset=utf-8" } },

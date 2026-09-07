@@ -188,6 +188,17 @@ data-core/{area}/{organization}/{campus}/{category}/{owner}/{year}/{uuid-file}
 
 대학합격 로드맵은 기존 입시컨설팅을 삭제하지 않고 상담용 명칭으로 연결한다.
 
+## 7-0-1. 상담용 공모전·실기대회
+
+경로: `/data-core/counseling/competitions`
+
+- 좌측 수상작 자료실은 `data_records`의 `competition-award-folder` 레코드를 폴더로 표시한다.
+- 수상작은 기존 DATA CORE `file_objects`와 R2 원본에 폴더 레코드로만 연결한다. 별도 저장소나 복사본은 만들지 않는다.
+- 폴더 삭제는 soft delete이며, 연결된 원본 파일은 보존한다.
+- 여러 파일을 한 번에 업로드할 수 있고 이미지 파일은 카드 썸네일로 표시한다.
+- 우측 대회 소식은 기존 competition 구조화 데이터의 검색, 상태, 접수 기간, D-day, 원문/요강 링크를 사용한다. 확인되지 않은 일정 수치는 새로 만들지 않는다.
+- 기존 입시컨설팅의 운영 데이터와 `admissions-data.json` 호환 계층은 유지하며, 상담용 표기는 `대학 합격 로드맵`으로 통일한다.
+
 ## 7-1. 블로그/인스타 자동화
 
 경로:
