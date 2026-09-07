@@ -224,14 +224,12 @@ export async function readGuardianFamilyFile(
   }
   const object = await familyFiles.get(row.r2_key);
   if (!object) throw new DataCoreAccessError(404, "꿈이음 원본 파일을 찾을 수 없습니다.");
-  const headers = new Headers();
-  object.writeHttpMetadata(headers);
-  if (!headers.has("content-type")) headers.set("content-type", row.mime_type || "application/octet-stream");
-  headers.set("cache-control", "private, no-store");
-  headers.set(
-    "content-disposition",
-    `inline; filename*=UTF-8''${encodeURIComponent(row.file_name || "file")}`,
-  );
-  headers.set("x-content-type-options", "nosniff");
+  const headers = new Headers({
+    "content-type": row.mime_type || "application/octet-stream",
+    "cache-control": "private, no-store",
+    "content-disposition": `inline; filename*=UTF-8''${encodeURIComponent(row.file_name || "file")}`,
+    "x-content-type-options": "nosniff",
+  });
+  if (object.httpEtag) headers.set("etag", object.httpEtag);
   return new Response(object.body, { headers });
 }
