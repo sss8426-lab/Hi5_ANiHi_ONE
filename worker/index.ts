@@ -1,4 +1,35 @@
 /** Cloudflare Worker entry point for the admissions consulting web app. */
+import {
+  dataCoreHealth,
+  fileAreaForPurpose,
+  recordFileObject,
+  visibilityForArea,
+} from "./data-core";
+import {
+  DataCoreAccessError,
+  listAccessibleCampuses,
+  resolveDataCoreAccess,
+} from "./data-core-access";
+import {
+  deleteDataCoreMembership,
+  listDataCoreMemberships,
+  listDataCoreUsers,
+  upsertDataCoreMembership,
+} from "./data-core-admin";
+import {
+  deleteDataCoreFile,
+  listDataCoreFiles,
+  readDataCoreFile,
+  uploadDataCoreFile,
+} from "./data-core-files";
+import {
+  createDataRecord,
+  deleteDataRecord,
+  getDataRecord,
+  listDataRecords,
+  updateDataRecord,
+} from "./data-core-records";
+
 const STATE_ID = "main";
 const STATE_OBJECT_KEY = "state/admissions-data.json";
 
@@ -6,6 +37,7 @@ interface Env {
   ASSETS?: Fetcher;
   DB?: D1Database;
   FILES?: R2Bucket;
+  DATA_CORE_SUPER_ADMIN_EMAILS?: string;
 }
 
 function jsonResponse(value: unknown, init: ResponseInit = {}) {
@@ -140,14 +172,37 @@ async function handleUpload(request: Request, env: Env) {
   const year = String(form.get("year") || "").replace(/[^0-9]/g, "");
   const folder = year ? `${purpose}/${ownerId}/${year}` : `${purpose}/${ownerId}`;
   const key = `${folder}/${Date.now()}-${crypto.randomUUID()}-${safeFileName(file)}`;
+  const createdAt = new Date().toISOString();
+  const dataCoreFileId = crypto.randomUUID();
+  const area = fileAreaForPurpose(purpose);
+
   await env.FILES.put(key, file.stream(), {
     httpMetadata: {
       contentType: file.type || "application/octet-stream",
     },
   });
 
+  let metadataStored = false;
+  if (env.DB) {
+    await recordFileObject(env.DB, {
+      id: dataCoreFileId,
+      area,
+      category: purpose,
+      r2Key: key,
+      originalFileName: file.name,
+      mimeType: file.type || "application/octet-stream",
+      sizeBytes: file.size,
+      visibility: visibilityForArea(area),
+      createdAt,
+    });
+    metadataStored = true;
+  }
+
   return jsonResponse({
     id: Date.now(),
+    dataCoreFileId,
+    metadataStored,
+    area,
     key,
     url: `/api/files/${encodeURIComponent(key)}`,
     imageUrl: `/api/files/${encodeURIComponent(key)}`,
@@ -156,7 +211,7 @@ async function handleUpload(request: Request, env: Env) {
     fileName: file.name,
     name: file.name,
     contentType: file.type,
-    createdAt: new Date().toISOString(),
+    createdAt,
   });
 }
 
@@ -165,6 +220,7 @@ async function handleFile(request: Request, env: Env) {
   const url = new URL(request.url);
   const encodedKey = url.pathname.replace(/^\/api\/files\//, "");
   const key = decodeURIComponent(encodedKey);
+  if (key.startsWith("data-core/")) return new Response("Not found", { status: 404 });
   const object = await env.FILES.get(key);
   if (!object) return new Response("Not found", { status: 404 });
   const headers = new Headers();
@@ -174,8 +230,146 @@ async function handleFile(request: Request, env: Env) {
   return new Response(object.body, { headers });
 }
 
+async function readJsonBody(request: Request) {
+  try {
+    return await request.json();
+  } catch {
+    throw new DataCoreAccessError(400, "JSON 요청 형식이 올바르지 않습니다.");
+  }
+}
+
+async function handleDataCoreApi(request: Request, env: Env) {
+  const url = new URL(request.url);
+
+  if (url.pathname === "/api/data-core/health" && request.method === "GET") {
+    return jsonResponse(await dataCoreHealth(env.DB, env.FILES));
+  }
+
+  const context = await resolveDataCoreAccess(
+    request,
+    env.DB,
+    env.DATA_CORE_SUPER_ADMIN_EMAILS,
+  );
+
+  if (url.pathname === "/api/data-core/context" && request.method === "GET") {
+    return jsonResponse(context);
+  }
+
+  if (url.pathname === "/api/data-core/campuses" && request.method === "GET") {
+    if (!env.DB) throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
+    return jsonResponse({ campuses: await listAccessibleCampuses(env.DB, context) });
+  }
+
+  if (url.pathname === "/api/data-core/records" && request.method === "GET") {
+    if (!env.DB) throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
+    return jsonResponse({ records: await listDataRecords(env.DB, context, url) });
+  }
+
+  if (url.pathname === "/api/data-core/records" && request.method === "POST") {
+    if (!env.DB) throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
+    return jsonResponse(
+      { record: await createDataRecord(env.DB, context, await readJsonBody(request)) },
+      { status: 201 },
+    );
+  }
+
+  const recordMatch = url.pathname.match(/^\/api\/data-core\/records\/([^/]+)$/);
+  if (recordMatch) {
+    const recordId = decodeURIComponent(recordMatch[1]);
+    if (!env.DB) throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
+
+    if (request.method === "GET") {
+      return jsonResponse({ record: await getDataRecord(env.DB, context, recordId) });
+    }
+    if (request.method === "PATCH") {
+      return jsonResponse({
+        record: await updateDataRecord(env.DB, context, recordId, await readJsonBody(request)),
+      });
+    }
+    if (request.method === "DELETE") {
+      return jsonResponse(await deleteDataRecord(env.DB, context, recordId));
+    }
+  }
+
+  if (url.pathname === "/api/data-core/files" && request.method === "GET") {
+    if (!env.DB) throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
+    return jsonResponse({ files: await listDataCoreFiles(env.DB, context, url) });
+  }
+
+  if (
+    (url.pathname === "/api/data-core/files" || url.pathname === "/api/data-core/upload") &&
+    request.method === "POST"
+  ) {
+    if (!env.DB || !env.FILES) {
+      throw new DataCoreAccessError(503, "DATA CORE의 D1과 R2가 모두 연결되어야 합니다.");
+    }
+    return jsonResponse(
+      { file: await uploadDataCoreFile(request, env.DB, env.FILES, context) },
+      { status: 201 },
+    );
+  }
+
+  const fileMatch = url.pathname.match(/^\/api\/data-core\/files\/([^/]+)$/);
+  if (fileMatch) {
+    const fileId = decodeURIComponent(fileMatch[1]);
+    if (!env.DB || !env.FILES) {
+      throw new DataCoreAccessError(503, "DATA CORE의 D1과 R2가 모두 연결되어야 합니다.");
+    }
+    if (request.method === "GET") {
+      return readDataCoreFile(env.DB, env.FILES, context, fileId);
+    }
+    if (request.method === "DELETE") {
+      return jsonResponse(await deleteDataCoreFile(env.DB, env.FILES, context, fileId));
+    }
+  }
+
+  if (url.pathname === "/api/data-core/admin/users" && request.method === "GET") {
+    if (!env.DB) throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
+    return jsonResponse({ users: await listDataCoreUsers(env.DB, context) });
+  }
+
+  if (url.pathname === "/api/data-core/admin/memberships" && request.method === "GET") {
+    if (!env.DB) throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
+    return jsonResponse({ memberships: await listDataCoreMemberships(env.DB, context) });
+  }
+
+  if (url.pathname === "/api/data-core/admin/memberships" && request.method === "POST") {
+    if (!env.DB) throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
+    return jsonResponse(
+      { membership: await upsertDataCoreMembership(env.DB, context, await readJsonBody(request)) },
+      { status: 201 },
+    );
+  }
+
+  const membershipMatch = url.pathname.match(/^\/api\/data-core\/admin\/memberships\/([^/]+)$/);
+  if (membershipMatch && request.method === "DELETE") {
+    if (!env.DB) throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
+    return jsonResponse(
+      await deleteDataCoreMembership(
+        env.DB,
+        context,
+        decodeURIComponent(membershipMatch[1]),
+      ),
+    );
+  }
+
+  return null;
+}
+
 async function handleApi(request: Request, env: Env) {
   const url = new URL(request.url);
+
+  if (url.pathname.startsWith("/api/data-core/")) {
+    try {
+      return await handleDataCoreApi(request, env);
+    } catch (error) {
+      if (error instanceof DataCoreAccessError) {
+        return jsonResponse({ error: error.message }, { status: error.status });
+      }
+      console.error("DATA CORE API error", error);
+      return jsonResponse({ error: "DATA CORE 처리 중 오류가 발생했습니다." }, { status: 500 });
+    }
+  }
 
   if (url.pathname === "/api/data" && request.method === "GET") {
     return jsonResponse(await readAppData(request, env));
