@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>DATA CORE 운영환경 진단</title>
+  <link rel="stylesheet" href="/data-core/readiness.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">HI5·ANiHi DATA CORE</p>
+        <h1>운영환경 진단</h1>
+        <p class="lead">D1, R2, 로그인 권한이 실제 운영 환경에서 정상 동작하는지 한 번에 확인합니다.</p>
+      </div>
+      <div class="actions">
+        <a class="ghost" href="/data-core">자료보관함</a>
+        <a class="ghost" href="/data-core/operations">운영관리</a>
+        <button class="primary" id="runBtn">전체 진단 실행</button>
+      </div>
+    </header>
+
+    <section class="summary-grid">
+      <article><span>로그인 상태</span><strong id="authState">확인 중</strong></article>
+      <article><span>마스터 권한</span><strong id="adminState">확인 중</strong></article>
+      <article><span>D1 + R2</span><strong id="bindingState">확인 중</strong></article>
+      <article><span>최종 진단</span><strong id="overallState">미실행</strong></article>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>연결 상태</h2>
+          <p>단순 설정값이 아니라 실제 Worker API 응답을 기준으로 표시합니다.</p>
+        </div>
+        <button class="secondary" id="refreshBtn">상태 새로고침</button>
+      </div>
+      <div class="status-list" id="statusList"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>실제 읽기·쓰기 진단</h2>
+          <p>마스터만 실행할 수 있습니다. 임시 probe 데이터를 만들고 즉시 삭제하여 D1/R2 동작을 검증합니다.</p>
+        </div>
+      </div>
+      <div class="diagnostic-list" id="diagnosticList">
+        <div class="empty">아직 진단을 실행하지 않았습니다.</div>
+      </div>
+    </section>
+
+    <section class="panel caution">
+      <h2>운영 전 체크 기준</h2>
+      <ol>
+        <li>D1 읽기와 D1 쓰기/삭제가 모두 성공해야 합니다.</li>
+        <li>R2 쓰기·읽기·삭제가 모두 성공해야 합니다.</li>
+        <li>마스터 계정이 SUPER_ADMIN으로 인식되어야 합니다.</li>
+        <li>모든 진단이 성공한 뒤 실제 학원 자료 업로드를 시작합니다.</li>
+      </ol>
+    </section>
+
+    <div class="toast hidden" id="toast"></div>
+  </main>
+  <script src="/data-core/readiness.js"></script>
+</body>
+</html>
