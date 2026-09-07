@@ -15,7 +15,8 @@
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
     "auth:create-master": "node scripts/create-standalone-master.mjs",
-    "auth:create-master:windows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/create-standalone-master.ps1"
+    "auth:create-master:windows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/create-standalone-master.ps1",
+    "auth:reset-standalone-password:windows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/reset-standalone-password.ps1"
   },
   "dependencies": {
     "drizzle-orm": "0.45.2",

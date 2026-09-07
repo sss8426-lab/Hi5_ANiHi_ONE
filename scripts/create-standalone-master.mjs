@@ -7,7 +7,7 @@ import { createInterface } from 'node:readline/promises';
 import { promisify } from 'node:util';
 
 const pbkdf2 = promisify(pbkdf2Callback);
-const iterations = 310_000;
+const iterations = 100_000;
 const run = (args) => new Promise((resolve, reject) => {
   const windowsNpxCli = join(dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npx-cli.js');
   const command = process.platform === 'win32' ? process.execPath : 'npx';
