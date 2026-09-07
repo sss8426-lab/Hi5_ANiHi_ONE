@@ -1,5 +1,6 @@
 /** Cloudflare Worker entry point for the admissions consulting web app. */
 import {
+  dataCoreContext,
   dataCoreHealth,
   fileAreaForPurpose,
   recordFileObject,
@@ -209,6 +210,10 @@ async function handleApi(request: Request, env: Env) {
 
   if (url.pathname === "/api/data-core/health" && request.method === "GET") {
     return jsonResponse(await dataCoreHealth(env.DB, env.FILES));
+  }
+
+  if (url.pathname === "/api/data-core/context" && request.method === "GET") {
+    return jsonResponse(await dataCoreContext(request, env.DB));
   }
 
   if (url.pathname === "/api/data" && request.method === "GET") {
