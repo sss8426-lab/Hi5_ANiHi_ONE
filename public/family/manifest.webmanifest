@@ -1,0 +1,19 @@
+{
+  "name": "꿈이음 | HI5·ANiHi",
+  "short_name": "꿈이음",
+  "description": "우리 아이의 작품과 성장기록을 안전하게 이어보는 HI5·ANiHi 보호자 앱",
+  "lang": "ko-KR",
+  "start_url": "/family/",
+  "scope": "/family/",
+  "display": "standalone",
+  "background_color": "#f5f7fb",
+  "theme_color": "#173a68",
+  "icons": [
+    {
+      "src": "/family/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

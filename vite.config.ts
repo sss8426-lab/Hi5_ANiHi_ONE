@@ -12,7 +12,7 @@ const { d1, r2 } = hostingConfig;
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 
 const localBindingConfig = {
-  main: "./worker/readiness-router.ts",
+  main: "./worker/family-shell-router.ts",
   d1_databases: d1
     ? [
         {

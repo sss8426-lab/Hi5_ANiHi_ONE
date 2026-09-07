@@ -3,7 +3,7 @@
   "name": "hi5-anihi-one",
   "compatibility_date": "2026-05-15",
   "compatibility_flags": ["nodejs_compat"],
-  "main": "./worker/readiness-router.ts",
+  "main": "./worker/family-shell-router.ts",
   "assets": {
     "directory": "dist/client",
     "not_found_handling": "none",

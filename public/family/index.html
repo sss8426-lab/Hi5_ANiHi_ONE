@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#173a68">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="꿈이음">
+  <title>꿈이음 | HI5·ANiHi</title>
+  <link rel="manifest" href="/family/manifest.webmanifest">
+  <link rel="icon" href="/family/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/family/family.css">
+</head>
+<body>
+  <div class="family-shell">
+    <header class="app-header">
+      <a class="brand" href="/family/" aria-label="꿈이음 홈">
+        <span class="brand-mark">꿈</span>
+        <span><strong>꿈이음</strong><small>HI5·ANiHi</small></span>
+      </a>
+      <button class="quiet-button hidden" id="logoutTopBtn" type="button">로그아웃</button>
+    </header>
+
+    <main id="appMain" class="app-main">
+      <section class="auth-card" id="loadingView" aria-live="polite">
+        <span class="loader" aria-hidden="true"></span>
+        <h1>꿈이음을 불러오고 있어요</h1>
+        <p>보호자 로그인 상태를 안전하게 확인합니다.</p>
+      </section>
+
+      <section class="auth-card hidden" id="loginView">
+        <div class="auth-symbol">꿈</div>
+        <p class="eyebrow">우리 아이의 오늘과 내일을 잇는 기록</p>
+        <h1>꿈이음</h1>
+        <p class="auth-copy">아이의 작품과 선생님 평가를 한곳에서 확인하세요.</p>
+        <form id="loginForm" class="auth-form" autocomplete="on">
+          <label><span>로그인 ID</span><input id="loginId" name="username" autocomplete="username" required></label>
+          <label><span>비밀번호</span><input id="loginPassword" name="password" type="password" autocomplete="current-password" required></label>
+          <button class="primary-button" type="submit">로그인</button>
+        </form>
+        <p class="form-message hidden" id="loginMessage" role="alert"></p>
+      </section>
+
+      <section class="auth-card hidden" id="passwordView">
+        <div class="auth-symbol">✓</div>
+        <p class="eyebrow">FIRST PASSWORD CHANGE</p>
+        <h1>새 비밀번호를 설정해 주세요</h1>
+        <p class="auth-copy">처음 로그인한 보호자 계정은 비밀번호를 변경한 뒤 아이의 기록을 볼 수 있습니다.</p>
+        <form id="passwordForm" class="auth-form" autocomplete="off">
+          <label><span>현재 비밀번호</span><input id="currentPassword" type="password" autocomplete="current-password" required></label>
+          <label><span>새 비밀번호</span><input id="newPassword" type="password" minlength="12" autocomplete="new-password" required><small>12자 이상</small></label>
+          <label><span>새 비밀번호 확인</span><input id="confirmPassword" type="password" minlength="12" autocomplete="new-password" required></label>
+          <button class="primary-button" type="submit">변경하고 시작하기</button>
+        </form>
+        <p class="form-message hidden" id="passwordMessage" role="alert"></p>
+      </section>
+
+      <section class="auth-card hidden" id="unavailableView">
+        <div class="auth-symbol">!</div>
+        <p class="eyebrow">SERVICE STATUS</p>
+        <h1>꿈이음 연결을 준비하고 있습니다</h1>
+        <p class="auth-copy" id="unavailableMessage">보호자 전용 저장소 연결 상태를 확인하고 있습니다.</p>
+        <button class="secondary-button" id="retryBtn" type="button">다시 확인</button>
+      </section>
+
+      <section class="family-app hidden" id="familyView">
+        <div class="welcome-row">
+          <div><p class="eyebrow">KKUMEUM FAMILY</p><h1><span id="guardianName">보호자</span>님, 안녕하세요</h1></div>
+          <label class="child-select-wrap hidden" id="childSelectWrap"><span>자녀 선택</span><select id="childSelect"></select></label>
+        </div>
+
+        <div class="notice-bar hidden" id="appNotice" role="status"></div>
+
+        <section class="tab-panel active" data-panel="home">
+          <article class="hero-card">
+            <div><span class="mini-label">THIS MONTH</span><h2 id="homeChildName">우리 아이</h2><p id="homeChildMeta">성장기록을 불러오는 중입니다.</p></div>
+            <span class="hero-badge" id="homeReportBadge">이번 달</span>
+          </article>
+          <div class="summary-grid">
+            <button class="summary-card" type="button" data-go-tab="growth"><span>성장기록</span><strong id="reportCount">0</strong><small>전달된 평가</small></button>
+            <button class="summary-card" type="button" data-go-tab="child"><span>작품</span><strong id="artworkCount">0</strong><small>확인 가능한 작품</small></button>
+          </div>
+          <section class="section-block"><div class="section-head"><h2>최근 선생님 평가</h2><button class="text-button" type="button" data-go-tab="growth">전체보기</button></div><div id="latestReport"></div></section>
+          <section class="section-block"><div class="section-head"><h2>최근 작품</h2><button class="text-button" type="button" data-go-tab="child">전체보기</button></div><div class="artwork-grid compact" id="latestArtworks"></div></section>
+        </section>
+
+        <section class="tab-panel" data-panel="child">
+          <div class="page-title"><p class="eyebrow">MY CHILD</p><h2>우리아이</h2><p>한 달 동안 쌓인 작품과 수업의 흔적을 확인하세요.</p></div>
+          <article class="profile-card"><div class="profile-avatar">꿈</div><div><strong id="childProfileName">-</strong><span id="childProfileMeta">-</span></div></article>
+          <section class="section-block"><div class="section-head"><h2>작품 갤러리</h2><span id="galleryCount">0장</span></div><div class="artwork-grid" id="artworkGallery"></div></section>
+        </section>
+
+        <section class="tab-panel" data-panel="growth">
+          <div class="page-title"><p class="eyebrow">GROWTH RECORD</p><h2>성장기록</h2><p>선생님이 검토하고 전달한 월간 평가만 표시됩니다.</p></div>
+          <div class="report-list" id="reportList"></div>
+        </section>
+
+        <section class="tab-panel" data-panel="news">
+          <div class="page-title"><p class="eyebrow">NEWS</p><h2>소식</h2><p>반소식·캠퍼스공지·전체공지를 한곳에서 확인하게 됩니다.</p></div>
+          <article class="empty-card"><span class="empty-icon">◌</span><h3>소식 기능을 준비하고 있습니다</h3><p>공지 API가 연결되기 전에는 임의의 소식을 만들어 보여주지 않습니다.</p></article>
+        </section>
+
+        <section class="tab-panel" data-panel="more">
+          <div class="page-title"><p class="eyebrow">MORE</p><h2>더보기</h2></div>
+          <div class="settings-list">
+            <div class="setting-row"><div><strong>로그인 계정</strong><span id="guardianAccountName">보호자</span></div></div>
+            <div class="setting-row"><div><strong>앱 설치</strong><span>브라우저 메뉴에서 홈 화면에 추가할 수 있습니다.</span></div></div>
+            <button class="danger-button" id="logoutBtn" type="button">로그아웃</button>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <nav class="bottom-nav hidden" id="bottomNav" aria-label="꿈이음 메뉴">
+      <button class="active" type="button" data-tab="home"><span>⌂</span><b>홈</b></button>
+      <button type="button" data-tab="child"><span>♡</span><b>우리아이</b></button>
+      <button type="button" data-tab="growth"><span>↗</span><b>성장기록</b></button>
+      <button type="button" data-tab="news"><span>▤</span><b>소식</b></button>
+      <button type="button" data-tab="more"><span>•••</span><b>더보기</b></button>
+    </nav>
+  </div>
+  <script src="/family/family.js" defer></script>
+</body>
+</html>
