@@ -1,6 +1,7 @@
 import dataCoreWorker from "./admissions-knowledge-router";
 import { DataCoreAccessError } from "./data-core-access";
 import {
+  changeKkumeumGuardianPassword,
   kkumeumGuardianSessionIdentity,
   loginKkumeumGuardian,
   logoutKkumeumGuardian,
@@ -62,6 +63,18 @@ async function handleFamilyGuardianAuthApi(request: Request, env: Env): Promise<
         mustChangePassword: result.guardian.mustChangePassword,
         expiresAt: result.expiresAt,
       },
+      { headers: { "set-cookie": result.setCookie } },
+    );
+  }
+
+  if (url.pathname === "/api/family/auth/change-password" && request.method === "POST") {
+    const result = await changeKkumeumGuardianPassword(
+      env.FAMILY_DB,
+      request,
+      await readJson<{ currentPassword?: unknown; newPassword?: unknown }>(request),
+    );
+    return privateJsonResponse(
+      { ok: true, authenticated: true, mustChangePassword: false },
       { headers: { "set-cookie": result.setCookie } },
     );
   }
