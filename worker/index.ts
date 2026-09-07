@@ -1,4 +1,11 @@
 /** Cloudflare Worker entry point for the admissions consulting web app. */
+import {
+  dataCoreHealth,
+  fileAreaForPurpose,
+  recordFileObject,
+  visibilityForArea,
+} from "./data-core";
+
 const STATE_ID = "main";
 const STATE_OBJECT_KEY = "state/admissions-data.json";
 
@@ -140,14 +147,37 @@ async function handleUpload(request: Request, env: Env) {
   const year = String(form.get("year") || "").replace(/[^0-9]/g, "");
   const folder = year ? `${purpose}/${ownerId}/${year}` : `${purpose}/${ownerId}`;
   const key = `${folder}/${Date.now()}-${crypto.randomUUID()}-${safeFileName(file)}`;
+  const createdAt = new Date().toISOString();
+  const dataCoreFileId = crypto.randomUUID();
+  const area = fileAreaForPurpose(purpose);
+
   await env.FILES.put(key, file.stream(), {
     httpMetadata: {
       contentType: file.type || "application/octet-stream",
     },
   });
 
+  let metadataStored = false;
+  if (env.DB) {
+    await recordFileObject(env.DB, {
+      id: dataCoreFileId,
+      area,
+      category: purpose,
+      r2Key: key,
+      originalFileName: file.name,
+      mimeType: file.type || "application/octet-stream",
+      sizeBytes: file.size,
+      visibility: visibilityForArea(area),
+      createdAt,
+    });
+    metadataStored = true;
+  }
+
   return jsonResponse({
     id: Date.now(),
+    dataCoreFileId,
+    metadataStored,
+    area,
     key,
     url: `/api/files/${encodeURIComponent(key)}`,
     imageUrl: `/api/files/${encodeURIComponent(key)}`,
@@ -156,7 +186,7 @@ async function handleUpload(request: Request, env: Env) {
     fileName: file.name,
     name: file.name,
     contentType: file.type,
-    createdAt: new Date().toISOString(),
+    createdAt,
   });
 }
 
@@ -176,6 +206,10 @@ async function handleFile(request: Request, env: Env) {
 
 async function handleApi(request: Request, env: Env) {
   const url = new URL(request.url);
+
+  if (url.pathname === "/api/data-core/health" && request.method === "GET") {
+    return jsonResponse(await dataCoreHealth(env.DB, env.FILES));
+  }
 
   if (url.pathname === "/api/data" && request.method === "GET") {
     return jsonResponse(await readAppData(request, env));
