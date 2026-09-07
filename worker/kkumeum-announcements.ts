@@ -71,7 +71,7 @@ async function requireGuardian(
   return identity;
 }
 
-function sameOrigin(request: Request): void {
+function assertSameOrigin(request: Request): void {
   const origin = request.headers.get("origin");
   if (origin && origin !== new URL(request.url).origin) {
     throw new DataCoreAccessError(403, "허용되지 않은 요청 출처입니다.");
@@ -158,7 +158,7 @@ export async function markGuardianNoticeRead(
   request: Request,
   announcementId: string,
 ): Promise<{ ok: true; announcementId: string; readAt: string }> {
-  sameOrigin(request);
+  assertSameOrigin(request);
   const guardian = await requireGuardian(familyDb, request);
   const visible = await familyDb.prepare(
     `SELECT a.id
@@ -181,9 +181,9 @@ export async function markGuardianNoticeRead(
   await familyDb.prepare(
     `INSERT INTO read_receipts (
        id, guardian_id, resource_type, resource_id, read_at
-     ) VALUES (?, ?, 'announcement', ?, ?, ?)
+     ) VALUES (?, ?, 'announcement', ?, ?)
      ON CONFLICT(guardian_id, resource_type, resource_id)
-     DO UPDATE SET read_at = read_receipts.read_at`,
+     DO NOTHING`,
   ).bind(
     crypto.randomUUID(),
     guardian.guardianId,
