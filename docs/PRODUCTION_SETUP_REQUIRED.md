@@ -6,7 +6,7 @@
 
 - 현재 코드에는 `/data-core/content` 콘텐츠 허브와 `/api/data-core/content` 초안 API가 추가되어 있다.
 - 로컬 코드 검증과 GitHub Actions CI는 통과했지만, 실제 Cloudflare 운영 배포 성공과는 별개다.
-- PR #19의 Cloudflare Workers bot 댓글 기준 production deployment는 `e00aa470` 커밋에서 실패했다.
+- PR #19의 Cloudflare Workers bot 댓글 기준 production deployment는 PR 갱신 후에도 반복 실패하고 있다.
 - 로컬 `wrangler deploy --dry-run`은 generated config인 `dist/server/wrangler.json`을 사용했고, `DB`, `FILES`, `ASSETS` 바인딩을 읽는 단계까지 성공했다.
 
 ## 계정/환경 문제
