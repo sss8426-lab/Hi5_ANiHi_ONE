@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "art-admission-consulting-mvp",
+  "name": "hi5-anihi-one",
   "compatibility_date": "2026-05-15",
   "compatibility_flags": ["nodejs_compat"],
   "main": "./worker/readiness-router.ts",
