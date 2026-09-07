@@ -1,0 +1,65 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import test from 'node:test';
+
+const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
+
+test('꿈이음 보호자 PWA shell은 private fixture 없이 guardian API만 사용한다', async () => {
+  const [html, js] = await Promise.all([
+    read('public/family/index.html'),
+    read('public/family/family.js'),
+  ]);
+
+  assert.match(html, /꿈이음/);
+  assert.match(html, /홈/);
+  assert.match(html, /우리아이/);
+  assert.match(html, /성장기록/);
+  assert.match(html, /소식/);
+  assert.match(html, /더보기/);
+  assert.match(html, /manifest\.webmanifest/);
+  assert.doesNotMatch(html, /꿈학생A|테스트 보호자|비공개학교|guardian-test|student-test/);
+
+  for (const path of [
+    '/api/family/auth/session',
+    '/api/family/auth/login',
+    '/api/family/auth/change-password',
+    '/api/family/auth/logout',
+    '/api/family/children',
+  ]) assert.match(js, new RegExp(path.replaceAll('/', '\\/')));
+  assert.match(js, /credentials:\s*'include'/);
+  assert.match(js, /\/api\/family\/children\/\$\{encodeURIComponent\(studentId\)\}\/reports/);
+  assert.match(js, /\/api\/family\/children\/\$\{encodeURIComponent\(studentId\)\}\/artworks/);
+  assert.doesNotMatch(js, /\/api\/data-core/);
+  assert.doesNotMatch(js, /localStorage|sessionStorage|indexedDB/i);
+});
+
+test('꿈이음 PWA manifest는 family scope 안에서 standalone으로 설치된다', async () => {
+  const manifest = JSON.parse(await read('public/family/manifest.webmanifest'));
+  assert.equal(manifest.short_name, '꿈이음');
+  assert.equal(manifest.start_url, '/family/');
+  assert.equal(manifest.scope, '/family/');
+  assert.equal(manifest.display, 'standalone');
+  assert.ok(manifest.icons.some((icon) => icon.src === '/family/icon.svg'));
+});
+
+test('service worker는 명시적 static shell만 캐시하고 family/API를 network-only로 둔다', async () => {
+  const sw = await read('public/family/sw.js');
+  assert.match(sw, /STATIC_SHELL/);
+  for (const asset of ['/family/index.html', '/family/family.css', '/family/family.js', '/family/manifest.webmanifest', '/family/icon.svg']) {
+    assert.match(sw, new RegExp(asset.replaceAll('/', '\\/')));
+  }
+  assert.match(sw, /url\.pathname\.startsWith\('\/api\/family\/'\)/);
+  assert.match(sw, /url\.pathname\.startsWith\('\/api\/'\)/);
+  assert.match(sw, /event\.respondWith\(fetch\(request\)\)/);
+  assert.doesNotMatch(sw, /cache\.put\(request[\s\S]*api\/family/);
+});
+
+test('보호자 UI는 공지 API 전까지 실제 소식을 위조하지 않는다', async () => {
+  const [html, js] = await Promise.all([
+    read('public/family/index.html'),
+    read('public/family/family.js'),
+  ]);
+  assert.match(html, /소식 기능을 준비하고 있습니다/);
+  assert.match(html, /임의의 소식을 만들어 보여주지 않습니다/);
+  assert.doesNotMatch(js, /mockNews|sampleNews|fakeNews/i);
+});
