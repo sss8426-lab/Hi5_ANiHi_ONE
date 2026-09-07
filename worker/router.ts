@@ -91,27 +91,7 @@ async function handleFileMetadataApi(request: Request, env: Env) {
 
   if (isListPath && request.method === "GET") {
     const files = await listDataCoreFiles(env.DB, context, url);
-    if (!files.length) return jsonResponse({ files: [] });
-
-    const ids = files.map((file) => String(file.id));
-    const placeholders = ids.map(() => "?").join(", ");
-    const rows = await env.DB
-      .prepare(`SELECT id, source_app FROM file_objects WHERE id IN (${placeholders})`)
-      .bind(...ids)
-      .all<{ id: string; source_app: string | null }>();
-    const sourceMap = new Map(
-      (rows.results || []).map((row) => [row.id, row.source_app || "legacy"]),
-    );
-    const requestedSourceApp = String(url.searchParams.get("sourceApp") || "").trim();
-    const enriched = files.map((file) => ({
-      ...file,
-      sourceApp: sourceMap.get(String(file.id)) || "legacy",
-    }));
-    return jsonResponse({
-      files: requestedSourceApp
-        ? enriched.filter((file) => file.sourceApp === requestedSourceApp)
-        : enriched,
-    });
+    return jsonResponse({ files });
   }
 
   return null;

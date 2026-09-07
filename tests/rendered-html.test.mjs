@@ -88,6 +88,8 @@ test("wires the DATA CORE counseling and work mode split", async () => {
   assert.match(appScript, /state\.campuses\.map/);
   assert.match(appScript, /data-campus-folder/);
   assert.match(appScript, /CAMPUS_FOLDERS/);
+  assert.match(appScript, /data-folder-source/);
+  assert.match(appScript, /params\.set\('sourceApp', sourceApp\)/);
   assert.match(appScript, /fileCategoryFilter/);
   assert.match(appScript, /loadFiles\(\)/);
   assert.match(appScript, /isSuperAdmin\(\) && state\.currentMode !== 'mode'/);
@@ -95,6 +97,28 @@ test("wires the DATA CORE counseling and work mode split", async () => {
   assert.match(styles, /\.competition-split/);
   assert.match(router, /\/data-core\/counseling/);
   assert.match(router, /\/data-core\/work/);
+});
+
+test("wires DATA CORE competition media and academy guide draft interactions", async () => {
+  const [dataCoreIndex, appScript, styles, filesApi] = await Promise.all([
+    readFile(new URL("../public/data-core/index.html", import.meta.url), "utf8"),
+    readFile(new URL("../public/data-core/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../public/data-core/styles.css", import.meta.url), "utf8"),
+    readFile(new URL("../worker/data-core-files.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(dataCoreIndex, /selectedFolderNotice/);
+  assert.match(appScript, /recordId=.*sourceApp=competition/);
+  assert.match(appScript, /renderCompetitionPoster/);
+  assert.match(appScript, /renderAwardFiles/);
+  assert.match(appScript, /competition-media-empty/);
+  assert.match(appScript, /안내문 초안 만들기/);
+  assert.match(appScript, /competitionGuideTemplate/);
+  assert.match(appScript, /navigator\.clipboard/);
+  assert.match(styles, /\.award-file-grid/);
+  assert.match(styles, /\.competition-media-empty/);
+  assert.match(filesApi, /const sourceApp = cleanText\(url\.searchParams\.get\("sourceApp"\), 80\)/);
+  assert.match(filesApi, /conditions\.push\("fo\.source_app = \?"\)/);
 });
 
 test("wires the DATA CORE blog and Instagram automation routes", async () => {
