@@ -48,8 +48,10 @@ HI5·ANiHi DATA CORE
 
 - `/` : 기존 입시컨설팅
 - `/data-core` : 중앙 자료보관함
+- `/data-core/content` : 블로그/인스타 콘텐츠 허브
 - `/data-core/roadmap` : 꿈·전공 로드맵
 - `/data-core/operations` : 운영관리
+- `/data-core/readiness` : 운영환경 진단 화면
 
 ## 4. DATA CORE 공통 DB
 
@@ -456,6 +458,17 @@ GitHub Actions `DATA CORE CI` 적용.
 4. DATA CORE 브라우저 JavaScript 문법검사
 
 2026-09-07 기준 DATA CORE 관련 PR #1~#13까지 기능별 CI 검증 후 main에 반영됐다.
+
+Issue #18 콘텐츠 자동화 기반 작업은 PR #19에서 다음을 확인했다.
+
+- GitHub Actions `DATA CORE CI`: success
+- `npm ci`: success
+- `npm run build`: success
+- `npx tsc --noEmit`: success
+- DATA CORE 브라우저 JavaScript 문법검사: success
+- 로컬 `wrangler deploy --dry-run`: success
+
+단, PR #19의 Cloudflare Workers production deployment bot은 실패를 보고했다. Cloudflare Dashboard build log 접근 권한이 필요하므로 실제 운영 배포 성공으로 간주하지 않는다.
 
 ## 17. 아직 실제 운영환경에서 확인해야 할 부분
 
