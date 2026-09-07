@@ -155,6 +155,60 @@ soft delete.
 
 ---
 
+# 콘텐츠 허브
+
+블로그와 인스타그램 자동화는 별도 저장소를 만들지 않고 콘텐츠 초안을 `data_records`에 저장한다.
+
+## GET `/api/data-core/content`
+
+검색 파라미터:
+
+- `sourceApp`: `blog` 또는 `instagram`
+- `campusId`
+- `status`: `draft`, `review`, `ready`, `published`, `archived`
+- `q`
+- `limit`
+
+## POST `/api/data-core/content`
+
+예시 JSON:
+
+```json
+{
+  "sourceApp": "blog",
+  "campusId": "campus-anihi-admission",
+  "title": "고2 웹툰 수업 성장 기록",
+  "summary": "수업 피드백과 변화 기록",
+  "content": "본문 또는 캡션",
+  "contentPurpose": "class-story",
+  "publishStatus": "draft",
+  "relatedFileIds": ["file-id-1"],
+  "tags": ["웹툰", "고2"]
+}
+```
+
+저장 규칙:
+
+- 블로그: `recordType=blog-draft`, `sourceApp=blog`
+- 인스타그램: `recordType=instagram-draft`, `sourceApp=instagram`
+- 본문/캡션: `content_text`
+- 연결 파일: `metadata.relatedFileIds`
+- 인스타 규격: `metadata.imageSpec = 2160 x 2700, 4:5`
+
+## GET `/api/data-core/content/{id}`
+
+초안 상세와 본문/캡션을 조회한다.
+
+## PATCH `/api/data-core/content/{id}`
+
+본인 초안 또는 SUPER_ADMIN만 수정할 수 있다. 생성 후 `sourceApp`은 바꾸지 않는다.
+
+## DELETE `/api/data-core/content/{id}`
+
+초안을 soft delete 한다.
+
+---
+
 # 중앙 파일 저장소
 
 새 파일은 반드시 DATA CORE 파일 API를 사용한다.

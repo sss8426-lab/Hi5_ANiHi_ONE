@@ -37,23 +37,27 @@ async function ensureColumn(
 }
 
 async function ensureBackupTable(db: D1Database) {
-  await db.exec(`CREATE TABLE IF NOT EXISTS data_backups (
-    id TEXT PRIMARY KEY NOT NULL,
-    organization_id TEXT NOT NULL,
-    created_by_user_id TEXT,
-    status TEXT NOT NULL,
-    backup_type TEXT NOT NULL DEFAULT 'metadata-snapshot',
-    r2_prefix TEXT NOT NULL,
-    manifest_key TEXT,
-    total_rows INTEGER NOT NULL DEFAULT 0,
-    table_counts_json TEXT NOT NULL DEFAULT '{}',
-    created_at TEXT NOT NULL,
-    completed_at TEXT,
-    verified_at TEXT,
-    error_message TEXT,
-    FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
-    FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE SET NULL
-  )`);
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS data_backups (
+        id TEXT PRIMARY KEY NOT NULL,
+        organization_id TEXT NOT NULL,
+        created_by_user_id TEXT,
+        status TEXT NOT NULL,
+        backup_type TEXT NOT NULL DEFAULT 'metadata-snapshot',
+        r2_prefix TEXT NOT NULL,
+        manifest_key TEXT,
+        total_rows INTEGER NOT NULL DEFAULT 0,
+        table_counts_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        completed_at TEXT,
+        verified_at TEXT,
+        error_message TEXT,
+        FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+        FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+      )`,
+    )
+    .run();
   await db.exec(
     "CREATE INDEX IF NOT EXISTS data_backups_created_idx ON data_backups(created_at)",
   );

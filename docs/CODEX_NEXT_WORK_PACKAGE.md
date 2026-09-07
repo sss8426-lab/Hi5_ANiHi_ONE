@@ -2,6 +2,8 @@
 
 기준일: 2026-09-07
 
+상태: Issue #18에서 콘텐츠 허브 1차 기반이 구현되었다. 운영환경 검증은 아직 실제 운영 계정과 배포환경에서 확인해야 한다.
+
 이 문서는 다음 Codex 작업 묶음의 실행 명세다.
 
 Codex는 작업 시작 전에 반드시 다음을 읽는다.
@@ -214,6 +216,11 @@ metadata 예시:
 
 `/data-core/content/blog`
 
+현재 1차 구현 경로:
+
+- `/data-core/content`
+- `/data-core/content/blog`
+
 또는 기존 CORE 구조에 맞는 더 좋은 경로가 있으면 기존 네비게이션 패턴을 우선한다.
 
 필수 기능:
@@ -250,6 +257,11 @@ metadata 예시:
 새 경로 권장:
 
 `/data-core/content/instagram`
+
+현재 1차 구현 경로:
+
+- `/data-core/content`
+- `/data-core/content/instagram`
 
 필수 기능:
 

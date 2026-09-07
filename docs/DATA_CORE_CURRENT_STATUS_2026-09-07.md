@@ -48,8 +48,10 @@ HI5·ANiHi DATA CORE
 
 - `/` : 기존 입시컨설팅
 - `/data-core` : 중앙 자료보관함
+- `/data-core/content` : 블로그/인스타 콘텐츠 허브
 - `/data-core/roadmap` : 꿈·전공 로드맵
 - `/data-core/operations` : 운영관리
+- `/data-core/readiness` : 운영환경 진단 화면
 
 ## 4. DATA CORE 공통 DB
 
@@ -159,6 +161,37 @@ data-core/{area}/{organization}/{campus}/{category}/{owner}/{year}/{uuid-file}
 - D1/R2 연결상태 표시
 - 꿈·전공 로드맵 이동
 - 운영관리 이동
+
+## 7-1. 콘텐츠 허브
+
+경로:
+
+`/data-core/content`
+
+현재 기능:
+
+- 블로그 초안 작성
+- 인스타그램 캡션 초안 작성
+- 캠퍼스 선택
+- DATA CORE 파일 검색/선택
+- 같은 원본 fileId를 블로그와 인스타 양쪽에서 재사용
+- 제목/요약/본문 또는 캡션/태그 저장
+- 초안 상태 관리: draft, review, ready, published, archived
+- 초안 불러오기/수정/삭제
+- 인스타그램 기본 출력 규격 `2160 x 2700px (4:5)` metadata 기록
+
+저장 구조:
+
+- 블로그: `data_records.record_type=blog-draft`, `source_app=blog`
+- 인스타그램: `data_records.record_type=instagram-draft`, `source_app=instagram`
+- 본문/캡션: `content_text`
+- 연결 파일: `metadata_json.relatedFileIds`
+
+주의:
+
+- 실제 네이버/인스타 게시 API는 아직 연결하지 않았다.
+- AI 생성 결과를 운영 기능처럼 가장하지 않고, 편집 가능한 초안 저장 흐름까지만 제공한다.
+- 운영 배포환경에서 실제 CRUD는 별도 검증해야 한다.
 
 ## 8. DATA CORE 범용 텍스트
 
@@ -426,6 +459,17 @@ GitHub Actions `DATA CORE CI` 적용.
 
 2026-09-07 기준 DATA CORE 관련 PR #1~#13까지 기능별 CI 검증 후 main에 반영됐다.
 
+Issue #18 콘텐츠 자동화 기반 작업은 PR #19에서 다음을 확인했다.
+
+- GitHub Actions `DATA CORE CI`: success
+- `npm ci`: success
+- `npm run build`: success
+- `npx tsc --noEmit`: success
+- DATA CORE 브라우저 JavaScript 문법검사: success
+- 로컬 `wrangler deploy --dry-run`: success
+
+단, PR #19의 Cloudflare Workers production deployment bot은 실패를 보고했다. Cloudflare Dashboard build log 접근 권한이 필요하므로 실제 운영 배포 성공으로 간주하지 않는다.
+
 ## 17. 아직 실제 운영환경에서 확인해야 할 부분
 
 코드/CI와 실제 배포환경은 구분한다.
@@ -455,21 +499,21 @@ GitHub Actions `DATA CORE CI` 적용.
 
 블로그가 별도 사진 저장소를 만들지 않는다.
 
-- DATA CORE 파일 검색
-- 수업사진/학생작품 선택
-- 생성 원문을 data_records/content_text 저장
-- sourceApp=blog
-- 게시 이력 축적
+- DATA CORE 파일 검색: 1차 구현
+- 수업사진/학생작품 선택: 1차 구현
+- 생성 원문을 data_records/content_text 저장: 1차 구현
+- sourceApp=blog: 1차 구현
+- 게시 이력 축적: 외부 게시 API 연결 후 후속 구현
 
 ### 3순위: 인스타 자동화 → DATA CORE
 
 같은 원본 사진을 재사용한다.
 
-- sourceApp=instagram
-- 이미지 편집 결과
-- 캡션
-- 해시태그
-- 게시 이력
+- sourceApp=instagram: 1차 구현
+- 이미지 편집 결과: 파생 파일 metadata 계약 준비, 실제 편집 엔진은 후속 구현
+- 캡션: 1차 구현
+- 해시태그: 1차 구현
+- 게시 이력: 외부 게시 API 연결 후 후속 구현
 
 ### 4순위: 입시 지식 고도화
 

@@ -19,6 +19,14 @@ import {
   type CompetitionInput,
   type CompetitionResultInput,
 } from "./data-core-competitions";
+import {
+  createContentDraft,
+  deleteContentDraft,
+  getContentDraft,
+  listContentDrafts,
+  updateContentDraft,
+  type ContentDraftInput,
+} from "./data-core-content";
 import { runDataCoreDiagnostics } from "./data-core-diagnostics";
 import {
   listDataCoreFiles,
@@ -293,6 +301,61 @@ async function handleCompetitionApi(request: Request, env: Env) {
   return jsonResponse({ error: "지원하지 않는 공모전 API 요청입니다." }, { status: 405 });
 }
 
+async function handleContentApi(request: Request, env: Env) {
+  const url = new URL(request.url);
+  if (!url.pathname.startsWith("/api/data-core/content")) return null;
+  if (!env.DB) {
+    throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
+  }
+
+  const context = await resolveDataCoreAccess(
+    request,
+    env.DB,
+    env.DATA_CORE_SUPER_ADMIN_EMAILS,
+  );
+
+  if (url.pathname === "/api/data-core/content") {
+    if (request.method === "GET") {
+      return jsonResponse({ drafts: await listContentDrafts(env.DB, context, url) });
+    }
+    if (request.method === "POST") {
+      return jsonResponse(
+        {
+          draft: await createContentDraft(
+            env.DB,
+            context,
+            await readJson<ContentDraftInput>(request),
+          ),
+        },
+        { status: 201 },
+      );
+    }
+  }
+
+  const draftMatch = url.pathname.match(/^\/api\/data-core\/content\/([^/]+)$/);
+  if (draftMatch) {
+    const draftId = decodeURIComponent(draftMatch[1]);
+    if (request.method === "GET") {
+      return jsonResponse({ draft: await getContentDraft(env.DB, context, draftId) });
+    }
+    if (request.method === "PATCH") {
+      return jsonResponse({
+        draft: await updateContentDraft(
+          env.DB,
+          context,
+          draftId,
+          await readJson<ContentDraftInput>(request),
+        ),
+      });
+    }
+    if (request.method === "DELETE") {
+      return jsonResponse(await deleteContentDraft(env.DB, context, draftId));
+    }
+  }
+
+  return jsonResponse({ error: "지원하지 않는 콘텐츠 API 요청입니다." }, { status: 405 });
+}
+
 const worker = {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -309,6 +372,18 @@ const worker = {
         url.pathname === "/data-core/operations/"
       ) {
         url.pathname = "/data-core/operations.html";
+        return baseWorker.fetch(
+          new Request(url.toString(), { headers: request.headers }),
+          env,
+        );
+      }
+      if (
+        url.pathname === "/data-core/content" ||
+        url.pathname === "/data-core/content/" ||
+        url.pathname === "/data-core/content/blog" ||
+        url.pathname === "/data-core/content/instagram"
+      ) {
+        url.pathname = "/data-core/content.html";
         return baseWorker.fetch(
           new Request(url.toString(), { headers: request.headers }),
           env,
@@ -331,6 +406,9 @@ const worker = {
 
       const competitionResponse = await handleCompetitionApi(request, env);
       if (competitionResponse) return competitionResponse;
+
+      const contentResponse = await handleContentApi(request, env);
+      if (contentResponse) return contentResponse;
     } catch (error) {
       if (error instanceof DataCoreAccessError) {
         return jsonResponse({ error: error.message }, { status: error.status });
