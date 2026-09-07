@@ -16,6 +16,7 @@ import {
   listDataCoreUsers,
   upsertDataCoreMembership,
 } from "./data-core-admin";
+import { listAuditLogs } from "./data-core-audit";
 import {
   deleteDataCoreFile,
   listDataCoreFiles,
@@ -29,6 +30,11 @@ import {
   listDataRecords,
   updateDataRecord,
 } from "./data-core-records";
+import {
+  getDataRecordContent,
+  searchDataCore,
+  setDataRecordContent,
+} from "./data-core-search";
 
 const STATE_ID = "main";
 const STATE_OBJECT_KEY = "state/admissions-data.json";
@@ -260,6 +266,16 @@ async function handleDataCoreApi(request: Request, env: Env) {
     return jsonResponse({ campuses: await listAccessibleCampuses(env.DB, context) });
   }
 
+  if (url.pathname === "/api/data-core/search" && request.method === "GET") {
+    if (!env.DB) throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
+    return jsonResponse(await searchDataCore(env.DB, context, url));
+  }
+
+  if (url.pathname === "/api/data-core/audit" && request.method === "GET") {
+    if (!env.DB) throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
+    return jsonResponse({ logs: await listAuditLogs(env.DB, context, url) });
+  }
+
   if (url.pathname === "/api/data-core/records" && request.method === "GET") {
     if (!env.DB) throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
     return jsonResponse({ records: await listDataRecords(env.DB, context, url) });
@@ -271,6 +287,21 @@ async function handleDataCoreApi(request: Request, env: Env) {
       { record: await createDataRecord(env.DB, context, await readJsonBody(request)) },
       { status: 201 },
     );
+  }
+
+  const contentMatch = url.pathname.match(/^\/api\/data-core\/records\/([^/]+)\/content$/);
+  if (contentMatch) {
+    const recordId = decodeURIComponent(contentMatch[1]);
+    if (!env.DB) throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
+    if (request.method === "GET") {
+      return jsonResponse({ content: await getDataRecordContent(env.DB, context, recordId) });
+    }
+    if (request.method === "PUT" || request.method === "PATCH") {
+      const body = (await readJsonBody(request)) as { content?: unknown };
+      return jsonResponse({
+        content: await setDataRecordContent(env.DB, context, recordId, body.content),
+      });
+    }
   }
 
   const recordMatch = url.pathname.match(/^\/api\/data-core\/records\/([^/]+)$/);
