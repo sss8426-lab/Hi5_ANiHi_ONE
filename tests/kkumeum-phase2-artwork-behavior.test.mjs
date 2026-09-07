@@ -80,7 +80,7 @@ async function makeHarness() {
   return { mf, env, request };
 }
 
-function artworkForm({ campusId, studentId, classId, reportId, title = '테스트작품' }) {
+function artworkForm({ campusId, studentId, classId, reportId, title = '테스트작품', file }) {
   const form = new FormData();
   form.set('campusId', campusId);
   form.set('studentId', studentId);
@@ -89,7 +89,7 @@ function artworkForm({ campusId, studentId, classId, reportId, title = '테스�
   form.set('title', title);
   form.set('lessonDate', '2026-09-08');
   form.set('teacherNote', '내부 작품 메모');
-  form.set('file', new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], 'student-art.png', { type: 'image/png' }));
+  form.set('file', file || new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], 'student-art.png', { type: 'image/png' }));
   return form;
 }
 
@@ -165,6 +165,14 @@ test('꿈이음 작품은 FAMILY_FILES에서만 저장·권한확인·휴지통�
       'UPDATE class_staff_assignments SET can_manage_artworks = 1, updated_at = ? WHERE id = ?',
     ).bind(new Date().toISOString(), 'assignment:art-teacher').run();
 
+    const disguisedPayload = new File([new TextEncoder().encode('<script>alert(1)</script>')], 'fake.png', { type: 'image/png' });
+    const disguisedUpload = await request('/api/kkumeum/artworks', {
+      user: TEACHER,
+      method: 'POST',
+      form: artworkForm({ campusId: CAMPUS_A, studentId, classId, file: disguisedPayload }),
+    });
+    assert.equal(disguisedUpload.status, 415);
+
     const upload = await request('/api/kkumeum/artworks', {
       user: TEACHER,
       method: 'POST',
@@ -184,6 +192,7 @@ test('꿈이음 작품은 FAMILY_FILES에서만 저장·권한확인·휴지통�
     assert.equal(fileRead.status, 200);
     assert.equal(fileRead.headers.get('cache-control'), 'private, no-store');
     assert.equal(fileRead.headers.get('x-content-type-options'), 'nosniff');
+    assert.equal(fileRead.headers.get('content-type'), 'image/png');
     assert.equal(new Uint8Array(fileRead.body)[0], 137);
 
     const unauthRead = await request(`/api/kkumeum/files/${fileId}`, { user: null });
