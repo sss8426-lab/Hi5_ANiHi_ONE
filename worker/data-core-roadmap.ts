@@ -60,6 +60,12 @@ function stageOrder(node: RoadmapNode) {
   return ({ 기초: 10, 중급: 20, 전공: 30, 입시: 40 } as Record<string, number>)[stage] || 90;
 }
 
+function canUseEdge(context: DataCoreAccessContext, edge: RoadmapEdge) {
+  if (context.isSuperAdmin) return true;
+  const campusId = edge.campusId ? String(edge.campusId) : "";
+  return !campusId || context.campusIds.includes(campusId);
+}
+
 async function outgoingEdges(
   db: D1Database,
   context: DataCoreAccessContext,
@@ -69,7 +75,7 @@ async function outgoingEdges(
   url.searchParams.set("fromNodeId", nodeId);
   url.searchParams.set("limit", "300");
   return (await listKnowledgeEdges(db, context, url)).filter((edge) =>
-    FORWARD_RELATIONS.has(String(edge.relationType)),
+    FORWARD_RELATIONS.has(String(edge.relationType)) && canUseEdge(context, edge),
   );
 }
 
