@@ -11,6 +11,12 @@ import {
   resolveDataCoreAccess,
 } from "./data-core-access";
 import {
+  deleteDataCoreFile,
+  listDataCoreFiles,
+  readDataCoreFile,
+  uploadDataCoreFile,
+} from "./data-core-files";
+import {
   createDataRecord,
   deleteDataRecord,
   getDataRecord,
@@ -140,7 +146,7 @@ async function saveAppData(env: Env, data: unknown) {
   }
 }
 
-function safeFileName(value: FormDataEntryValue | null) {
+function safeFileName(value: FormDataEntryValueValue | FormDataEntryValue | null) {
   const name = value instanceof File ? value.name : String(value || "image");
   return name.replace(/[\\/:*?"<>|]/g, "_").replace(/\s+/g, "_").slice(0, 120) || "image";
 }
@@ -208,6 +214,8 @@ async function handleFile(request: Request, env: Env) {
   const url = new URL(request.url);
   const encodedKey = url.pathname.replace(/^\/api\/files\//, "");
   const key = decodeURIComponent(encodedKey);
+  // New DATA CORE objects are only served through the authenticated file API.
+  if (key.startsWith("data-core/")) return new Response("Not found", { status: 404 });
   const object = await env.FILES.get(key);
   if (!object) return new Response("Not found", { status: 404 });
   const headers = new Headers();
@@ -275,6 +283,38 @@ async function handleDataCoreApi(request: Request, env: Env) {
     }
     if (request.method === "DELETE") {
       return jsonResponse(await deleteDataRecord(env.DB, context, recordId));
+    }
+  }
+
+  if (url.pathname === "/api/data-core/files" && request.method === "GET") {
+    if (!env.DB) throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
+    return jsonResponse({ files: await listDataCoreFiles(env.DB, context, url) });
+  }
+
+  if (
+    (url.pathname === "/api/data-core/files" || url.pathname === "/api/data-core/upload") &&
+    request.method === "POST"
+  ) {
+    if (!env.DB || !env.FILES) {
+      throw new DataCoreAccessError(503, "DATA CORE의 D1과 R2가 모두 연결되어야 합니다.");
+    }
+    return jsonResponse(
+      { file: await uploadDataCoreFile(request, env.DB, env.FILES, context) },
+      { status: 201 },
+    );
+  }
+
+  const fileMatch = url.pathname.match(/^\/api\/data-core\/files\/([^/]+)$/);
+  if (fileMatch) {
+    const fileId = decodeURIComponent(fileMatch[1]);
+    if (!env.DB || !env.FILES) {
+      throw new DataCoreAccessError(503, "DATA CORE의 D1과 R2가 모두 연결되어야 합니다.");
+    }
+    if (request.method === "GET") {
+      return readDataCoreFile(env.DB, env.FILES, context, fileId);
+    }
+    if (request.method === "DELETE") {
+      return jsonResponse(await deleteDataCoreFile(env.DB, env.FILES, context, fileId));
     }
   }
 
