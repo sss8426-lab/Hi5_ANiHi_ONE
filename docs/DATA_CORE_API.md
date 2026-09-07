@@ -253,8 +253,13 @@ data-core/{area}/{organization}/{campus}/{category}/{owner}/{year}/{uuid-file}
 - `campusId`
 - `category`
 - `recordId`
+- `sourceApp`
 - `q`
 - `limit`
+
+`sourceApp`은 DATA CORE 파일 원본을 중복 저장하지 않고 앱별로 구분해 조회할 때 사용한다. 예를 들어
+`sourceApp=blog`, `sourceApp=instagram`, `sourceApp=competition`을 전달할 수 있다. `recordId`와 함께 사용하면
+특정 공모전 등 하나의 DATA CORE 레코드에 연결된 파일만 권한 범위 안에서 조회한다.
 
 ## GET `/api/data-core/files/{fileId}`
 

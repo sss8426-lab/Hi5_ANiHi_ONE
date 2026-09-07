@@ -23,9 +23,12 @@ const state = {
   context: null,
   campuses: [],
   files: [],
+  selectedFolder: null,
   competitions: [],
   competitionResults: [],
+  competitionFiles: [],
   selectedCompetitionId: null,
+  guideDraft: null,
   currentMode: 'mode',
   currentView: 'mode-home',
   droppedFile: null,
@@ -247,12 +250,17 @@ function fillCampusSelect(select, options = {}) {
 }
 
 function folderButton(folder, campusId = '') {
+  const selected = state.selectedFolder
+    && state.selectedFolder.campusId === campusId
+    && state.selectedFolder.category === (folder.category || '')
+    && state.selectedFolder.sourceApp === (folder.sourceApp || '');
   const attrs = [
     `data-folder-category="${h(folder.category || '')}"`,
     `data-folder-campus="${h(campusId)}"`,
+    `data-folder-label="${h(folder.label)}"`,
   ];
   if (folder.sourceApp) attrs.push(`data-folder-source="${h(folder.sourceApp)}"`);
-  return `<button class="folder-chip" ${attrs.join(' ')}>
+  return `<button class="folder-chip ${selected ? 'active' : ''}" aria-pressed="${selected ? 'true' : 'false'}" ${attrs.join(' ')}>
     <span>▣</span>
     <strong>${h(folder.label)}</strong>
   </button>`;
@@ -280,11 +288,42 @@ function renderLibraryFolders() {
   `;
   document.querySelectorAll('[data-folder-category]').forEach((button) => {
     button.onclick = () => {
-      $('fileCampusFilter').value = button.dataset.folderCampus || '';
-      $('fileCategoryFilter').value = button.dataset.folderCategory || '';
+      state.selectedFolder = {
+        campusId: button.dataset.folderCampus || '',
+        category: button.dataset.folderCategory || '',
+        sourceApp: button.dataset.folderSource || '',
+        label: button.dataset.folderLabel || '선택한 폴더',
+      };
+      $('fileCampusFilter').value = state.selectedFolder.campusId;
+      $('fileCategoryFilter').value = state.selectedFolder.category;
+      renderLibraryFolders();
       loadFiles();
     };
   });
+  renderSelectedFolder();
+}
+
+function renderSelectedFolder() {
+  const notice = $('selectedFolderNotice');
+  if (!notice) return;
+  if (!state.selectedFolder) {
+    notice.textContent = '';
+    notice.classList.add('hidden');
+    return;
+  }
+  const source = state.selectedFolder.sourceApp === 'blog'
+    ? '블로그 자료만'
+    : state.selectedFolder.sourceApp === 'instagram'
+      ? '인스타그램 자료만'
+      : '선택한 분류';
+  notice.textContent = `${state.selectedFolder.label} 폴더 선택됨 · ${source} 표시`;
+  notice.classList.remove('hidden');
+}
+
+function clearSelectedFolder() {
+  if (!state.selectedFolder) return;
+  state.selectedFolder = null;
+  renderLibraryFolders();
 }
 
 function renderCampusSelectors() {
@@ -325,9 +364,11 @@ async function loadFiles() {
   const params = new URLSearchParams();
   const campusId = $('fileCampusFilter')?.value || '';
   const category = $('fileCategoryFilter')?.value || '';
+  const sourceApp = state.selectedFolder?.sourceApp || '';
   const q = $('fileSearchInput')?.value.trim() || '';
   if (campusId) params.set('campusId', campusId);
   if (category) params.set('category', category);
+  if (sourceApp) params.set('sourceApp', sourceApp);
   if (q) params.set('q', q);
   params.set('limit', '100');
 
@@ -524,11 +565,88 @@ function renderCompetitions() {
   });
 }
 
-function guideLinks(meta) {
+function fileUrl(file) {
+  return `/api/data-core/files/${encodeURIComponent(file.id)}`;
+}
+
+function guideLinks(meta, files = []) {
   const links = [];
   if (meta.guideUrl) links.push(`<a class="ghost-btn" href="${h(meta.guideUrl)}" target="_blank" rel="noopener">요강 PDF/링크</a>`);
   if (meta.sourceUrl) links.push(`<a class="ghost-btn" href="${h(meta.sourceUrl)}" target="_blank" rel="noopener">원문 링크</a>`);
+  files
+    .filter((file) => file.category === 'competition-guide'
+      || (file.category === 'competition-poster' && !String(file.mimeType || '').startsWith('image/')))
+    .forEach((file) => {
+      links.push(`<a class="ghost-btn" href="${fileUrl(file)}" target="_blank" rel="noopener">${h(file.fileName || '연결 파일')}</a>`);
+    });
   return links.join('');
+}
+
+function renderCompetitionPoster(competition, files = []) {
+  const poster = files.find((file) => (
+    file.category === 'competition-poster' && String(file.mimeType || '').startsWith('image/')
+  ));
+  if (!poster) {
+    return '<div class="competition-media-empty">연결된 대표 포스터가 없습니다.</div>';
+  }
+  return `<figure class="competition-poster">
+    <a href="${fileUrl(poster)}" target="_blank" rel="noopener">
+      <img src="${fileUrl(poster)}" alt="${h(competition.title)} 포스터">
+    </a>
+    <figcaption>${h(poster.fileName || '대표 포스터')}</figcaption>
+  </figure>`;
+}
+
+function renderAwardFiles(files = []) {
+  const awardFiles = files.filter((file) => file.category === 'award-work');
+  if (!awardFiles.length) {
+    return '<div class="empty-state compact">연결된 수상작 파일이 없습니다.</div>';
+  }
+  return `<div class="award-file-grid">${awardFiles.map((file) => {
+    const image = String(file.mimeType || '').startsWith('image/');
+    const url = fileUrl(file);
+    return `<a class="award-file" href="${url}" target="_blank" rel="noopener">
+      ${image ? `<img src="${url}" alt="${h(file.fileName || '수상작')}">` : '<span class="award-file-icon">파일</span>'}
+      <strong>${h(file.fileName || '연결 파일')}</strong>
+      <small>${h(categoryLabel(file.category))}</small>
+    </a>`;
+  }).join('')}</div>`;
+}
+
+function competitionGuideTemplate(competition) {
+  const meta = competitionMetadata(competition);
+  const grades = Array.isArray(meta.targetGrades) ? meta.targetGrades : [];
+  const practicalTypes = Array.isArray(meta.practicalTypes) ? meta.practicalTypes : [];
+  return [
+    `${competition.title} 참가 안내`,
+    '',
+    `대상: ${grades.join(', ') || '확인 필요'}`,
+    `실기유형: ${practicalTypes.join(', ') || '확인 필요'}`,
+    `접수기간: ${[meta.applicationStart, meta.applicationEnd].filter(Boolean).join(' ~ ') || '확인 필요'}`,
+    `접수방법: ${meta.applicationMethod || '확인 필요'}`,
+    `시상/상금: ${meta.prize || '확인 필요'}`,
+    '',
+    '참가를 희망하는 학생은 담당 선생님과 준비 일정 및 접수 서류를 확인해 주세요.',
+  ].join('\n');
+}
+
+function renderGuideDraft(competition) {
+  const draft = state.guideDraft?.competitionId === competition.id ? state.guideDraft.text : '';
+  if (!draft) {
+    return `<section class="detail-section">
+      <h4>학원용 안내문</h4>
+      <p>대회 정보로 만드는 템플릿 기반 초안입니다.</p>
+      <button class="secondary-btn" id="createCompetitionGuideDraft">안내문 초안 만들기</button>
+    </section>`;
+  }
+  return `<section class="detail-section guide-draft-section">
+    <div class="detail-section-head">
+      <div><h4>학원용 안내문 초안</h4><p>템플릿 기반 초안입니다. 필요한 문구를 바로 수정할 수 있습니다.</p></div>
+      <button class="ghost-btn" id="createCompetitionGuideDraft">초안 다시 만들기</button>
+    </div>
+    <textarea id="competitionGuideDraft" rows="10" aria-label="학원용 안내문 초안">${h(draft)}</textarea>
+    <div class="guide-draft-actions"><button class="primary-btn" id="copyCompetitionGuideDraft">복사</button></div>
+  </section>`;
 }
 
 function renderResults(results = []) {
@@ -555,17 +673,14 @@ function renderCompetitionDetail(competition) {
   const grades = Array.isArray(meta.targetGrades) ? meta.targetGrades : [];
   const practicalTypes = Array.isArray(meta.practicalTypes) ? meta.practicalTypes : [];
   detail.innerHTML = `
-    <div class="competition-poster">
-      <span>Poster</span>
-      <strong>${h(competition.title)}</strong>
-    </div>
+    ${renderCompetitionPoster(competition, state.competitionFiles)}
     <div class="competition-detail-head">
       <div>
         <span class="status-pill ${h(competition.competitionStatus)}">${h(statusLabel(competition.competitionStatus))}</span>
         <h3>${h(competition.title)}</h3>
         <p>${h(competition.summary || '상세 설명이 아직 등록되지 않았습니다.')}</p>
       </div>
-      <div class="row-actions">${guideLinks(meta)}</div>
+      <div class="row-actions">${guideLinks(meta, state.competitionFiles)}</div>
     </div>
     <dl class="detail-list">
       <div><dt>주최/주관</dt><dd>${h(meta.organizer || '-')}</dd></div>
@@ -582,33 +697,70 @@ function renderCompetitionDetail(competition) {
       <h4>상세설명</h4>
       <p>${h(competition.content || competition.contentText || meta.description || '등록된 상세설명이 없습니다.')}</p>
     </section>
-    <section class="detail-section">
-      <h4>학원용 안내문 초안</h4>
-      <p>${h(`${competition.title} 준비 안내\n대상: ${grades.join(', ') || '확인 필요'}\n실기유형: ${practicalTypes.join(', ') || '확인 필요'}\n접수: ${[meta.applicationStart, meta.applicationEnd].filter(Boolean).join(' ~ ') || '확인 필요'}`)}</p>
-    </section>
+    ${renderGuideDraft(competition)}
     <section class="detail-section">
       <h4>캠퍼스별 출품·수상 현황</h4>
       ${renderResults(state.competitionResults)}
     </section>
     <section class="detail-section">
       <h4>수상작 파일/이미지</h4>
-      <p>DATA CORE 파일에서 recordId와 공모전 파일 분류로 연결된 자료를 사용합니다.</p>
+      ${renderAwardFiles(state.competitionFiles)}
     </section>
   `;
+  bindCompetitionDetailEvents(competition);
+}
+
+function bindCompetitionDetailEvents(competition) {
+  const create = $('createCompetitionGuideDraft');
+  if (create) {
+    create.onclick = () => {
+      state.guideDraft = { competitionId: competition.id, text: competitionGuideTemplate(competition) };
+      renderCompetitionDetail(competition);
+    };
+  }
+  const textarea = $('competitionGuideDraft');
+  if (textarea) {
+    textarea.oninput = () => {
+      state.guideDraft = { competitionId: competition.id, text: textarea.value };
+    };
+  }
+  const copy = $('copyCompetitionGuideDraft');
+  if (copy) {
+    copy.onclick = async () => {
+      const text = $('competitionGuideDraft')?.value.trim() || '';
+      if (!text) return toast('복사할 안내문 초안이 없습니다.', 'error');
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          const field = $('competitionGuideDraft');
+          field.focus();
+          field.select();
+          if (!document.execCommand('copy')) throw new Error('copy failed');
+        }
+        toast('안내문 초안을 복사했습니다.');
+      } catch {
+        toast('자동 복사에 실패했습니다. 안내문을 선택해 복사해 주세요.', 'error');
+      }
+    };
+  }
 }
 
 async function loadSelectedCompetition() {
   const selected = state.competitions.find((item) => item.id === state.selectedCompetitionId);
   state.competitionResults = [];
+  state.competitionFiles = [];
   renderCompetitionDetail(selected);
   if (!selected) return;
   try {
-    const [detailResponse, resultsResponse] = await Promise.all([
+    const [detailResponse, resultsResponse, filesResponse] = await Promise.all([
       api(`/api/data-core/competitions/${encodeURIComponent(selected.id)}`),
       api(`/api/data-core/competitions/${encodeURIComponent(selected.id)}/results`),
+      api(`/api/data-core/files?recordId=${encodeURIComponent(selected.id)}&sourceApp=competition&limit=100`),
     ]);
     const detailed = detailResponse.competition || selected;
     state.competitionResults = resultsResponse.results || [];
+    state.competitionFiles = filesResponse.files || [];
     renderCompetitionDetail(detailed);
   } catch {
     renderCompetitionDetail(selected);
@@ -718,8 +870,8 @@ function bindEvents() {
   $('refreshFilesBtn').onclick = loadFiles;
   $('fileSearchBtn').onclick = loadFiles;
   $('fileSearchInput').onkeydown = (event) => { if (event.key === 'Enter') loadFiles(); };
-  $('fileCampusFilter').onchange = loadFiles;
-  $('fileCategoryFilter').onchange = loadFiles;
+  $('fileCampusFilter').onchange = () => { clearSelectedFolder(); loadFiles(); };
+  $('fileCategoryFilter').onchange = () => { clearSelectedFolder(); loadFiles(); };
   $('openUploadBtn').onclick = () => openModal('uploadModal');
   $('uploadForm').onsubmit = uploadFile;
   $('openCompetitionBtn').onclick = () => openModal('competitionModal');

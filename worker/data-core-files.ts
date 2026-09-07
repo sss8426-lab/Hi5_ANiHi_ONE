@@ -134,6 +134,7 @@ function fileRowToResponse(row: Record<string, unknown>) {
     ownerName: row.owner_name,
     area: row.area,
     category: row.category,
+    sourceApp: row.source_app,
     fileName: row.original_file_name,
     mimeType: row.mime_type,
     sizeBytes: row.size_bytes,
@@ -256,6 +257,7 @@ export async function listDataCoreFiles(
   const campusId = cleanText(url.searchParams.get("campusId"), 120);
   const category = cleanText(url.searchParams.get("category"), 80);
   const recordId = cleanText(url.searchParams.get("recordId"), 120);
+  const sourceApp = cleanText(url.searchParams.get("sourceApp"), 80);
   const q = cleanText(url.searchParams.get("q"), 120);
   const limit = Math.min(Math.max(Number(url.searchParams.get("limit")) || 50, 1), 100);
 
@@ -272,6 +274,10 @@ export async function listDataCoreFiles(
   if (recordId) {
     conditions.push("fo.data_record_id = ?");
     bindings.push(recordId);
+  }
+  if (sourceApp) {
+    conditions.push("fo.source_app = ?");
+    bindings.push(sourceApp);
   }
   if (q) {
     conditions.push("(fo.original_file_name LIKE ? OR fo.category LIKE ?)");

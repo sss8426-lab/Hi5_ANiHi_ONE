@@ -113,7 +113,16 @@ async function createHarness() {
       .run();
   }
 
-  async function seedFile({ id, campusId, ownerUserId, visibility = "campus" }) {
+  async function seedFile({
+    id,
+    campusId,
+    ownerUserId,
+    visibility = "campus",
+    category = "student-artwork",
+    sourceApp = "data-core",
+    recordId = null,
+    mimeType = "image/png",
+  }) {
     const now = new Date().toISOString();
     await env.DB
       .prepare(
@@ -121,16 +130,20 @@ async function createHarness() {
            id, organization_id, campus_id, data_record_id, owner_user_id,
            area, category, source_app, r2_key, original_file_name, mime_type,
            size_bytes, visibility, created_at, deleted_at
-         ) VALUES (?, ?, ?, NULL, ?, 'academy-public', 'student-artwork', 'data-core',
-           ?, ?, 'image/png', 128, ?, ?, NULL)`,
+         ) VALUES (?, ?, ?, ?, ?, 'academy-public', ?, ?,
+           ?, ?, ?, 128, ?, ?, NULL)`,
       )
       .bind(
         id,
         ORGANIZATION_ID,
         campusId,
+        recordId,
         ownerUserId ? `oai:${ownerUserId}` : null,
+        category,
+        sourceApp,
         `data-core/test/${id}.png`,
         `${id}.png`,
+        mimeType,
         visibility,
         now,
       )
@@ -151,7 +164,7 @@ async function createHarness() {
   await seedFile({ id: "file-private-b", campusId: CAMPUS_A, ownerUserId: users.b.id, visibility: "private" });
   await seedFile({ id: "file-other-campus", campusId: CAMPUS_B, ownerUserId: users.b.id, visibility: "public" });
 
-  return { mf, env, request, createDraft };
+  return { mf, env, request, createDraft, seedFile };
 }
 
 test("content API enforces draft lifecycle, file reuse, filters, and permissions", async () => {
@@ -371,6 +384,116 @@ test("DATA CORE mode folders use registered campuses and category filters", asyn
     assert.ok(filteredFiles.body.files.some((file) => file.id === "file-shared"));
     assert.ok(filteredFiles.body.files.every((file) => file.campusId === CAMPUS_A));
     assert.ok(filteredFiles.body.files.every((file) => file.category === "student-artwork"));
+  } finally {
+    await h.mf.dispose();
+  }
+});
+
+test("DATA CORE source folders apply blog and Instagram sourceApp filters", async () => {
+  const h = await createHarness();
+  try {
+    await h.seedFile({
+      id: "file-blog-source",
+      campusId: CAMPUS_A,
+      ownerUserId: users.a.id,
+      category: "class-photo",
+      sourceApp: "blog",
+    });
+    await h.seedFile({
+      id: "file-instagram-source",
+      campusId: CAMPUS_A,
+      ownerUserId: users.a.id,
+      category: "class-photo",
+      sourceApp: "instagram",
+    });
+
+    const blogFiles = await h.request(
+      "GET",
+      `/api/data-core/files?campusId=${CAMPUS_A}&category=class-photo&sourceApp=blog`,
+      users.a,
+    );
+    const instagramFiles = await h.request(
+      "GET",
+      `/api/data-core/files?campusId=${CAMPUS_A}&category=class-photo&sourceApp=instagram`,
+      users.a,
+    );
+
+    assert.equal(blogFiles.response.status, 200);
+    assert.deepEqual(blogFiles.body.files.map((file) => file.id), ["file-blog-source"]);
+    assert.equal(blogFiles.body.files[0].sourceApp, "blog");
+    assert.equal(instagramFiles.response.status, 200);
+    assert.deepEqual(instagramFiles.body.files.map((file) => file.id), ["file-instagram-source"]);
+    assert.equal(instagramFiles.body.files[0].sourceApp, "instagram");
+  } finally {
+    await h.mf.dispose();
+  }
+});
+
+test("competition media uses linked DATA CORE files and has an empty state before files exist", async () => {
+  const h = await createHarness();
+  try {
+    const created = await h.request("POST", "/api/data-core/competitions", users.admin, {
+      title: "Connected media competition",
+      campusId: CAMPUS_A,
+      targetGrades: ["고2"],
+      practicalTypes: ["상황표현"],
+    });
+    assert.equal(created.response.status, 201, JSON.stringify(created.body));
+    const competitionId = created.body.competition.id;
+
+    const empty = await h.request(
+      "GET",
+      `/api/data-core/files?recordId=${competitionId}&sourceApp=competition`,
+      users.admin,
+    );
+    assert.equal(empty.response.status, 200);
+    assert.deepEqual(empty.body.files, []);
+
+    await h.seedFile({
+      id: "competition-poster-file",
+      campusId: CAMPUS_A,
+      ownerUserId: users.admin.id,
+      recordId: competitionId,
+      category: "competition-poster",
+      sourceApp: "competition",
+    });
+    await h.seedFile({
+      id: "competition-guide-file",
+      campusId: CAMPUS_A,
+      ownerUserId: users.admin.id,
+      recordId: competitionId,
+      category: "competition-guide",
+      sourceApp: "competition",
+      mimeType: "application/pdf",
+    });
+    await h.seedFile({
+      id: "competition-award-file",
+      campusId: CAMPUS_A,
+      ownerUserId: users.admin.id,
+      recordId: competitionId,
+      category: "award-work",
+      sourceApp: "competition",
+    });
+    await h.seedFile({
+      id: "competition-unrelated-file",
+      campusId: CAMPUS_A,
+      ownerUserId: users.admin.id,
+      category: "award-work",
+      sourceApp: "competition",
+    });
+
+    const linked = await h.request(
+      "GET",
+      `/api/data-core/files?recordId=${competitionId}&sourceApp=competition`,
+      users.admin,
+    );
+    assert.equal(linked.response.status, 200);
+    assert.deepEqual(
+      linked.body.files.map((file) => file.id).sort(),
+      ["competition-award-file", "competition-guide-file", "competition-poster-file"],
+    );
+    assert.ok(linked.body.files.every((file) => file.recordId === competitionId));
+    assert.ok(linked.body.files.every((file) => file.sourceApp === "competition"));
   } finally {
     await h.mf.dispose();
   }
