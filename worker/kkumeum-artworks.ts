@@ -11,6 +11,7 @@ const MAX_ARTWORK_SIZE_BYTES = 30 * 1024 * 1024;
 const BLOCKED_EXTENSIONS = new Set([
   "exe", "dll", "bat", "cmd", "com", "msi", "scr", "ps1", "vbs", "js", "mjs", "jar",
 ]);
+const ALLOWED_IMAGE_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
 
 function cleanText(value: unknown, maxLength: number): string {
   return String(value ?? "").trim().slice(0, maxLength);
@@ -30,6 +31,31 @@ function fileExtension(fileName: string): string {
 function numberValue(value: unknown, fallback = 0): number {
   const number = Number(value);
   return Number.isFinite(number) ? Math.trunc(number) : fallback;
+}
+
+function detectedImageMime(bytes: Uint8Array): string | null {
+  if (
+    bytes.length >= 8
+    && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47
+    && bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a
+  ) return "image/png";
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
+  if (
+    bytes.length >= 12
+    && bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46
+    && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50
+  ) return "image/webp";
+  if (
+    bytes.length >= 6
+    && bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46
+    && bytes[3] === 0x38 && (bytes[4] === 0x37 || bytes[4] === 0x39) && bytes[5] === 0x61
+  ) return "image/gif";
+  return null;
+}
+
+function normalizedDeclaredImageMime(value: string): string {
+  const mime = value.toLowerCase().trim();
+  return mime === "image/jpg" ? "image/jpeg" : mime;
 }
 
 async function audit(
@@ -172,8 +198,9 @@ export async function uploadKkumeumArtwork(
   if (file.size > MAX_ARTWORK_SIZE_BYTES) {
     throw new DataCoreAccessError(413, "작품 이미지 한 파일의 최대 크기는 30MB입니다.");
   }
-  if (!String(file.type || "").toLowerCase().startsWith("image/")) {
-    throw new DataCoreAccessError(415, "꿈이음 작품은 이미지 파일만 업로드할 수 있습니다.");
+  const declaredMime = normalizedDeclaredImageMime(String(file.type || ""));
+  if (!ALLOWED_IMAGE_MIME_TYPES.has(declaredMime)) {
+    throw new DataCoreAccessError(415, "꿈이음 작품은 PNG·JPEG·WebP·GIF 이미지만 업로드할 수 있습니다.");
   }
   if (BLOCKED_EXTENSIONS.has(fileExtension(file.name))) {
     throw new DataCoreAccessError(415, "실행 파일 또는 스크립트 파일은 업로드할 수 없습니다.");
@@ -192,14 +219,15 @@ export async function uploadKkumeumArtwork(
   const fileId = crypto.randomUUID();
   const artworkId = crypto.randomUUID();
   const createdAt = new Date().toISOString();
-  // Deliberately exclude names, phones, schools and original file names from the private R2 key.
   const r2Key = ["kkumeum", "private", campusId, studentId, fileId].join("/");
-  // File size is capped at 30MB. Buffering gives R2/Miniflare a known content length and avoids
-  // ambiguous streaming semantics while keeping a strict, bounded memory ceiling.
   const fileBytes = await file.arrayBuffer();
+  const detectedMime = detectedImageMime(new Uint8Array(fileBytes));
+  if (!detectedMime || detectedMime !== declaredMime) {
+    throw new DataCoreAccessError(415, "파일 내용과 이미지 형식이 일치하지 않습니다.");
+  }
 
   await familyFiles.put(r2Key, fileBytes, {
-    httpMetadata: { contentType: file.type || "application/octet-stream" },
+    httpMetadata: { contentType: detectedMime },
     customMetadata: { familyFileId: fileId, campusId, studentId, purpose: "artwork" },
   });
 
@@ -219,7 +247,7 @@ export async function uploadKkumeumArtwork(
           context.user.internalUserId,
           r2Key,
           cleanText(file.name, 200) || "artwork",
-          file.type || "application/octet-stream",
+          detectedMime,
           file.size,
           createdAt,
         ),
@@ -384,14 +412,12 @@ export async function readKkumeumFamilyFile(
 
   const object = await familyFiles.get(String(row.r2_key));
   if (!object) throw new DataCoreAccessError(404, "꿈이음 원본 파일을 찾을 수 없습니다.");
-  const headers = new Headers();
-  object.writeHttpMetadata(headers);
-  headers.set("content-type", String(row.mime_type || headers.get("content-type") || "application/octet-stream"));
-  headers.set("cache-control", "private, no-store");
-  headers.set("x-content-type-options", "nosniff");
-  headers.set(
-    "content-disposition",
-    `inline; filename*=UTF-8''${encodeURIComponent(String(row.file_name || "artwork"))}`,
-  );
+  const headers = new Headers({
+    "content-type": String(row.mime_type || "application/octet-stream"),
+    "cache-control": "private, no-store",
+    "x-content-type-options": "nosniff",
+    "content-disposition": `inline; filename*=UTF-8''${encodeURIComponent(String(row.file_name || "artwork"))}`,
+  });
+  if (object.httpEtag) headers.set("etag", object.httpEtag);
   return new Response(object.body, { headers });
 }
