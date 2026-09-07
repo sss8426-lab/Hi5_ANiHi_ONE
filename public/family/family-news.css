@@ -1,0 +1,136 @@
+.news-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.news-unread-count {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #eaf2ff;
+  color: #173a68;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.news-status {
+  min-height: 20px;
+  margin: -4px 0 10px;
+  color: #b45309;
+  font-size: 12px;
+}
+
+.news-list {
+  display: grid;
+  gap: 12px;
+}
+
+.news-card {
+  border: 1px solid #dce6f3;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(23, 58, 104, 0.06);
+  overflow: hidden;
+}
+
+.news-card.unread {
+  border-color: #9ebce7;
+  box-shadow: 0 10px 28px rgba(23, 58, 104, 0.1);
+}
+
+.news-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px 0;
+  color: #6b7d94;
+  font-size: 11px;
+}
+
+.news-type {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #eef4fb;
+  color: #173a68;
+  font-weight: 800;
+}
+
+.news-meta time {
+  margin-left: auto;
+}
+
+.news-unread-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #2563eb;
+  flex: 0 0 auto;
+}
+
+.news-open-button {
+  width: 100%;
+  display: grid;
+  gap: 7px;
+  padding: 12px 16px 16px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.news-open-button strong {
+  color: #172b45;
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.news-open-button span {
+  color: #5c6f86;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.news-body {
+  padding: 0 16px 18px;
+  color: #25384f;
+  font-size: 14px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+}
+
+.news-nav-badge {
+  position: absolute;
+  top: 5px;
+  right: calc(50% - 20px);
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.bottom-nav [data-tab="news"] {
+  position: relative;
+}
+
+.news-nav-badge.hidden,
+.news-body.hidden {
+  display: none;
+}
+
+@media (min-width: 760px) {
+  .news-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
