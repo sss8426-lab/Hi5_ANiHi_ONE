@@ -1,8 +1,8 @@
 window.HI5_DREAM_CATALOG = [
   { group: '웹툰·만화', icon: '▤', name: '웹툰 작가', summary: '스토리·캐릭터·연출과 디지털 작화를 결합해 웹툰을 제작합니다.', majorHint: '웹툰·만화콘텐츠' },
   { group: '웹툰·만화', icon: '✎', name: '만화가', summary: '칸 구성과 그림, 이야기로 독자에게 메시지를 전달합니다.', majorHint: '만화·웹툰' },
-  { group: '웹툰·만화', icon: '⌘', name: '웹툰PD', summary: '작품 기획·작가 협업·연재 운영을 설계합니다.', majorHint: '웹툰콘텐츠·콘텐츠기획' },
-  { group: '웹툰·만화', icon: '≡', name: '스토리작가', summary: '캐릭터와 세계관, 장면의 흐름을 글과 콘티로 설계합니다.', majorHint: '스토리콘텐츠·만화콘텐츠' },
+  { group: '웹툰·만화', icon: '⌘', name: '웹툰 PD', summary: '작품 기획·작가 협업·연재 운영을 설계합니다.', majorHint: '웹툰콘텐츠·콘텐츠기획' },
+  { group: '웹툰·만화', icon: '≡', name: '스토리 작가', summary: '캐릭터와 세계관, 장면의 흐름을 글과 콘티로 설계합니다.', majorHint: '스토리콘텐츠·만화콘텐츠' },
 
   { group: '애니메이션', icon: '▶', name: '애니메이터', summary: '캐릭터의 움직임과 연기를 프레임과 타이밍으로 표현합니다.', majorHint: '애니메이션' },
   { group: '애니메이션', icon: '◉', name: '캐릭터 애니메이터', summary: '캐릭터의 표정·동작·감정 연기를 집중적으로 디자인합니다.', majorHint: '애니메이션·캐릭터' },
