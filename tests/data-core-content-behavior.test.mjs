@@ -383,8 +383,23 @@ test("standalone accounts use secure sessions, enforce first password change, lo
     const initialSession = await h.request("GET", "/api/auth/session", undefined, undefined, auth);
     assert.equal(initialSession.body.authenticated, true);
     assert.equal(initialSession.body.mustChangePassword, true);
+    const blockedSecondLogin = await h.request("POST", "/api/auth/login", undefined, { loginId: "campus-a-teacher", password: temporaryPassword }, auth);
+    assert.equal(blockedSecondLogin.response.status, 403);
     const blockedWrite = await h.request("POST", "/api/data-core/content", undefined, { campusId: CAMPUS_A, sourceApp: "blog", title: "blocked", content: "blocked" }, auth);
     assert.equal(blockedWrite.response.status, 403);
+    for (const route of [
+      "/api/data-core/campuses",
+      `/api/data-core/files?campusId=${CAMPUS_A}`,
+      "/api/data-core/content?sourceApp=blog",
+      "/api/data-core/context",
+    ]) {
+      const blockedRead = await h.request("GET", route, undefined, undefined, auth);
+      assert.equal(blockedRead.response.status, 403, `${route} should require a password change`);
+    }
+    for (const route of ["/data-core/work/library", "/data-core/accounts", "/data-core/operations"]) {
+      const redirectedUi = await h.request("GET", route, undefined, undefined, auth);
+      assert.match(String(redirectedUi.body), /비밀번호 변경/, `${route} should render the password-change login page`);
+    }
 
     const changed = await h.request("PUT", "/api/auth/password", undefined, { currentPassword: temporaryPassword, nextPassword: "Changed-pass-456" }, auth);
     assert.equal(changed.response.status, 200);
@@ -404,6 +419,49 @@ test("standalone accounts use secure sessions, enforce first password change, lo
     assert.equal(disabled.response.status, 200);
     const disabledLogin = await h.request("POST", "/api/auth/login", undefined, { loginId: "campus-a-teacher", password: "Changed-pass-456" });
     assert.equal(disabledLogin.response.status, 401);
+  } finally {
+    await h.mf.dispose();
+  }
+});
+
+test("standalone master accounts cannot lose the final administrator or revoke their own session", async () => {
+  const h = await createHarness();
+  try {
+    const temporaryPassword = "Master-temp-pass-123";
+    const first = await h.request("POST", "/api/auth/accounts", users.admin, {
+      loginId: "standalone-master-one",
+      displayName: "Standalone Master One",
+      role: "SUPER_ADMIN",
+      temporaryPassword,
+    });
+    assert.equal(first.response.status, 201, JSON.stringify(first.body));
+
+    const blockedLastAdmin = await h.request("PATCH", `/api/auth/accounts/${first.body.account.id}`, users.admin, { status: "disabled" });
+    assert.equal(blockedLastAdmin.response.status, 409);
+
+    const second = await h.request("POST", "/api/auth/accounts", users.admin, {
+      loginId: "standalone-master-two",
+      displayName: "Standalone Master Two",
+      role: "SUPER_ADMIN",
+      temporaryPassword,
+    });
+    assert.equal(second.response.status, 201, JSON.stringify(second.body));
+
+    const firstLogin = await h.request("POST", "/api/auth/login", undefined, { loginId: "standalone-master-one", password: temporaryPassword });
+    const firstChanged = await h.request("PUT", "/api/auth/password", undefined, {
+      currentPassword: temporaryPassword,
+      nextPassword: "Master-changed-pass-456",
+    }, { cookie: firstLogin.response.headers.get("set-cookie") });
+    assert.equal(firstChanged.response.status, 200);
+    const firstAuth = { cookie: firstChanged.response.headers.get("set-cookie") };
+
+    const blockedSelfRevoke = await h.request("PATCH", `/api/auth/accounts/${first.body.account.id}`, undefined, { revokeSessions: true }, firstAuth);
+    assert.equal(blockedSelfRevoke.response.status, 400);
+    const blockedSelfDisable = await h.request("PATCH", `/api/auth/accounts/${first.body.account.id}`, undefined, { status: "disabled" }, firstAuth);
+    assert.equal(blockedSelfDisable.response.status, 400);
+
+    const disableWithBackupAdmin = await h.request("PATCH", `/api/auth/accounts/${first.body.account.id}`, users.admin, { status: "disabled" });
+    assert.equal(disableWithBackupAdmin.response.status, 200);
   } finally {
     await h.mf.dispose();
   }

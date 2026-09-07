@@ -17,6 +17,20 @@ function showPasswordChange() {
   $('currentPassword').focus();
 }
 
+async function resumeActiveSession() {
+  try {
+    const session = await request('/api/auth/session');
+    if (!session.authenticated) return;
+    if (session.mustChangePassword) {
+      showPasswordChange();
+      return;
+    }
+    location.assign(nextPath);
+  } catch {
+    // The login page remains available when no valid session exists.
+  }
+}
+
 $('loginForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   const button = event.currentTarget.querySelector('button');
@@ -59,3 +73,5 @@ $('passwordForm').addEventListener('submit', async (event) => {
     button.disabled = false;
   }
 });
+
+void resumeActiveSession();

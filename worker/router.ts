@@ -67,12 +67,50 @@ async function readJson<T>(request: Request): Promise<T> {
   }
 }
 
+function loginPageResponse(request: Request, env: Env, nextPath: string) {
+  const loginUrl = new URL(request.url);
+  loginUrl.pathname = "/data-core/login.html";
+  loginUrl.search = "";
+  loginUrl.searchParams.set("next", nextPath);
+  return baseWorker.fetch(new Request(loginUrl.toString(), { headers: request.headers }), env);
+}
+
+function isProtectedDataCoreUiPath(pathname: string) {
+  return (
+    pathname === "/data-core/work" ||
+    pathname.startsWith("/data-core/work/") ||
+    pathname === "/data-core/accounts" ||
+    pathname === "/data-core/accounts/" ||
+    pathname === "/data-core/accounts.html" ||
+    pathname === "/data-core/operations" ||
+    pathname === "/data-core/operations/" ||
+    pathname === "/data-core/operations.html" ||
+    pathname === "/data-core/content" ||
+    pathname === "/data-core/content/" ||
+    pathname.startsWith("/data-core/content/") ||
+    pathname === "/data-core/content.html" ||
+    pathname === "/data-core/roadmap" ||
+    pathname === "/data-core/roadmap/" ||
+    pathname === "/data-core/roadmap.html" ||
+    pathname === "/data-core/readiness" ||
+    pathname === "/data-core/readiness/" ||
+    pathname === "/data-core/readiness.html"
+  );
+}
+
 async function handleStandaloneAuthApi(request: Request, env: Env) {
   const url = new URL(request.url);
   if (!url.pathname.startsWith("/api/auth/")) return null;
   if (!env.DB) throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
   await ensureDataCoreMigrations(env.DB);
-
+  const context = await resolveDataCoreAccess(request, env.DB, env.DATA_CORE_SUPER_ADMIN_EMAILS);
+  const passwordChangeRoute =
+    (url.pathname === "/api/auth/session" && request.method === "GET") ||
+    (url.pathname === "/api/auth/password" && request.method === "PUT") ||
+    (url.pathname === "/api/auth/logout" && request.method === "POST");
+  if (context.mustChangePassword && !passwordChangeRoute) {
+    throw new DataCoreAccessError(403, "첫 로그인 비밀번호를 먼저 변경하세요.");
+  }
   if (url.pathname === "/api/auth/login" && request.method === "POST") {
     const result = await loginStandalone(env.DB, request, await readJson<{ loginId?: unknown; password?: unknown }>(request));
     return jsonResponse(
@@ -84,8 +122,6 @@ async function handleStandaloneAuthApi(request: Request, env: Env) {
     const result = await logoutStandalone(env.DB, request);
     return jsonResponse({ ok: true }, { headers: result.headers });
   }
-
-  const context = await resolveDataCoreAccess(request, env.DB, env.DATA_CORE_SUPER_ADMIN_EMAILS);
   if (url.pathname === "/api/auth/session" && request.method === "GET") return jsonResponse(context);
   if (url.pathname === "/api/auth/password" && request.method === "PUT") {
     const result = await changeStandalonePassword(env.DB, request, context, await readJson(request));
@@ -392,14 +428,11 @@ const worker = {
       }
       if (
         env.DB &&
-        (url.pathname === "/data-core/work" || url.pathname === "/data-core/work/" || url.pathname === "/data-core/work/library" || url.pathname === "/data-core/work/library/")
+        isProtectedDataCoreUiPath(url.pathname)
       ) {
         const context = await resolveDataCoreAccess(request, env.DB, env.DATA_CORE_SUPER_ADMIN_EMAILS);
-        if (!context.authenticated) {
-          const loginUrl = new URL(request.url);
-          loginUrl.pathname = "/data-core/login.html";
-          loginUrl.searchParams.set("next", url.pathname.replace(/\/$/, "") || "/data-core/work");
-          return baseWorker.fetch(new Request(loginUrl.toString(), { headers: request.headers }), env);
+        if (!context.authenticated || context.mustChangePassword) {
+          return loginPageResponse(request, env, url.pathname.replace(/\/$/, "") || "/data-core/work");
         }
       }
       if (
@@ -451,6 +484,13 @@ const worker = {
     try {
       const authResponse = await handleStandaloneAuthApi(request, env);
       if (authResponse) return authResponse;
+
+      if (env.DB && url.pathname.startsWith("/api/data-core/") && url.pathname !== "/api/data-core/health") {
+        const context = await resolveDataCoreAccess(request, env.DB, env.DATA_CORE_SUPER_ADMIN_EMAILS);
+        if (context.mustChangePassword) {
+          throw new DataCoreAccessError(403, "첫 로그인 비밀번호를 먼저 변경하세요.");
+        }
+      }
 
       const fileMetadataResponse = await handleFileMetadataApi(request, env);
       if (fileMetadataResponse) return fileMetadataResponse;

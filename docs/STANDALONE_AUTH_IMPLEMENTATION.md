@@ -39,6 +39,8 @@
 - 반복 로그인 실패 잠금
 - logout/세션 revoke
 - 비활성 계정 즉시 차단
+- 임시 비밀번호 세션은 비밀번호 변경, 로그아웃, 세션 확인 외의 모든 private API와 보호 UI 접근 차단
+- 마지막 활성 standalone `SUPER_ADMIN` 계정 비활성화 차단 및 자기 자신의 세션 해제/비활성화 차단
 - auth 관련 audit log 기록
 
 ### 스키마 제안
@@ -78,7 +80,7 @@
 - password/token을 GitHub/문서/ChatGPT 대화에 남기지 않음
 - authenticated Cloudflare CLI 환경에서 실행하는 interactive bootstrap script를 권장
 - 예: `npm run auth:create-master`
-- terminal stdin에서 login ID/password를 받아 hash만 D1에 저장
+- terminal stdin에서 login ID/password를 받아 hash만 D1에 저장하며, interactive terminal에서는 비밀번호 입력을 표시하지 않음
 - 이미 SUPER_ADMIN local account가 있으면 중복 생성 방지
 - script는 기존 production D1 `DB`만 사용하고 새 D1/R2 생성 금지
 
@@ -129,4 +131,6 @@ SUPER_ADMIN에게만:
 - `worker/data-core-auth.ts`에 PBKDF2-HMAC-SHA-256 비밀번호 hash, 256-bit session token hash, 실패 잠금, audit 기록을 구현했다.
 - 기존 OpenAI authenticated headers를 우선 사용하고, 일반 브라우저는 Secure/HttpOnly/SameSite=Lax cookie session으로 인증한다.
 - `/data-core/login`, `/data-core/accounts`, `/api/auth/*`, `npm run auth:create-master`를 추가했다.
+- 임시 비밀번호 session은 `/api/auth/session`, `/api/auth/password`, `/api/auth/logout`만 허용하며, 그 외 DATA CORE API는 서버에서 `403`으로 차단한다.
+- 마지막 활성 standalone 마스터는 서버에서 비활성화할 수 없고, 마스터는 다른 마스터를 통해서만 자신의 세션/계정을 변경할 수 있다.
 - 마스터 계정의 실제 ID와 비밀번호는 이 문서, Git, 대화에 기록하지 않는다. production 배포 후 로컬 terminal에서만 bootstrap을 실행한다.

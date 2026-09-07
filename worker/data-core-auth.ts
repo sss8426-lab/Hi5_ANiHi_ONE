@@ -1,5 +1,5 @@
 import { DEFAULT_ORGANIZATION_ID } from "./data-core";
-import { DataCoreAccessError, requireAuthenticatedAccess, type DataCoreAccessContext, type DataCoreRole } from "./data-core-access";
+import { DataCoreAccessError, requireAuthenticatedAccess, requireSignedInAccess, type DataCoreAccessContext, type DataCoreRole } from "./data-core-access";
 
 export const AUTH_COOKIE_NAME = "data_core_session";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 8;
@@ -179,7 +179,7 @@ export async function logoutStandalone(db: D1Database, request: Request) {
 
 export async function changeStandalonePassword(db: D1Database, request: Request, context: DataCoreAccessContext, body: { currentPassword?: unknown; nextPassword?: unknown }) {
   assertSameOrigin(request);
-  requireAuthenticatedAccess(context);
+  requireSignedInAccess(context);
   const actor = context.user!;
   const currentPassword = String(body.currentPassword || "");
   const nextPassword = String(body.nextPassword || "");
@@ -259,8 +259,26 @@ export async function updateStandaloneAccount(
   const now = new Date().toISOString();
   const status = text(input.status, 20);
   const temporaryPassword = String(input.temporaryPassword || "");
+  const revokeSessions = input.revokeSessions === true;
   if (status && !["active", "disabled"].includes(status)) throw new DataCoreAccessError(400, "계정 상태가 올바르지 않습니다.");
   if (temporaryPassword && temporaryPassword.length < 12) throw new DataCoreAccessError(400, "임시 비밀번호는 12자 이상이어야 합니다.");
+  const targetIsSuperAdmin = Boolean(await db.prepare(
+    "SELECT 1 FROM memberships WHERE user_id = ? AND organization_id = ? AND role = 'SUPER_ADMIN' LIMIT 1",
+  ).bind(account.user_id, DEFAULT_ORGANIZATION_ID).first());
+  if (account.user_id === actor.internalUserId && (status === "disabled" || revokeSessions || temporaryPassword)) {
+    throw new DataCoreAccessError(400, "본인 계정의 비활성화, 세션 해제, 임시 비밀번호 재설정은 다른 마스터 관리자가 처리해야 합니다.");
+  }
+  if (status === "disabled" && account.status === "active" && targetIsSuperAdmin) {
+    const activeSuperAdmins = await db.prepare(
+      `SELECT count(DISTINCT a.id) AS count
+         FROM auth_accounts a
+         INNER JOIN memberships m ON m.user_id = a.user_id
+         WHERE a.status = 'active' AND m.organization_id = ? AND m.role = 'SUPER_ADMIN'`,
+    ).bind(DEFAULT_ORGANIZATION_ID).first<{ count: number }>();
+    if (Number(activeSuperAdmins?.count || 0) <= 1) {
+      throw new DataCoreAccessError(409, "마지막 활성 마스터 계정은 비활성화할 수 없습니다.");
+    }
+  }
   const statements: D1PreparedStatement[] = [];
   if (temporaryPassword) {
     const salt = toBase64(crypto.getRandomValues(new Uint8Array(16)));
@@ -269,10 +287,10 @@ export async function updateStandaloneAccount(
     ).bind(await passwordHash(temporaryPassword, salt, PASSWORD_ITERATIONS), salt, PASSWORD_ITERATIONS, now, accountId));
   }
   if (status) statements.push(db.prepare("UPDATE auth_accounts SET status = ?, updated_at = ? WHERE id = ?").bind(status, now, accountId));
-  if (status === "disabled" || input.revokeSessions || temporaryPassword) {
+  if (status === "disabled" || revokeSessions || temporaryPassword) {
     statements.push(db.prepare("UPDATE auth_sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL").bind(now, account.user_id));
   }
   if (statements.length) await db.batch(statements);
-  await audit(db, actor.internalUserId, "account_updated", accountId, { status: status || undefined, passwordReset: Boolean(temporaryPassword), sessionsRevoked: Boolean(status === "disabled" || input.revokeSessions || temporaryPassword) });
+  await audit(db, actor.internalUserId, "account_updated", accountId, { status: status || undefined, passwordReset: Boolean(temporaryPassword), sessionsRevoked: Boolean(status === "disabled" || revokeSessions || temporaryPassword) });
   return { id: accountId, status: status || account.status, passwordReset: Boolean(temporaryPassword) };
 }

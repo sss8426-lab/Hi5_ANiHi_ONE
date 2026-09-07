@@ -14,9 +14,40 @@ const run = (args) => new Promise((resolve, reject) => {
 const sql = (value) => `'${String(value).replace(/'/g, "''")}'`;
 
 const prompt = createInterface({ input: process.stdin, output: process.stdout });
+const hiddenQuestion = (message) => {
+  if (!process.stdin.isTTY || typeof process.stdin.setRawMode !== 'function') {
+    return prompt.question(message);
+  }
+  process.stdout.write(message);
+  return new Promise((resolve, reject) => {
+    let value = '';
+    const onData = (chunk) => {
+      const key = String(chunk);
+      if (key === '\r' || key === '\n') {
+        cleanup();
+        process.stdout.write('\n');
+        resolve(value);
+      } else if (key === '\u0003') {
+        cleanup();
+        reject(new Error('입력이 취소되었습니다.'));
+      } else if (key === '\b' || key === '\u007f') {
+        value = value.slice(0, -1);
+      } else if (!key.startsWith('\u001b')) {
+        value += key;
+      }
+    };
+    const cleanup = () => {
+      process.stdin.off('data', onData);
+      process.stdin.setRawMode(false);
+    };
+    process.stdin.setRawMode(true);
+    process.stdin.resume();
+    process.stdin.on('data', onData);
+  });
+};
 try {
   const loginId = (await prompt.question('마스터 로그인 ID: ')).trim().toLowerCase();
-  const password = await prompt.question('마스터 비밀번호(12자 이상): ');
+  const password = await hiddenQuestion('마스터 비밀번호(12자 이상): ');
   if (!loginId || password.length < 12) throw new Error('로그인 ID와 12자 이상의 비밀번호가 필요합니다.');
   await run(['--command', `CREATE TABLE IF NOT EXISTS organizations (id TEXT PRIMARY KEY NOT NULL, slug TEXT NOT NULL UNIQUE, name TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'active', created_at TEXT NOT NULL, updated_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS campuses (id TEXT PRIMARY KEY NOT NULL, organization_id TEXT NOT NULL, code TEXT NOT NULL, name TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'active', created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE (organization_id, code)); CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY NOT NULL, email TEXT, display_name TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'active', auth_subject TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS memberships (id TEXT PRIMARY KEY NOT NULL, organization_id TEXT NOT NULL, campus_id TEXT, user_id TEXT NOT NULL, role TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS auth_accounts (id TEXT PRIMARY KEY NOT NULL, user_id TEXT NOT NULL UNIQUE, login_id TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, password_salt TEXT NOT NULL, password_iterations INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'active', must_change_password INTEGER NOT NULL DEFAULT 1, failed_login_count INTEGER NOT NULL DEFAULT 0, locked_until TEXT, last_login_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS auth_sessions (id TEXT PRIMARY KEY NOT NULL, token_hash TEXT NOT NULL UNIQUE, user_id TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT NOT NULL, revoked_at TEXT, last_seen_at TEXT NOT NULL);`]);
   const existing = JSON.parse(await run(['--command', "SELECT count(*) AS count FROM auth_accounts a INNER JOIN memberships m ON m.user_id = a.user_id WHERE m.role = 'SUPER_ADMIN';", '--json']));

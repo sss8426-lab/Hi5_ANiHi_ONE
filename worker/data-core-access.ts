@@ -232,12 +232,19 @@ export async function resolveDataCoreAccess(
   };
 }
 
-export function requireAuthenticatedAccess(context: DataCoreAccessContext): void {
+export function requireSignedInAccess(context: DataCoreAccessContext): void {
   if (!context.authenticated || !context.user) {
     throw new DataCoreAccessError(401, "로그인이 필요합니다.");
   }
   if (!context.database) {
     throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
+  }
+}
+
+export function requireAuthenticatedAccess(context: DataCoreAccessContext): void {
+  requireSignedInAccess(context);
+  if (context.mustChangePassword) {
+    throw new DataCoreAccessError(403, "첫 로그인 비밀번호를 먼저 변경하세요.");
   }
 }
 
