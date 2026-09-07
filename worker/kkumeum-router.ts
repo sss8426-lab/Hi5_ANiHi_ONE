@@ -8,6 +8,17 @@ import {
   kkumeumBindingStatus,
   requireFamilyDatabase,
 } from "./kkumeum-core";
+import { requireKkumeumReportEditAccess } from "./kkumeum-report-access";
+import {
+  createMonthlyReport,
+  generateMonthlyReportDraft,
+  getMonthlyReport,
+  listMonthlyReportRevisions,
+  listMonthlyReports,
+  reviseSentMonthlyReport,
+  transitionMonthlyReport,
+  updateMonthlyReport,
+} from "./kkumeum-reports";
 import {
   createKkumeumClass,
   createKkumeumStudent,
@@ -36,6 +47,26 @@ function requiredCampusId(url: URL): string {
   return campusId;
 }
 
+function requiredStudentId(url: URL): string {
+  const studentId = String(url.searchParams.get("studentId") || "").trim().slice(0, 120);
+  if (!studentId) throw new DataCoreAccessError(400, "studentId가 필요합니다.");
+  return studentId;
+}
+
+function requiredBodyId(value: unknown, field: "campusId" | "studentId"): string {
+  const id = String(value || "").trim().slice(0, 120);
+  if (!id) throw new DataCoreAccessError(400, `${field}가 필요합니다.`);
+  return id;
+}
+
+function privateJsonResponder(base: JsonResponder): JsonResponder {
+  return (value: unknown, init: ResponseInit = {}) => {
+    const headers = new Headers(init.headers);
+    headers.set("cache-control", "private, no-store");
+    return base(value, { ...init, headers });
+  };
+}
+
 function requireKkumeumBindingsReady(
   context: DataCoreAccessContext,
   env: KkumeumRouterEnv,
@@ -56,39 +87,119 @@ export async function handleKkumeumApi(
 ): Promise<Response | null> {
   const url = new URL(request.url);
   if (!url.pathname.startsWith("/api/kkumeum")) return null;
+  const respond = privateJsonResponder(jsonResponse);
   requireAuthenticatedAccess(context);
 
   if (url.pathname === "/api/kkumeum/health") {
     if (request.method !== "GET") {
-      return jsonResponse({ error: "지원하지 않는 꿈이음 health 요청입니다." }, { status: 405 });
+      return respond({ error: "지원하지 않는 꿈이음 health 요청입니다." }, { status: 405 });
     }
     const status = kkumeumBindingStatus(context, env);
-    return jsonResponse({ status }, { status: status.ok ? 200 : 503 });
+    return respond({ status }, { status: status.ok ? 200 : 503 });
   }
 
   requireKkumeumBindingsReady(context, env);
   const familyDb = requireFamilyDatabase(context, env.FAMILY_DB);
 
+  if (url.pathname === "/api/kkumeum/reports/generate") {
+    if (request.method !== "POST") {
+      return respond({ error: "지원하지 않는 월간평가 AI 초안 요청입니다." }, { status: 405 });
+    }
+    const input = await readJson(request);
+    await requireKkumeumReportEditAccess(
+      familyDb,
+      context,
+      requiredBodyId(input.campusId, "campusId"),
+      requiredBodyId(input.studentId, "studentId"),
+    );
+    const generation = await generateMonthlyReportDraft(familyDb, context, input);
+    return respond(generation, { status: generation.available ? 200 : 503 });
+  }
+
+  if (url.pathname === "/api/kkumeum/reports") {
+    if (request.method === "GET") {
+      return respond({
+        reports: await listMonthlyReports(
+          familyDb,
+          context,
+          requiredCampusId(url),
+          requiredStudentId(url),
+        ),
+      });
+    }
+    if (request.method === "POST") {
+      const input = await readJson(request);
+      await requireKkumeumReportEditAccess(
+        familyDb,
+        context,
+        requiredBodyId(input.campusId, "campusId"),
+        requiredBodyId(input.studentId, "studentId"),
+      );
+      return respond(
+        { report: await createMonthlyReport(familyDb, context, input) },
+        { status: 201 },
+      );
+    }
+    return respond({ error: "지원하지 않는 월간평가 요청입니다." }, { status: 405 });
+  }
+
+  const reportActionMatch = url.pathname.match(
+    /^\/api\/kkumeum\/reports\/([^/]+)\/(ready|draft|send|revise|revisions)$/,
+  );
+  if (reportActionMatch) {
+    const reportId = decodeURIComponent(reportActionMatch[1]);
+    const action = reportActionMatch[2];
+    if (action === "revisions" && request.method === "GET") {
+      return respond({ revisions: await listMonthlyReportRevisions(familyDb, context, reportId) });
+    }
+    if (action === "revise" && request.method === "POST") {
+      const report = await getMonthlyReport(familyDb, context, reportId);
+      await requireKkumeumReportEditAccess(familyDb, context, report.campusId, report.studentId);
+      return respond(await reviseSentMonthlyReport(familyDb, context, reportId, await readJson(request)));
+    }
+    if ((action === "ready" || action === "draft" || action === "send") && request.method === "POST") {
+      const report = await getMonthlyReport(familyDb, context, reportId);
+      await requireKkumeumReportEditAccess(familyDb, context, report.campusId, report.studentId);
+      const target = action === "send" ? "sent" : action;
+      return respond({ report: await transitionMonthlyReport(familyDb, context, reportId, target) });
+    }
+    return respond({ error: "지원하지 않는 월간평가 상태 요청입니다." }, { status: 405 });
+  }
+
+  const reportMatch = url.pathname.match(/^\/api\/kkumeum\/reports\/([^/]+)$/);
+  if (reportMatch) {
+    const reportId = decodeURIComponent(reportMatch[1]);
+    if (request.method === "GET") {
+      return respond({ report: await getMonthlyReport(familyDb, context, reportId) });
+    }
+    if (request.method === "PATCH") {
+      const report = await getMonthlyReport(familyDb, context, reportId);
+      await requireKkumeumReportEditAccess(familyDb, context, report.campusId, report.studentId);
+      return respond({ report: await updateMonthlyReport(familyDb, context, reportId, await readJson(request)) });
+    }
+    return respond({ error: "지원하지 않는 월간평가 요청입니다." }, { status: 405 });
+  }
+
   if (url.pathname === "/api/kkumeum/classes") {
     if (request.method === "GET") {
       const campusId = requiredCampusId(url);
-      return jsonResponse({ classes: await listKkumeumClasses(familyDb, context, campusId) });
+      return respond({ classes: await listKkumeumClasses(familyDb, context, campusId) });
     }
     if (request.method === "POST") {
-      return jsonResponse(
+      return respond(
         { class: await createKkumeumClass(familyDb, context, await readJson(request)) },
         { status: 201 },
       );
     }
-    return jsonResponse({ error: "지원하지 않는 꿈이음 반 요청입니다." }, { status: 405 });
+    return respond({ error: "지원하지 않는 꿈이음 반 요청입니다." }, { status: 405 });
   }
 
   const classMatch = url.pathname.match(/^\/api\/kkumeum\/classes\/([^/]+)$/);
   if (classMatch) {
     if (request.method !== "PATCH") {
-      return jsonResponse({ error: "지원하지 않는 꿈이음 반 요청입니다." }, { status: 405 });
+      return respond({ error: "지원하지 않는 꿈이음 반 요청입니다." }, { status: 405 });
     }
-    return jsonResponse({
+    return respond({
       class: await updateKkumeumClass(
         familyDb,
         context,
@@ -101,7 +212,7 @@ export async function handleKkumeumApi(
   if (url.pathname === "/api/kkumeum/students") {
     if (request.method === "GET") {
       const campusId = requiredCampusId(url);
-      return jsonResponse({
+      return respond({
         students: await listKkumeumStudents(familyDb, context, campusId, {
           classId: url.searchParams.get("classId") || undefined,
           status: url.searchParams.get("status") || undefined,
@@ -110,21 +221,21 @@ export async function handleKkumeumApi(
       });
     }
     if (request.method === "POST") {
-      return jsonResponse(
+      return respond(
         { student: await createKkumeumStudent(familyDb, context, await readJson(request)) },
         { status: 201 },
       );
     }
-    return jsonResponse({ error: "지원하지 않는 꿈이음 학생 요청입니다." }, { status: 405 });
+    return respond({ error: "지원하지 않는 꿈이음 학생 요청입니다." }, { status: 405 });
   }
 
   const moveMatch = url.pathname.match(/^\/api\/kkumeum\/students\/([^/]+)\/move-class$/);
   if (moveMatch) {
     if (request.method !== "POST") {
-      return jsonResponse({ error: "지원하지 않는 꿈이음 반 이동 요청입니다." }, { status: 405 });
+      return respond({ error: "지원하지 않는 꿈이음 반 이동 요청입니다." }, { status: 405 });
     }
     const input = await readJson(request);
-    return jsonResponse({
+    return respond({
       student: await updateKkumeumStudent(
         familyDb,
         context,
@@ -138,15 +249,15 @@ export async function handleKkumeumApi(
   if (studentMatch) {
     const studentId = decodeURIComponent(studentMatch[1]);
     if (request.method === "GET") {
-      return jsonResponse({ student: await getKkumeumStudent(familyDb, context, requiredCampusId(url), studentId) });
+      return respond({ student: await getKkumeumStudent(familyDb, context, requiredCampusId(url), studentId) });
     }
     if (request.method === "PATCH") {
-      return jsonResponse({
+      return respond({
         student: await updateKkumeumStudent(familyDb, context, studentId, await readJson(request)),
       });
     }
-    return jsonResponse({ error: "지원하지 않는 꿈이음 학생 요청입니다." }, { status: 405 });
+    return respond({ error: "지원하지 않는 꿈이음 학생 요청입니다." }, { status: 405 });
   }
 
-  return jsonResponse({ error: "지원하지 않는 꿈이음 API 요청입니다." }, { status: 405 });
+  return respond({ error: "지원하지 않는 꿈이음 API 요청입니다." }, { status: 405 });
 }
