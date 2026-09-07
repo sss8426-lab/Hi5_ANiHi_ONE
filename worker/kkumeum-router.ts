@@ -8,6 +8,7 @@ import {
   kkumeumBindingStatus,
   requireFamilyDatabase,
 } from "./kkumeum-core";
+import { requireKkumeumReportEditAccess } from "./kkumeum-report-access";
 import {
   createMonthlyReport,
   generateMonthlyReportDraft,
@@ -52,6 +53,12 @@ function requiredStudentId(url: URL): string {
   return studentId;
 }
 
+function requiredBodyId(value: unknown, field: "campusId" | "studentId"): string {
+  const id = String(value || "").trim().slice(0, 120);
+  if (!id) throw new DataCoreAccessError(400, `${field}가 필요합니다.`);
+  return id;
+}
+
 function requireKkumeumBindingsReady(
   context: DataCoreAccessContext,
   env: KkumeumRouterEnv,
@@ -89,11 +96,14 @@ export async function handleKkumeumApi(
     if (request.method !== "POST") {
       return jsonResponse({ error: "지원하지 않는 월간평가 AI 초안 요청입니다." }, { status: 405 });
     }
-    const generation = await generateMonthlyReportDraft(
+    const input = await readJson(request);
+    await requireKkumeumReportEditAccess(
       familyDb,
       context,
-      await readJson(request),
+      requiredBodyId(input.campusId, "campusId"),
+      requiredBodyId(input.studentId, "studentId"),
     );
+    const generation = await generateMonthlyReportDraft(familyDb, context, input);
     return jsonResponse(generation, { status: generation.available ? 200 : 503 });
   }
 
@@ -109,8 +119,15 @@ export async function handleKkumeumApi(
       });
     }
     if (request.method === "POST") {
+      const input = await readJson(request);
+      await requireKkumeumReportEditAccess(
+        familyDb,
+        context,
+        requiredBodyId(input.campusId, "campusId"),
+        requiredBodyId(input.studentId, "studentId"),
+      );
       return jsonResponse(
-        { report: await createMonthlyReport(familyDb, context, await readJson(request)) },
+        { report: await createMonthlyReport(familyDb, context, input) },
         { status: 201 },
       );
     }
@@ -127,9 +144,13 @@ export async function handleKkumeumApi(
       return jsonResponse({ revisions: await listMonthlyReportRevisions(familyDb, context, reportId) });
     }
     if (action === "revise" && request.method === "POST") {
+      const report = await getMonthlyReport(familyDb, context, reportId);
+      await requireKkumeumReportEditAccess(familyDb, context, report.campusId, report.studentId);
       return jsonResponse(await reviseSentMonthlyReport(familyDb, context, reportId, await readJson(request)));
     }
     if ((action === "ready" || action === "draft" || action === "send") && request.method === "POST") {
+      const report = await getMonthlyReport(familyDb, context, reportId);
+      await requireKkumeumReportEditAccess(familyDb, context, report.campusId, report.studentId);
       const target = action === "send" ? "sent" : action;
       return jsonResponse({ report: await transitionMonthlyReport(familyDb, context, reportId, target) });
     }
@@ -143,6 +164,8 @@ export async function handleKkumeumApi(
       return jsonResponse({ report: await getMonthlyReport(familyDb, context, reportId) });
     }
     if (request.method === "PATCH") {
+      const report = await getMonthlyReport(familyDb, context, reportId);
+      await requireKkumeumReportEditAccess(familyDb, context, report.campusId, report.studentId);
       return jsonResponse({ report: await updateMonthlyReport(familyDb, context, reportId, await readJson(request)) });
     }
     return jsonResponse({ error: "지원하지 않는 월간평가 요청입니다." }, { status: 405 });
