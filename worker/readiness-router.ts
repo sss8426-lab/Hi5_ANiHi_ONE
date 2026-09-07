@@ -13,6 +13,10 @@ import {
   listGuardianChildren,
   readGuardianFamilyFile,
 } from "./kkumeum-guardian-feed";
+import {
+  listGuardianNotices,
+  markGuardianNoticeRead,
+} from "./kkumeum-announcements";
 
 interface Env {
   ASSETS?: Fetcher;
@@ -110,6 +114,19 @@ async function handleFamilyGuardianFeedApi(request: Request, env: Env): Promise<
   if (url.pathname.startsWith("/api/family/auth/")) return null;
   if (!env.FAMILY_DB) {
     throw new DataCoreAccessError(503, "꿈이음 보호자 전용 FAMILY_DB 연결이 필요합니다.");
+  }
+
+  if (url.pathname === "/api/family/notices" && request.method === "GET") {
+    return privateJsonResponse(await listGuardianNotices(env.FAMILY_DB, request));
+  }
+
+  const noticeReadMatch = url.pathname.match(/^\/api\/family\/notices\/([^/]+)\/read$/);
+  if (noticeReadMatch && request.method === "POST") {
+    return privateJsonResponse(await markGuardianNoticeRead(
+      env.FAMILY_DB,
+      request,
+      decodeURIComponent(noticeReadMatch[1]),
+    ));
   }
 
   if (url.pathname === "/api/family/children" && request.method === "GET") {
