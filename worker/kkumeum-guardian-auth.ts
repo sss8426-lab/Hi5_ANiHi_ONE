@@ -324,6 +324,101 @@ export async function loginKkumeumGuardian(
   };
 }
 
+export async function changeKkumeumGuardianPassword(
+  familyDb: D1Database,
+  request: Request,
+  input: { currentPassword?: unknown; newPassword?: unknown },
+): Promise<{ ok: true; authenticated: true; mustChangePassword: false; expiresAt: string; setCookie: string }> {
+  assertSameOrigin(request);
+  await ensureKkumeumGuardianAuthSchema(familyDb);
+  const rawToken = guardianSessionToken(request);
+  if (!rawToken) throw new DataCoreAccessError(401, "보호자 로그인이 필요합니다.");
+
+  const currentPassword = String(input.currentPassword || "");
+  const newPassword = String(input.newPassword || "");
+  if (!currentPassword || !newPassword) {
+    throw new DataCoreAccessError(400, "현재 비밀번호와 새 비밀번호를 입력하세요.");
+  }
+  if (currentPassword === newPassword) {
+    throw new DataCoreAccessError(400, "새 비밀번호는 현재 비밀번호와 다르게 설정하세요.");
+  }
+
+  const now = new Date();
+  const sessionHash = await sha256(rawToken);
+  const guardian = await familyDb.prepare(
+    `SELECT g.id, g.login_id, g.display_name, g.status, g.password_hash, g.password_salt,
+            g.password_iterations, g.must_change_password, g.failed_login_count, g.locked_until
+     FROM guardian_sessions s
+     INNER JOIN family_guardians g ON g.id = s.guardian_id
+     WHERE s.token_hash = ?
+       AND s.revoked_at IS NULL
+       AND s.expires_at > ?
+     LIMIT 1`,
+  ).bind(sessionHash, now.toISOString()).first<GuardianRow>();
+  if (!guardian || guardian.status !== "active" || !guardian.password_hash || !guardian.password_salt) {
+    throw new DataCoreAccessError(401, "유효한 보호자 로그인이 필요합니다.");
+  }
+  if (guardian.locked_until && new Date(guardian.locked_until).getTime() > now.getTime()) {
+    throw new DataCoreAccessError(423, "로그인 시도가 잠시 잠겼습니다. 잠시 후 다시 시도하세요.");
+  }
+
+  const candidate = await passwordHash(
+    currentPassword,
+    guardian.password_salt,
+    Number(guardian.password_iterations),
+  );
+  if (!timingSafeEqual(candidate, guardian.password_hash)) {
+    throw new DataCoreAccessError(401, "현재 비밀번호가 올바르지 않습니다.");
+  }
+
+  const passwordRecord = await createKkumeumGuardianPasswordRecord(newPassword);
+  const replacementRawToken = toBase64Url(crypto.getRandomValues(new Uint8Array(32)));
+  const replacementTokenHash = await sha256(replacementRawToken);
+  const expiresAt = new Date(now.getTime() + GUARDIAN_SESSION_MAX_AGE_SECONDS * 1000).toISOString();
+  const timestamp = now.toISOString();
+
+  await familyDb.batch([
+    familyDb.prepare(
+      `UPDATE family_guardians
+       SET password_hash = ?, password_salt = ?, password_iterations = ?,
+           must_change_password = 0, failed_login_count = 0, locked_until = NULL, updated_at = ?
+       WHERE id = ?`,
+    ).bind(
+      passwordRecord.passwordHash,
+      passwordRecord.passwordSalt,
+      passwordRecord.passwordIterations,
+      timestamp,
+      guardian.id,
+    ),
+    familyDb.prepare(
+      `UPDATE guardian_sessions
+       SET revoked_at = ?
+       WHERE guardian_id = ? AND revoked_at IS NULL`,
+    ).bind(timestamp, guardian.id),
+    familyDb.prepare(
+      `INSERT INTO guardian_sessions (
+         id, guardian_id, token_hash, created_at, expires_at, revoked_at, last_seen_at
+       ) VALUES (?, ?, ?, ?, ?, NULL, ?)`,
+    ).bind(
+      crypto.randomUUID(),
+      guardian.id,
+      replacementTokenHash,
+      timestamp,
+      expiresAt,
+      timestamp,
+    ),
+  ]);
+  await auditGuardianAuth(familyDb, guardian.id, "password_change");
+
+  return {
+    ok: true,
+    authenticated: true,
+    mustChangePassword: false,
+    expiresAt,
+    setCookie: kkumeumGuardianCookie(replacementRawToken),
+  };
+}
+
 export async function logoutKkumeumGuardian(
   familyDb: D1Database,
   request: Request,
