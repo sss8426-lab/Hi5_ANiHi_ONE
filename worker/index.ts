@@ -1,11 +1,22 @@
 /** Cloudflare Worker entry point for the admissions consulting web app. */
 import {
-  dataCoreContext,
   dataCoreHealth,
   fileAreaForPurpose,
   recordFileObject,
   visibilityForArea,
 } from "./data-core";
+import {
+  DataCoreAccessError,
+  listAccessibleCampuses,
+  resolveDataCoreAccess,
+} from "./data-core-access";
+import {
+  createDataRecord,
+  deleteDataRecord,
+  getDataRecord,
+  listDataRecords,
+  updateDataRecord,
+} from "./data-core-records";
 
 const STATE_ID = "main";
 const STATE_OBJECT_KEY = "state/admissions-data.json";
@@ -14,6 +25,7 @@ interface Env {
   ASSETS?: Fetcher;
   DB?: D1Database;
   FILES?: R2Bucket;
+  DATA_CORE_SUPER_ADMIN_EMAILS?: string;
 }
 
 function jsonResponse(value: unknown, init: ResponseInit = {}) {
@@ -205,15 +217,83 @@ async function handleFile(request: Request, env: Env) {
   return new Response(object.body, { headers });
 }
 
-async function handleApi(request: Request, env: Env) {
+async function readJsonBody(request: Request) {
+  try {
+    return await request.json();
+  } catch {
+    throw new DataCoreAccessError(400, "JSON 요청 형식이 올바르지 않습니다.");
+  }
+}
+
+async function handleDataCoreApi(request: Request, env: Env) {
   const url = new URL(request.url);
 
   if (url.pathname === "/api/data-core/health" && request.method === "GET") {
     return jsonResponse(await dataCoreHealth(env.DB, env.FILES));
   }
 
+  const context = await resolveDataCoreAccess(
+    request,
+    env.DB,
+    env.DATA_CORE_SUPER_ADMIN_EMAILS,
+  );
+
   if (url.pathname === "/api/data-core/context" && request.method === "GET") {
-    return jsonResponse(await dataCoreContext(request, env.DB));
+    return jsonResponse(context);
+  }
+
+  if (url.pathname === "/api/data-core/campuses" && request.method === "GET") {
+    if (!env.DB) throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
+    return jsonResponse({ campuses: await listAccessibleCampuses(env.DB, context) });
+  }
+
+  if (url.pathname === "/api/data-core/records" && request.method === "GET") {
+    if (!env.DB) throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
+    return jsonResponse({ records: await listDataRecords(env.DB, context, url) });
+  }
+
+  if (url.pathname === "/api/data-core/records" && request.method === "POST") {
+    if (!env.DB) throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
+    return jsonResponse(
+      { record: await createDataRecord(env.DB, context, await readJsonBody(request)) },
+      { status: 201 },
+    );
+  }
+
+  const recordMatch = url.pathname.match(/^\/api\/data-core\/records\/([^/]+)$/);
+  if (recordMatch) {
+    const recordId = decodeURIComponent(recordMatch[1]);
+    if (!env.DB) throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
+
+    if (request.method === "GET") {
+      return jsonResponse({ record: await getDataRecord(env.DB, context, recordId) });
+    }
+    if (request.method === "PATCH") {
+      return jsonResponse({
+        record: await updateDataRecord(env.DB, context, recordId, await readJsonBody(request)),
+      });
+    }
+    if (request.method === "DELETE") {
+      return jsonResponse(await deleteDataRecord(env.DB, context, recordId));
+    }
+  }
+
+  return null;
+}
+
+async function handleApi(request: Request, env: Env) {
+  const url = new URL(request.url);
+
+  if (url.pathname.startsWith("/api/data-core/")) {
+    try {
+      return await handleDataCoreApi(request, env);
+    } catch (error) {
+      if (error instanceof DataCoreAccessError) {
+        return jsonResponse({ error: error.message }, { status: error.status });
+      }
+      console.error("DATA CORE API error", error);
+      return jsonResponse({ error: "DATA CORE 처리 중 오류가 발생했습니다." }, { status: 500 });
+    }
   }
 
   if (url.pathname === "/api/data" && request.method === "GET") {
