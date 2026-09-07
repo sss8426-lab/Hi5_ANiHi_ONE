@@ -1,8 +1,8 @@
-const DEFAULT_ORGANIZATION_ID = "org-hi5-anihi";
-const DEFAULT_ORGANIZATION_SLUG = "hi5-anihi";
-const DEFAULT_ORGANIZATION_NAME = "HI5·ANiHi";
+export const DEFAULT_ORGANIZATION_ID = "org-hi5-anihi";
+export const DEFAULT_ORGANIZATION_SLUG = "hi5-anihi";
+export const DEFAULT_ORGANIZATION_NAME = "HI5·ANiHi";
 
-export const DATA_CORE_VERSION = "foundation-v1.1";
+export const DATA_CORE_VERSION = "foundation-v1.2";
 
 export type DataCoreFileArea =
   | "student-private"
