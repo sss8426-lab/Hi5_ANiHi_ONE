@@ -3,6 +3,7 @@ const state = {
   campuses: [],
   trash: [],
   backups: [],
+  diagnostics: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -84,6 +85,8 @@ function renderContext() {
   $('userStatus').textContent = context?.user?.displayName || context?.user?.email || '사용자 정보 없음';
   $('backupPanel').classList.toggle('hidden', !context?.isSuperAdmin);
   $('backupStatCard').classList.toggle('hidden', !context?.isSuperAdmin);
+  $('diagnosticPanel').classList.toggle('hidden', !context?.isSuperAdmin);
+  $('diagnosticStatCard').classList.toggle('hidden', !context?.isSuperAdmin);
   if (!context?.authenticated) {
     notice('로그인이 필요합니다. DATA CORE에 로그인한 뒤 다시 접근하세요.');
   } else if (!context?.canWrite) {
@@ -237,6 +240,51 @@ async function createBackup() {
   }
 }
 
+function renderDiagnostics() {
+  const result = state.diagnostics;
+  const checks = result?.checks || [];
+  $('diagnosticEmpty').classList.toggle('hidden', checks.length > 0);
+  $('diagnosticBody').innerHTML = checks.map((check) => `<tr>
+    <td><strong>${h(check.label)}</strong></td>
+    <td><span class="diagnostic-state ${check.ok ? 'ok' : 'fail'}">${check.ok ? '정상' : '실패'}</span></td>
+    <td>${h(check.detail)}</td>
+    <td>${h(String(check.durationMs ?? 0))}ms</td>
+  </tr>`).join('');
+
+  if (!result) {
+    $('diagnosticStatus').textContent = '미실행';
+    $('diagnosticDate').textContent = '마스터 전용';
+    return;
+  }
+  $('diagnosticStatus').textContent = result.ok ? '정상' : '점검 필요';
+  $('diagnosticDate').textContent = formatDate(result.completedAt);
+}
+
+async function runDiagnostics() {
+  if (!state.context?.isSuperAdmin) return;
+  if (!confirm('D1과 R2에 임시 진단 probe를 생성·읽기·삭제하여 실제 운영 연결을 점검할까요?')) return;
+  const button = $('runDiagnosticsBtn');
+  button.disabled = true;
+  button.textContent = '진단 중...';
+  try {
+    const response = await api('/api/data-core/admin/diagnostics/run', { method: 'POST' });
+    state.diagnostics = response.diagnostics || null;
+    renderDiagnostics();
+    if (state.diagnostics?.ok) {
+      toast('운영환경 진단을 모두 통과했습니다.');
+    } else {
+      toast('운영환경 진단에서 확인이 필요한 항목이 있습니다.', 'error');
+    }
+  } catch (error) {
+    state.diagnostics = null;
+    renderDiagnostics();
+    toast(error.message, 'error');
+  } finally {
+    button.disabled = false;
+    button.textContent = '진단 실행';
+  }
+}
+
 function bindEvents() {
   $('refreshTrashBtn').onclick = loadTrash;
   $('trashSearchBtn').onclick = loadTrash;
@@ -244,10 +292,12 @@ function bindEvents() {
   $('trashSearch').onkeydown = (event) => { if (event.key === 'Enter') loadTrash(); };
   $('refreshBackupsBtn').onclick = loadBackups;
   $('createBackupBtn').onclick = createBackup;
+  $('runDiagnosticsBtn').onclick = runDiagnostics;
 }
 
 async function init() {
   bindEvents();
+  renderDiagnostics();
   await loadContext();
   if (state.context?.authenticated) {
     await loadTrash();
