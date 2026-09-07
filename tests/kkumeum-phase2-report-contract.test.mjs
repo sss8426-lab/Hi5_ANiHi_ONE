@@ -11,6 +11,7 @@ test('꿈이음 Phase 2 report schema stays isolated and keeps sent revisions', 
   }
   assert.match(schema, /ensureKkumeumPhase1Schema\(familyDb\)/);
   assert.match(schema, /UNIQUE\(student_id, year_month\)/);
+  assert.match(schema, /CHECK \(status IN \('draft', 'ready', 'sent'\)\)/);
   assert.match(schema, /snapshot_json TEXT NOT NULL/);
   assert.match(schema, /r2_key TEXT NOT NULL UNIQUE/);
   assert.doesNotMatch(schema, /\benv\.DB\b/);
@@ -52,4 +53,11 @@ test('TEACHER report write 권한은 active assignment의 can_edit_reports=1을 
   assert.match(router, /action === "revise"/);
   assert.match(router, /action === "ready" \|\| action === "draft" \|\| action === "send"/);
   assert.match(router, /request\.method === "PATCH"/);
+});
+
+test('꿈이음 개인정보 JSON 응답은 브라우저 캐시에 저장하지 않는다', async () => {
+  const router = await read('worker/kkumeum-router.ts');
+  assert.match(router, /headers\.set\("cache-control", "private, no-store"\)/);
+  assert.match(router, /const respond = privateJsonResponder\(jsonResponse\)/);
+  assert.doesNotMatch(router, /return jsonResponse\(/);
 });
