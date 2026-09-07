@@ -470,24 +470,51 @@ Issue #18 콘텐츠 자동화 기반 작업은 PR #19에서 다음을 확인했�
 
 단, PR #19의 Cloudflare Workers production deployment bot은 실패를 보고했다. Cloudflare Dashboard build log 접근 권한이 필요하므로 실제 운영 배포 성공으로 간주하지 않는다.
 
+Issue #21에서는 PR #20 병합 이후 운영 리소스를 실제로 확인하고 production binding을 교체했다.
+
+- Cloudflare account: `44d44ea5985018a83d093a28f5fb7511`
+- D1 `DB`: `site-creator-d1` / `7a25ebae-c784-40a3-bd71-496f3623bf29`
+- R2 `FILES`: `anihi-admissions-images`
+- Worker: `hi5-anihi-one`
+- 운영 URL: `https://hi5-anihi-one.sss8426.workers.dev`
+- 운영 Worker version ID: `a44f59ef-4d60-487b-870f-ceba80ea0ec9`
+- `DATA_CORE_SUPER_ADMIN_EMAILS` secret 설정 확인
+- `wrangler deploy --dry-run`: success
+- `wrangler deploy`: success
+- `/api/data-core/health`: `ok=true`, `database=true`, `files=true`, `mode=central`
+- `/data-core/readiness`: HTTP 200
+- R2 쓰기/읽기/삭제 probe: success
+- D1 테이블 확인: DATA CORE 기본 테이블 생성 확인
+- `wrangler versions upload --dry-run`: success
+- PR #22 GitHub Actions `DATA CORE CI`: success
+- PR #22 Cloudflare Workers bot: failed, 상세 로그는 PR 댓글의 Dashboard 링크에서 확인 필요
+
 ## 17. 아직 실제 운영환경에서 확인해야 할 부분
 
 코드/CI와 실제 배포환경은 구분한다.
 
-운영에서 확인:
+운영에서 이미 확인:
 
 1. D1 `DB` 바인딩
 2. R2 `FILES` 바인딩
 3. `DATA_CORE_SUPER_ADMIN_EMAILS`
-4. 마스터 로그인/SUPER_ADMIN 확인
-5. `/data-core/operations` 운영환경 진단 전체 통과
-6. 테스트 파일 업로드 → 열기 → 휴지통 → 복원
-7. 백업 생성 및 manifest 확인
-8. 입시데이터 동기화 실행
-9. `/data-core/roadmap`에서 실제 대학/학과/전형이 연결되는지 확인
-10. 단일 캠퍼스 사용자로 입시컨설팅 신규 이미지 업로드 후 `sourceApp=admissions` 파일 생성 확인
+4. CLI production deploy
+5. 운영 health API
+6. 운영 readiness 화면 접근
+7. R2 직접 쓰기/읽기/삭제
 
-실제 Cloudflare resource ID나 마스터 이메일을 코드에 임의 하드코딩하지 않는다.
+운영에서 아직 확인 필요:
+
+1. 실제 ChatGPT 로그인 세션에서 마스터/SUPER_ADMIN 확인
+2. `/data-core/operations` 운영환경 진단 전체 통과
+3. 테스트 파일 업로드 → 열기 → 휴지통 → 복원
+4. 백업 생성 및 manifest 확인
+5. 입시데이터 동기화 실행
+6. `/data-core/roadmap`에서 실제 대학/학과/전형이 연결되는지 확인
+7. 단일 캠퍼스 사용자로 입시컨설팅 신규 이미지 업로드 후 `sourceApp=admissions` 파일 생성 확인
+8. PR #22 Cloudflare GitHub 연동 build/deploy bot 실패 로그를 Dashboard에서 확인
+
+확인된 Cloudflare D1/R2 resource ID는 Wrangler 생성 설정에만 사용한다. 마스터 이메일 같은 secret 값은 코드에 하드코딩하지 않는다.
 
 ## 18. 다음 개발 우선순위
 
