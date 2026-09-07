@@ -4,6 +4,7 @@ import {
   DataCoreAccessError,
   requireAuthenticatedAccess,
 } from "./data-core-access";
+import { ensureKnowledgeSchema } from "./data-core-knowledge";
 import { ensureDataCoreMigrations } from "./data-core-migrations";
 
 const PAGE_SIZE = 500;
@@ -65,7 +66,7 @@ async function fetchFileObjects(db: D1Database, offset: number) {
   const result = await db
     .prepare(
       `SELECT id, organization_id, campus_id, data_record_id, area, category,
-              r2_key, original_file_name, mime_type, size_bytes, visibility,
+              source_app, r2_key, original_file_name, mime_type, size_bytes, visibility,
               created_at, deleted_at
        FROM file_objects
        WHERE organization_id = ?
@@ -103,6 +104,36 @@ async function fetchRecordTags(db: D1Database, offset: number) {
   return result.results || [];
 }
 
+async function fetchKnowledgeNodes(db: D1Database, offset: number) {
+  const result = await db
+    .prepare(
+      `SELECT id, organization_id, campus_id, node_type, name, summary,
+              content_text, metadata_json, visibility, status,
+              created_at, updated_at, deleted_at
+       FROM knowledge_nodes
+       WHERE organization_id = ?
+       ORDER BY id LIMIT ? OFFSET ?`,
+    )
+    .bind(DEFAULT_ORGANIZATION_ID, PAGE_SIZE, offset)
+    .all<Record<string, unknown>>();
+  return result.results || [];
+}
+
+async function fetchKnowledgeEdges(db: D1Database, offset: number) {
+  const result = await db
+    .prepare(
+      `SELECT id, organization_id, campus_id, from_node_id, to_node_id,
+              relation_type, weight, metadata_json,
+              created_at, updated_at, deleted_at
+       FROM knowledge_edges
+       WHERE organization_id = ?
+       ORDER BY id LIMIT ? OFFSET ?`,
+    )
+    .bind(DEFAULT_ORGANIZATION_ID, PAGE_SIZE, offset)
+    .all<Record<string, unknown>>();
+  return result.results || [];
+}
+
 const SECTIONS: BackupSection[] = [
   { name: "organizations", fetchPage: fetchOrganizations },
   { name: "campuses", fetchPage: fetchCampuses },
@@ -110,6 +141,8 @@ const SECTIONS: BackupSection[] = [
   { name: "file_objects", fetchPage: fetchFileObjects },
   { name: "tags", fetchPage: fetchTags },
   { name: "data_record_tags", fetchPage: fetchRecordTags },
+  { name: "knowledge_nodes", fetchPage: fetchKnowledgeNodes },
+  { name: "knowledge_edges", fetchPage: fetchKnowledgeEdges },
 ];
 
 async function snapshotSection(
@@ -149,6 +182,7 @@ export async function createDataCoreBackup(
 ) {
   requireSuperAdmin(context);
   await ensureDataCoreMigrations(db);
+  await ensureKnowledgeSchema(db);
 
   const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();
@@ -178,7 +212,7 @@ export async function createDataCoreBackup(
     const manifestKey = `${prefix}/manifest.json`;
     const manifest = {
       schema: "hi5-anihi-data-core-operational-backup",
-      version: 1,
+      version: 2,
       backupId: id,
       organizationId: DEFAULT_ORGANIZATION_ID,
       createdAt,
