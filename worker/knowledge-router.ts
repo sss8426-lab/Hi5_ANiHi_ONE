@@ -38,6 +38,33 @@ async function readJson<T>(request: Request): Promise<T> {
   }
 }
 
+function visibleEdges<T extends { campusId?: unknown }>(
+  context: Awaited<ReturnType<typeof resolveDataCoreAccess>>,
+  edges: T[],
+) {
+  if (context.isSuperAdmin) return edges;
+  return edges.filter((edge) => {
+    const campusId = edge.campusId ? String(edge.campusId) : "";
+    return !campusId || context.campusIds.includes(campusId);
+  });
+}
+
+function normalizeEdgeInputForContext(
+  context: Awaited<ReturnType<typeof resolveDataCoreAccess>>,
+  input: KnowledgeEdgeInput,
+): KnowledgeEdgeInput {
+  if (context.isSuperAdmin) return input;
+  const explicit = String(input.campusId || "").trim();
+  if (explicit) return input;
+  if (context.campusIds.length === 1) {
+    return { ...input, campusId: context.campusIds[0] };
+  }
+  throw new DataCoreAccessError(
+    400,
+    "캠퍼스 전용 지식 관계를 만들려면 campusId가 필요합니다.",
+  );
+}
+
 async function handleRoadmapApi(request: Request, env: Env) {
   const url = new URL(request.url);
   if (!url.pathname.startsWith("/api/data-core/roadmap")) return null;
@@ -102,11 +129,16 @@ async function handleKnowledgeApi(request: Request, env: Env) {
 
   if (url.pathname === "/api/data-core/knowledge/edges") {
     if (request.method === "GET") {
-      return jsonResponse({ edges: await listKnowledgeEdges(env.DB, context, url) });
+      const edges = await listKnowledgeEdges(env.DB, context, url);
+      return jsonResponse({ edges: visibleEdges(context, edges) });
     }
     if (request.method === "POST") {
+      const input = normalizeEdgeInputForContext(
+        context,
+        await readJson<KnowledgeEdgeInput>(request),
+      );
       return jsonResponse(
-        { edge: await createKnowledgeEdge(env.DB, context, await readJson<KnowledgeEdgeInput>(request)) },
+        { edge: await createKnowledgeEdge(env.DB, context, input) },
         { status: 201 },
       );
     }
