@@ -11,9 +11,8 @@ const routerSource = await readFile(new URL('../worker/router.ts', import.meta.u
 test('content generation endpoint is explicit and provider absence is never faked as success', () => {
   assert.match(routerSource, /\/api\/data-core\/content\/generate/);
   assert.match(routerSource, /generation\.available \? 200 : 503/);
-  assert.match(generationSource, /code: "provider_not_configured"/);
+  assert.match(generationSource, /if \(!provider\) \{[\s\S]*available: false,[\s\S]*code: "provider_not_configured"/);
   assert.match(generationSource, /AI 생성 연결 준비 중입니다/);
-  assert.doesNotMatch(generationSource, /available:\s*true[\s\S]*provider_not_configured/);
 });
 
 test('generation request preserves authorization and DATA CORE file reuse boundaries', () => {
