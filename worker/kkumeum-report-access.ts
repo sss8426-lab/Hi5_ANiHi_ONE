@@ -15,6 +15,12 @@ function hasCampusRole(
   );
 }
 
+function normalizedId(value: unknown, field: string): string {
+  const id = String(value ?? "").trim().slice(0, 120);
+  if (!id) throw new DataCoreAccessError(400, `${field}가 필요합니다.`);
+  return id;
+}
+
 /**
  * Read access and edit access are intentionally different in 꿈이음.
  * A teacher may see an assigned student while report editing is disabled for
@@ -24,10 +30,12 @@ function hasCampusRole(
 export async function requireKkumeumReportEditAccess(
   familyDb: D1Database,
   context: DataCoreAccessContext,
-  campusId: string,
-  studentId: string,
+  campusIdInput: unknown,
+  studentIdInput: unknown,
 ): Promise<void> {
   requireAuthenticatedAccess(context);
+  const campusId = normalizedId(campusIdInput, "campusId");
+  const studentId = normalizedId(studentIdInput, "studentId");
   if (context.isSuperAdmin) return;
 
   if (!context.campusIds.includes(campusId)) {
