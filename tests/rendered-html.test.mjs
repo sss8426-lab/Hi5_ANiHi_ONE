@@ -85,10 +85,15 @@ test("wires the DATA CORE counseling and work mode split", async () => {
   assert.match(workMenu, /인스타 자동화/);
   assert.doesNotMatch(workMenu, /공모전·실기대회|꿈·전공 로드맵|대학합격 로드맵/);
 
-  assert.match(appScript, /state\.campuses\.map/);
+  assert.match(appScript, /orderedCampuses\(\)/);
   assert.match(appScript, /data-campus-folder/);
-  assert.match(appScript, /CAMPUS_FOLDERS/);
+  assert.match(appScript, /LIBRARY_CATEGORIES/);
   assert.match(appScript, /data-folder-source/);
+  assert.match(appScript, /data-folder-key/);
+  assert.match(appScript, /LIBRARY_CATEGORIES/);
+  assert.match(appScript, /부천 디자인 입시관/);
+  assert.match(appScript, /서울 광진 입시관/);
+  assert.match(appScript, /data-campus-group/);
   assert.match(appScript, /params\.set\('sourceApp', sourceApp\)/);
   assert.match(appScript, /fileCategoryFilter/);
   assert.match(appScript, /loadFiles\(\)/);
@@ -97,6 +102,25 @@ test("wires the DATA CORE counseling and work mode split", async () => {
   assert.match(styles, /\.competition-split/);
   assert.match(router, /\/data-core\/counseling/);
   assert.match(router, /\/data-core\/work/);
+
+  const uploadFormStart = dataCoreIndex.indexOf('<form id="uploadForm"');
+  const uploadFormEnd = dataCoreIndex.indexOf("</form>", uploadFormStart);
+  const uploadForm = dataCoreIndex.slice(uploadFormStart, uploadFormEnd);
+  assert.doesNotMatch(uploadForm, /uploadArea|자료 영역/);
+  assert.deepEqual(
+    [...uploadForm.matchAll(/<option value="([^"]+)">/g)].map((match) => match[1]),
+    [
+      "class-photo",
+      "student-artwork",
+      "academy-photo",
+      "competition-material",
+      "admission-material",
+      "counseling-material",
+      "blog-source",
+      "instagram-source",
+      "promotion-material",
+    ],
+  );
 });
 
 test("wires DATA CORE competition media and academy guide draft interactions", async () => {

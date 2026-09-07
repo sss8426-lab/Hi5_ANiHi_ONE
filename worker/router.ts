@@ -163,12 +163,7 @@ async function handleFileMetadataApi(request: Request, env: Env) {
       throw new DataCoreAccessError(503, "DATA CORE R2 저장소가 연결되지 않았습니다.");
     }
     const uploaded = await uploadDataCoreFile(request, env.DB, env.FILES, context);
-    const sourceApp = String(uploaded.sourceApp || "data-core").trim().slice(0, 80) || "data-core";
-    await env.DB
-      .prepare("UPDATE file_objects SET source_app = ? WHERE id = ?")
-      .bind(sourceApp, uploaded.id)
-      .run();
-    return jsonResponse({ file: { ...uploaded, sourceApp } }, { status: 201 });
+    return jsonResponse({ file: uploaded }, { status: 201 });
   }
 
   if (isListPath && request.method === "GET") {
