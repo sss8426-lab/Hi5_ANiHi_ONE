@@ -124,6 +124,26 @@ async function assertRecordLinkAllowed(
   }
 }
 
+function fileRowToResponse(row: Record<string, unknown>) {
+  return {
+    id: row.id,
+    campusId: row.campus_id,
+    campusName: row.campus_name,
+    recordId: row.data_record_id,
+    ownerUserId: row.owner_user_id,
+    ownerName: row.owner_name,
+    area: row.area,
+    category: row.category,
+    fileName: row.original_file_name,
+    mimeType: row.mime_type,
+    sizeBytes: row.size_bytes,
+    visibility: row.visibility,
+    downloadUrl: `/api/data-core/files/${encodeURIComponent(String(row.id))}`,
+    createdAt: row.created_at,
+    deletedAt: row.deleted_at || null,
+  };
+}
+
 export async function uploadDataCoreFile(
   request: Request,
   db: D1Database,
@@ -274,22 +294,50 @@ export async function listDataCoreFiles(
 
   return (result.results || [])
     .filter((row) => canReadFileRow(context, row))
-    .map((row) => ({
-      id: row.id,
-      campusId: row.campus_id,
-      campusName: row.campus_name,
-      recordId: row.data_record_id,
-      ownerUserId: row.owner_user_id,
-      ownerName: row.owner_name,
-      area: row.area,
-      category: row.category,
-      fileName: row.original_file_name,
-      mimeType: row.mime_type,
-      sizeBytes: row.size_bytes,
-      visibility: row.visibility,
-      downloadUrl: `/api/data-core/files/${encodeURIComponent(String(row.id))}`,
-      createdAt: row.created_at,
-    }));
+    .map(fileRowToResponse);
+}
+
+export async function listDeletedDataCoreFiles(
+  db: D1Database,
+  context: DataCoreAccessContext,
+  url: URL,
+) {
+  requireAuthenticatedAccess(context);
+  const campusId = cleanText(url.searchParams.get("campusId"), 120);
+  const q = cleanText(url.searchParams.get("q"), 120);
+  const limit = Math.min(Math.max(Number(url.searchParams.get("limit")) || 50, 1), 100);
+  const conditions = ["fo.organization_id = ?", "fo.deleted_at IS NOT NULL"];
+  const bindings: unknown[] = [DEFAULT_ORGANIZATION_ID];
+
+  if (!context.isSuperAdmin) {
+    if (!context.user) return [];
+    conditions.push("fo.owner_user_id = ?");
+    bindings.push(context.user.internalUserId);
+  }
+  if (campusId) {
+    conditions.push("fo.campus_id = ?");
+    bindings.push(campusId);
+  }
+  if (q) {
+    conditions.push("(fo.original_file_name LIKE ? OR fo.category LIKE ?)");
+    const like = `%${q.replace(/[%_]/g, "")}%`;
+    bindings.push(like, like);
+  }
+
+  const result = await db
+    .prepare(
+      `SELECT fo.*, c.name AS campus_name, u.display_name AS owner_name
+       FROM file_objects fo
+       LEFT JOIN campuses c ON c.id = fo.campus_id
+       LEFT JOIN users u ON u.id = fo.owner_user_id
+       WHERE ${conditions.join(" AND ")}
+       ORDER BY fo.deleted_at DESC
+       LIMIT ?`,
+    )
+    .bind(...bindings, limit)
+    .all<Record<string, unknown>>();
+
+  return (result.results || []).map(fileRowToResponse);
 }
 
 export async function readDataCoreFile(
@@ -324,6 +372,10 @@ export async function readDataCoreFile(
   return new Response(object.body, { headers });
 }
 
+/**
+ * Normal delete is intentionally recoverable. The R2 object remains intact and
+ * the metadata is moved to trash by setting deleted_at.
+ */
 export async function deleteDataCoreFile(
   db: D1Database,
   files: R2Bucket,
@@ -331,6 +383,7 @@ export async function deleteDataCoreFile(
   fileId: string,
 ) {
   requireWriteAccess(context);
+  void files;
   const row = await db
     .prepare(
       `SELECT * FROM file_objects
@@ -344,7 +397,6 @@ export async function deleteDataCoreFile(
   }
 
   const deletedAt = new Date().toISOString();
-  await files.delete(String(row.r2_key));
   await db
     .prepare("UPDATE file_objects SET deleted_at = ? WHERE id = ?")
     .bind(deletedAt, fileId)
@@ -352,10 +404,79 @@ export async function deleteDataCoreFile(
   await audit(
     db,
     context,
-    "delete",
+    "trash",
+    fileId,
+    (row.campus_id as string | null) || null,
+    { r2Key: row.r2_key, fileName: row.original_file_name, recoverable: true },
+  );
+  return { ok: true, id: fileId, deletedAt, recoverable: true };
+}
+
+export async function restoreDataCoreFile(
+  db: D1Database,
+  files: R2Bucket,
+  context: DataCoreAccessContext,
+  fileId: string,
+) {
+  requireWriteAccess(context);
+  const row = await db
+    .prepare(
+      `SELECT * FROM file_objects
+       WHERE id = ? AND organization_id = ? AND deleted_at IS NOT NULL`,
+    )
+    .bind(fileId, DEFAULT_ORGANIZATION_ID)
+    .first<Record<string, unknown>>();
+  if (!row) throw new DataCoreAccessError(404, "휴지통에서 파일을 찾을 수 없습니다.");
+  if (!canMutateFileRow(context, row)) {
+    throw new DataCoreAccessError(403, "본인이 삭제한 파일만 복원할 수 있습니다.");
+  }
+
+  const object = await files.get(String(row.r2_key));
+  if (!object) {
+    throw new DataCoreAccessError(409, "R2 원본이 이미 없어 복원할 수 없습니다.");
+  }
+
+  await db.prepare("UPDATE file_objects SET deleted_at = NULL WHERE id = ?").bind(fileId).run();
+  await audit(
+    db,
+    context,
+    "restore",
     fileId,
     (row.campus_id as string | null) || null,
     { r2Key: row.r2_key, fileName: row.original_file_name },
   );
-  return { ok: true, id: fileId, deletedAt };
+  return { ok: true, id: fileId, restoredAt: new Date().toISOString() };
+}
+
+export async function purgeDataCoreFile(
+  db: D1Database,
+  files: R2Bucket,
+  context: DataCoreAccessContext,
+  fileId: string,
+) {
+  requireWriteAccess(context);
+  if (!context.isSuperAdmin) {
+    throw new DataCoreAccessError(403, "영구 삭제는 마스터 관리자만 할 수 있습니다.");
+  }
+
+  const row = await db
+    .prepare(
+      `SELECT * FROM file_objects
+       WHERE id = ? AND organization_id = ? AND deleted_at IS NOT NULL`,
+    )
+    .bind(fileId, DEFAULT_ORGANIZATION_ID)
+    .first<Record<string, unknown>>();
+  if (!row) throw new DataCoreAccessError(404, "휴지통에서 파일을 찾을 수 없습니다.");
+
+  await files.delete(String(row.r2_key));
+  await audit(
+    db,
+    context,
+    "purge",
+    fileId,
+    (row.campus_id as string | null) || null,
+    { r2Key: row.r2_key, fileName: row.original_file_name, permanent: true },
+  );
+  await db.prepare("DELETE FROM file_objects WHERE id = ?").bind(fileId).run();
+  return { ok: true, id: fileId, permanent: true, purgedAt: new Date().toISOString() };
 }
