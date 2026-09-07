@@ -3,6 +3,7 @@ import {
   DataCoreAccessError,
   requireAuthenticatedAccess,
 } from "./data-core-access";
+import { ensureKkumeumPhase1Schema } from "./kkumeum-schema";
 
 function hasCampusRole(
   context: DataCoreAccessContext,
@@ -37,6 +38,7 @@ export async function requireKkumeumReportEditAccess(
 
   if (hasCampusRole(context, campusId, "TEACHER")) {
     if (!context.user) throw new DataCoreAccessError(401, "로그인이 필요합니다.");
+    await ensureKkumeumPhase1Schema(familyDb);
     const row = await familyDb
       .prepare(
         `SELECT a.id
