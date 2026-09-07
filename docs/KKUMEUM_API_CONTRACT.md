@@ -189,3 +189,10 @@ DB에는 raw session token을 저장하지 않고 hash만 저장한다.
 - family API no-store headers
 - service worker private endpoint cache exclusion
 - DATA CORE search cannot return family PII
+# 교직원 운영 화면 추가 계약
+
+- `GET /api/kkumeum/dashboard?campusId=&yearMonth=YYYY-MM`은 FAMILY_DB에서만 현재 캠퍼스의 학생·반·월간평가·작품·보호자 연결 집계를 반환한다.
+- `GET /api/kkumeum/guardians?campusId=&studentId=`과 보호자 연결 변경 API는 `SUPER_ADMIN` 또는 해당 캠퍼스 `CAMPUS_DIRECTOR`만 사용할 수 있다.
+- `POST /api/kkumeum/guardians`는 새 보호자 연결과 함께 임시 비밀번호를 응답 한 번에만 반환한다. 원문 비밀번호는 FAMILY_DB 또는 감사로그에 저장하지 않는다.
+- `PATCH /api/kkumeum/guardians/:guardianId`, `POST /api/kkumeum/guardians/:guardianId/reset-password`, `POST /api/kkumeum/guardians/:guardianId/unlink`는 same-origin 요청만 허용한다.
+- 꿈이음 API JSON 응답은 성공·실패 모두 `Cache-Control: private, no-store`다.
