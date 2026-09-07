@@ -1,4 +1,4 @@
-import dataCoreWorker from "./router";
+import dataCoreWorker from "./admissions-knowledge-router";
 
 interface Env {
   ASSETS?: Fetcher;
