@@ -1,9 +1,11 @@
-const CACHE_NAME = 'kkumeum-family-shell-v1';
+const CACHE_NAME = 'kkumeum-family-shell-v2';
 const STATIC_SHELL = [
   '/family/',
   '/family/index.html',
   '/family/family.css',
+  '/family/family-news.css',
   '/family/family.js',
+  '/family/family-news.js',
   '/family/manifest.webmanifest',
   '/family/icon.svg',
 ];
@@ -25,7 +27,7 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   if (request.method !== 'GET' || url.origin !== self.location.origin) return;
 
-  // Guardian/auth/feed/private images are always network-only and are never written to Cache API.
+  // Guardian/auth/feed/private images/notices are always network-only and are never written to Cache API.
   if (url.pathname.startsWith('/api/family/') || url.pathname.startsWith('/api/')) {
     event.respondWith(fetch(request));
     return;

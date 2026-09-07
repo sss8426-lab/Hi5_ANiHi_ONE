@@ -5,9 +5,10 @@ import test from 'node:test';
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
 test('꿈이음 보호자 PWA shell은 private fixture 없이 guardian API만 사용한다', async () => {
-  const [html, js] = await Promise.all([
+  const [html, js, newsJs] = await Promise.all([
     read('public/family/index.html'),
     read('public/family/family.js'),
+    read('public/family/family-news.js'),
   ]);
 
   assert.match(html, /꿈이음/);
@@ -29,8 +30,10 @@ test('꿈이음 보호자 PWA shell은 private fixture 없이 guardian API만 �
   assert.match(js, /credentials:\s*'include'/);
   assert.match(js, /\/api\/family\/children\/\$\{encodeURIComponent\(studentId\)\}\/reports/);
   assert.match(js, /\/api\/family\/children\/\$\{encodeURIComponent\(studentId\)\}\/artworks/);
-  assert.doesNotMatch(js, /\/api\/data-core/);
-  assert.doesNotMatch(js, /localStorage|sessionStorage|indexedDB/i);
+  assert.match(newsJs, /\/api\/family\/notices/);
+  assert.match(newsJs, /credentials:\s*'include'/);
+  assert.doesNotMatch(`${js}\n${newsJs}`, /\/api\/data-core/);
+  assert.doesNotMatch(`${js}\n${newsJs}`, /localStorage|sessionStorage|indexedDB/i);
 });
 
 test('꿈이음 PWA manifest는 family scope 안에서 standalone으로 설치된다', async () => {
@@ -45,23 +48,32 @@ test('꿈이음 PWA manifest는 family scope 안에서 standalone으로 설치�
 test('service worker는 명시적 static shell만 캐시하고 family/API를 network-only로 둔다', async () => {
   const sw = await read('public/family/sw.js');
   assert.match(sw, /STATIC_SHELL/);
-  for (const asset of ['/family/index.html', '/family/family.css', '/family/family.js', '/family/manifest.webmanifest', '/family/icon.svg']) {
-    assert.match(sw, new RegExp(asset.replaceAll('/', '\\/')));
-  }
+  for (const asset of [
+    '/family/index.html',
+    '/family/family.css',
+    '/family/family-news.css',
+    '/family/family.js',
+    '/family/family-news.js',
+    '/family/manifest.webmanifest',
+    '/family/icon.svg',
+  ]) assert.match(sw, new RegExp(asset.replaceAll('/', '\\/')));
   assert.match(sw, /url\.pathname\.startsWith\('\/api\/family\/'\)/);
   assert.match(sw, /url\.pathname\.startsWith\('\/api\/'\)/);
   assert.match(sw, /event\.respondWith\(fetch\(request\)\)/);
   assert.doesNotMatch(sw, /cache\.put\(request[\s\S]*api\/family/);
 });
 
-test('보호자 UI는 공지 API 전까지 실제 소식을 위조하지 않는다', async () => {
-  const [html, js] = await Promise.all([
+test('보호자 UI는 실제 공지 API를 사용하고 가짜 소식을 만들지 않는다', async () => {
+  const [html, js, newsJs] = await Promise.all([
     read('public/family/index.html'),
     read('public/family/family.js'),
+    read('public/family/family-news.js'),
   ]);
-  assert.match(html, /소식 기능을 준비하고 있습니다/);
-  assert.match(html, /임의의 소식을 만들어 보여주지 않습니다/);
-  assert.doesNotMatch(js, /mockNews|sampleNews|fakeNews/i);
+  assert.doesNotMatch(html, /소식 기능을 준비하고 있습니다/);
+  assert.match(newsJs, /api\/family\/notices/);
+  assert.match(newsJs, /notices\/\$\{encodeURIComponent\(notice\.announcementId\)\}\/read/);
+  assert.match(newsJs, /if \(opening\) await markRead/);
+  assert.doesNotMatch(`${js}\n${newsJs}`, /mockNews|sampleNews|fakeNews/i);
 });
 
 test('/family route는 staff DATA CORE 인증과 분리된 static guardian shell로만 연결된다', async () => {
