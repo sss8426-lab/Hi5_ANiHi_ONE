@@ -3,8 +3,9 @@ import { defineConfig } from "vite";
 import hostingConfig from "./.openai/hosting.json";
 import { sites } from "./build/sites-vite-plugin";
 
-const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
-  "00000000-0000-4000-8000-000000000000";
+const DATA_CORE_DATABASE_NAME = "site-creator-d1";
+const DATA_CORE_DATABASE_ID = "7a25ebae-c784-40a3-bd71-496f3623bf29";
+const DATA_CORE_R2_BUCKET_NAME = "anihi-admissions-images";
 
 const { d1, r2 } = hostingConfig;
 
@@ -16,8 +17,8 @@ const localBindingConfig = {
     ? [
         {
           binding: d1,
-          database_name: "site-creator-d1",
-          database_id: SITE_CREATOR_PLACEHOLDER_DATABASE_ID,
+          database_name: DATA_CORE_DATABASE_NAME,
+          database_id: DATA_CORE_DATABASE_ID,
         },
       ]
     : [],
@@ -25,7 +26,7 @@ const localBindingConfig = {
     ? [
         {
           binding: r2,
-          bucket_name: "site-creator-r2",
+          bucket_name: DATA_CORE_R2_BUCKET_NAME,
         },
       ]
     : [],
