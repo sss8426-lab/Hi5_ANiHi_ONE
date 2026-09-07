@@ -176,8 +176,11 @@
       const className = student.class_name || student.className || '반 미지정';
       const school = student.school_name || student.schoolName || '';
       const grade = student.grade || '';
-      return `<article><div><strong>${escapeHtml(student.display_name || student.displayName || student.name)}</strong><small>${escapeHtml([school, grade, className].filter(Boolean).join(' · '))}</small></div><span>${escapeHtml(student.status || 'active')}</span></article>`;
+      return `<article data-student-id="${escapeHtml(student.id)}"><div><strong>${escapeHtml(student.display_name || student.displayName || student.name)}</strong><small>${escapeHtml([school, grade, className].filter(Boolean).join(' · '))}</small></div><span>${escapeHtml(student.status || 'active')}</span></article>`;
     }).join('')}</div>`;
+    studentArea.querySelectorAll('[data-student-id]').forEach((row) => {
+      row.onclick = () => window.dispatchEvent(new CustomEvent('kkumeum:select-student', { detail: { studentId: row.dataset.studentId } }));
+    });
   }
 
   async function loadStudents() {
@@ -191,6 +194,7 @@
       state.students = result.students || [];
       renderStudents();
       renderClasses();
+      window.dispatchEvent(new CustomEvent('kkumeum:students-updated', { detail: state }));
     } catch (error) {
       state.students = [];
       renderStudents();
@@ -234,44 +238,43 @@
     }
   }
 
-  async function createClass() {
-    const name = window.prompt('새 반 이름을 입력하세요.');
-    if (!name?.trim()) return;
-    const stage = window.prompt('단계/분류를 입력하세요. (선택)', '') || '';
-    try {
-      await api('/api/kkumeum/classes', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ campusId: state.campusId, name: name.trim(), stage: stage.trim() }),
-      });
-      await loadClassesAndStudents();
-    } catch (error) {
-      window.alert(error.message);
-    }
+  function openForm(title, fields, submit) {
+    const dialog = document.createElement('dialog');
+    dialog.className = 'kk-dialog';
+    dialog.innerHTML = `<form method="dialog"><div class="kk-dialog-head"><h3>${escapeHtml(title)}</h3><button type="button" data-close aria-label="닫기">×</button></div>${fields.map((field) => `<label><span>${escapeHtml(field.label)}</span>${field.type === 'select' ? `<select name="${escapeHtml(field.name)}">${field.options.map((option) => `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`).join('')}</select>` : `<input name="${escapeHtml(field.name)}" ${field.required ? 'required' : ''} maxlength="${field.max || 160}" value="${escapeHtml(field.value || '')}">`}</label>`).join('')}<p class="kk-dialog-feedback" role="status"></p><div class="kk-dialog-actions"><button type="button" data-close>취소</button><button class="primary" type="submit">저장</button></div></form>`;
+    document.body.appendChild(dialog);
+    dialog.querySelectorAll('[data-close]').forEach((button) => { button.onclick = () => dialog.close(); });
+    dialog.querySelector('form').onsubmit = async (event) => {
+      event.preventDefault();
+      const data = Object.fromEntries(new FormData(event.currentTarget).entries());
+      const feedback = dialog.querySelector('.kk-dialog-feedback');
+      try { await submit(data); dialog.close(); } catch (error) { feedback.textContent = error.message || '저장하지 못했습니다.'; }
+    };
+    dialog.onclose = () => dialog.remove();
+    dialog.showModal();
   }
 
-  async function createStudent() {
-    const name = window.prompt('학생 이름을 입력하세요.');
-    if (!name?.trim()) return;
-    const grade = window.prompt('학년을 입력하세요. (선택)', '') || '';
-    const schoolName = window.prompt('학교명을 입력하세요. (선택)', '') || '';
-    try {
-      await api('/api/kkumeum/students', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          campusId: state.campusId,
-          name: name.trim(),
-          grade: grade.trim(),
-          schoolName: schoolName.trim(),
-          classId: state.classId || null,
-          status: 'active',
-        }),
-      });
+  function createClass() {
+    openForm('반 추가', [
+      { name: 'name', label: '반 이름', required: true },
+      { name: 'stage', label: '수업 단계' },
+    ], async (data) => {
+      await api('/api/kkumeum/classes', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ campusId: state.campusId, ...data }) });
+      await loadClassesAndStudents();
+    });
+  }
+
+  function createStudent() {
+    openForm('학생 등록', [
+      { name: 'name', label: '학생 이름', required: true, max: 100 },
+      { name: 'grade', label: '학년' },
+      { name: 'schoolName', label: '학교' },
+      { name: 'classId', label: '반', type: 'select', options: [{ value: '', label: '반 미지정' }, ...state.classes.map((item) => ({ value: item.id, label: item.name }))] },
+      { name: 'status', label: '상태', type: 'select', options: [{ value: 'active', label: '재원' }, { value: 'leave', label: '휴원' }, { value: 'moved', label: '이동' }, { value: 'graduated', label: '졸업' }] },
+    ], async (data) => {
+      await api('/api/kkumeum/students', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ campusId: state.campusId, ...data, classId: data.classId || null }) });
       await loadStudents();
-    } catch (error) {
-      window.alert(error.message);
-    }
+    });
   }
 
   async function initialize() {
@@ -293,6 +296,8 @@
         return;
       }
       await loadClassesAndStudents();
+      window.KkumeumStaff = { state, api, loadStudents, loadClassesAndStudents, isManager };
+      window.dispatchEvent(new CustomEvent('kkumeum:ready', { detail: state }));
     } catch (error) {
       if (userEl?.querySelector('small')) userEl.querySelector('small').textContent = 'CORE 연결 확인 필요';
       setSetupState(error.message || '꿈이음 연결 상태를 확인할 수 없습니다.');

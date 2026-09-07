@@ -44,6 +44,15 @@ import {
   publishStaffAnnouncement,
   updateStaffAnnouncementDraft,
 } from "./kkumeum-staff-announcements";
+import { getKkumeumDashboard } from "./kkumeum-dashboard";
+import {
+  createKkumeumGuardian,
+  listKkumeumGuardians,
+  revokeKkumeumGuardianSessions,
+  resetKkumeumGuardianPassword,
+  unlinkKkumeumGuardian,
+  updateKkumeumGuardianLink,
+} from "./kkumeum-guardian-admin";
 
 export type KkumeumRouterEnv = KkumeumBindings;
 
@@ -191,6 +200,49 @@ export async function handleKkumeumApi(
 
   requireKkumeumBindingsReady(context, env);
   const familyDb = requireFamilyDatabase(context, env.FAMILY_DB);
+
+  if (url.pathname === "/api/kkumeum/dashboard") {
+    if (request.method !== "GET") return respond({ error: "지원하지 않는 꿈이음 현황 요청입니다." }, { status: 405 });
+    return respond({ dashboard: await getKkumeumDashboard(familyDb, context, requiredCampusId(url), url.searchParams.get("yearMonth")) });
+  }
+
+  if (url.pathname === "/api/kkumeum/guardians") {
+    if (request.method === "GET") return respond({ guardians: await listKkumeumGuardians(familyDb, context, requiredCampusId(url), requiredStudentId(url)) });
+    if (request.method === "POST") {
+      assertSameOrigin(request);
+      return respond(await createKkumeumGuardian(familyDb, context, await readJson(request)), { status: 201 });
+    }
+    return respond({ error: "지원하지 않는 보호자 관리 요청입니다." }, { status: 405 });
+  }
+
+  const guardianPasswordMatch = url.pathname.match(/^\/api\/kkumeum\/guardians\/([^/]+)\/reset-password$/);
+  if (guardianPasswordMatch) {
+    if (request.method !== "POST") return respond({ error: "지원하지 않는 보호자 비밀번호 요청입니다." }, { status: 405 });
+    assertSameOrigin(request);
+    return respond(await resetKkumeumGuardianPassword(familyDb, context, decodeURIComponent(guardianPasswordMatch[1]), await readJson(request)));
+  }
+
+  const guardianSessionsMatch = url.pathname.match(/^\/api\/kkumeum\/guardians\/([^/]+)\/revoke-sessions$/);
+  if (guardianSessionsMatch) {
+    if (request.method !== "POST") return respond({ error: "지원하지 않는 보호자 세션 요청입니다." }, { status: 405 });
+    assertSameOrigin(request);
+    return respond(await revokeKkumeumGuardianSessions(familyDb, context, decodeURIComponent(guardianSessionsMatch[1]), await readJson(request)));
+  }
+
+  const guardianUnlinkMatch = url.pathname.match(/^\/api\/kkumeum\/guardians\/([^/]+)\/unlink$/);
+  if (guardianUnlinkMatch) {
+    if (request.method !== "POST") return respond({ error: "지원하지 않는 보호자 연결 해제 요청입니다." }, { status: 405 });
+    assertSameOrigin(request);
+    const input = await readJson(request);
+    return respond(await unlinkKkumeumGuardian(familyDb, context, decodeURIComponent(guardianUnlinkMatch[1]), requiredBodyId(input.campusId, "campusId"), requiredBodyId(input.studentId, "studentId")));
+  }
+
+  const guardianMatch = url.pathname.match(/^\/api\/kkumeum\/guardians\/([^/]+)$/);
+  if (guardianMatch) {
+    if (request.method !== "PATCH") return respond({ error: "지원하지 않는 보호자 관리 요청입니다." }, { status: 405 });
+    assertSameOrigin(request);
+    return respond(await updateKkumeumGuardianLink(familyDb, context, decodeURIComponent(guardianMatch[1]), await readJson(request)));
+  }
 
   const familyFileMatch = url.pathname.match(/^\/api\/kkumeum\/files\/([^/]+)$/);
   if (familyFileMatch) {

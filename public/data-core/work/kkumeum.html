@@ -17,8 +17,10 @@
       <nav class="kk-nav" aria-label="꿈이음 메뉴">
         <a class="active" href="#kkTop"><span>⌂</span>꿈이음 홈</a>
         <a href="#kkStudentsSection"><span>▣</span>학생·반</a>
-        <a href="#kkMonthlyFlow"><span>✎</span>월간 평가</a>
+        <a href="#kkReportsSection"><span>✎</span>월간 평가</a>
+        <a href="#kkArtworkSection"><span>▧</span>작품관리</a>
         <a href="#kkAnnouncements"><span>◫</span>소식·공지</a>
+        <a class="kk-manager-nav" href="#kkGuardiansSection" hidden><span>♙</span>보호자 연결</a>
       </nav>
       <div class="kk-sidebar-bottom">
         <a href="/data-core/work">← 업무용 홈</a>
@@ -81,6 +83,18 @@
         </article>
       </section>
 
+      <section class="kk-panel kk-operations" id="kkStudentDetail" hidden aria-live="polite"></section>
+
+      <section class="kk-panel kk-operations" id="kkReportsSection">
+        <div class="kk-panel-head"><div><span>REPORT OPERATIONS</span><h3>월간 평가 현황</h3></div></div>
+        <div id="kkReportOperations" class="kk-empty"><strong>학생을 선택하면 선택한 월의 평가와 발송 이력을 확인할 수 있습니다.</strong><p>AI 초안은 연결된 제공자가 없으면 생성하지 않으며, 전달 완료 평가는 개정으로만 수정합니다.</p></div>
+      </section>
+
+      <section class="kk-panel kk-operations" id="kkArtworkSection">
+        <div class="kk-panel-head"><div><span>ARTWORKS</span><h3>작품관리</h3></div></div>
+        <div id="kkArtworkOperations" class="kk-empty"><strong>학생을 선택하면 private 작품 갤러리가 열립니다.</strong><p>이미지는 FAMILY_FILES에만 저장되며 일반 DATA CORE 파일함에는 복사하지 않습니다.</p></div>
+      </section>
+
       <section class="kk-panel kk-announcements" id="kkAnnouncements">
         <div class="kk-panel-head">
           <div><span>NEWS & NOTICE</span><h3>소식·공지 전달</h3></div>
@@ -106,6 +120,11 @@
         </div>
       </section>
 
+      <section class="kk-panel kk-operations" id="kkGuardiansSection" hidden>
+        <div class="kk-panel-head"><div><span>GUARDIAN CONNECTION</span><h3>보호자 연결</h3></div></div>
+        <div id="kkGuardianOperations" class="kk-empty"><strong>학생을 선택하면 보호자 연결을 관리할 수 있습니다.</strong><p>보호자 비밀번호는 발급 또는 재설정 직후 한 번만 표시됩니다.</p></div>
+      </section>
+
       <section class="kk-notice">
         <div>
           <span>PRIVATE BY DESIGN</span>
@@ -118,5 +137,6 @@
   </div>
   <script src="/data-core/work/kkumeum.js"></script>
   <script src="/data-core/work/kkumeum-notices.js"></script>
+  <script src="/data-core/work/kkumeum-operations.js"></script>
 </body>
 </html>
