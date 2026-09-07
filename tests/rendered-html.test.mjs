@@ -179,7 +179,16 @@ test("wires the DATA CORE blog and Instagram automation routes", async () => {
   assert.match(contentScript, /\/api\/data-core\/content/);
   assert.match(contentScript, /\/api\/data-core\/files/);
   assert.match(contentHtml, /2160\s*[×x]\s*2700/);
+  assert.match(contentHtml, /data-admin-nav/);
+  assert.match(contentHtml, /id="draftCta"/);
+  assert.match(contentHtml, /id="previewDraftTitle"/);
+  assert.match(contentHtml, /content\.js\?v=20260908-work-automation/);
+  assert.doesNotMatch(contentHtml, /꿈·전공 로드맵/);
   assert.match(contentStyles, /\.content-workspace/);
+  assert.match(contentStyles, /\.draft-preview/);
+  assert.match(contentScript, /renderDraftPreview/);
+  assert.match(contentScript, /callToAction/);
+  assert.match(contentScript, /data-admin-nav/);
   assert.match(router, /\/data-core\/content\/blog/);
   assert.match(router, /handleContentApi/);
   assert.match(api, /export async function createContentDraft/);

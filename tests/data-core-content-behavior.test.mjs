@@ -195,10 +195,12 @@ test("content API enforces draft lifecycle, file reuse, filters, and permissions
       publishStatus: "draft",
       relatedFileIds: ["file-shared"],
       tags: ["class", "story"],
+      metadata: { callToAction: "상담 예약은 캠퍼스로 문의해 주세요." },
     });
     assert.equal(blog.recordType, "blog-draft");
     assert.equal(blog.sourceApp, "blog");
     assert.deepEqual(blog.metadata.relatedFileIds, ["file-shared"]);
+    assert.equal(blog.metadata.callToAction, "상담 예약은 캠퍼스로 문의해 주세요.");
     assert.equal(blog.content, "blog body");
 
     const fetchedBlog = await h.request("GET", `/api/data-core/content/${blog.id}`, users.a);

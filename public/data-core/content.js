@@ -123,6 +123,9 @@ function renderUser() {
   chip.querySelector('.avatar').textContent = String(user.displayName || user.email || 'H').trim().slice(0, 1).toUpperCase();
   showNotice(context.canWrite ? '' : '로그인은 확인됐지만 DATA CORE 사용 권한이 아직 부여되지 않았습니다.');
   $('saveDraftBtn').disabled = !context.canWrite;
+  document.querySelectorAll('[data-admin-nav]').forEach((link) => {
+    link.classList.toggle('hidden', !isSuperAdmin());
+  });
 }
 
 function fillCampusSelect(select, options = {}) {
@@ -158,6 +161,7 @@ function setSourceApp(sourceApp) {
   $('contentLabel').textContent = state.sourceApp === 'instagram' ? '캡션' : '본문';
   $('instagramSpec').classList.toggle('hidden', state.sourceApp !== 'instagram');
   resetDraftForm(false);
+  renderDraftPreview();
   loadDrafts();
 }
 
@@ -182,6 +186,21 @@ function renderSelectedFiles() {
       renderFilePicker();
     };
   });
+}
+
+function renderDraftPreview() {
+  const source = sourceLabel(state.sourceApp);
+  const title = $('draftTitle').value.trim();
+  const summary = $('draftSummary').value.trim();
+  const content = $('draftContent').value.trim();
+  const cta = $('draftCta').value.trim();
+  const tags = $('draftTags').value.split(',').map((item) => item.trim()).filter(Boolean);
+  $('previewSource').textContent = state.sourceApp === 'instagram' ? '인스타 2160 × 2700px · 4:5' : `${source} 초안`;
+  $('previewDraftTitle').textContent = title || '제목을 입력하면 미리보기에 표시됩니다.';
+  $('previewDraftSummary').textContent = summary || '요약과 본문, 키워드, CTA를 확인한 뒤 같은 화면에서 수정할 수 있습니다.';
+  $('previewDraftContent').textContent = content;
+  $('previewDraftCta').textContent = cta ? `CTA · ${cta}` : '';
+  $('previewDraftTags').innerHTML = tags.map((tag) => `<span>#${h(tag)}</span>`).join('');
 }
 
 async function loadHealthAndContext() {
@@ -265,6 +284,7 @@ function draftPayload() {
     publishStatus: $('publishStatus').value,
     relatedFileIds: state.selectedFileIds,
     tags: $('draftTags').value.split(',').map((item) => item.trim()).filter(Boolean),
+    metadata: { callToAction: $('draftCta').value.trim() || null },
   };
 }
 
@@ -308,6 +328,7 @@ function resetDraftForm(clearSource = true) {
   $('saveDraftBtn').textContent = '초안 저장';
   renderSelectedFiles();
   renderFilePicker();
+  renderDraftPreview();
 }
 
 function loadDraftIntoForm(draft) {
@@ -321,6 +342,7 @@ function loadDraftIntoForm(draft) {
   $('draftSummary').value = draft.summary || '';
   $('draftContent').value = draft.content || '';
   $('draftTags').value = (draft.tags || []).join(', ');
+  $('draftCta').value = metadata.callToAction || '';
   $('publishStatus').value = metadata.publishStatus || 'draft';
   state.selectedFileIds = Array.isArray(metadata.relatedFileIds) ? metadata.relatedFileIds.map(String) : [];
   $('newDraftBtn').classList.remove('hidden');
@@ -328,6 +350,7 @@ function loadDraftIntoForm(draft) {
   $('saveDraftBtn').textContent = '초안 수정';
   renderSelectedFiles();
   renderFilePicker();
+  renderDraftPreview();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -411,6 +434,9 @@ function bindEvents() {
   $('refreshDraftsBtn').onclick = loadDrafts;
   $('draftStatusFilter').onchange = loadDrafts;
   $('draftSearchInput').onkeydown = (event) => { if (event.key === 'Enter') loadDrafts(); };
+  ['draftTitle', 'draftSummary', 'draftContent', 'draftTags', 'draftCta'].forEach((id) => {
+    $(id).oninput = renderDraftPreview;
+  });
 }
 
 async function init() {

@@ -31,11 +31,11 @@
           <span class="nav-icon">▧</span>
           <span>인스타 자동화</span>
         </a>
-        <a class="nav-item" href="/data-core/operations">
+        <a class="nav-item hidden" href="/data-core/operations" data-admin-nav>
           <span class="nav-icon">↺</span>
           <span>운영관리</span>
         </a>
-        <a class="nav-item" href="/data-core/accounts">
+        <a class="nav-item hidden" href="/data-core/accounts" data-admin-nav>
           <span class="nav-icon">⚙</span>
           <span>계정관리</span>
         </a>
@@ -124,6 +124,10 @@
                 <input id="draftTags" placeholder="웹툰, 고2, 상황표현 처럼 쉼표로 구분">
               </label>
               <label>
+                <span>CTA</span>
+                <input id="draftCta" placeholder="예: 상담 예약은 캠퍼스로 문의해 주세요.">
+              </label>
+              <label>
                 <span>게시 상태</span>
                 <select id="publishStatus">
                   <option value="draft">초안</option>
@@ -146,6 +150,18 @@
                 </div>
                 <div id="selectedFiles" class="selected-file-list"></div>
               </div>
+
+              <section class="draft-preview" aria-labelledby="previewTitle">
+                <div class="draft-preview-head">
+                  <strong id="previewTitle">미리보기</strong>
+                  <span id="previewSource">블로그 초안</span>
+                </div>
+                <strong id="previewDraftTitle">제목을 입력하면 미리보기에 표시됩니다.</strong>
+                <p id="previewDraftSummary">요약과 본문, 키워드, CTA를 확인한 뒤 같은 화면에서 수정할 수 있습니다.</p>
+                <p class="preview-content" id="previewDraftContent"></p>
+                <div class="preview-tags" id="previewDraftTags"></div>
+                <p class="preview-cta" id="previewDraftCta"></p>
+              </section>
 
               <div class="form-actions">
                 <button class="danger-btn hidden" id="deleteDraftBtn" type="button">삭제</button>
@@ -214,6 +230,6 @@
   </div>
 
   <div class="toast hidden" id="toast"></div>
-  <script src="/data-core/content.js"></script>
+  <script src="/data-core/content.js?v=20260908-work-automation"></script>
 </body>
 </html>
