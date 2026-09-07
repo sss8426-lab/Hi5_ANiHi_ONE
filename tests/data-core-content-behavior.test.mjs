@@ -711,3 +711,49 @@ test("competition media uses linked DATA CORE files and has an empty state befor
     await h.mf.dispose();
   }
 });
+
+test("competition award folders link existing DATA CORE files and preserve originals after folder deletion", async () => {
+  const h = await createHarness();
+  try {
+    const created = await h.request("POST", "/api/data-core/records", users.admin, {
+      recordType: "competition-award-folder",
+      sourceApp: "competition",
+      campusId: CAMPUS_A,
+      title: "2026 수상작",
+      visibility: "organization",
+      tags: ["competition-award-library"],
+    });
+    assert.equal(created.response.status, 201, JSON.stringify(created.body));
+    const folderId = created.body.record.id;
+
+    const form = new FormData();
+    form.append("file", new File(["award"], "award.png", { type: "image/png" }));
+    form.append("campusId", CAMPUS_A);
+    form.append("category", "competition-material");
+    form.append("recordId", folderId);
+    const uploaded = await h.requestForm("/api/data-core/files", users.admin, form);
+    assert.equal(uploaded.response.status, 201, JSON.stringify(uploaded.body));
+    assert.equal(uploaded.body.file.recordId, folderId);
+
+    const linked = await h.request(
+      "GET",
+      `/api/data-core/files?recordId=${folderId}&category=competition-material`,
+      users.admin,
+    );
+    assert.equal(linked.response.status, 200);
+    assert.equal(linked.body.files.length, 1);
+
+    const deleted = await h.request("DELETE", `/api/data-core/records/${folderId}`, users.admin);
+    assert.equal(deleted.response.status, 200, JSON.stringify(deleted.body));
+
+    const remaining = await h.request(
+      "GET",
+      `/api/data-core/files?recordId=${folderId}&category=competition-material`,
+      users.admin,
+    );
+    assert.equal(remaining.response.status, 200);
+    assert.equal(remaining.body.files.length, 1);
+  } finally {
+    await h.mf.dispose();
+  }
+});

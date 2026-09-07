@@ -39,7 +39,7 @@ test("server-renders the admissions web shell", async () => {
 
   const html = await response.text();
   assert.match(html, /<html lang="ko"/i);
-  assert.match(html, /<title>입시 컨설팅<\/title>/i);
+  assert.match(html, /<title>대학 합격 로드맵<\/title>/i);
   assert.match(html, /src="\/admissions-web\/renderer\/index\.html"/i);
   assert.doesNotMatch(html, /Your site is taking shape|Building your site/i);
 });
@@ -135,7 +135,7 @@ test("wires DATA CORE competition media and academy guide draft interactions", a
   assert.match(dataCoreIndex, /selectedFolderNotice/);
   assert.match(appScript, /recordId=.*sourceApp=competition/);
   assert.match(appScript, /renderCompetitionPoster/);
-  assert.match(appScript, /renderAwardFiles/);
+  assert.match(appScript, /renderCompetitionAwardFiles/);
   assert.match(appScript, /competition-media-empty/);
   assert.match(appScript, /안내문 초안 만들기/);
   assert.match(appScript, /competitionGuideTemplate/);
@@ -144,6 +144,28 @@ test("wires DATA CORE competition media and academy guide draft interactions", a
   assert.match(styles, /\.competition-media-empty/);
   assert.match(filesApi, /const sourceApp = cleanText\(url\.searchParams\.get\("sourceApp"\), 80\)/);
   assert.match(filesApi, /conditions\.push\("fo\.source_app = \?"\)/);
+});
+
+test("wires counseling competition folders to existing DATA CORE records and files", async () => {
+  const [dataCoreIndex, appScript, styles, admissionsHtml] = await Promise.all([
+    readFile(new URL("../public/data-core/index.html", import.meta.url), "utf8"),
+    readFile(new URL("../public/data-core/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../public/data-core/styles.css", import.meta.url), "utf8"),
+    readFile(new URL("../public/admissions-web/renderer/index.html", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(dataCoreIndex, /공모전 및 실기대회 수상작/);
+  assert.match(dataCoreIndex, /awardFolderForm/);
+  assert.match(dataCoreIndex, /openAwardUploadBtn/);
+  assert.match(dataCoreIndex, /uploadRecordId/);
+  assert.match(dataCoreIndex, /multiple required/);
+  assert.match(appScript, /competition-award-folder/);
+  assert.match(appScript, /\/api\/data-core\/records/);
+  assert.match(appScript, /recordId=.*category=competition-material/);
+  assert.match(appScript, /applicationDday/);
+  assert.match(styles, /\.award-library-grid/);
+  assert.match(admissionsHtml, /<title>대학 합격 로드맵<\/title>/);
+  assert.doesNotMatch(admissionsHtml, /data-page="awards">공모전 및 실기대회 수상작/);
 });
 
 test("wires the DATA CORE blog and Instagram automation routes", async () => {
