@@ -146,7 +146,7 @@ async function saveAppData(env: Env, data: unknown) {
   }
 }
 
-function safeFileName(value: FormDataEntryValueValue | FormDataEntryValue | null) {
+function safeFileName(value: FormDataEntryValue | null) {
   const name = value instanceof File ? value.name : String(value || "image");
   return name.replace(/[\\/:*?"<>|]/g, "_").replace(/\s+/g, "_").slice(0, 120) || "image";
 }
@@ -214,7 +214,6 @@ async function handleFile(request: Request, env: Env) {
   const url = new URL(request.url);
   const encodedKey = url.pathname.replace(/^\/api\/files\//, "");
   const key = decodeURIComponent(encodedKey);
-  // New DATA CORE objects are only served through the authenticated file API.
   if (key.startsWith("data-core/")) return new Response("Not found", { status: 404 });
   const object = await env.FILES.get(key);
   if (!object) return new Response("Not found", { status: 404 });
