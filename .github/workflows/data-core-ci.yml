@@ -32,4 +32,6 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Check DATA CORE browser scripts
-        run: node --check public/data-core/app.js
+        run: |
+          node --check public/data-core/app.js
+          node --check public/data-core/operations.js
