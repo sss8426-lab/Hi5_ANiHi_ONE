@@ -54,12 +54,13 @@ async function makeHarness() {
     };
   }
 
-  // Initialize the isolated guardian schema without creating any production identity.
   await request('/api/family/auth/session');
   return { mf, env, request };
 }
 
-async function seedFixture(env) {
+const cookie = `kkumeum_family_session=${RAW_TOKEN}`;
+
+async function seedFixture(env, request) {
   const now = new Date().toISOString();
   const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
   const db = env.FAMILY_DB;
@@ -109,6 +110,12 @@ async function seedFixture(env) {
        ('link-b', ?, ?, '부모', 1, 1, ?)`,
   ).bind(CHILD_A, GUARDIAN_ID, now, CHILD_SIBLING, GUARDIAN_ID, now, CHILD_B, OTHER_GUARDIAN_ID, now).run();
 
+  // Exercise the real guardian report route to initialize the existing Phase 2 schema
+  // before seeding fake report/artwork rows directly into the isolated test FAMILY_DB.
+  const initialized = await request(`/api/family/children/${CHILD_A}/reports`, { cookie });
+  assert.equal(initialized.status, 200);
+  assert.deepEqual(initialized.body.reports, []);
+
   await db.prepare(
     `INSERT INTO monthly_reports (
        id, student_id, campus_id, year_month, teacher_user_id,
@@ -147,8 +154,6 @@ async function seedFixture(env) {
   });
 }
 
-const cookie = `kkumeum_family_session=${RAW_TOKEN}`;
-
 function assertNoPrivateFields(value) {
   const json = JSON.stringify(value);
   for (const forbidden of [
@@ -163,7 +168,7 @@ function assertNoPrivateFields(value) {
 test('보호자는 연결된 자녀만 보고 최소 필드만 받는다', async () => {
   const { mf, env, request } = await makeHarness();
   try {
-    await seedFixture(env);
+    await seedFixture(env, request);
     const response = await request('/api/family/children', { cookie });
     assert.equal(response.status, 200);
     assert.equal(response.headers.get('cache-control'), 'private, no-store');
@@ -185,7 +190,7 @@ test('보호자는 연결된 자녀만 보고 최소 필드만 받는다', async
 test('보호자 성장평가는 sent만 노출하고 교사용 메모/교사ID/초안을 숨긴다', async () => {
   const { mf, env, request } = await makeHarness();
   try {
-    await seedFixture(env);
+    await seedFixture(env, request);
     const response = await request(`/api/family/children/${CHILD_A}/reports`, { cookie });
     assert.equal(response.status, 200);
     assert.equal(response.body.reports.length, 1);
@@ -207,7 +212,7 @@ test('보호자 성장평가는 sent만 노출하고 교사용 메모/교사ID/�
 test('보호자 작품 목록/파일은 own-child + can_view_photos 경계를 지킨다', async () => {
   const { mf, env, request } = await makeHarness();
   try {
-    await seedFixture(env);
+    await seedFixture(env, request);
     const gallery = await request(`/api/family/children/${CHILD_A}/artworks`, { cookie });
     assert.equal(gallery.status, 200);
     assert.equal(gallery.body.artworks.length, 1);
@@ -237,7 +242,7 @@ test('보호자 작품 목록/파일은 own-child + can_view_photos 경계를 �
 test('보호자 feed는 guardian 세션만 인정하고 비밀번호 변경 필요 상태를 fail-closed 한다', async () => {
   const { mf, env, request } = await makeHarness();
   try {
-    await seedFixture(env);
+    await seedFixture(env, request);
     const unauth = await request('/api/family/children');
     assert.equal(unauth.status, 401);
 
