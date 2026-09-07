@@ -1,11 +1,17 @@
 import dataCoreWorker from "./admissions-knowledge-router";
 import { DataCoreAccessError } from "./data-core-access";
 import {
-  KKUMEUM_GUARDIAN_COOKIE_NAME,
   kkumeumGuardianSessionIdentity,
   loginKkumeumGuardian,
   logoutKkumeumGuardian,
 } from "./kkumeum-guardian-auth";
+import {
+  getGuardianChild,
+  listGuardianChildArtworks,
+  listGuardianChildReports,
+  listGuardianChildren,
+  readGuardianFamilyFile,
+} from "./kkumeum-guardian-feed";
 
 interface Env {
   ASSETS?: Fetcher;
@@ -85,18 +91,76 @@ async function handleFamilyGuardianAuthApi(request: Request, env: Env): Promise<
   );
 }
 
+async function handleFamilyGuardianFeedApi(request: Request, env: Env): Promise<Response | null> {
+  const url = new URL(request.url);
+  if (!url.pathname.startsWith("/api/family/")) return null;
+  if (url.pathname.startsWith("/api/family/auth/")) return null;
+  if (!env.FAMILY_DB) {
+    throw new DataCoreAccessError(503, "꿈이음 보호자 전용 FAMILY_DB 연결이 필요합니다.");
+  }
+
+  if (url.pathname === "/api/family/children" && request.method === "GET") {
+    return privateJsonResponse({ children: await listGuardianChildren(env.FAMILY_DB, request) });
+  }
+
+  const childReportsMatch = url.pathname.match(/^\/api\/family\/children\/([^/]+)\/reports$/);
+  if (childReportsMatch && request.method === "GET") {
+    const studentId = decodeURIComponent(childReportsMatch[1]);
+    return privateJsonResponse({
+      reports: await listGuardianChildReports(env.FAMILY_DB, request, studentId),
+    });
+  }
+
+  const childArtworksMatch = url.pathname.match(/^\/api\/family\/children\/([^/]+)\/artworks$/);
+  if (childArtworksMatch && request.method === "GET") {
+    const studentId = decodeURIComponent(childArtworksMatch[1]);
+    return privateJsonResponse({
+      artworks: await listGuardianChildArtworks(env.FAMILY_DB, request, studentId),
+    });
+  }
+
+  const childMatch = url.pathname.match(/^\/api\/family\/children\/([^/]+)$/);
+  if (childMatch && request.method === "GET") {
+    const studentId = decodeURIComponent(childMatch[1]);
+    return privateJsonResponse({
+      child: await getGuardianChild(env.FAMILY_DB, request, studentId),
+    });
+  }
+
+  const fileMatch = url.pathname.match(/^\/api\/family\/files\/([^/]+)$/);
+  if (fileMatch && request.method === "GET") {
+    if (!env.FAMILY_FILES) {
+      throw new DataCoreAccessError(503, "꿈이음 보호자 전용 FAMILY_FILES 연결이 필요합니다.");
+    }
+    return readGuardianFamilyFile(
+      env.FAMILY_DB,
+      env.FAMILY_FILES,
+      request,
+      decodeURIComponent(fileMatch[1]),
+    );
+  }
+
+  return privateJsonResponse(
+    { error: "지원하지 않는 꿈이음 보호자 조회 API 요청입니다." },
+    { status: 405 },
+  );
+}
+
 const worker = {
   async fetch(request: Request, env: Env): Promise<Response> {
     try {
       const familyAuthResponse = await handleFamilyGuardianAuthApi(request, env);
       if (familyAuthResponse) return familyAuthResponse;
+
+      const familyFeedResponse = await handleFamilyGuardianFeedApi(request, env);
+      if (familyFeedResponse) return familyFeedResponse;
     } catch (error) {
       if (error instanceof DataCoreAccessError) {
         return privateJsonResponse({ error: error.message }, { status: error.status });
       }
-      console.error("Kkumeum guardian auth router error", error);
+      console.error("Kkumeum guardian router error", error);
       return privateJsonResponse(
-        { error: "꿈이음 보호자 인증 요청을 처리하는 중 오류가 발생했습니다." },
+        { error: "꿈이음 보호자 요청을 처리하는 중 오류가 발생했습니다." },
         { status: 500 },
       );
     }
