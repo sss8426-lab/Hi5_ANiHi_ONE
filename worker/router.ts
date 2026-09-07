@@ -1,0 +1,133 @@
+import baseWorker from "./index";
+import {
+  DataCoreAccessError,
+  resolveDataCoreAccess,
+} from "./data-core-access";
+import {
+  createCompetition,
+  createCompetitionResult,
+  deleteCompetition,
+  getCompetition,
+  listCompetitionResults,
+  listCompetitions,
+  updateCompetition,
+} from "./data-core-competitions";
+
+interface Env {
+  ASSETS?: Fetcher;
+  DB?: D1Database;
+  FILES?: R2Bucket;
+  DATA_CORE_SUPER_ADMIN_EMAILS?: string;
+}
+
+function jsonResponse(value: unknown, init: ResponseInit = {}) {
+  const headers = new Headers(init.headers);
+  headers.set("content-type", "application/json; charset=utf-8");
+  return new Response(JSON.stringify(value), { ...init, headers });
+}
+
+async function readJson(request: Request) {
+  try {
+    return await request.json() as Record<string, unknown>;
+  } catch {
+    throw new DataCoreAccessError(400, "JSON 요청 형식이 올바르지 않습니다.");
+  }
+}
+
+async function handleCompetitionApi(request: Request, env: Env) {
+  const url = new URL(request.url);
+  if (!url.pathname.startsWith("/api/data-core/competitions")) return null;
+  if (!env.DB) {
+    throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
+  }
+
+  const context = await resolveDataCoreAccess(
+    request,
+    env.DB,
+    env.DATA_CORE_SUPER_ADMIN_EMAILS,
+  );
+
+  if (url.pathname === "/api/data-core/competitions") {
+    if (request.method === "GET") {
+      return jsonResponse({ competitions: await listCompetitions(env.DB, context, url) });
+    }
+    if (request.method === "POST") {
+      return jsonResponse(
+        { competition: await createCompetition(env.DB, context, await readJson(request)) },
+        { status: 201 },
+      );
+    }
+  }
+
+  const resultsMatch = url.pathname.match(
+    /^\/api\/data-core\/competitions\/([^/]+)\/results$/,
+  );
+  if (resultsMatch) {
+    const competitionId = decodeURIComponent(resultsMatch[1]);
+    if (request.method === "GET") {
+      return jsonResponse({
+        results: await listCompetitionResults(env.DB, context, competitionId, url),
+      });
+    }
+    if (request.method === "POST") {
+      return jsonResponse(
+        {
+          result: await createCompetitionResult(
+            env.DB,
+            context,
+            competitionId,
+            await readJson(request),
+          ),
+        },
+        { status: 201 },
+      );
+    }
+  }
+
+  const competitionMatch = url.pathname.match(/^\/api\/data-core\/competitions\/([^/]+)$/);
+  if (competitionMatch) {
+    const competitionId = decodeURIComponent(competitionMatch[1]);
+    if (request.method === "GET") {
+      return jsonResponse({
+        competition: await getCompetition(env.DB, context, competitionId),
+      });
+    }
+    if (request.method === "PATCH") {
+      return jsonResponse({
+        competition: await updateCompetition(
+          env.DB,
+          context,
+          competitionId,
+          await readJson(request),
+        ),
+      });
+    }
+    if (request.method === "DELETE") {
+      return jsonResponse(await deleteCompetition(env.DB, context, competitionId));
+    }
+  }
+
+  return jsonResponse({ error: "지원하지 않는 공모전 API 요청입니다." }, { status: 405 });
+}
+
+const worker = {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    try {
+      const competitionResponse = await handleCompetitionApi(request, env);
+      if (competitionResponse) return competitionResponse;
+    } catch (error) {
+      if (error instanceof DataCoreAccessError) {
+        return jsonResponse({ error: error.message }, { status: error.status });
+      }
+      console.error("Competition DATA CORE API error", error);
+      return jsonResponse(
+        { error: "공모전/실기대회 데이터를 처리하는 중 오류가 발생했습니다." },
+        { status: 500 },
+      );
+    }
+
+    return baseWorker.fetch(request, env);
+  },
+};
+
+export default worker;
