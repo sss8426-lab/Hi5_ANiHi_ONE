@@ -156,6 +156,18 @@ async function handleKnowledgeApi(request: Request, env: Env) {
 
 const worker = {
   async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url);
+    if (
+      request.method === "GET" &&
+      (url.pathname === "/data-core/roadmap" || url.pathname === "/data-core/roadmap/")
+    ) {
+      url.pathname = "/data-core/roadmap.html";
+      return baseWorker.fetch(
+        new Request(url.toString(), { headers: request.headers }),
+        env,
+      );
+    }
+
     try {
       const roadmapResponse = await handleRoadmapApi(request, env);
       if (roadmapResponse) return roadmapResponse;

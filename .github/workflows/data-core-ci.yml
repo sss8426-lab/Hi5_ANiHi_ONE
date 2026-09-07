@@ -35,4 +35,5 @@ jobs:
         run: |
           node --check public/data-core/app.js
           node --check public/data-core/operations.js
+          node --check public/data-core/roadmap.js
           node --check public/admissions-web/renderer/data-core-upload-bridge.js
