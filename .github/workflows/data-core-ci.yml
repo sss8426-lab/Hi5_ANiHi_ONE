@@ -28,6 +28,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Behavior tests
+        run: node --test tests/*.test.mjs
+
       - name: Type check
         run: npx tsc --noEmit
 
