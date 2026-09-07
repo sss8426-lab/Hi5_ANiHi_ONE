@@ -63,3 +63,17 @@ test('보호자 UI는 공지 API 전까지 실제 소식을 위조하지 않는�
   assert.match(html, /임의의 소식을 만들어 보여주지 않습니다/);
   assert.doesNotMatch(js, /mockNews|sampleNews|fakeNews/i);
 });
+
+test('/family route는 staff DATA CORE 인증과 분리된 static guardian shell로만 연결된다', async () => {
+  const [router, vite, wrangler] = await Promise.all([
+    read('worker/family-shell-router.ts'),
+    read('vite.config.ts'),
+    read('wrangler.jsonc'),
+  ]);
+  assert.match(router, /url\.pathname !== "\/family" && url\.pathname !== "\/family\/"/);
+  assert.match(router, /url\.pathname = "\/family\/index\.html"/);
+  assert.match(router, /env\.ASSETS\.fetch/);
+  assert.doesNotMatch(router, /resolveDataCoreAccess|requireAuthenticatedAccess|FAMILY_DB.*prepare/);
+  assert.match(vite, /\.\/worker\/family-shell-router\.ts/);
+  assert.match(wrangler, /\.\/worker\/family-shell-router\.ts/);
+});
