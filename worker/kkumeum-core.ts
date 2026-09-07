@@ -98,15 +98,19 @@ export async function requireKkumeumStudentAccess(
       .prepare(
         `SELECT s.id
          FROM family_students s
+         JOIN family_classes c
+           ON c.id = s.current_class_id
+          AND c.campus_id = s.campus_id
          JOIN class_staff_assignments a
-           ON a.class_id = s.current_class_id
+           ON a.class_id = c.id
          WHERE s.id = ?
            AND s.campus_id = ?
+           AND c.campus_id = ?
            AND a.staff_user_id = ?
            AND a.ended_at IS NULL
          LIMIT 1`,
       )
-      .bind(studentId, campusId, context.user.internalUserId)
+      .bind(studentId, campusId, campusId, context.user.internalUserId)
       .first<{ id: string }>();
     if (row) return;
     throw new DataCoreAccessError(403, "배정된 반의 학생만 확인할 수 있습니다.");
@@ -134,14 +138,17 @@ export async function requireKkumeumClassAccess(
     if (!context.user) throw new DataCoreAccessError(401, "로그인이 필요합니다.");
     const assignment = await familyDb
       .prepare(
-        `SELECT id
-         FROM class_staff_assignments
-         WHERE class_id = ?
-           AND staff_user_id = ?
-           AND ended_at IS NULL
+        `SELECT a.id
+         FROM class_staff_assignments a
+         JOIN family_classes c
+           ON c.id = a.class_id
+         WHERE a.class_id = ?
+           AND c.campus_id = ?
+           AND a.staff_user_id = ?
+           AND a.ended_at IS NULL
          LIMIT 1`,
       )
-      .bind(classId, context.user.internalUserId)
+      .bind(classId, campusId, context.user.internalUserId)
       .first<{ id: string }>();
     if (assignment) return;
     throw new DataCoreAccessError(403, "배정된 반만 확인할 수 있습니다.");
