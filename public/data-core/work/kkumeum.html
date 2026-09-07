@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>꿈이음 · HI5·ANiHi</title>
   <link rel="stylesheet" href="/data-core/work/kkumeum.css">
+  <link rel="stylesheet" href="/data-core/work/kkumeum-notices.css">
 </head>
 <body>
   <div class="kk-shell">
@@ -14,10 +15,10 @@
         <span><strong>HI5·ANiHi</strong><small>꿈이음</small></span>
       </a>
       <nav class="kk-nav" aria-label="꿈이음 메뉴">
-        <a class="active" href="/data-core/work/kkumeum.html"><span>⌂</span>꿈이음 홈</a>
-        <button type="button" disabled><span>▣</span>학생·반</button>
-        <button type="button" disabled><span>✎</span>월간 평가</button>
-        <button type="button" disabled><span>◫</span>소식·공지</button>
+        <a class="active" href="#kkTop"><span>⌂</span>꿈이음 홈</a>
+        <a href="#kkStudentsSection"><span>▣</span>학생·반</a>
+        <a href="#kkMonthlyFlow"><span>✎</span>월간 평가</a>
+        <a href="#kkAnnouncements"><span>◫</span>소식·공지</a>
       </nav>
       <div class="kk-sidebar-bottom">
         <a href="/data-core/work">← 업무용 홈</a>
@@ -25,7 +26,7 @@
       </div>
     </aside>
 
-    <main class="kk-main">
+    <main class="kk-main" id="kkTop">
       <header class="kk-topbar">
         <div>
           <p>학생 성장기록 · 보호자 소통</p>
@@ -47,10 +48,10 @@
         <article><span>개인정보 DB</span><strong id="familyDbStatus">연결 준비 중</strong><small>FAMILY_DB 전용 D1</small></article>
         <article><span>학생 작품 저장소</span><strong id="familyFilesStatus">연결 준비 중</strong><small>FAMILY_FILES private R2</small></article>
         <article><span>이번 달 평가</span><strong>0</strong><small>실데이터 연결 전</small></article>
-        <article><span>보호자 전달</span><strong>0</strong><small>보호자 앱 Phase 3</small></article>
+        <article><span>보호자 전달</span><strong id="kkPublishedNoticeCount">0</strong><small>발행된 소식</small></article>
       </section>
 
-      <section class="kk-grid">
+      <section class="kk-grid" id="kkStudentsSection">
         <article class="kk-panel kk-students">
           <div class="kk-panel-head">
             <div><span>STUDENTS</span><h3>반·학생 관리</h3></div>
@@ -70,7 +71,7 @@
           </div>
         </article>
 
-        <article class="kk-panel kk-flow">
+        <article class="kk-panel kk-flow" id="kkMonthlyFlow">
           <div class="kk-panel-head"><div><span>MONTHLY FLOW</span><h3>월간 성장 전달</h3></div></div>
           <ol>
             <li><i>1</i><div><strong>작품 업로드</strong><p>한 달 동안 만든 작품을 학생별 private 저장소에 모읍니다.</p></div></li>
@@ -78,6 +79,31 @@
             <li><i>3</i><div><strong>검토 후 전달</strong><p>AI 초안이 있어도 교사가 확인·수정한 뒤 보호자에게 전달합니다.</p></div></li>
           </ol>
         </article>
+      </section>
+
+      <section class="kk-panel kk-announcements" id="kkAnnouncements">
+        <div class="kk-panel-head">
+          <div><span>NEWS & NOTICE</span><h3>소식·공지 전달</h3></div>
+          <small id="kkNoticePermission">권한 확인 중</small>
+        </div>
+        <div class="kk-announcement-layout">
+          <form class="kk-announcement-form" id="kkNoticeForm">
+            <label><span>전달 범위</span><select id="kkNoticeScope" disabled><option value="">권한 확인 중</option></select></label>
+            <label id="kkNoticeTargetWrap"><span>전달 대상</span><select id="kkNoticeTarget" disabled><option value="">대상 선택</option></select></label>
+            <label><span>제목</span><input id="kkNoticeTitle" maxlength="160" placeholder="보호자에게 보일 소식 제목" disabled></label>
+            <label class="kk-announcement-body"><span>내용</span><textarea id="kkNoticeBody" maxlength="6000" rows="7" placeholder="보호자에게 전달할 내용을 작성하세요." disabled></textarea></label>
+            <div class="kk-announcement-actions">
+              <button id="kkNoticeSave" type="submit" disabled>임시저장</button>
+              <button id="kkNoticeUpdate" type="button" disabled>저장내용 반영</button>
+              <button id="kkNoticePublish" class="primary" type="button" disabled>보호자에게 발행</button>
+            </div>
+            <p class="kk-announcement-feedback" id="kkNoticeFeedback" role="status">FAMILY_DB가 연결되면 권한 범위 안에서 소식을 작성할 수 있습니다.</p>
+          </form>
+          <div class="kk-announcement-list-wrap">
+            <div class="kk-announcement-list-head"><strong>최근 소식</strong><button id="kkNoticeRefresh" type="button" disabled>새로고침</button></div>
+            <div class="kk-announcement-list" id="kkNoticeList"><div class="kk-empty"><strong>소식 연결 준비 중</strong><p>실제 공지만 표시하며 예시 소식을 만들지 않습니다.</p></div></div>
+          </div>
+        </div>
       </section>
 
       <section class="kk-notice">
@@ -91,5 +117,6 @@
     </main>
   </div>
   <script src="/data-core/work/kkumeum.js"></script>
+  <script src="/data-core/work/kkumeum-notices.js"></script>
 </body>
 </html>
