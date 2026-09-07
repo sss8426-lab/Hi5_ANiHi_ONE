@@ -21,10 +21,13 @@ import {
 } from "./data-core-competitions";
 import { runDataCoreDiagnostics } from "./data-core-diagnostics";
 import {
+  listDataCoreFiles,
   listDeletedDataCoreFiles,
   purgeDataCoreFile,
   restoreDataCoreFile,
+  uploadDataCoreFile,
 } from "./data-core-files";
+import { ensureDataCoreMigrations } from "./data-core-migrations";
 
 interface Env {
   ASSETS?: Fetcher;
@@ -45,6 +48,65 @@ async function readJson<T>(request: Request): Promise<T> {
   } catch {
     throw new DataCoreAccessError(400, "JSON 요청 형식이 올바르지 않습니다.");
   }
+}
+
+async function handleFileMetadataApi(request: Request, env: Env) {
+  const url = new URL(request.url);
+  const isListPath = url.pathname === "/api/data-core/files";
+  const isUploadPath =
+    url.pathname === "/api/data-core/upload" ||
+    (url.pathname === "/api/data-core/files" && request.method === "POST");
+  if (!isListPath && !isUploadPath) return null;
+  if (!env.DB) {
+    throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
+  }
+
+  const context = await resolveDataCoreAccess(
+    request,
+    env.DB,
+    env.DATA_CORE_SUPER_ADMIN_EMAILS,
+  );
+  await ensureDataCoreMigrations(env.DB);
+
+  if (isUploadPath && request.method === "POST") {
+    if (!env.FILES) {
+      throw new DataCoreAccessError(503, "DATA CORE R2 저장소가 연결되지 않았습니다.");
+    }
+    const uploaded = await uploadDataCoreFile(request, env.DB, env.FILES, context);
+    const sourceApp = String(uploaded.sourceApp || "data-core").trim().slice(0, 80) || "data-core";
+    await env.DB
+      .prepare("UPDATE file_objects SET source_app = ? WHERE id = ?")
+      .bind(sourceApp, uploaded.id)
+      .run();
+    return jsonResponse({ file: { ...uploaded, sourceApp } }, { status: 201 });
+  }
+
+  if (isListPath && request.method === "GET") {
+    const files = await listDataCoreFiles(env.DB, context, url);
+    if (!files.length) return jsonResponse({ files: [] });
+
+    const ids = files.map((file) => String(file.id));
+    const placeholders = ids.map(() => "?").join(", ");
+    const rows = await env.DB
+      .prepare(`SELECT id, source_app FROM file_objects WHERE id IN (${placeholders})`)
+      .bind(...ids)
+      .all<{ id: string; source_app: string | null }>();
+    const sourceMap = new Map(
+      (rows.results || []).map((row) => [row.id, row.source_app || "legacy"]),
+    );
+    const requestedSourceApp = String(url.searchParams.get("sourceApp") || "").trim();
+    const enriched = files.map((file) => ({
+      ...file,
+      sourceApp: sourceMap.get(String(file.id)) || "legacy",
+    }));
+    return jsonResponse({
+      files: requestedSourceApp
+        ? enriched.filter((file) => file.sourceApp === requestedSourceApp)
+        : enriched,
+    });
+  }
+
+  return null;
 }
 
 async function handleDiagnosticsApi(request: Request, env: Env) {
@@ -255,6 +317,9 @@ const worker = {
     }
 
     try {
+      const fileMetadataResponse = await handleFileMetadataApi(request, env);
+      if (fileMetadataResponse) return fileMetadataResponse;
+
       const diagnosticsResponse = await handleDiagnosticsApi(request, env);
       if (diagnosticsResponse) return diagnosticsResponse;
 
