@@ -38,6 +38,12 @@ import {
   updateKkumeumClass,
   updateKkumeumStudent,
 } from "./kkumeum-staff";
+import {
+  createStaffAnnouncementDraft,
+  listStaffAnnouncements,
+  publishStaffAnnouncement,
+  updateStaffAnnouncementDraft,
+} from "./kkumeum-staff-announcements";
 
 export type KkumeumRouterEnv = KkumeumBindings;
 
@@ -67,6 +73,28 @@ function requiredBodyId(value: unknown, field: "campusId" | "studentId"): string
   const id = String(value || "").trim().slice(0, 120);
   if (!id) throw new DataCoreAccessError(400, `${field}가 필요합니다.`);
   return id;
+}
+
+function assertSameOrigin(request: Request): void {
+  const origin = request.headers.get("origin");
+  if (origin && origin !== new URL(request.url).origin) {
+    throw new DataCoreAccessError(403, "허용되지 않은 요청 출처입니다.");
+  }
+}
+
+function requireNonSuperAnnouncementCampus(
+  context: DataCoreAccessContext,
+  input: Record<string, unknown>,
+  requireField: boolean,
+): void {
+  if (context.isSuperAdmin) return;
+  const hasField = Object.prototype.hasOwnProperty.call(input, "campusId");
+  if (requireField && !hasField) {
+    throw new DataCoreAccessError(400, "캠퍼스 권한 사용자는 소식 campusId가 필요합니다.");
+  }
+  if (hasField && !String(input.campusId || "").trim()) {
+    throw new DataCoreAccessError(400, "캠퍼스 권한 사용자는 소식 campusId를 비울 수 없습니다.");
+  }
 }
 
 function privateJsonResponder(base: JsonResponder): JsonResponder {
@@ -106,6 +134,59 @@ export async function handleKkumeumApi(
     }
     const status = kkumeumBindingStatus(context, env);
     return respond({ status }, { status: status.ok ? 200 : 503 });
+  }
+
+  if (url.pathname === "/api/kkumeum/announcements") {
+    const familyDb = requireFamilyDatabase(context, env.FAMILY_DB);
+    if (request.method === "GET") {
+      const campusId = String(url.searchParams.get("campusId") || "").trim().slice(0, 120) || null;
+      return respond({ announcements: await listStaffAnnouncements(familyDb, context, campusId) });
+    }
+    if (request.method === "POST") {
+      assertSameOrigin(request);
+      const input = await readJson(request);
+      requireNonSuperAnnouncementCampus(context, input, true);
+      return respond(
+        { announcement: await createStaffAnnouncementDraft(familyDb, context, input) },
+        { status: 201 },
+      );
+    }
+    return respond({ error: "지원하지 않는 꿈이음 소식 요청입니다." }, { status: 405 });
+  }
+
+  const announcementPublishMatch = url.pathname.match(/^\/api\/kkumeum\/announcements\/([^/]+)\/publish$/);
+  if (announcementPublishMatch) {
+    if (request.method !== "POST") {
+      return respond({ error: "지원하지 않는 꿈이음 소식 발행 요청입니다." }, { status: 405 });
+    }
+    assertSameOrigin(request);
+    const familyDb = requireFamilyDatabase(context, env.FAMILY_DB);
+    return respond({
+      announcement: await publishStaffAnnouncement(
+        familyDb,
+        context,
+        decodeURIComponent(announcementPublishMatch[1]),
+      ),
+    });
+  }
+
+  const announcementMatch = url.pathname.match(/^\/api\/kkumeum\/announcements\/([^/]+)$/);
+  if (announcementMatch) {
+    if (request.method !== "PATCH") {
+      return respond({ error: "지원하지 않는 꿈이음 소식 요청입니다." }, { status: 405 });
+    }
+    assertSameOrigin(request);
+    const input = await readJson(request);
+    requireNonSuperAnnouncementCampus(context, input, false);
+    const familyDb = requireFamilyDatabase(context, env.FAMILY_DB);
+    return respond({
+      announcement: await updateStaffAnnouncementDraft(
+        familyDb,
+        context,
+        decodeURIComponent(announcementMatch[1]),
+        input,
+      ),
+    });
   }
 
   requireKkumeumBindingsReady(context, env);
