@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>콘텐츠 허브 · HI5·ANiHi DATA CORE</title>
+  <title>블로그 자동화 · HI5·ANiHi DATA CORE</title>
   <link rel="stylesheet" href="/data-core/styles.css">
   <link rel="stylesheet" href="/data-core/content.css">
 </head>
@@ -19,13 +19,17 @@
       </div>
 
       <nav class="nav">
-        <a class="nav-item" href="/data-core">
+        <a class="nav-item" href="/data-core/work">
           <span class="nav-icon">▦</span>
           <span>자료보관함</span>
         </a>
-        <a class="nav-item active" href="/data-core/content">
+        <a class="nav-item active" href="/data-core/content/blog" data-content-nav="blog">
           <span class="nav-icon">✎</span>
-          <span>콘텐츠 허브</span>
+          <span>블로그 자동화</span>
+        </a>
+        <a class="nav-item" href="/data-core/content/instagram" data-content-nav="instagram">
+          <span class="nav-icon">▧</span>
+          <span>인스타 자동화</span>
         </a>
         <a class="nav-item" href="/data-core/roadmap">
           <span class="nav-icon">◇</span>
@@ -52,8 +56,8 @@
     <main class="main">
       <header class="topbar">
         <div>
-          <p class="eyebrow">공통 파일을 재사용하는 콘텐츠 작업실</p>
-          <h1>콘텐츠 허브</h1>
+          <p class="eyebrow">공통 파일을 재사용하는 자동화 작업실</p>
+          <h1 id="contentPageTitle">블로그 자동화</h1>
         </div>
         <div class="user-chip" id="userChip">
           <div class="avatar">H</div>
@@ -69,7 +73,7 @@
       <section class="view active content-workspace">
         <div class="hero-row content-hero">
           <div>
-            <h2>블로그와 인스타가 같은 원본 자료를 사용합니다</h2>
+            <h2 id="contentHeroTitle">블로그 자동화</h2>
             <p>DATA CORE 파일을 선택하고, 블로그 글이나 인스타 캡션 초안을 중앙 레코드로 저장합니다.</p>
           </div>
           <div class="source-tabs" role="tablist" aria-label="콘텐츠 종류">

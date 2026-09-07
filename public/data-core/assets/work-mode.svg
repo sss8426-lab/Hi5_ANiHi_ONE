@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 620" role="img" aria-label="업무용 비주얼">
+  <rect width="900" height="620" fill="#e0f2fe"/>
+  <rect x="0" y="0" width="900" height="620" fill="#f8fafc"/>
+  <path d="M0 396 C150 338 236 380 390 318 C552 254 706 286 900 238 L900 620 L0 620 Z" fill="#dbeafe"/>
+  <path d="M0 492 C196 420 340 482 506 414 C646 356 750 368 900 316 L900 620 L0 620 Z" fill="#bae6fd"/>
+  <rect x="106" y="144" width="302" height="240" rx="18" fill="#ffffff" stroke="#93c5fd" stroke-width="4"/>
+  <path d="M106 194 L196 194 L222 166 L408 166 L408 220 L106 220 Z" fill="#2563eb"/>
+  <rect x="150" y="252" width="214" height="22" rx="11" fill="#bfdbfe"/>
+  <rect x="150" y="302" width="164" height="22" rx="11" fill="#dbeafe"/>
+  <rect x="486" y="128" width="280" height="336" rx="20" fill="#0f172a"/>
+  <rect x="526" y="178" width="200" height="30" rx="15" fill="#60a5fa"/>
+  <rect x="526" y="240" width="92" height="118" rx="10" fill="#38bdf8"/>
+  <rect x="642" y="276" width="84" height="82" rx="10" fill="#2dd4bf"/>
+  <rect x="526" y="392" width="200" height="26" rx="13" fill="#94a3b8"/>
+  <path d="M318 474 H578" stroke="#1d4ed8" stroke-width="18" stroke-linecap="round"/>
+  <path d="M448 410 L448 506 M448 410 L412 446 M448 410 L484 446" stroke="#1d4ed8" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

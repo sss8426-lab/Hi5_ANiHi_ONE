@@ -360,7 +360,18 @@ const worker = {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     if (request.method === "GET") {
-      if (url.pathname === "/data-core" || url.pathname === "/data-core/") {
+      if (
+        url.pathname === "/data-core" ||
+        url.pathname === "/data-core/" ||
+        url.pathname === "/data-core/counseling" ||
+        url.pathname === "/data-core/counseling/" ||
+        url.pathname === "/data-core/counseling/competitions" ||
+        url.pathname === "/data-core/counseling/competitions/" ||
+        url.pathname === "/data-core/work" ||
+        url.pathname === "/data-core/work/" ||
+        url.pathname === "/data-core/work/library" ||
+        url.pathname === "/data-core/work/library/"
+      ) {
         url.pathname = "/data-core/index.html";
         return baseWorker.fetch(
           new Request(url.toString(), { headers: request.headers }),

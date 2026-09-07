@@ -144,6 +144,13 @@ function setSourceApp(sourceApp) {
   document.querySelectorAll('[data-source-tab]').forEach((button) => {
     button.classList.toggle('active', button.dataset.sourceTab === state.sourceApp);
   });
+  document.querySelectorAll('[data-content-nav]').forEach((link) => {
+    link.classList.toggle('active', link.dataset.contentNav === state.sourceApp);
+  });
+  const pageTitle = state.sourceApp === 'instagram' ? '인스타 자동화' : '블로그 자동화';
+  $('contentPageTitle').textContent = pageTitle;
+  $('contentHeroTitle').textContent = pageTitle;
+  document.title = `${pageTitle} · HI5·ANiHi DATA CORE`;
   $('editorTitle').textContent = `${sourceLabel(state.sourceApp)} 초안`;
   $('editorHint').textContent = state.sourceApp === 'instagram'
     ? '같은 DATA CORE 원본 사진을 고르고 캡션과 해시태그를 남깁니다.'
@@ -419,5 +426,5 @@ async function init() {
 
 init().catch((error) => {
   console.error(error);
-  showNotice(`콘텐츠 허브를 시작하지 못했습니다: ${error.message}`);
+  showNotice(`자동화 작업실을 시작하지 못했습니다: ${error.message}`);
 });

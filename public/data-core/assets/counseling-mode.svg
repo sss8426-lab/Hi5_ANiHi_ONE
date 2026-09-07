@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 620" role="img" aria-label="상담용 비주얼">
+  <rect width="900" height="620" fill="#dbeafe"/>
+  <rect x="0" y="0" width="900" height="620" fill="#eff6ff"/>
+  <path d="M0 420 C130 360 250 384 360 326 C485 260 588 234 900 286 L900 620 L0 620 Z" fill="#bfdbfe"/>
+  <path d="M0 512 C160 460 296 498 442 442 C592 384 718 402 900 352 L900 620 L0 620 Z" fill="#93c5fd"/>
+  <rect x="98" y="118" width="704" height="382" rx="28" fill="#ffffff" opacity=".9"/>
+  <rect x="142" y="174" width="252" height="210" rx="18" fill="#f8fafc" stroke="#bfdbfe" stroke-width="4"/>
+  <circle cx="210" cy="236" r="34" fill="#2563eb"/>
+  <path d="M164 344 C174 292 246 292 258 344 Z" fill="#60a5fa"/>
+  <circle cx="316" cy="236" r="34" fill="#0f766e"/>
+  <path d="M270 344 C280 292 352 292 364 344 Z" fill="#2dd4bf"/>
+  <rect x="446" y="178" width="244" height="34" rx="17" fill="#1d4ed8"/>
+  <rect x="446" y="238" width="308" height="24" rx="12" fill="#93c5fd"/>
+  <rect x="446" y="286" width="260" height="24" rx="12" fill="#bfdbfe"/>
+  <rect x="446" y="334" width="326" height="24" rx="12" fill="#dbeafe"/>
+  <path d="M498 448 L560 386 L622 424 L720 314" fill="none" stroke="#0f766e" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="560" cy="386" r="15" fill="#14b8a6"/>
+  <circle cx="622" cy="424" r="15" fill="#14b8a6"/>
+  <circle cx="720" cy="314" r="15" fill="#14b8a6"/>
+</svg>

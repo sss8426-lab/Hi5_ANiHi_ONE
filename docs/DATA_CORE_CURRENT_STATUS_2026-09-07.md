@@ -47,8 +47,14 @@ HI5·ANiHi DATA CORE
 ## 3. 주요 사용 경로
 
 - `/` : 기존 입시컨설팅
-- `/data-core` : 중앙 자료보관함
-- `/data-core/content` : 블로그/인스타 콘텐츠 허브
+- `/data-core` : 상담용/업무용 모드 선택
+- `/data-core/counseling` : 상담용 홈
+- `/data-core/counseling/competitions` : 상담용 공모전·실기대회 화면
+- `/data-core/work` : 업무용 홈
+- `/data-core/work/library` : 중앙 자료보관함
+- `/data-core/content` : 기존 콘텐츠 deep link, 블로그 자동화로 호환 진입
+- `/data-core/content/blog` : 블로그 자동화
+- `/data-core/content/instagram` : 인스타 자동화
 - `/data-core/roadmap` : 꿈·전공 로드맵
 - `/data-core/operations` : 운영관리
 - `/data-core/readiness` : 운영환경 진단 화면
@@ -144,32 +150,50 @@ data-core/{area}/{organization}/{campus}/{category}/{owner}/{year}/{uuid-file}
 
 경로:
 
-`/data-core`
+`/data-core/work/library`
 
 현재 기능:
 
+- `/data-core` 첫 화면에서 상담용/업무용을 이미지 카드로 선택
+- 업무용 홈에서 자료보관함, 블로그 자동화, 인스타 자동화만 기본 노출
 - 중앙 파일 업로드
 - 파일 목록
-- 캠퍼스 필터
-- 분류 필터
+- 등록 캠퍼스를 DATA CORE campus API에서 읽어 최상위 가상 폴더로 표시
+- 조직 공통 가상 폴더
+- 캠퍼스별 기본 가상 하위 폴더
+- 폴더 선택 시 캠퍼스/분류 필터와 파일 목록 연동
 - 파일명 검색
 - 권한 기반 파일 열기
 - 휴지통 이동
-- 통합 텍스트 검색
-- 공모전·실기대회 조회/등록
-- 마스터 권한관리
 - D1/R2 연결상태 표시
-- 꿈·전공 로드맵 이동
-- 운영관리 이동
 
-## 7-1. 콘텐츠 허브
+관리자/운영관리/readiness/권한관리는 일반 메인 메뉴에서 숨기고, SUPER_ADMIN 보조 영역으로 분리한다.
+
+## 7-0. 상담용 홈
 
 경로:
 
-`/data-core/content`
+`/data-core/counseling`
+
+상담용 기본 메뉴는 다음 3개만 노출한다.
+
+- 공모전·실기대회
+- 꿈·전공 로드맵
+- 대학합격 로드맵
+
+대학합격 로드맵은 기존 입시컨설팅을 삭제하지 않고 상담용 명칭으로 연결한다.
+
+## 7-1. 블로그/인스타 자동화
+
+경로:
+
+- `/data-core/content`
+- `/data-core/content/blog`
+- `/data-core/content/instagram`
 
 현재 기능:
 
+- 사용자 화면에서는 `콘텐츠 허브` 단일 메뉴 대신 `블로그 자동화`, `인스타 자동화`로 분리
 - 블로그 초안 작성
 - 인스타그램 캡션 초안 작성
 - 캠퍼스 선택

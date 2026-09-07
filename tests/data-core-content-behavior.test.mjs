@@ -300,6 +300,10 @@ test("smoke checks admissions, competition, roadmap, knowledge, and readiness ro
       "/",
       "/admissions-web/renderer/index.html",
       "/data-core",
+      "/data-core/counseling",
+      "/data-core/counseling/competitions",
+      "/data-core/work",
+      "/data-core/work/library",
       "/data-core/content",
       "/data-core/content/blog",
       "/data-core/content/instagram",
@@ -326,6 +330,47 @@ test("smoke checks admissions, competition, roadmap, knowledge, and readiness ro
       const result = await h.request("GET", route, undefined);
       assert.equal(result.response.status, 401, `${route} should reach the protected router`);
     }
+  } finally {
+    await h.mf.dispose();
+  }
+});
+
+test("DATA CORE mode folders use registered campuses and category filters", async () => {
+  const h = await createHarness();
+  try {
+    const now = new Date().toISOString();
+    await h.env.DB
+      .prepare(
+        `INSERT INTO campuses (
+           id, organization_id, code, name, status, created_at, updated_at
+         ) VALUES (?, ?, ?, ?, 'active', ?, ?)`,
+      )
+      .bind(
+        "campus-issue-23-auto",
+        ORGANIZATION_ID,
+        "issue-23-auto",
+        "Issue 23 자동 캠퍼스",
+        now,
+        now,
+      )
+      .run();
+
+    const campuses = await h.request("GET", "/api/data-core/campuses", users.admin);
+    assert.equal(campuses.response.status, 200);
+    assert.ok(
+      campuses.body.campuses.some((campus) => campus.id === "campus-issue-23-auto"),
+      "new campus rows should be returned without code changes",
+    );
+
+    const filteredFiles = await h.request(
+      "GET",
+      `/api/data-core/files?campusId=${CAMPUS_A}&category=student-artwork`,
+      users.a,
+    );
+    assert.equal(filteredFiles.response.status, 200);
+    assert.ok(filteredFiles.body.files.some((file) => file.id === "file-shared"));
+    assert.ok(filteredFiles.body.files.every((file) => file.campusId === CAMPUS_A));
+    assert.ok(filteredFiles.body.files.every((file) => file.category === "student-artwork"));
   } finally {
     await h.mf.dispose();
   }
