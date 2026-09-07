@@ -30,3 +30,6 @@ jobs:
 
       - name: Type check
         run: npx tsc --noEmit
+
+      - name: Check DATA CORE browser scripts
+        run: node --check public/data-core/app.js
