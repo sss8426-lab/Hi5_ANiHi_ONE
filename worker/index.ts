@@ -11,6 +11,12 @@ import {
   resolveDataCoreAccess,
 } from "./data-core-access";
 import {
+  deleteDataCoreMembership,
+  listDataCoreMemberships,
+  listDataCoreUsers,
+  upsertDataCoreMembership,
+} from "./data-core-admin";
+import {
   deleteDataCoreFile,
   listDataCoreFiles,
   readDataCoreFile,
@@ -315,6 +321,36 @@ async function handleDataCoreApi(request: Request, env: Env) {
     if (request.method === "DELETE") {
       return jsonResponse(await deleteDataCoreFile(env.DB, env.FILES, context, fileId));
     }
+  }
+
+  if (url.pathname === "/api/data-core/admin/users" && request.method === "GET") {
+    if (!env.DB) throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
+    return jsonResponse({ users: await listDataCoreUsers(env.DB, context) });
+  }
+
+  if (url.pathname === "/api/data-core/admin/memberships" && request.method === "GET") {
+    if (!env.DB) throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
+    return jsonResponse({ memberships: await listDataCoreMemberships(env.DB, context) });
+  }
+
+  if (url.pathname === "/api/data-core/admin/memberships" && request.method === "POST") {
+    if (!env.DB) throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
+    return jsonResponse(
+      { membership: await upsertDataCoreMembership(env.DB, context, await readJsonBody(request)) },
+      { status: 201 },
+    );
+  }
+
+  const membershipMatch = url.pathname.match(/^\/api\/data-core\/admin\/memberships\/([^/]+)$/);
+  if (membershipMatch && request.method === "DELETE") {
+    if (!env.DB) throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
+    return jsonResponse(
+      await deleteDataCoreMembership(
+        env.DB,
+        context,
+        decodeURIComponent(membershipMatch[1]),
+      ),
+    );
   }
 
   return null;
