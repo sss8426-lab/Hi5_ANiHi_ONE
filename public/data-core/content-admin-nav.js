@@ -1,4 +1,17 @@
 (() => {
+  function installKkumeumNavigation() {
+    const nav = document.querySelector('.sidebar .nav');
+    if (!nav || nav.querySelector('[data-kkumeum-nav]')) return;
+    const adminLink = nav.querySelector('[data-super-admin-nav]');
+    const link = document.createElement('a');
+    link.className = 'nav-item';
+    link.href = '/data-core/work/kkumeum.html';
+    link.dataset.kkumeumNav = 'true';
+    link.innerHTML = '<span class="nav-icon">↗</span><span>꿈이음</span>';
+    if (adminLink) nav.insertBefore(link, adminLink);
+    else nav.appendChild(link);
+  }
+
   async function syncAdminNavigation() {
     const adminLinks = Array.from(document.querySelectorAll('[data-super-admin-nav]'));
     if (!adminLinks.length) return;
@@ -151,6 +164,7 @@
     renderDraftPreview();
   }
 
+  installKkumeumNavigation();
   syncAdminNavigation();
   installContentDraftEnhancements();
 })();
