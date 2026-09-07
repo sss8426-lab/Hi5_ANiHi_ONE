@@ -210,6 +210,7 @@ function renderUser() {
     chip.querySelector('.avatar').textContent = '?';
     $('openUploadBtn').classList.add('hidden');
     $('openCompetitionBtn').classList.add('hidden');
+    $('logoutBtn').classList.add('hidden');
     if (state.currentMode === 'work') showNotice('업무용 DATA CORE를 사용하려면 로그인해야 합니다.');
     else if (state.currentView === 'competitions') showNotice('공개 상담 화면은 열 수 있지만, 내부 대회 데이터 조회는 로그인 후 가능합니다.');
     else showNotice('');
@@ -236,6 +237,7 @@ function renderUser() {
   $('adminNav').classList.toggle('hidden', !context.isSuperAdmin);
   $('openUploadBtn').classList.toggle('hidden', !context.canWrite);
   $('openCompetitionBtn').classList.toggle('hidden', !context.canWrite);
+  $('logoutBtn').classList.toggle('hidden', !context.user?.internalUserId?.startsWith('local:'));
   updateSidebar();
 }
 
@@ -890,6 +892,15 @@ function bindEvents() {
   $('refreshMembershipsBtn').onclick = loadMemberships;
   $('memberRole').onchange = () => {
     $('memberCampus').disabled = $('memberRole').value === 'SUPER_ADMIN';
+  };
+  $('logoutBtn').onclick = async () => {
+    try {
+      const response = await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+      if (!response.ok) throw new Error('로그아웃에 실패했습니다.');
+      location.assign('/data-core/counseling');
+    } catch (error) {
+      toast(error.message, 'error');
+    }
   };
 
   document.querySelectorAll('[data-close-modal]').forEach((button) => {
