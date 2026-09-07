@@ -31,11 +31,11 @@
           <span class="nav-icon">▧</span>
           <span>인스타 자동화</span>
         </a>
-        <a class="nav-item" href="/data-core/operations">
+        <a class="nav-item hidden" href="/data-core/operations" data-super-admin-nav>
           <span class="nav-icon">↺</span>
           <span>운영관리</span>
         </a>
-        <a class="nav-item" href="/data-core/accounts">
+        <a class="nav-item hidden" href="/data-core/accounts" data-super-admin-nav>
           <span class="nav-icon">⚙</span>
           <span>계정관리</span>
         </a>
@@ -74,7 +74,7 @@
         <div class="hero-row content-hero">
           <div>
             <h2 id="contentHeroTitle">블로그 자동화</h2>
-            <p>DATA CORE 파일을 선택하고, 블로그 글이나 인스타 캡션 초안을 중앙 레코드로 저장합니다.</p>
+            <p>캠퍼스와 주제를 정하고 DATA CORE 원본을 연결해 콘텐츠 초안을 한 화면에서 정리합니다.</p>
           </div>
           <div class="source-tabs" role="tablist" aria-label="콘텐츠 종류">
             <button class="source-tab active" data-source-tab="blog" type="button">블로그</button>
@@ -112,15 +112,15 @@
                 <input id="draftTitle" required placeholder="내부에서 찾기 쉬운 제목">
               </label>
               <label>
-                <span>요약</span>
-                <input id="draftSummary" placeholder="목록과 검색에 보일 짧은 설명">
+                <span>주제·핵심 메시지</span>
+                <input id="draftSummary" placeholder="이 글에서 꼭 전달할 핵심 내용을 짧게 적으세요">
               </label>
               <label>
                 <span id="contentLabel">본문</span>
                 <textarea id="draftContent" rows="12" placeholder="초안 내용을 적어두세요."></textarea>
               </label>
               <label>
-                <span>태그</span>
+                <span>키워드·해시태그</span>
                 <input id="draftTags" placeholder="웹툰, 고2, 상황표현 처럼 쉼표로 구분">
               </label>
               <label>
@@ -141,7 +141,7 @@
 
               <div class="selected-files">
                 <div class="selected-files-head">
-                  <strong>연결된 DATA CORE 파일</strong>
+                  <strong>연결된 DATA CORE 원본</strong>
                   <button class="ghost-btn" id="clearFilesBtn" type="button">비우기</button>
                 </div>
                 <div id="selectedFiles" class="selected-file-list"></div>
@@ -157,8 +157,8 @@
           <section class="panel file-picker-panel">
             <div class="panel-head">
               <div>
-                <h3>DATA CORE 파일 선택</h3>
-                <p>원본 파일은 복사하지 않고 fileId만 연결합니다.</p>
+                <h3>DATA CORE 원본 선택</h3>
+                <p>파일을 복제하지 않고 기존 fileId를 그대로 연결합니다.</p>
               </div>
             </div>
             <div class="filters content-filters">
@@ -170,12 +170,15 @@
                 <span>분류</span>
                 <select id="fileCategoryFilter">
                   <option value="">전체 분류</option>
-                  <option value="student-artwork">학생작품</option>
                   <option value="class-photo">수업사진</option>
+                  <option value="student-artwork">학생그림</option>
                   <option value="academy-photo">학원사진</option>
-                  <option value="research-work">연구작</option>
-                  <option value="award-work">수상작</option>
-                  <option value="admission-guide">입시요강</option>
+                  <option value="competition-material">공모전·실기대회</option>
+                  <option value="admission-material">입시자료</option>
+                  <option value="counseling-material">상담자료</option>
+                  <option value="blog-source">블로그소스</option>
+                  <option value="instagram-source">인스타소스</option>
+                  <option value="promotion-material">홍보자료</option>
                 </select>
               </label>
               <label class="search-field">
@@ -214,6 +217,7 @@
   </div>
 
   <div class="toast hidden" id="toast"></div>
-  <script src="/data-core/content.js"></script>
+  <script src="/data-core/content.js?v=20260908-work-v1"></script>
+  <script src="/data-core/content-admin-nav.js?v=20260908-work-v1"></script>
 </body>
 </html>
