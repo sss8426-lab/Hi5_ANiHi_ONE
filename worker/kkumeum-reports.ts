@@ -11,6 +11,7 @@ import {
   normalizeKkumeumGrowthSkillCodes,
 } from "./kkumeum-growth-skills";
 import { ensureKkumeumPhase2Schema } from "./kkumeum-phase2-schema";
+import { ensureKkumeumAnnouncementSchema } from "./kkumeum-announcements";
 
 export type MonthlyReportInput = {
   campusId?: unknown;
@@ -105,6 +106,11 @@ function parseStoredGrowthSkillCodes(value: unknown, taxonomyVersion: unknown): 
   }
 }
 
+function validReadAt(value: unknown): string | null {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(value)) return null;
+  return Number.isNaN(Date.parse(value)) ? null : value;
+}
+
 function reportResponse(row: Record<string, unknown>) {
   const growthSkillTaxonomyVersion = typeof row.growth_skill_taxonomy_version === "string"
     ? row.growth_skill_taxonomy_version
@@ -113,6 +119,8 @@ function reportResponse(row: Record<string, unknown>) {
     row.growth_skill_codes_json,
     growthSkillTaxonomyVersion,
   );
+  const sent = row.status === "sent";
+  const guardianFirstReadAt = sent ? validReadAt(row.guardian_first_read_at) : null;
   return {
     id: row.id,
     studentId: row.student_id,
@@ -132,10 +140,32 @@ function reportResponse(row: Record<string, unknown>) {
     nextMonthFocus: row.next_month_focus || "",
     status: row.status,
     sentAt: row.sent_at || null,
+    guardianConfirmed: Boolean(sent && guardianFirstReadAt && Number(row.guardian_confirmed) === 1),
+    guardianFirstReadAt,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
 }
+
+const guardianConfirmationColumns = `
+  CASE WHEN mr.status = 'sent' AND EXISTS (
+    SELECT 1 FROM read_receipts rr
+    INNER JOIN student_guardians sg
+      ON sg.guardian_id = rr.guardian_id
+     AND sg.student_id = mr.student_id
+    WHERE rr.resource_type = 'monthly_report'
+      AND rr.resource_id = mr.id
+      AND julianday(rr.read_at) IS NOT NULL
+  ) THEN 1 ELSE 0 END AS guardian_confirmed,
+  CASE WHEN mr.status = 'sent' THEN (
+    SELECT MIN(rr.read_at) FROM read_receipts rr
+    INNER JOIN student_guardians sg
+      ON sg.guardian_id = rr.guardian_id
+     AND sg.student_id = mr.student_id
+    WHERE rr.resource_type = 'monthly_report'
+      AND rr.resource_id = mr.id
+      AND julianday(rr.read_at) IS NOT NULL
+  ) ELSE NULL END AS guardian_first_read_at`;
 
 async function audit(
   familyDb: D1Database,
@@ -185,8 +215,9 @@ async function reportRowById(
   reportId: string,
 ) {
   await ensureKkumeumPhase2Schema(familyDb);
+  await ensureKkumeumAnnouncementSchema(familyDb);
   const row = await familyDb
-    .prepare("SELECT * FROM monthly_reports WHERE id = ?")
+    .prepare(`SELECT mr.*, ${guardianConfirmationColumns} FROM monthly_reports mr WHERE mr.id = ?`)
     .bind(reportId)
     .first<Record<string, unknown>>();
   if (!row) throw new DataCoreAccessError(404, "월간 평가를 찾을 수 없습니다.");
@@ -221,6 +252,7 @@ export async function createMonthlyReport(
   requireAuthenticatedAccess(context);
   if (!context.user) throw new DataCoreAccessError(401, "로그인이 필요합니다.");
   await ensureKkumeumPhase2Schema(familyDb);
+  await ensureKkumeumAnnouncementSchema(familyDb);
   const campusId = requiredText(input.campusId, "campusId");
   const studentId = requiredText(input.studentId, "studentId");
   const yearMonth = normalizeYearMonth(input.yearMonth);
@@ -283,9 +315,9 @@ export async function listMonthlyReports(
   await requireStudentRow(familyDb, context, campusId, studentId);
   const result = await familyDb
     .prepare(
-      `SELECT * FROM monthly_reports
-       WHERE campus_id = ? AND student_id = ?
-       ORDER BY year_month DESC, created_at DESC
+      `SELECT mr.*, ${guardianConfirmationColumns} FROM monthly_reports mr
+       WHERE mr.campus_id = ? AND mr.student_id = ?
+       ORDER BY mr.year_month DESC, mr.created_at DESC
        LIMIT 48`,
     )
     .bind(campusId, studentId)
