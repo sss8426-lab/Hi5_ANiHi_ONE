@@ -21,6 +21,20 @@ type ConsentRow = {
   updated_at: string;
 };
 
+type ConsentPolicyRow = {
+  consent_type: string | null;
+  required_version: string | null;
+  enforcement_enabled: number;
+  updated_at: string | null;
+};
+
+export type KkumeumConsentPolicy = {
+  consentType: string | null;
+  requiredVersion: string | null;
+  enforcementEnabled: boolean;
+  updatedAt: string | null;
+};
+
 function text(value: unknown, maximum = 120): string {
   return String(value ?? "").trim().slice(0, maximum);
 }
@@ -41,6 +55,24 @@ function version(value: unknown): string {
   return normalized;
 }
 
+function optionalIdentifier(value: unknown, field: string): string | null {
+  const normalized = text(value, 80);
+  if (!normalized) return null;
+  if (!IDENTIFIER_PATTERN.test(normalized)) {
+    throw new DataCoreAccessError(400, `${field} 형식이 올바르지 않습니다.`);
+  }
+  return normalized;
+}
+
+function optionalVersion(value: unknown): string | null {
+  const normalized = text(value, 40);
+  if (!normalized) return null;
+  if (!VERSION_PATTERN.test(normalized)) {
+    throw new DataCoreAccessError(400, "동의 문서 버전 형식이 올바르지 않습니다.");
+  }
+  return normalized;
+}
+
 function requireManager(context: DataCoreAccessContext, campusId: string): void {
   requireAuthenticatedAccess(context);
   if (context.isSuperAdmin) return;
@@ -48,6 +80,13 @@ function requireManager(context: DataCoreAccessContext, campusId: string): void 
     membership.campusId === campusId && membership.role === "CAMPUS_DIRECTOR"
   ))) return;
   throw new DataCoreAccessError(403, "동의 기록은 최고관리자 또는 해당 캠퍼스 원장만 관리할 수 있습니다.");
+}
+
+function requirePolicyReader(context: DataCoreAccessContext): void {
+  requireAuthenticatedAccess(context);
+  if (context.isSuperAdmin) return;
+  if (context.memberships.some((membership) => membership.role === "CAMPUS_DIRECTOR")) return;
+  throw new DataCoreAccessError(403, "동의 정책은 최고관리자 또는 캠퍼스 원장만 확인할 수 있습니다.");
 }
 
 export async function ensureKkumeumConsentSchema(familyDb: D1Database): Promise<void> {
@@ -78,6 +117,14 @@ export async function ensureKkumeumConsentSchema(familyDb: D1Database): Promise<
        ON consents(student_id, guardian_id, consent_type, version)
        WHERE revoked_at IS NULL`,
     ),
+    familyDb.prepare(`CREATE TABLE IF NOT EXISTS family_consent_policy (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      consent_type TEXT,
+      required_version TEXT,
+      enforcement_enabled INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL,
+      updated_by_user_id TEXT
+    )`),
   ]);
 }
 
@@ -111,13 +158,22 @@ function response(row: ConsentRow) {
   };
 }
 
+function policyResponse(row: ConsentPolicyRow | null): KkumeumConsentPolicy {
+  return {
+    consentType: row?.consent_type || null,
+    requiredVersion: row?.required_version || null,
+    enforcementEnabled: Boolean(row?.enforcement_enabled),
+    updatedAt: row?.updated_at || null,
+  };
+}
+
 async function audit(
   familyDb: D1Database,
   context: DataCoreAccessContext,
-  campusId: string,
-  action: "consent.grant" | "consent.revoke",
+  campusId: string | null,
+  action: "consent.grant" | "consent.revoke" | "consent.policy.upsert",
   consentId: string,
-  metadata: { studentId: string; guardianId: string; consentType: string; version: string; source: string },
+  metadata: Record<string, unknown>,
 ): Promise<void> {
   await familyDb.prepare(
     `INSERT INTO family_audit_logs (
@@ -133,6 +189,82 @@ async function audit(
     JSON.stringify(metadata),
     new Date().toISOString(),
   ).run();
+}
+
+export async function getKkumeumConsentPolicy(
+  familyDb: D1Database,
+  context: DataCoreAccessContext,
+): Promise<KkumeumConsentPolicy> {
+  requirePolicyReader(context);
+  await ensureKkumeumConsentSchema(familyDb);
+  const row = await familyDb.prepare(
+    "SELECT consent_type, required_version, enforcement_enabled, updated_at FROM family_consent_policy WHERE id = 1",
+  ).first<ConsentPolicyRow>();
+  return policyResponse(row || null);
+}
+
+export async function updateKkumeumConsentPolicy(
+  familyDb: D1Database,
+  context: DataCoreAccessContext,
+  input: Record<string, unknown>,
+): Promise<KkumeumConsentPolicy> {
+  requireAuthenticatedAccess(context);
+  if (!context.isSuperAdmin) throw new DataCoreAccessError(403, "동의 정책은 최고관리자만 변경할 수 있습니다.");
+  const enforcementEnabled = input.enforcementEnabled === true;
+  const consentType = optionalIdentifier(input.consentType, "consentType");
+  const requiredVersion = optionalVersion(input.requiredVersion);
+  if (enforcementEnabled && (!consentType || !requiredVersion)) {
+    throw new DataCoreAccessError(400, "동의 강제를 켜려면 승인된 consentType과 requiredVersion이 모두 필요합니다.");
+  }
+  await ensureKkumeumConsentSchema(familyDb);
+  const now = new Date().toISOString();
+  await familyDb.prepare(`INSERT INTO family_consent_policy (
+    id, consent_type, required_version, enforcement_enabled, updated_at, updated_by_user_id
+  ) VALUES (1, ?, ?, ?, ?, ?)
+  ON CONFLICT(id) DO UPDATE SET
+    consent_type = excluded.consent_type,
+    required_version = excluded.required_version,
+    enforcement_enabled = excluded.enforcement_enabled,
+    updated_at = excluded.updated_at,
+    updated_by_user_id = excluded.updated_by_user_id`).bind(
+    consentType,
+    requiredVersion,
+    enforcementEnabled ? 1 : 0,
+    now,
+    context.user?.internalUserId || null,
+  ).run();
+  await audit(familyDb, context, null, "consent.policy.upsert", "global", {
+    consentType,
+    requiredVersion,
+    enforcementEnabled,
+  });
+  const row = await familyDb.prepare(
+    "SELECT consent_type, required_version, enforcement_enabled, updated_at FROM family_consent_policy WHERE id = 1",
+  ).first<ConsentPolicyRow>();
+  return policyResponse(row || null);
+}
+
+export async function requireKkumeumGuardianConsentPolicy(
+  familyDb: D1Database,
+  studentId: string,
+  guardianId: string,
+): Promise<void> {
+  await ensureKkumeumConsentSchema(familyDb);
+  const row = await familyDb.prepare(
+    "SELECT consent_type, required_version, enforcement_enabled, updated_at FROM family_consent_policy WHERE id = 1",
+  ).first<ConsentPolicyRow>();
+  const policy = policyResponse(row || null);
+  if (!policy.enforcementEnabled) return;
+  if (!policy.consentType || !policy.requiredVersion) {
+    throw new DataCoreAccessError(503, "보호자 동의 정책 설정을 확인할 수 없습니다.");
+  }
+  await requireActiveKkumeumConsent(
+    familyDb,
+    studentId,
+    guardianId,
+    policy.consentType,
+    policy.requiredVersion,
+  );
 }
 
 export async function listKkumeumConsents(

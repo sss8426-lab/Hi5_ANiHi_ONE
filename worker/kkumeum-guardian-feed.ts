@@ -4,6 +4,7 @@ import {
   kkumeumGuardianSessionIdentity,
   type KkumeumGuardianIdentity,
 } from "./kkumeum-guardian-auth";
+import { requireKkumeumGuardianConsentPolicy } from "./kkumeum-consents";
 import { ensureKkumeumPhase2Schema } from "./kkumeum-phase2-schema";
 
 type GuardianChildLink = {
@@ -129,6 +130,7 @@ export async function listGuardianChildReports(
   if (!link.can_view_reports) {
     throw new DataCoreAccessError(403, "이 학생의 성장평가를 볼 권한이 없습니다.");
   }
+  await requireKkumeumGuardianConsentPolicy(familyDb, studentId, guardian.guardianId);
   const result = await familyDb.prepare(
     `SELECT id, year_month, title, summary, evaluation_text,
             growth_points_json, next_month_focus, sent_at
@@ -168,6 +170,7 @@ export async function listGuardianChildArtworks(
   if (!link.can_view_photos) {
     throw new DataCoreAccessError(403, "이 학생의 작품사진을 볼 권한이 없습니다.");
   }
+  await requireKkumeumGuardianConsentPolicy(familyDb, studentId, guardian.guardianId);
   const result = await familyDb.prepare(
     `SELECT a.id, a.title, a.lesson_date, a.sort_order,
             f.id AS file_id, f.mime_type
@@ -204,7 +207,7 @@ export async function readGuardianFamilyFile(
   const guardian = await requireGuardian(familyDb, request);
   await ensureKkumeumPhase2Schema(familyDb);
   const row = await familyDb.prepare(
-    `SELECT f.r2_key, f.file_name, f.mime_type
+    `SELECT f.r2_key, f.file_name, f.mime_type, f.student_id
      FROM family_files f
      INNER JOIN student_guardians sg
        ON sg.student_id = f.student_id
@@ -218,10 +221,12 @@ export async function readGuardianFamilyFile(
     r2_key: string;
     file_name: string;
     mime_type: string;
+    student_id: string;
   }>();
   if (!row) {
     throw new DataCoreAccessError(403, "이 파일을 볼 권한이 없습니다.");
   }
+  await requireKkumeumGuardianConsentPolicy(familyDb, row.student_id, guardian.guardianId);
   const object = await familyFiles.get(row.r2_key);
   if (!object) throw new DataCoreAccessError(404, "꿈이음 원본 파일을 찾을 수 없습니다.");
   const headers = new Headers({
