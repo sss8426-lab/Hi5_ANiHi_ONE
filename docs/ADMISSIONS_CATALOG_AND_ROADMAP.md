@@ -152,3 +152,10 @@ not displayed; the UI reports only the HTTP status and a retry message.
 The indexed implementation passed npm ci/build/typecheck/browser syntax,
 all 183 behavior tests, 89 admissions browser checks (including a synthetic
 HTML gateway failure that must not expose its body), and Wrangler dry-run.
+
+The indexed production preview succeeded (2643 susi + 1183 jungsi); one batch
+was saved before a later invocation still exceeded CPU. Replace thousands of
+per-row asynchronous WebCrypto digests and JS byte-to-hex conversions with
+native synchronous node:crypto SHA256 under the existing nodejs_compat flag.
+No algorithm/input/ID/fingerprint changes: a workerd test proves byte-identical
+digests, allowing the partial import to resume without duplicate records.

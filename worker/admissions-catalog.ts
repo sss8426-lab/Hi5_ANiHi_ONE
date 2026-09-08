@@ -1,4 +1,5 @@
 import { DEFAULT_ORGANIZATION_ID } from './data-core';
+import { createHash } from 'node:crypto';
 import { DataCoreAccessError, requireAuthenticatedAccess, resolveDataCoreAccess } from './data-core-access';
 import { readAdmissionsState } from './data-core-admissions-knowledge-sync';
 import { careerMajorKeywords, decodePublicGuidelines, guidelineIdentity, indexUniversities, matchUniversity, matchesCareer, preserveKnownValues, projectUniversity, projectGuideline, selectGuidelines } from '../public/data-core/admissions-model.js';
@@ -11,7 +12,7 @@ const sourceUrls = {
 };
 const MAX_SOURCE_BYTES = 8 * 1024 * 1024;
 const privateJson = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'content-type':'application/json; charset=utf-8', 'cache-control':'private, no-store' } });
-const digest = async (value: unknown) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(value))))).map((v) => v.toString(16).padStart(2,'0')).join('');
+const digest = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 
 async function universities(db: D1Database, files?: R2Bucket): Promise<Row[]> {
   const state = await readAdmissionsState(db, files);
@@ -58,11 +59,11 @@ async function plan(db: D1Database, files?: R2Bucket, stage: (name: string) => v
   for (const [identity,r] of identities) {
     const mapping = matchUniversity(r,schools);
     const data: Row = {...r,...mapping};
-    data.sourceFingerprint = await digest(fingerprintFields(data));
-    rows.push({id:`admission-guideline:${await digest(identity)}`, data, review:conflicts.has(identity)});
+    data.sourceFingerprint = digest(fingerprintFields(data));
+    rows.push({id:`admission-guideline:${digest(identity)}`, data, review:conflicts.has(identity)});
   }
   rows.sort((a,b)=>a.id.localeCompare(b.id));
-  const token = await digest(rows.map((r)=>[r.id,r.data.sourceFingerprint,r.review]));
+  const token = digest(rows.map((r)=>[r.id,r.data.sourceFingerprint,r.review]));
   stage('read-catalog');
   const saved = new Map((await savedRows(db)).map((r)=>[r.id,r]));
   const counts: Record<string, Record<string,number>> = {susi:{new:0,changed:0,unchanged:0,review:0,mappingReview:0},jungsi:{new:0,changed:0,unchanged:0,review:0,mappingReview:0}};

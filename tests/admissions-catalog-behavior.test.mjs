@@ -34,6 +34,12 @@ test('every occupation has its own existing optimized WebP asset',()=>{
   }
   assert.equal(hashes.size,35);
 });
+
+test('edge-native synchronous SHA256 preserves existing WebCrypto identities and fingerprints',async()=>{
+  const source=fs.readFileSync('worker/admissions-catalog.ts','utf8');assert.match(source,/createHash\('sha256'\)/);assert.doesNotMatch(source,/await digest/);
+  const mf=new Miniflare({modules:true,compatibilityDate:'2026-05-15',compatibilityFlags:['nodejs_compat'],script:`import {createHash} from 'node:crypto'; export default {async fetch(){const value=JSON.stringify({university:'합성대',department:'웹툰',year:2027,quota:0});const old=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))).map(v=>v.toString(16).padStart(2,'0')).join('');return Response.json({identical:old===createHash('sha256').update(value).digest('hex')});}}`});
+  try{assert.deepEqual(await(await mf.dispatchFetch('http://localhost')).json(),{identical:true});}finally{await mf.dispose();}
+});
 test('all catalog careers have unique complete image concepts and conservative department match rules',()=>{
   const ctx={window:{}};vm.runInNewContext(fs.readFileSync('public/data-core/roadmap-content.js','utf8'),ctx);
   assert.equal(occupationImageConcepts.length,35);
