@@ -20,6 +20,10 @@ import {
   type CompetitionResultInput,
 } from "./data-core-competitions";
 import {
+  importCompetitionSource,
+  previewCompetitionSource,
+} from "./data-core-competition-sources";
+import {
   createContentDraft,
   deleteContentDraft,
   getContentDraft,
@@ -385,6 +389,19 @@ async function handleCompetitionApi(request: Request, env: Env) {
   return jsonResponse({ error: "지원하지 않는 공모전 API 요청입니다." }, { status: 405 });
 }
 
+async function handleCompetitionSourceApi(request: Request, env: Env) {
+  const url = new URL(request.url);
+  const match = url.pathname.match(/^\/api\/data-core\/competition-sources\/(artmd|mgood)\/(preview|import)$/);
+  if (!match) return null;
+  if (!env.DB) throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
+  if (request.method !== "POST") return jsonResponse({ error: "지원하지 않는 외부 소식 요청입니다." }, { status: 405 });
+  const context = await resolveDataCoreAccess(request, env.DB, env.DATA_CORE_SUPER_ADMIN_EMAILS);
+  const body = match[2] === "preview"
+    ? await previewCompetitionSource(env.DB, context, match[1])
+    : await importCompetitionSource(request, env.DB, context, match[1]);
+  return jsonResponse(body, { headers: { "cache-control": "private, no-store" } });
+}
+
 async function handleContentApi(request: Request, env: Env) {
   const url = new URL(request.url);
   if (!url.pathname.startsWith("/api/data-core/content")) return null;
@@ -549,6 +566,9 @@ const worker = {
 
       const competitionResponse = await handleCompetitionApi(request, env);
       if (competitionResponse) return competitionResponse;
+
+      const competitionSourceResponse = await handleCompetitionSourceApi(request, env);
+      if (competitionSourceResponse) return competitionSourceResponse;
 
       const contentResponse = await handleContentApi(request, env);
       if (contentResponse) return contentResponse;

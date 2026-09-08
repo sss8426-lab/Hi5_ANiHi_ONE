@@ -844,3 +844,87 @@ test("academy calendar shares validated events while enforcing campus ownership 
     await h.mf.dispose();
   }
 });
+
+test("competition source preview and import keep raw HTML out while preserving safe provenance", async () => {
+  const h = await createHarness();
+  const originalFetch = globalThis.fetch;
+  const artmdHtml = `
+    <a href="/contest/view.php?idx=synthetic-01">Synthetic Art Contest</a>
+    <span>2026.10.01 ~ 2026.10.31</span>`;
+  const mgoodHtml = `
+    <a href="/competition/view?id=synthetic-02">Synthetic Art Contest</a>
+    <span>2026.10.01 ~ 2026.10.31</span>`;
+  try {
+    globalThis.fetch = async (url) => new Response(String(url).includes("mgood") ? mgoodHtml : artmdHtml, {
+      headers: { "content-type": "text/html" },
+    });
+    const origin = { origin: "http://localhost" };
+    const unauthenticated = await h.request("POST", "/api/data-core/competition-sources/artmd/preview");
+    assert.equal(unauthenticated.response.status, 401);
+
+    const preview = await h.request("POST", "/api/data-core/competition-sources/artmd/preview", users.admin, undefined, origin);
+    assert.equal(preview.response.status, 200, JSON.stringify(preview.body));
+    assert.equal(preview.response.headers.get("cache-control"), "private, no-store");
+    assert.equal(preview.body.items.length, 1);
+    assert.equal(preview.body.items[0].importStatus, "new");
+    assert.ok(preview.body.items[0].sourceUrl.includes("synthetic-01"));
+    assert.equal(JSON.stringify(preview.body).includes("<a href"), false);
+
+    const crossOrigin = await h.request("POST", "/api/data-core/competition-sources/artmd/import", users.admin, undefined, { origin: "https://attacker.example" });
+    assert.equal(crossOrigin.response.status, 403);
+
+    const imported = await h.request("POST", "/api/data-core/competition-sources/artmd/import", users.admin, undefined, origin);
+    assert.equal(imported.response.status, 200, JSON.stringify(imported.body));
+    assert.equal(imported.body.summary.created, 1);
+
+    const repeated = await h.request("POST", "/api/data-core/competition-sources/artmd/import", users.admin, undefined, origin);
+    assert.equal(repeated.response.status, 200, JSON.stringify(repeated.body));
+    assert.equal(repeated.body.summary.unchanged, 1);
+
+    const merged = await h.request("POST", "/api/data-core/competition-sources/mgood/import", users.admin, undefined, origin);
+    assert.equal(merged.response.status, 200, JSON.stringify(merged.body));
+    assert.equal(merged.body.summary.updated, 1);
+    const competitions = await h.request("GET", "/api/data-core/competitions?limit=10", users.admin);
+    assert.equal(competitions.response.status, 200);
+    assert.equal(competitions.body.competitions.length, 1);
+    assert.equal(competitions.body.competitions[0].metadata.sources.length, 2);
+    assert.equal(JSON.stringify(competitions.body.competitions[0]).includes("<a href"), false);
+  } finally {
+    globalThis.fetch = originalFetch;
+    await h.mf.dispose();
+  }
+});
+
+test("competition source failures and ambiguous matches never replace existing DATA CORE records", async () => {
+  const h = await createHarness();
+  const originalFetch = globalThis.fetch;
+  const origin = { origin: "http://localhost" };
+  const html = `<a href="/contest/view.php?idx=ambiguous">Ambiguous Contest</a><span>2026.11.01 ~ 2026.11.30</span>`;
+  try {
+    for (const suffix of ["one", "two"]) {
+      const created = await h.request("POST", "/api/data-core/competitions", users.admin, {
+        title: "Ambiguous Contest",
+        visibility: "organization",
+        applicationStart: "2026-11-01",
+        applicationEnd: "2026-11-30",
+        organizer: `Synthetic ${suffix}`,
+      });
+      assert.equal(created.response.status, 201, JSON.stringify(created.body));
+    }
+    globalThis.fetch = async () => new Response(html, { headers: { "content-type": "text/html" } });
+    const ambiguous = await h.request("POST", "/api/data-core/competition-sources/artmd/import", users.admin, undefined, origin);
+    assert.equal(ambiguous.response.status, 200, JSON.stringify(ambiguous.body));
+    assert.equal(ambiguous.body.summary.ambiguous, 1);
+    const beforeFailure = await h.request("GET", "/api/data-core/competitions?limit=10", users.admin);
+    assert.equal(beforeFailure.body.competitions.length, 2);
+
+    globalThis.fetch = async () => { throw new Error("synthetic timeout"); };
+    const failedPreview = await h.request("POST", "/api/data-core/competition-sources/artmd/preview", users.admin, undefined, origin);
+    assert.equal(failedPreview.response.status, 502);
+    const afterFailure = await h.request("GET", "/api/data-core/competitions?limit=10", users.admin);
+    assert.equal(afterFailure.body.competitions.length, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+    await h.mf.dispose();
+  }
+});

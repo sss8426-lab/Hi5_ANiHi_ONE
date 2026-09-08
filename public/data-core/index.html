@@ -315,7 +315,7 @@
           </div>
           <button class="primary-btn" id="openCompetitionBtn">+ 대회 등록</button>
         </div>
-        <div class="competition-workspace">
+        <div class="competition-workspace" id="competitionWorkspace">
           <aside class="panel award-library">
             <div class="panel-head">
               <div>
@@ -338,42 +338,20 @@
             </div>
             <div class="award-library-grid" id="awardLibraryFiles"></div>
           </aside>
-          <section class="panel competition-news">
+          <button class="competition-news-reopen hidden" id="showCompetitionNewsBtn" type="button">소식 보기</button>
+          <section class="panel competition-news" id="competitionNewsPanel">
             <div class="panel-head">
-              <div><h3>공모전·실기대회 소식</h3><p>등록된 일정과 공식 원문·요강 링크만 표시합니다.</p></div>
+              <div><h3>외부 공모전 소식</h3><p>공개 원천의 사실 정보와 원문 링크만 미리봅니다.</p></div>
+              <button class="icon-btn" id="hideCompetitionNewsBtn" type="button" title="소식 접기" aria-label="소식 접기">×</button>
             </div>
-            <div class="competition-filter-stack">
-              <label>
-                <span>대회 검색</span>
-                <input id="competitionSearchInput" placeholder="대회명, 대학, 전공 검색">
-              </label>
-              <div class="mini-filter-grid">
-                <label>
-                  <span>상태</span>
-                  <select id="competitionStatusFilter">
-                    <option value="">전체</option>
-                    <option value="upcoming">접수 예정</option>
-                    <option value="open">접수 중</option>
-                    <option value="closed">접수 마감</option>
-                    <option value="result-announced">결과 발표</option>
-                    <option value="unknown">일정 확인 필요</option>
-                  </select>
-                </label>
-                <label>
-                  <span>학년</span>
-                  <input id="competitionGradeFilter" placeholder="고2">
-                </label>
-                <label>
-                  <span>전공</span>
-                  <input id="competitionMajorFilter" placeholder="웹툰">
-                </label>
-                <label>
-                  <span>실기유형</span>
-                  <input id="competitionPracticalFilter" placeholder="상황표현">
-                </label>
-              </div>
-              <button class="secondary-btn" id="competitionSearchBtn">검색</button>
+            <div class="competition-source-actions">
+              <button class="secondary-btn" data-competition-source="artmd" type="button">미대입시 불러오기</button>
+              <button class="secondary-btn" data-competition-source="mgood" type="button">엠굿 불러오기</button>
+              <button class="ghost-btn" id="refreshCompetitionSourcesBtn" type="button">전체 새로고침</button>
             </div>
+            <div class="competition-source-status" id="competitionSourceStatus">출처를 선택해 공개 소식을 확인하세요.</div>
+            <div class="competition-source-list" id="competitionSourceList"></div>
+            <div class="competition-core-head"><h4>DATA CORE 대회 목록</h4><span>기존 수동 입력 데이터</span></div>
             <div class="competition-list" id="competitionList"></div>
             <section class="competition-detail" id="competitionDetail"></section>
           </section>

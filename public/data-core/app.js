@@ -33,6 +33,8 @@ const state = {
   competitionResults: [],
   competitionFiles: [],
   selectedCompetitionId: null,
+  competitionSourcePreviews: {},
+  competitionNewsOpen: true,
   awardFolders: [],
   awardFiles: [],
   selectedAwardFolderId: null,
@@ -535,31 +537,80 @@ function arrayIncludes(list, query) {
 }
 
 function filteredCompetitions() {
-  const q = $('competitionSearchInput')?.value.trim().toLowerCase() || '';
-  const status = $('competitionStatusFilter')?.value || '';
-  const grade = $('competitionGradeFilter')?.value || '';
-  const major = $('competitionMajorFilter')?.value || '';
-  const practical = $('competitionPracticalFilter')?.value || '';
-  return state.competitions.filter((competition) => {
-    const meta = competitionMetadata(competition);
-    const text = [
-      competition.title,
-      competition.summary,
-      meta.organizer,
-      meta.hostSchool,
-      meta.applicationMethod,
-      meta.sourceUrl,
-      meta.guideUrl,
-      ...(Array.isArray(meta.majors) ? meta.majors : []),
-      ...(Array.isArray(meta.practicalTypes) ? meta.practicalTypes : []),
-      ...(Array.isArray(meta.targetGrades) ? meta.targetGrades : []),
-    ].join(' ').toLowerCase();
-    return (!q || text.includes(q))
-      && (!status || competition.competitionStatus === status)
-      && arrayIncludes(meta.targetGrades, grade)
-      && arrayIncludes(meta.majors, major)
-      && arrayIncludes(meta.practicalTypes, practical);
+  return state.competitions;
+}
+
+function sourceLabel(source) {
+  return source === 'artmd' ? '미대입시' : '엠굿';
+}
+
+function renderCompetitionSourcePreviews() {
+  const list = $('competitionSourceList');
+  const previews = Object.values(state.competitionSourcePreviews);
+  if (!previews.length) {
+    list.innerHTML = '<div class="empty-state compact">외부 소식은 아직 불러오지 않았습니다.</div>';
+    return;
+  }
+  const items = previews.flatMap((preview) => preview.items || []);
+  const importButtons = state.context?.isSuperAdmin ? previews.map((preview) => (
+    `<button class="primary-btn source-import-btn" data-competition-source-import="${h(preview.source)}" type="button">${h(preview.sourceName || sourceLabel(preview.source))} 안전 반영</button>`
+  )).join('') : '';
+  list.innerHTML = (items.length ? items.map((item) => {
+    const dates = [item.applicationStart, item.applicationEnd].filter(Boolean).join(' ~ ');
+    const status = ({ new: '새 항목', matched: '기존 항목과 연결', same: '이미 반영됨', ambiguous: '검토 필요' })[item.importStatus] || '검토 필요';
+    return `<article class="competition-source-card">
+      <div class="source-card-head"><span class="source-badge ${h(item.source)}">${h(item.sourceName || sourceLabel(item.source))}</span><span class="source-import-status ${h(item.importStatus)}">${h(status)}</span></div>
+      <strong>${h(item.title)}</strong>
+      <small>${h(item.organizer || item.hostSchool || '주최·대학 확인 필요')}</small>
+      <span>${dates ? `접수 ${h(dates)}` : '접수기간 확인 필요'} · ${h(applicationDday(item.applicationEnd))}</span>
+      <a class="ghost-btn" href="${h(item.sourceUrl)}" target="_blank" rel="noopener">원문 보기</a>
+    </article>`;
+  }).join('') : '<div class="empty-state compact">추출 가능한 공개 사실정보가 없습니다. 출처 연결을 확인해 주세요.</div>') + importButtons;
+  document.querySelectorAll('[data-competition-source-import]').forEach((button) => {
+    button.onclick = () => importCompetitionSource(button.dataset.competitionSource);
   });
+}
+
+function setCompetitionNewsOpen(open) {
+  state.competitionNewsOpen = open;
+  $('competitionWorkspace').classList.toggle('news-closed', !open);
+  $('competitionNewsPanel').classList.toggle('hidden', !open);
+  $('showCompetitionNewsBtn').classList.toggle('hidden', open);
+}
+
+async function previewCompetitionSource(source) {
+  if (!state.context?.authenticated) {
+    toast('로그인 후 외부 대회 소식을 확인할 수 있습니다.', 'error');
+    return;
+  }
+  $('competitionSourceStatus').textContent = `${sourceLabel(source)} 공개 소식을 확인하는 중...`;
+  try {
+    const response = await api(`/api/data-core/competition-sources/${encodeURIComponent(source)}/preview`, { method: 'POST' });
+    state.competitionSourcePreviews[source] = response;
+    $('competitionSourceStatus').textContent = `${response.sourceName} ${response.items?.length || 0}건을 미리보기로 불러왔습니다. 마스터 관리자만 안전하게 반영할 수 있습니다.`;
+    renderCompetitionSourcePreviews();
+  } catch (error) {
+    $('competitionSourceStatus').textContent = error.message;
+    toast(error.message, 'error');
+  }
+}
+
+async function importCompetitionSource(source) {
+  if (!state.context?.isSuperAdmin) {
+    toast('외부 대회 소식 반영은 마스터 관리자만 할 수 있습니다.', 'error');
+    return;
+  }
+  $('competitionSourceStatus').textContent = `${sourceLabel(source)} 항목을 서버에서 다시 확인하여 안전하게 반영하는 중...`;
+  try {
+    const response = await api(`/api/data-core/competition-sources/${encodeURIComponent(source)}/import`, { method: 'POST' });
+    const summary = response.summary || {};
+    $('competitionSourceStatus').textContent = `${response.sourceName || sourceLabel(source)} 반영 완료: 새 항목 ${summary.created || 0}, 출처 병합 ${summary.updated || 0}, 기존 유지 ${summary.unchanged || 0}, 검토 필요 ${summary.ambiguous || 0}.`;
+    await loadCompetitions();
+    await previewCompetitionSource(source);
+  } catch (error) {
+    $('competitionSourceStatus').textContent = error.message;
+    toast(error.message, 'error');
+  }
 }
 
 async function loadCompetitions() {
@@ -1237,16 +1288,15 @@ function bindEvents() {
   $('awardFolderForm').onsubmit = createAwardFolder;
   $('openAwardUploadBtn').onclick = openAwardUpload;
   $('deleteAwardFolderBtn').onclick = deleteAwardFolder;
-  $('competitionSearchBtn').onclick = () => { renderCompetitions(); loadSelectedCompetition(); };
-  ['competitionStatusFilter', 'competitionGradeFilter', 'competitionMajorFilter', 'competitionPracticalFilter'].forEach((id) => {
-    $(id).onchange = () => { renderCompetitions(); loadSelectedCompetition(); };
+  document.querySelectorAll('[data-competition-source]').forEach((button) => {
+    button.onclick = () => previewCompetitionSource(button.dataset.competitionSource);
   });
-  $('competitionSearchInput').onkeydown = (event) => {
-    if (event.key === 'Enter') {
-      renderCompetitions();
-      loadSelectedCompetition();
-    }
+  $('refreshCompetitionSourcesBtn').onclick = async () => {
+    await previewCompetitionSource('artmd');
+    await previewCompetitionSource('mgood');
   };
+  $('hideCompetitionNewsBtn').onclick = () => setCompetitionNewsOpen(false);
+  $('showCompetitionNewsBtn').onclick = () => setCompetitionNewsOpen(true);
   $('membershipForm').onsubmit = grantMembership;
   $('refreshMembershipsBtn').onclick = loadMemberships;
   document.querySelectorAll('[data-calendar-prev]').forEach((button) => {

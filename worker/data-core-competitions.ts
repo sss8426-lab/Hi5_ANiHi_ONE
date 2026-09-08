@@ -37,6 +37,21 @@ export type CompetitionInput = {
   guideUrl?: string | null;
   year?: number | string | null;
   tags?: string[];
+  sourceProvenance?: CompetitionSourceProvenance[];
+  fieldSources?: Record<string, CompetitionFieldSource>;
+};
+
+export type CompetitionSourceProvenance = {
+  source: "artmd" | "mgood";
+  sourceUrl: string;
+  externalSourceId?: string;
+  fetchedAt: string;
+};
+
+export type CompetitionFieldSource = {
+  source: "artmd" | "mgood";
+  sourceUrl: string;
+  fetchedAt: string;
 };
 
 export type CompetitionResultInput = {
@@ -120,6 +135,8 @@ function metadataFromCompetition(input: CompetitionInput) {
     sourceUrl: text(input.sourceUrl, 2000) || null,
     guideUrl: text(input.guideUrl, 2000) || null,
     year: yearOrNull(input.year),
+    sources: Array.isArray(input.sourceProvenance) ? input.sourceProvenance : [],
+    fieldSources: input.fieldSources && typeof input.fieldSources === "object" ? input.fieldSources : {},
   };
 }
 
@@ -245,6 +262,8 @@ export async function updateCompetition(
     ...(input.sourceUrl !== undefined ? { sourceUrl: text(input.sourceUrl, 2000) || null } : {}),
     ...(input.guideUrl !== undefined ? { guideUrl: text(input.guideUrl, 2000) || null } : {}),
     ...(input.year !== undefined ? { year: yearOrNull(input.year) } : {}),
+    ...(input.sourceProvenance !== undefined ? { sources: input.sourceProvenance } : {}),
+    ...(input.fieldSources !== undefined ? { fieldSources: input.fieldSources } : {}),
   };
 
   const updated = await updateDataRecord(db, context, competitionId, {

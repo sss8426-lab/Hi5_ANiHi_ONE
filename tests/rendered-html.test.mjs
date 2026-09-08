@@ -155,6 +155,21 @@ test("wires DATA CORE competition media and academy guide draft interactions", a
   assert.match(filesApi, /conditions\.push\("fo\.source_app = \?"\)/);
 });
 
+test("replaces competition search controls with source preview and slide panel controls", async () => {
+  const html = await readFile(new URL("../public/data-core/index.html", import.meta.url), "utf8");
+  const appScript = await readFile(new URL("../public/data-core/app.js", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../public/data-core/styles.css", import.meta.url), "utf8");
+  assert.doesNotMatch(html, /competitionSearchInput/);
+  assert.match(html, /data-competition-source="artmd"/);
+  assert.match(html, /data-competition-source="mgood"/);
+  assert.match(html, /hideCompetitionNewsBtn/);
+  assert.match(html, /showCompetitionNewsBtn/);
+  assert.match(appScript, /competition-sources\/\$\{encodeURIComponent\(source\)\}\/preview/);
+  assert.match(appScript, /competition-sources\/\$\{encodeURIComponent\(source\)\}\/import/);
+  assert.match(styles, /competition-workspace\.news-closed/);
+  assert.match(styles, /competition-news\.hidden/);
+});
+
 test("wires counseling competition folders to existing DATA CORE records and files", async () => {
   const [dataCoreIndex, appScript, styles, admissionsHtml] = await Promise.all([
     readFile(new URL("../public/data-core/index.html", import.meta.url), "utf8"),
