@@ -106,15 +106,20 @@ function normalizeAdmissionsData(data) {
   };
 }
 
-function targetIndex(students) {
+function studentIdIndex(students) {
   const byId = new Map();
-  const duplicates = new Set();
+  const counts = new Map();
   for (const student of students) {
     const id = stableStudentId(student);
     if (!id) continue;
-    if (byId.has(id)) duplicates.add(id);
-    else byId.set(id, student);
+    counts.set(id, (counts.get(id) || 0) + 1);
+    if (!byId.has(id)) byId.set(id, student);
   }
+  const duplicates = new Set(
+    [...counts.entries()]
+      .filter(([, count]) => count > 1)
+      .map(([id]) => id),
+  );
   return { byId, duplicates };
 }
 
@@ -122,8 +127,8 @@ export function mergeLegacyStudents(sourceData, targetData) {
   const source = normalizeAdmissionsData(sourceData);
   const target = normalizeAdmissionsData(targetData);
   const merged = clone(target);
-  const { byId, duplicates: targetDuplicates } = targetIndex(merged.students);
-  const sourceIds = new Set();
+  const { byId, duplicates: targetDuplicates } = studentIdIndex(merged.students);
+  const { duplicates: sourceDuplicates } = studentIdIndex(source.students);
   const report = {
     sourceStudentCount: source.students.length,
     targetStudentCount: target.students.length,
@@ -140,11 +145,10 @@ export function mergeLegacyStudents(sourceData, targetData) {
 
   for (const sourceStudent of source.students) {
     const id = stableStudentId(sourceStudent);
-    if (!id || sourceIds.has(id) || targetDuplicates.has(id)) {
+    if (!id || sourceDuplicates.has(id) || targetDuplicates.has(id)) {
       report.ambiguous += 1;
       continue;
     }
-    sourceIds.add(id);
     const current = byId.get(id);
     if (!current) {
       const added = clone(sourceStudent);
