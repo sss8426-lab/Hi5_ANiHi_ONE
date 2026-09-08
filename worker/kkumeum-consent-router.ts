@@ -3,9 +3,11 @@ import {
   resolveDataCoreAccess,
 } from "./data-core-access";
 import {
+  getKkumeumConsentPolicy,
   grantKkumeumConsent,
   listKkumeumConsents,
   revokeKkumeumConsent,
+  updateKkumeumConsentPolicy,
 } from "./kkumeum-consents";
 
 export interface KkumeumConsentRouterEnv {
@@ -59,13 +61,23 @@ export async function handleKkumeumConsentApi(
 ): Promise<Response | null> {
   const url = new URL(request.url);
   const isListOrGrant = url.pathname === "/api/kkumeum/consents";
+  const isPolicy = url.pathname === "/api/kkumeum/consent-policy";
   const revokeMatch = url.pathname.match(/^\/api\/kkumeum\/consents\/([^/]+)\/revoke$/);
-  if (!isListOrGrant && !revokeMatch) return null;
+  if (!isListOrGrant && !isPolicy && !revokeMatch) return null;
 
   try {
     if (!env.DB) throw new DataCoreAccessError(503, "CORE 인증 데이터베이스가 연결되지 않았습니다.");
     const context = await resolveDataCoreAccess(request, env.DB, env.DATA_CORE_SUPER_ADMIN_EMAILS);
     const familyDb = requireIsolatedBindings(env);
+
+    if (isPolicy && request.method === "GET") {
+      return privateJson({ policy: await getKkumeumConsentPolicy(familyDb, context) });
+    }
+
+    if (isPolicy && request.method === "PUT") {
+      assertSameOrigin(request);
+      return privateJson({ policy: await updateKkumeumConsentPolicy(familyDb, context, await readJson(request)) });
+    }
 
     if (isListOrGrant && request.method === "GET") {
       const campusId = required(url.searchParams.get("campusId"), "campusId");
