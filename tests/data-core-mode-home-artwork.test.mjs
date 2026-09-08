@@ -8,6 +8,11 @@ const app = fs.readFileSync('public/data-core/app.js', 'utf8');
 const styles = fs.readFileSync('public/data-core/styles.css', 'utf8');
 
 assert.match(enhancement, /mode-home-artwork-active/);
+assert.match(enhancement, /\/data-core\/login\?next=/);
+assert.match(enhancement, /DATA CORE 로그인 화면 열기/);
+assert.match(enhancement, /addEventListener\('click'/);
+assert.match(enhancement, /addEventListener\('keydown'/);
+assert.match(enhancement, /login-chip-action/);
 assert.match(nav, /mode-home-artwork\.js/);
 assert.match(html, /mode-counseling\.webp\?v=20260908-mode-home/);
 assert.match(html, /mode-work\.webp\?v=20260908-mode-home/);
