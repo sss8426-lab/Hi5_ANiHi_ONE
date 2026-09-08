@@ -1,7 +1,7 @@
 (() => {
   const KKUMEUM_HREF = '/data-core/kkumeum';
   const HQ_LIBRARY_SRC = '/data-core/work/hq-library.js';
-  const MODE_ARTWORK_SRC = '/data-core/mode-home-artwork.js';
+  const MODE_ARTWORK_SRC = '/data-core/mode-home-artwork.js?v=20260908-mode-home';
 
   function addWorkSidebarLink() {
     const workNav = document.querySelector('[data-nav-scope="work"]');
@@ -42,7 +42,7 @@
 
   function loadEnhancement(src, guardSelector) {
     if (guardSelector && !document.querySelector(guardSelector)) return;
-    if (document.querySelector(`script[src="${src}"]`)) return;
+    if (document.querySelector(`script[src^="${src.split('?')[0]}"]`)) return;
     const script = document.createElement('script');
     script.src = src;
     script.defer = true;
