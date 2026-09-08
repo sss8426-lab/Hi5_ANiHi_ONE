@@ -19,10 +19,20 @@ async function universities(db: D1Database, files?: R2Bucket): Promise<Row[]> {
   if (!Array.isArray(state.universities)) throw new DataCoreAccessError(503, '기존 대학 데이터를 확인할 수 없습니다. 원본을 변경하지 않았습니다.');
   return state.universities.filter((u: unknown) => u && typeof u === 'object' && !Array.isArray(u));
 }
-async function savedRows(db: D1Database) {
-  const result = await db.prepare(`SELECT id, metadata_json, deleted_at FROM data_records WHERE organization_id = ? AND campus_id IS NULL
-    AND source_app = 'admissions' AND record_type IN ('university-admission-susi','university-admission-jungsi') ORDER BY id`).bind(DEFAULT_ORGANIZATION_ID).all<{id:string;metadata_json:string;deleted_at:string|null}>();
-  return (result.results || []).map((r) => ({id:r.id, raw:r.metadata_json, deleted:r.deleted_at, data:JSON.parse(r.metadata_json) as Row}));
+async function savedRows(db: D1Database, ids?: string[]) {
+  const sql = `SELECT id, metadata_json, deleted_at FROM data_records WHERE organization_id = ? AND campus_id IS NULL
+    AND source_app = 'admissions' AND record_type IN ('university-admission-susi','university-admission-jungsi')`;
+  type Saved = {id:string;metadata_json:string;deleted_at:string|null};
+  let records: Saved[];
+  if (ids) {
+    const statements = [];
+    for (let i=0;i<ids.length;i+=50) {
+      const chunk=ids.slice(i,i+50);
+      statements.push(db.prepare(`${sql} AND id IN (${chunk.map(()=>'?').join(',')})`).bind(DEFAULT_ORGANIZATION_ID,...chunk));
+    }
+    records=statements.length ? (await db.batch<Saved>(statements)).flatMap((r)=>r.results || []) : [];
+  } else records=(await db.prepare(`${sql} ORDER BY id`).bind(DEFAULT_ORGANIZATION_ID).all<Saved>()).results || [];
+  return records.map((r) => ({id:r.id, raw:r.metadata_json, deleted:r.deleted_at, data:JSON.parse(r.metadata_json) as Row}));
 }
 async function fetchSource(season: keyof typeof sourceUrls) {
   // Fixed public endpoints only. No auth headers, cookies, redirects or caller-supplied URLs.
@@ -40,7 +50,17 @@ async function fetchSource(season: keyof typeof sourceUrls) {
     fetchedAt:new Date().toISOString(), verificationStatus:'public-source-unverified',
   }) as Row[];
 }
-const fingerprintFields = (row: Row) => Object.fromEntries(Object.entries(row).filter(([key]) => !['fetchedAt','sourceFingerprint'].includes(key)).sort(([a],[b])=>a.localeCompare(b)));
+const fingerprintFields = (row: Row) => Object.fromEntries(Object.keys(row).filter((key) => !['fetchedAt','sourceFingerprint'].includes(key)).sort().map((key)=>[key,row[key]]));
+function classifyRow(r: Row, old?: Awaited<ReturnType<typeof savedRows>>[number]): Row {
+  const blocked=r.review || Boolean(old?.deleted) || Number(old?.data.sourcePriority || 0)>50;
+  return {...r,previous:old,blocked,merged:preserveKnownValues(old?.data || {},r.data),kind:blocked?'review':!old?'new':old.data.sourceFingerprint===r.data.sourceFingerprint?'unchanged':'changed'};
+}
+const snapshotKey = (origin: string, token: string) => new Request(`${origin}/api/data-core/admin/admissions/guidelines/sync?preview-cache=${token}`);
+function syncCache() {
+  const cache=typeof caches === 'undefined' ? undefined : (caches as CacheStorage & {default?:Cache}).default;
+  if (!cache) throw new DataCoreAccessError(503,'미리보기 임시 보관 기능을 사용할 수 없습니다. 기존 자료는 보존됩니다.');
+  return cache;
+}
 async function plan(db: D1Database, files?: R2Bucket, stage: (name: string) => void = () => {}) {
   stage('read-universities');
   const schools = indexUniversities(await universities(db,files));
@@ -68,11 +88,7 @@ async function plan(db: D1Database, files?: R2Bucket, stage: (name: string) => v
   const saved = new Map((await savedRows(db)).map((r)=>[r.id,r]));
   const counts: Record<string, Record<string,number>> = {susi:{new:0,changed:0,unchanged:0,review:0,mappingReview:0},jungsi:{new:0,changed:0,unchanged:0,review:0,mappingReview:0}};
   for (const r of rows) {
-    const old = saved.get(r.id);
-    r.previous = old;
-    r.blocked = r.review || Boolean(old?.deleted) || Number(old?.data.sourcePriority || 0) > 50;
-    r.merged = preserveKnownValues(old?.data || {},r.data);
-    r.kind = r.blocked ? 'review' : !old ? 'new' : old.data.sourceFingerprint === r.data.sourceFingerprint ? 'unchanged' : 'changed';
+    Object.assign(r,classifyRow(r,saved.get(r.id)));
     counts[r.data.admissionSeason][r.kind]++;
     if (r.data.mappingStatus === 'review') counts[r.data.admissionSeason].mappingReview++;
   }
@@ -98,12 +114,32 @@ export async function handleAdmissionsCatalog(request: Request, env: Env): Promi
       if (Number(request.headers.get('content-length')) > 2048) throw new DataCoreAccessError(413,'요청이 너무 큽니다.');
       const input = await request.json() as {mode?:string;token?:string;offset?:number};
       if (!['preview','apply'].includes(input.mode || '')) throw new DataCoreAccessError(400,'미리보기 또는 적용을 선택하세요.');
-      const p = await plan(env.DB,env.FILES,(value) => { stage = value; });
-      if (input.mode === 'preview') return privateJson({token:p.token,total:p.rows.length,counts:p.counts,batchSize:100});
-      if (input.token !== p.token) throw new DataCoreAccessError(409,'원본이나 대학 연결이 변경됐습니다. 다시 미리보기 해주세요.');
+      if (input.mode === 'preview') {
+        const p = await plan(env.DB,env.FILES,(value) => { stage = value; });
+        stage='cache-preview';
+        // Cache only approved public-source fields, never legacy state or existing row metadata.
+        const rows=p.rows.map((r)=>({id:r.id,data:r.data,review:r.review}));
+        await syncCache().put(snapshotKey(url.origin,p.token),new Response(JSON.stringify({rows,expiresAt:Date.now()+600000}),{headers:{'content-type':'application/json','cache-control':'max-age=600'}}));
+        return privateJson({token:p.token,total:rows.length,counts:p.counts,batchSize:100});
+      }
+      stage='read-preview';
+      if (!/^[a-f0-9]{64}$/.test(input.token || '')) throw new DataCoreAccessError(409,'유효한 미리보기가 필요합니다. 다시 미리보기 해주세요.');
+      const cached=await syncCache().match(snapshotKey(url.origin,input.token!));
+      if (!cached) throw new DataCoreAccessError(409,'미리보기가 만료됐습니다. 다시 미리보기 해주세요. 저장된 자료는 유지됩니다.');
+      const snapshot=await cached.json() as {rows:Row[];expiresAt:number};
+      if (!Array.isArray(snapshot.rows) || snapshot.rows.length>10000 || !(snapshot.expiresAt>Date.now()) || digest(snapshot.rows.map((r)=>[r.id,r.data.sourceFingerprint,r.review]))!==input.token) throw new DataCoreAccessError(409,'미리보기 확인이 필요합니다. 다시 미리보기 해주세요.');
+      const p={token:input.token,rows:snapshot.rows};
       const offset = input.offset;
       if (!Number.isInteger(offset) || offset! < 0 || offset! >= p.rows.length || offset! % 100 !== 0) throw new DataCoreAccessError(400,'적용 위치가 올바르지 않습니다.');
-      const batch = p.rows.slice(offset,offset!+100).filter((r)=>['new','changed'].includes(r.kind));
+      const selected=p.rows.slice(offset,offset!+100);
+      stage='validate-batch';
+      const schools=indexUniversities(await universities(env.DB,env.FILES));
+      for (const r of selected) {
+        const mapping=matchUniversity(r.data,schools);
+        if (r.id!==`admission-guideline:${digest(guidelineIdentity(r.data))}` || r.data.sourceFingerprint!==digest(fingerprintFields(r.data)) || mapping.universityId!==r.data.universityId || mapping.mappingStatus!==r.data.mappingStatus) throw new DataCoreAccessError(409,'대학 연결이나 미리보기가 변경됐습니다. 다시 미리보기 해주세요.');
+      }
+      const saved=new Map((await savedRows(env.DB,selected.map((r)=>r.id))).map((r)=>[r.id,r]));
+      const batch=selected.map((r)=>classifyRow(r,saved.get(r.id))).filter((r)=>['new','changed'].includes(r.kind));
       const now = new Date().toISOString();
       const statements = batch.map((r) => env.DB!.prepare(`INSERT INTO data_records
         (id,organization_id,campus_id,created_by_user_id,record_type,source_app,title,visibility,status,metadata_json,created_at,updated_at)

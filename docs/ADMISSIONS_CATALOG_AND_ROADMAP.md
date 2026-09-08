@@ -63,11 +63,22 @@ Reuse `data_records` with `source_app=admissions` and record types
 `POST /api/data-core/admin/admissions/guidelines/sync` accepts:
 
 - `{mode: "preview"}`: fetch both public sources, normalize, compare, return
-  counts and a SHA-256 plan token. No guideline writes.
-- `{mode: "apply", token, offset}`: revalidate the source plan, apply at most
+  counts and a SHA-256 plan token. No guideline writes. Approved public-source
+  rows are held for ten minutes in the existing Worker Cache API, not DB/R2.
+- `{mode: "apply", token, offset}`: validate the approved snapshot, apply at most
   100 records per request, atomically with a count-only audit entry. The UI
   advances until done. A failure reports incomplete state; retry starts with
   another preview and preserves already applied rows.
+
+Apply never re-fetches/rebuilds the full source. It validates snapshot TTL/token,
+the selected rows' SHA-256 identities/fingerprints and current university/campus
+mapping, then reads only the selected existing guideline rows in 50-ID query
+chunks. The same priority/tombstone/optimistic-concurrency guards still apply.
+Eviction, expiry, tampering or changed mapping fails closed with 409 and asks for
+a fresh preview. Cached rows contain only the public source projection and its
+university mapping, never existing metadata, legacy state, student records,
+credentials or request headers. The cache-key URL still hits the authenticated
+POST-only admin handler; it is not a public data route. No binding was added.
 
 Requires SUPER_ADMIN, first-password-change completion and exact same-origin
 mutation. Each plan token binds identities, source fingerprints and university
@@ -159,3 +170,14 @@ per-row asynchronous WebCrypto digests and JS byte-to-hex conversions with
 native synchronous node:crypto SHA256 under the existing nodejs_compat flag.
 No algorithm/input/ID/fingerprint changes: a workerd test proves byte-identical
 digests, allowing the partial import to resume without duplicate records.
+
+The full-source work still repeated on every apply request. Preview now keeps
+only freshly projected public rows in the existing Worker Cache API for ten
+minutes. Each apply validates the snapshot and current university mapping, reads
+only its selected existing IDs, and retains the same scoped optimistic upsert.
+Cache expiry/eviction requires a fresh preview; it never silently refetches.
+No legacy payload or existing metadata is cached and no binding is added.
+Local validation passed build/typecheck/browser syntax, all 185 behavior tests,
+and Wrangler dry-run. Tests cover the real workerd Cache API, cache tampering,
+expiry, mapping changes, no source refetch during apply, and duplicate retries.
+Full production import remains pending the deployed snapshot implementation.

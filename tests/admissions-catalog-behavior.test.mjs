@@ -35,6 +35,11 @@ test('every occupation has its own existing optimized WebP asset',()=>{
   assert.equal(hashes.size,35);
 });
 
+test('workerd Cache API supports the temporary public preview response contract',async()=>{
+  const mf=new Miniflare({modules:true,script:`export default {async fetch(){const key=new Request('https://synthetic.example/api/data-core/admin/admissions/guidelines/sync?preview-cache=synthetic');await caches.default.put(key,Response.json({rows:[],expiresAt:Date.now()+600000},{headers:{'cache-control':'max-age=600'}}));const saved=await caches.default.match(key);const body=await saved.json();return Response.json({status:saved.status,rows:body.rows.length,unexpired:body.expiresAt>Date.now()});}}`});
+  try{assert.deepEqual(await(await mf.dispatchFetch('http://localhost')).json(),{status:200,rows:0,unexpired:true});}finally{await mf.dispose();}
+});
+
 test('edge-native synchronous SHA256 preserves existing WebCrypto identities and fingerprints',async()=>{
   const source=fs.readFileSync('worker/admissions-catalog.ts','utf8');assert.match(source,/createHash\('sha256'\)/);assert.doesNotMatch(source,/await digest/);
   const mf=new Miniflare({modules:true,compatibilityDate:'2026-05-15',compatibilityFlags:['nodejs_compat'],script:`import {createHash} from 'node:crypto'; export default {async fetch(){const value=JSON.stringify({university:'합성대',department:'웹툰',year:2027,quota:0});const old=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))).map(v=>v.toString(16).padStart(2,'0')).join('');return Response.json({identical:old===createHash('sha256').update(value).digest('hex')});}}`});
@@ -101,9 +106,13 @@ test('identity, filtering, year, provenance and safe projections exclude arbitra
 test('D1/R2 behavior: authenticated university-only read and admin preview/apply preserve originals, prevent duplicates and reject unsafe writes',async()=>{
   const mf=new Miniflare({script:"export default {fetch(){return new Response('ok')}}",modules:true,d1Databases:['DB'],r2Buckets:['FILES'],d1Persist:false,r2Persist:false});
   const originalFetch=globalThis.fetch;
+  const originalCaches=globalThis.caches;
+  const mockSource=handler=>async(input,init)=>{const url=new URL(typeof input==='string'?input:input.url || input.href);if(['localhost','127.0.0.1','[::1]'].includes(url.hostname))return originalFetch(input,init);return handler(input,init);};
   try{
     const {default:worker}=await import('../dist/server/index.js');
     const db=await mf.getD1Database('DB'),files=await mf.getR2Bucket('FILES');
+    const previews=new Map();
+    globalThis.caches={default:{async put(key,response){previews.set(key.url,response.clone());},async match(key){return previews.get(key.url)?.clone();},async delete(key){return previews.delete(key.url);}}};
     const originals={students:[{id:'synthetic-only',name:'PRIVATE_STUDENT'}],universities:[{id:1,name:'합성대학교',major:'웹툰콘텐츠학과',admission:'실기우수',year:2027,notes:'PRIVATE_NOTES'},{id:2,name:'합성대학교',major:'패션디자인학과',year:2027}],cases:[{private:'PRIVATE_CASE'}],awardFolders:[{id:'preserve'}],settings:{preserve:true}};
     const originalJson=JSON.stringify(originals);await files.put('state/admissions-data.json',originalJson);
     const admin={'oai-authenticated-user-id':'synthetic-catalog-admin','oai-authenticated-user-email':'catalog-admin@example.test'};
@@ -120,30 +129,49 @@ test('D1/R2 behavior: authenticated university-only read and admin preview/apply
     assert.equal((await call(sync,{headers:staff,body:{mode:'preview'}})).status,403);
     assert.equal((await call(sync,{body:{mode:'preview'},origin:'https://attacker.example'})).status,403);
     let fail=false,empty=false,conflict=false;
-    globalThis.fetch=async(input)=>{assert.match(String(input),/^https:\/\/grinalda.net\/wp-content\/uploads\/grinalda\/grinalda-(susi|jeongsi)-2027-data.json$/);if(fail)return new Response('{}',{status:503});return new Response(JSON.stringify(packed([fact(empty?{'모집인원':''}:{'모집인원':'12'}),...(conflict?[fact({'모집인원':'13'})]:[])])),{headers:{'content-type':'application/json','last-modified':'Tue, 25 Aug 2026 12:24:01 GMT'}});};
-    let previewResponse=await call(sync,{body:{mode:'preview'}});assert.equal(previewResponse.status,200);let preview=await previewResponse.json();assert.equal(preview.total,2);assert.equal(preview.counts.susi.new,1);
+    globalThis.fetch=mockSource(async(input)=>{assert.match(String(input),/^https:\/\/grinalda.net\/wp-content\/uploads\/grinalda\/grinalda-(susi|jeongsi)-2027-data.json$/);if(fail)return new Response('{}',{status:503});return new Response(JSON.stringify(packed([fact(empty?{'모집인원':''}:{'모집인원':'12'}),...(conflict?[fact({'모집인원':'13'})]:[])])),{headers:{'content-type':'application/json','last-modified':'Tue, 25 Aug 2026 12:24:01 GMT'}});});
+    let previewResponse=await call(sync,{body:{mode:'preview'}});assert.equal(previewResponse.status,200,await previewResponse.clone().text());let preview=await previewResponse.json();assert.equal(preview.total,2);assert.equal(preview.counts.susi.new,1);
+    const cacheKey=token=>new Request(`http://localhost${sync}?preview-cache=${token}`);
+    const cachedPlan=await(await globalThis.caches.default.match(cacheKey(preview.token))).json();
+    assert.doesNotMatch(JSON.stringify(cachedPlan),/PRIVATE_|previous|merged|raw/);
+    for(const r of cachedPlan.rows){const legacy=Object.fromEntries(Object.entries(r.data).filter(([k])=>!['fetchedAt','sourceFingerprint'].includes(k)).sort(([a],[b])=>a.localeCompare(b)));assert.equal(r.data.sourceFingerprint,createHash('sha256').update(JSON.stringify(legacy)).digest('hex'),'native key sorting preserves legacy fingerprints');}
+    assert.equal((await call(sync+`?preview-cache=${preview.token}`,{headers:{}})).status,401,'cache key URL is not a public download route');
+    assert.equal((await call(sync+`?preview-cache=${preview.token}`)).status,405);
+    const tampered=structuredClone(cachedPlan);tampered.rows[0].data.quota=999;
+    await globalThis.caches.default.put(cacheKey(preview.token),Response.json(tampered));
+    assert.equal((await call(sync,{body:{mode:'apply',token:preview.token,offset:0}})).status,409,'tampered snapshot data cannot be applied');
+    await globalThis.caches.default.put(cacheKey(preview.token),Response.json(cachedPlan));
+    await files.put('state/admissions-data.json',JSON.stringify({...originals,universities:originals.universities.map(u=>({...u,campus:'changed-campus'}))}));
+    assert.equal((await call(sync,{body:{mode:'apply',token:preview.token,offset:0}})).status,409,'changed campus mapping requires a new preview');
+    await files.put('state/admissions-data.json',originalJson);
+    const fetchBeforeApply=globalThis.fetch;globalThis.fetch=mockSource(async()=>{throw new Error('Apply must use the approved snapshot, not fetch the entire source');});
     assert.equal(await db.prepare("SELECT COUNT(*) FROM data_records WHERE source_app='admissions'").first('COUNT(*)'),0,'preview is read-only');
     assert.equal((await call(sync,{body:{mode:'apply',token:'wrong',offset:0}})).status,409);
     let applied=await call(sync,{body:{mode:'apply',token:preview.token,offset:0}});assert.equal(applied.status,200);assert.equal((await applied.json()).applied,2);
     applied=await call(sync,{body:{mode:'apply',token:preview.token,offset:0}});assert.equal((await applied.json()).applied,0);
+    globalThis.fetch=fetchBeforeApply;
+    await globalThis.caches.default.delete(cacheKey(preview.token));
+    assert.equal((await call(sync,{body:{mode:'apply',token:preview.token,offset:0}})).status,409,'expired or evicted previews fail closed without re-fetching');
+    await globalThis.caches.default.put(cacheKey(preview.token),Response.json({...cachedPlan,expiresAt:0}));
+    assert.equal((await call(sync,{body:{mode:'apply',token:preview.token,offset:0}})).status,409,'expired preview timestamp is enforced');
     const list=await call('/api/data-core/admissions/guidelines?season=susi&year=2027&query=합성');const listed=await list.json();assert.equal(listed.total,1);assert.equal(listed.rows[0].quota,12);assert.doesNotMatch(JSON.stringify(listed),/PRIVATE_/);
     const connected=await (await call(url)).json();assert.equal(connected.programs.length,3);
     empty=true;preview=await (await call(sync,{body:{mode:'preview'}})).json();await call(sync,{body:{mode:'apply',token:preview.token,offset:0}});
     assert.equal((await (await call('/api/data-core/admissions/guidelines?season=susi')).json()).rows[0].quota,12);
     const before=await db.prepare("SELECT id,metadata_json FROM data_records WHERE source_app='admissions' ORDER BY id").all();
     const successfulFetch=globalThis.fetch;
-    globalThis.fetch=async()=>{throw new TypeError('PRIVATE_SOURCE_PAYLOAD must never escape');};
+    globalThis.fetch=mockSource(async()=>{throw new TypeError('PRIVATE_SOURCE_PAYLOAD must never escape');});
     const failedSource=await call(sync,{body:{mode:'preview'}});
     const diagnostic=await failedSource.json();
     assert.equal(failedSource.status,502);assert.equal(diagnostic.stage,'fetch-susi');assert.equal(diagnostic.kind,'TypeError');
     assert.doesNotMatch(JSON.stringify(diagnostic),/PRIVATE_SOURCE_PAYLOAD/);
     globalThis.fetch=successfulFetch;
-    globalThis.fetch=async()=>new Response(null,{status:302,headers:{location:'https://synthetic.example/forbidden'}});
+    globalThis.fetch=mockSource(async()=>new Response(null,{status:302,headers:{location:'https://synthetic.example/forbidden'}}));
     assert.equal((await call(sync,{body:{mode:'preview'}})).status,502,'redirects are rejected, never followed');
     globalThis.fetch=successfulFetch;
     fail=true;assert.equal((await call(sync,{body:{mode:'preview'}})).status,502);
     assert.deepEqual((await db.prepare("SELECT id,metadata_json FROM data_records WHERE source_app='admissions' ORDER BY id").all()).results,before.results);
     fail=false;empty=false;conflict=true;preview=await (await call(sync,{body:{mode:'preview'}})).json();assert.equal(preview.counts.susi.review,1);assert.equal((await (await call(sync,{body:{mode:'apply',token:preview.token,offset:0}})).json()).applied,0);
     assert.equal(await (await files.get('state/admissions-data.json')).text(),originalJson,'all original domains and PII bytes preserved');
-  }finally{globalThis.fetch=originalFetch;await mf.dispose();}
+  }finally{globalThis.fetch=originalFetch;globalThis.caches=originalCaches;await mf.dispose();}
 });
