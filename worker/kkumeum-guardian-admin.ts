@@ -1,5 +1,6 @@
 import { DataCoreAccessContext, DataCoreAccessError, requireAuthenticatedAccess } from "./data-core-access";
 import { createKkumeumGuardianPasswordRecord, ensureKkumeumGuardianAuthSchema } from "./kkumeum-guardian-auth";
+import { setKkumeumInternalGuardianBeta } from "./kkumeum-pilot";
 
 function text(value: unknown, maximum = 160): string {
   return String(value ?? "").trim().slice(0, maximum);
@@ -83,6 +84,7 @@ export async function createKkumeumGuardian(
   const loginId = text(input.loginId, 120).toLowerCase();
   if (!campusId || !studentId || !displayName || !loginId) throw new DataCoreAccessError(400, "캠퍼스, 학생, 보호자 표시 이름, 로그인 ID가 필요합니다.");
   manager(context, campusId);
+  if (input.internalBeta === true && !context.isSuperAdmin) throw new DataCoreAccessError(403, "내부 보호자 beta 지정은 최고관리자만 변경할 수 있습니다.");
   await ensureKkumeumGuardianAuthSchema(familyDb);
   await studentInCampus(familyDb, campusId, studentId);
   if (!/^[a-z0-9][a-z0-9._-]{2,119}$/.test(loginId)) throw new DataCoreAccessError(400, "로그인 ID는 영문 소문자, 숫자, 점, 밑줄, 하이픈만 사용할 수 있습니다.");
@@ -109,7 +111,8 @@ export async function createKkumeumGuardian(
     throw error;
   }
   await audit(familyDb, context, campusId, "guardian.create", id, studentId);
-  return { guardian: { id, loginId, displayName, status: "active", mustChangePassword: true }, temporaryPassword: password };
+  if (input.internalBeta === true) await setKkumeumInternalGuardianBeta(familyDb, context, id, true);
+  return { guardian: { id, loginId, displayName, status: "active", mustChangePassword: true, internalBeta: input.internalBeta === true }, temporaryPassword: password };
 }
 
 export async function updateKkumeumGuardianLink(

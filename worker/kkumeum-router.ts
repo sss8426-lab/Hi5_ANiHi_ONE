@@ -53,6 +53,7 @@ import {
   unlinkKkumeumGuardian,
   updateKkumeumGuardianLink,
 } from "./kkumeum-guardian-admin";
+import { assertKkumeumPilotCampus } from "./kkumeum-pilot";
 
 export type KkumeumRouterEnv = KkumeumBindings;
 
@@ -203,14 +204,18 @@ export async function handleKkumeumApi(
 
   if (url.pathname === "/api/kkumeum/dashboard") {
     if (request.method !== "GET") return respond({ error: "지원하지 않는 꿈이음 현황 요청입니다." }, { status: 405 });
-    return respond({ dashboard: await getKkumeumDashboard(familyDb, context, requiredCampusId(url), url.searchParams.get("yearMonth")) });
+    const campusId = requiredCampusId(url);
+    await assertKkumeumPilotCampus(familyDb, campusId);
+    return respond({ dashboard: await getKkumeumDashboard(familyDb, context, campusId, url.searchParams.get("yearMonth")) });
   }
 
   if (url.pathname === "/api/kkumeum/guardians") {
-    if (request.method === "GET") return respond({ guardians: await listKkumeumGuardians(familyDb, context, requiredCampusId(url), requiredStudentId(url)) });
+    if (request.method === "GET") { const campusId = requiredCampusId(url); await assertKkumeumPilotCampus(familyDb, campusId); return respond({ guardians: await listKkumeumGuardians(familyDb, context, campusId, requiredStudentId(url)) }); }
     if (request.method === "POST") {
       assertSameOrigin(request);
-      return respond(await createKkumeumGuardian(familyDb, context, await readJson(request)), { status: 201 });
+      const input = await readJson(request);
+      await assertKkumeumPilotCampus(familyDb, requiredBodyId(input.campusId, "campusId"));
+      return respond(await createKkumeumGuardian(familyDb, context, input), { status: 201 });
     }
     return respond({ error: "지원하지 않는 보호자 관리 요청입니다." }, { status: 405 });
   }
@@ -402,11 +407,14 @@ export async function handleKkumeumApi(
   if (url.pathname === "/api/kkumeum/classes") {
     if (request.method === "GET") {
       const campusId = requiredCampusId(url);
+      await assertKkumeumPilotCampus(familyDb, campusId);
       return respond({ classes: await listKkumeumClasses(familyDb, context, campusId) });
     }
     if (request.method === "POST") {
+      const input = await readJson(request);
+      await assertKkumeumPilotCampus(familyDb, requiredBodyId(input.campusId, "campusId"));
       return respond(
-        { class: await createKkumeumClass(familyDb, context, await readJson(request)) },
+        { class: await createKkumeumClass(familyDb, context, input) },
         { status: 201 },
       );
     }
@@ -431,6 +439,7 @@ export async function handleKkumeumApi(
   if (url.pathname === "/api/kkumeum/students") {
     if (request.method === "GET") {
       const campusId = requiredCampusId(url);
+      await assertKkumeumPilotCampus(familyDb, campusId);
       return respond({
         students: await listKkumeumStudents(familyDb, context, campusId, {
           classId: url.searchParams.get("classId") || undefined,
@@ -440,8 +449,10 @@ export async function handleKkumeumApi(
       });
     }
     if (request.method === "POST") {
+      const input = await readJson(request);
+      await assertKkumeumPilotCampus(familyDb, requiredBodyId(input.campusId, "campusId"));
       return respond(
-        { student: await createKkumeumStudent(familyDb, context, await readJson(request)) },
+        { student: await createKkumeumStudent(familyDb, context, input) },
         { status: 201 },
       );
     }
