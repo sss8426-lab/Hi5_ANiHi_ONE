@@ -3,6 +3,7 @@ import {
   computeKkumeumAnalyticsPreview,
   syncKkumeumAnalyticsToDataCore,
 } from "./kkumeum-analytics";
+import { computeKkumeumAnalyticsTrend } from "./kkumeum-analytics-trend";
 import { getKkumeumPilotSettings, updateKkumeumPilotSettings } from "./kkumeum-pilot";
 
 export interface KkumeumPilotRouterEnv {
@@ -41,8 +42,9 @@ export async function handleKkumeumPilotApi(
   const url = new URL(request.url);
   const pilotPath = url.pathname === "/api/kkumeum/admin/pilot-settings";
   const previewPath = url.pathname === "/api/kkumeum/analytics/preview";
+  const trendPath = url.pathname === "/api/kkumeum/analytics/trend";
   const syncPath = url.pathname === "/api/kkumeum/analytics/sync";
-  if (!pilotPath && !previewPath && !syncPath) return null;
+  if (!pilotPath && !previewPath && !trendPath && !syncPath) return null;
 
   try {
     const ready = bindings(env);
@@ -85,6 +87,21 @@ export async function handleKkumeumPilotApi(
         ),
         syncEnabled: ["1", "true", "yes", "on"].includes(
           String(env.KKUMEUM_ANALYTICS_SYNC_ENABLED || "").trim().toLowerCase(),
+        ),
+      });
+    }
+
+    if (trendPath) {
+      if (request.method !== "GET") {
+        return json({ error: "지원하지 않는 성장 흐름 요청입니다." }, { status: 405 });
+      }
+      return json({
+        trend: await computeKkumeumAnalyticsTrend(
+          ready.familyDb,
+          context,
+          url.searchParams.get("campusId"),
+          url.searchParams.get("fromYearMonth"),
+          url.searchParams.get("toYearMonth"),
         ),
       });
     }
