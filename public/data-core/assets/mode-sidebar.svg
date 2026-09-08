@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="1000" viewBox="0 0 300 1000">
+<defs>
+  <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#fffdf8"/>
+    <stop offset=".45" stop-color="#eef7ff"/>
+    <stop offset="1" stop-color="#dff2ff"/>
+  </linearGradient>
+  <linearGradient id="book" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#7aa6e8"/>
+    <stop offset="1" stop-color="#b9d4f5"/>
+  </linearGradient>
+  <filter id="blur"><feGaussianBlur stdDeviation="8"/></filter>
+</defs>
+<rect width="300" height="1000" fill="url(#sky)"/>
+<g opacity=".35" filter="url(#blur)" fill="#7fbf6e">
+  <circle cx="22" cy="118" r="42"/><circle cx="282" cy="138" r="52"/>
+  <circle cx="38" cy="678" r="48"/><circle cx="270" cy="754" r="44"/>
+</g>
+<g opacity=".30" stroke="#ffffff" stroke-width="10">
+  <path d="M225 0v590"/><path d="M225 210h75"/>
+</g>
+<g fill="#3562d8" font-family="Pretendard, Noto Sans KR, sans-serif" font-weight="700" font-style="italic">
+  <text x="52" y="305" font-size="29">아이의 꿈이</text>
+  <text x="40" y="350" font-size="27">더 멀리 빛날 수</text>
+  <text x="92" y="395" font-size="27">있도록</text>
+</g>
+<g fill="none" stroke="#7658de" stroke-width="3" stroke-linecap="round">
+  <path d="M68 420c45 15 92 15 143-1"/>
+  <path d="M43 260l5 12 12 5-12 5-5 12-5-12-12-5 12-5z"/>
+  <path d="M226 375l4 10 10 4-10 4-4 10-4-10-10-4 10-4z"/>
+</g>
+<text x="64" y="455" fill="#91a6c9" font-family="Arial,sans-serif" font-size="11" letter-spacing="2.4">MORE DREAMS</text>
+<text x="42" y="475" fill="#91a6c9" font-family="Arial,sans-serif" font-size="11" letter-spacing="2">A BRIGHTER TOMORROW</text>
+<g transform="translate(24 760)">
+  <rect x="0" y="0" width="198" height="54" rx="7" fill="url(#book)"/>
+  <rect x="12" y="58" width="216" height="54" rx="7" fill="#eef4fb"/>
+  <rect x="0" y="116" width="224" height="54" rx="7" fill="#7398d7"/>
+  <text x="20" y="36" fill="#fff" font-family="Arial,sans-serif" font-size="20">DREAM</text>
+  <text x="22" y="94" fill="#7386a6" font-family="Arial,sans-serif" font-size="18">CREATIVE</text>
+  <text x="20" y="151" fill="#fff" font-family="Arial,sans-serif" font-size="18">TOGETHER</text>
+</g>
+<g opacity=".6" fill="#6aa45c">
+  <ellipse cx="42" cy="724" rx="15" ry="38" transform="rotate(-35 42 724)"/>
+  <ellipse cx="72" cy="702" rx="13" ry="34" transform="rotate(25 72 702)"/>
+  <ellipse cx="35" cy="662" rx="11" ry="30" transform="rotate(-28 35 662)"/>
+</g>
+<circle cx="250" cy="620" r="58" fill="#fff" opacity=".18"/>
+</svg>
