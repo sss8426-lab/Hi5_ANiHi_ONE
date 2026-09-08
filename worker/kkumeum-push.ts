@@ -29,6 +29,13 @@ type PushConfig = {
   code: string | null;
 };
 
+type PushDeliveryResult = {
+  sent: boolean;
+  errorCode: string | null;
+  legacyKeyVerified: boolean;
+  usedSubscription: boolean;
+};
+
 const BASE64URL = /^[A-Za-z0-9_-]+$/;
 const MAX_ENDPOINT_LENGTH = 4096;
 
@@ -404,31 +411,50 @@ async function encryptPushPayload(p256dh: string, auth: string, payload: Record<
   return body;
 }
 
-async function sendPush(subscription: StoredSubscription, settings: PushConfig, announcementId: string): Promise<{ sent: boolean; errorCode: string | null; legacyKeyVerified: boolean }> {
+async function sendPush(subscription: StoredSubscription, settings: PushConfig, announcementId: string): Promise<PushDeliveryResult> {
   if (!settings.providerConfigured || !settings.encryptionKey || !settings.encryptionKeyId || !settings.privateJwk || !settings.subject || !settings.publicKey) {
-    return { sent: false, errorCode: settings.code || "push_not_configured", legacyKeyVerified: false };
+    return { sent: false, errorCode: settings.code || "push_not_configured", legacyKeyVerified: false, usedSubscription: false };
   }
   if (subscription.encryption_key_id && subscription.encryption_key_id !== settings.encryptionKeyId) {
-    return { sent: false, errorCode: "subscription_key_mismatch", legacyKeyVerified: false };
+    return { sent: false, errorCode: "subscription_key_mismatch", legacyKeyVerified: false, usedSubscription: false };
   }
+
+  let endpoint: string;
+  let p256dh: string;
+  let auth: string;
   try {
-    const endpoint = await decrypt(subscription.endpoint_encrypted, settings.encryptionKey);
-    const p256dh = subscription.p256dh_encrypted ? await decrypt(subscription.p256dh_encrypted, settings.encryptionKey) : "";
-    const auth = subscription.auth_encrypted ? await decrypt(subscription.auth_encrypted, settings.encryptionKey) : "";
-    if (!p256dh || !auth) return { sent: false, errorCode: "subscription_incomplete", legacyKeyVerified: false };
+    endpoint = await decrypt(subscription.endpoint_encrypted, settings.encryptionKey);
+    p256dh = subscription.p256dh_encrypted ? await decrypt(subscription.p256dh_encrypted, settings.encryptionKey) : "";
+    auth = subscription.auth_encrypted ? await decrypt(subscription.auth_encrypted, settings.encryptionKey) : "";
+  } catch {
+    return { sent: false, errorCode: "subscription_decrypt_failed", legacyKeyVerified: false, usedSubscription: false };
+  }
+
+  if (!p256dh || !auth) {
+    return { sent: false, errorCode: "subscription_incomplete", legacyKeyVerified: false, usedSubscription: false };
+  }
+
+  try {
     const response = await fetch(endpoint, {
       method: "POST",
       headers: { Authorization: `vapid t=${await vapidToken(settings.privateJwk, settings.subject, new URL(endpoint).origin)}, k=${settings.publicKey}`, "Content-Encoding": "aes128gcm", "Content-Type": "application/octet-stream", TTL: "300", Urgency: "normal" },
       body: bytesBuffer(await encryptPushPayload(p256dh, auth, { title: "꿈이음", body: "꿈이음 새 소식이 도착했습니다.", noticeId: announcementId, route: `/family/?openNotice=${encodeURIComponent(announcementId)}` })),
     });
-    if (response.ok) return { sent: true, errorCode: null, legacyKeyVerified: !subscription.encryption_key_id };
-    return { sent: false, errorCode: response.status === 404 || response.status === 410 ? "subscription_gone" : "provider_rejected", legacyKeyVerified: false };
+    if (response.ok) {
+      return { sent: true, errorCode: null, legacyKeyVerified: !subscription.encryption_key_id, usedSubscription: true };
+    }
+    return {
+      sent: false,
+      errorCode: response.status === 404 || response.status === 410 ? "subscription_gone" : "provider_rejected",
+      legacyKeyVerified: false,
+      usedSubscription: true,
+    };
   } catch {
-    return { sent: false, errorCode: subscription.encryption_key_id ? "provider_error" : "subscription_key_mismatch", legacyKeyVerified: false };
+    return { sent: false, errorCode: "provider_error", legacyKeyVerified: false, usedSubscription: true };
   }
 }
 
-async function recordDelivery(familyDb: D1Database, announcementId: string, subscription: StoredSubscription, result: { sent: boolean; errorCode: string | null; legacyKeyVerified: boolean }, encryptionKeyId: string | null) {
+async function recordDelivery(familyDb: D1Database, announcementId: string, subscription: StoredSubscription, result: PushDeliveryResult, encryptionKeyIdValue: string | null) {
   const now = new Date().toISOString();
   await familyDb.prepare(`INSERT INTO push_delivery_attempts (
     id, announcement_id, subscription_id, guardian_id, status, error_code, attempted_at
@@ -438,11 +464,11 @@ async function recordDelivery(familyDb: D1Database, announcementId: string, subs
   ).run();
   if (result.errorCode === "subscription_gone") {
     await familyDb.prepare("UPDATE push_subscriptions SET active = 0, revoked_at = ?, updated_at = ? WHERE id = ?").bind(now, now, subscription.id).run();
-  } else {
+  } else if (result.usedSubscription) {
     await familyDb.prepare("UPDATE push_subscriptions SET last_used_at = ? WHERE id = ?").bind(now, subscription.id).run();
   }
-  if (result.legacyKeyVerified && encryptionKeyId) {
-    await familyDb.prepare("UPDATE push_subscriptions SET encryption_key_id = ? WHERE id = ? AND encryption_key_id IS NULL").bind(encryptionKeyId, subscription.id).run();
+  if (result.legacyKeyVerified && encryptionKeyIdValue) {
+    await familyDb.prepare("UPDATE push_subscriptions SET encryption_key_id = ? WHERE id = ? AND encryption_key_id IS NULL").bind(encryptionKeyIdValue, subscription.id).run();
   }
 }
 
