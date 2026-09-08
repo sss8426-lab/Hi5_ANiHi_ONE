@@ -64,3 +64,10 @@ as an incomplete statement. The two table statements now use `prepare().run()`;
 their definitions, indexes, bindings and existing records remain unchanged.
 The Miniflare regression test covers fresh initialization, repeated goals/detail
 reads, unauthenticated denial and preservation of an existing synthetic node.
+
+Authenticated production goals/detail calls then returned 200, but repeated schema
+DDL inside graph traversal made the detail response take about 24 seconds including
+tail delivery. Successful schema initialization is now memoized per D1 binding in
+a WeakMap; failures evict the promise so the next request can retry. This caches
+only schema readiness, never user authorization or knowledge/API results. The D1
+regression also injects a failed initialization and asserts retry and no repeated DDL.

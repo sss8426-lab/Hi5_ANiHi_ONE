@@ -190,7 +190,21 @@ async function audit(
     .run();
 }
 
+const knowledgeSchemaReady = new WeakMap<D1Database, Promise<void>>();
+
 export async function ensureKnowledgeSchema(db: D1Database) {
+  let ready = knowledgeSchemaReady.get(db);
+  if (!ready) {
+    ready = initializeKnowledgeSchema(db).catch((error) => {
+      knowledgeSchemaReady.delete(db);
+      throw error;
+    });
+    knowledgeSchemaReady.set(db, ready);
+  }
+  return ready;
+}
+
+async function initializeKnowledgeSchema(db: D1Database) {
   await ensureDataCoreMigrations(db);
   // D1 exec splits on newlines; prepare keeps each multiline DDL statement intact.
   await db.prepare(`CREATE TABLE IF NOT EXISTS knowledge_nodes (
