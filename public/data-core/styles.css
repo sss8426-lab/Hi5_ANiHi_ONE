@@ -181,9 +181,29 @@ td strong { font-size: 12px; }
 .search-card p { margin: 9px 0 0; color: var(--muted); font-size: 12px; line-height: 1.65; white-space: pre-wrap; }
 .search-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 
-.competition-split, .competition-workspace { display: grid; grid-template-columns: minmax(320px, .85fr) minmax(0, 1.15fr); gap: 18px; align-items: start; }
+.competition-split, .competition-workspace { display: grid; grid-template-columns: minmax(320px, .85fr) minmax(0, 1.15fr); gap: 18px; align-items: start; transition: grid-template-columns .24s ease; }
+.competition-workspace.news-closed { grid-template-columns: minmax(0, 1fr) auto; }
 .competition-browser, .award-library { position: sticky; top: 24px; max-height: calc(100vh - 48px); overflow: auto; }
-.competition-news { min-height: 520px; }
+.competition-news { min-height: 520px; transition: opacity .2s ease, transform .24s ease; }
+.competition-news.hidden { display: block !important; width: 0; min-width: 0; overflow: hidden; padding-left: 0; padding-right: 0; border-width: 0; opacity: 0; transform: translateX(22px); pointer-events: none; }
+.competition-news-reopen { align-self: start; writing-mode: vertical-rl; border: 1px solid var(--line); border-radius: 8px; padding: 12px 9px; background: #fff; color: var(--text); }
+.competition-source-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.competition-source-status { margin-bottom: 10px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.competition-source-list { display: grid; gap: 9px; max-height: 460px; overflow: auto; padding-right: 2px; }
+.source-import-btn { margin-top: 2px; }
+.competition-source-card { display: grid; gap: 6px; border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: #fff; }
+.competition-source-card strong { font-size: 13px; }
+.competition-source-card small, .competition-source-card > span { color: var(--muted); font-size: 11px; line-height: 1.45; }
+.source-card-head { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.source-badge, .source-import-status { display: inline-flex; width: fit-content; border-radius: 999px; padding: 4px 7px; font-size: 10px; font-weight: 800; }
+.source-badge.artmd { background: #eff6ff; color: #175cd3; }
+.source-badge.mgood { background: #fdf2fa; color: #c11574; }
+.source-import-status.new { background: #ecfdf3; color: #027a48; }
+.source-import-status.matched, .source-import-status.same { background: #f2f4f7; color: #475467; }
+.source-import-status.ambiguous { background: #fff7ed; color: #b54708; }
+.competition-core-head { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; border-top: 1px solid var(--line); margin-top: 18px; padding-top: 16px; }
+.competition-core-head h4 { margin: 0; font-size: 13px; }
+.competition-core-head span { color: var(--muted); font-size: 10px; }
 .award-folder-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(140px, .55fr) auto; gap: 8px; margin-bottom: 14px; }
 .award-folder-list { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 16px; }
 .award-folder-tab { max-width: 100%; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--text); padding: 8px 10px; text-align: left; display: grid; gap: 2px; }
@@ -283,9 +303,11 @@ td strong { font-size: 12px; }
   .nav-icon { width: auto; }
   .connection-card { justify-content: center; padding: 13px; }
   .main { padding-left: 24px; padding-right: 24px; }
-  .mode-grid, .menu-card-grid, .competition-split, .competition-workspace { grid-template-columns: 1fr; }
+  .mode-grid, .menu-card-grid, .competition-split, .competition-workspace, .competition-workspace.news-closed { grid-template-columns: 1fr; }
   .mode-card { min-height: 320px; }
   .competition-browser, .award-library { position: static; max-height: none; }
+  .competition-news.hidden { display: none !important; }
+  .competition-news-reopen { writing-mode: horizontal-tb; }
   .filters { grid-template-columns: 1fr 1fr; }
   .filter-button { grid-column: span 2; }
   .admin-grid { grid-template-columns: 1fr; }
