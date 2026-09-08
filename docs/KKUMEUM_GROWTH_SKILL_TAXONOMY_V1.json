@@ -1,0 +1,74 @@
+{
+  "schemaVersion": "kkumeum-growth-skill-v1",
+  "maxSelectionsPerReport": 5,
+  "semantics": "observed_growth_area_not_score_or_rank",
+  "categories": [
+    {
+      "code": "DRAWING_FOUNDATION",
+      "labelKo": "드로잉 기초",
+      "skills": [
+        { "code": "form_observation", "labelKo": "형태·관찰" },
+        { "code": "proportion_accuracy", "labelKo": "비례·정확도" },
+        { "code": "line_control", "labelKo": "선·필압 조절" }
+      ]
+    },
+    {
+      "code": "FIGURE_CHARACTER",
+      "labelKo": "인체·캐릭터",
+      "skills": [
+        { "code": "figure_anatomy", "labelKo": "인체 구조" },
+        { "code": "pose_motion", "labelKo": "동세·포즈" },
+        { "code": "face_expression", "labelKo": "얼굴·표정" },
+        { "code": "hands_feet_clothing", "labelKo": "손발·옷주름" }
+      ]
+    },
+    {
+      "code": "SPACE_BACKGROUND",
+      "labelKo": "공간·배경",
+      "skills": [
+        { "code": "perspective_space", "labelKo": "투시·공간감" },
+        { "code": "background_environment", "labelKo": "배경·환경" },
+        { "code": "depth_staging", "labelKo": "근경·중경·원경 구성" }
+      ]
+    },
+    {
+      "code": "COMPOSITION_STORY",
+      "labelKo": "구성·연출",
+      "skills": [
+        { "code": "composition_focus", "labelKo": "구도·주제부 강조" },
+        { "code": "visual_flow", "labelKo": "시선 흐름" },
+        { "code": "panel_storytelling", "labelKo": "컷 연출·스토리텔링" },
+        { "code": "scene_staging", "labelKo": "상황·장면 연출" }
+      ]
+    },
+    {
+      "code": "COLOR_RENDERING",
+      "labelKo": "색채·표현",
+      "skills": [
+        { "code": "value_light", "labelKo": "명암·빛" },
+        { "code": "color_harmony", "labelKo": "색채·조화" },
+        { "code": "material_texture", "labelKo": "질감·묘사" },
+        { "code": "media_technique", "labelKo": "재료·기법" }
+      ]
+    },
+    {
+      "code": "IDEATION_CONTENT",
+      "labelKo": "발상·콘텐츠",
+      "skills": [
+        { "code": "theme_interpretation", "labelKo": "주제 해석" },
+        { "code": "idea_development", "labelKo": "발상·아이디어 전개" },
+        { "code": "character_concept", "labelKo": "캐릭터·콘셉트 설계" },
+        { "code": "content_understanding", "labelKo": "전공·콘텐츠 이해" }
+      ]
+    },
+    {
+      "code": "PROCESS_COMPLETION",
+      "labelKo": "과정·완성",
+      "skills": [
+        { "code": "revision_feedback", "labelKo": "수정·피드백 반영" },
+        { "code": "planning_execution", "labelKo": "계획·제작 진행" },
+        { "code": "completion_consistency", "labelKo": "완성도·일관성" }
+      ]
+    }
+  ]
+}
