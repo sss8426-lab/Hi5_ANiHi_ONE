@@ -34,15 +34,16 @@ function run(...args) {
   return execFileSync(process.execPath, [script, ...args], { encoding: 'utf8' });
 }
 
-test('legacy student migration is dry-run by default and never exposes student fields', async () => {
+test('legacy student migration is dry-run by default, skips every duplicate source ID, and never exposes student fields', async () => {
   const { source, target, output } = await fixture();
   const stdout = run('--source', source, '--target', target);
   const report = JSON.parse(stdout);
   assert.equal(report.mode, 'dry-run');
   assert.equal(report.sourceStudentCount, 4);
-  assert.equal(report.added, 1);
+  assert.equal(report.added, 0);
   assert.equal(report.enriched, 1);
-  assert.equal(report.ambiguous, 2);
+  assert.equal(report.ambiguous, 3);
+  assert.equal(report.mergedStudentCount, 1);
   assert.deepEqual(report.preservedCollections, {
     universities: { before: 1, after: 1 },
     cases: { before: 1, after: 1 },
@@ -52,15 +53,20 @@ test('legacy student migration is dry-run by default and never exposes student f
   assert.equal(stdout.includes('synthetic legacy note'), false);
   assert.equal(stdout.includes('synthetic existing grade'), false);
   assert.equal(stdout.includes('synthetic legacy conflicting grade'), false);
+  assert.equal(stdout.includes('synthetic grade'), false);
+  assert.equal(stdout.includes('duplicate source id'), false);
   await assert.rejects(readFile(output));
 });
 
-test('apply enriches only missing fields, keeps collections intact, and restore copies a verified private backup', async () => {
+test('apply enriches only missing fields, keeps duplicate source IDs out, preserves collections, and restore copies a verified private backup', async () => {
   const { source, target, output } = await fixture();
   const apply = JSON.parse(run('--source', source, '--target', target, '--out', output, '--apply'));
   const merged = JSON.parse(await readFile(output, 'utf8'));
   assert.equal(apply.mode, 'apply');
-  assert.equal(merged.students.length, 2);
+  assert.equal(apply.added, 0);
+  assert.equal(apply.ambiguous, 3);
+  assert.equal(merged.students.length, 1);
+  assert.equal(merged.students[0].id, 1);
   assert.equal(merged.students[0].grade, 'synthetic existing grade');
   assert.equal(merged.students[0].memo, 'synthetic legacy note');
   assert.equal(merged.universities.length, 1);
