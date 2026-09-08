@@ -44,5 +44,7 @@ jobs:
           node --check public/data-core/login.js
           node --check public/data-core/accounts.js
           node --check public/data-core/work/kkumeum.js
+          node --check public/data-core/work/kkumeum-analytics.js
           node --check public/data-core/work/kkumeum-notices.js
+          node --check public/data-core/work/kkumeum-operations.js
           node --check public/admissions-web/renderer/data-core-upload-bridge.js
