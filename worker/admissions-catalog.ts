@@ -25,7 +25,7 @@ async function savedRows(db: D1Database) {
 }
 async function fetchSource(season: keyof typeof sourceUrls) {
   // Fixed public endpoints only. No auth headers, cookies, redirects or caller-supplied URLs.
-  const response = await fetch(sourceUrls[season], { redirect:'error', signal:AbortSignal.timeout(20000), headers:{accept:'application/json'} });
+  const response = await fetch(sourceUrls[season], { redirect:'manual', signal:AbortSignal.timeout(20000), headers:{accept:'application/json'} });
   if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) throw new DataCoreAccessError(502, '공개 입시요강 원본을 가져오지 못했습니다. 기존 데이터는 보존됩니다.');
   if (Number(response.headers.get('content-length')) > MAX_SOURCE_BYTES) throw new DataCoreAccessError(502,'공개 원본 크기를 확인해야 합니다.');
   const reader = response.body!.getReader();

@@ -133,3 +133,10 @@ now include only a fixed processing stage and allowlisted exception class,
 never exception messages, raw source content or credentials. A synthetic
 exception containing private markers verifies that diagnostics do not leak it.
 Initial production guideline import remains unverified until a successful apply.
+
+Root cause reproduced in workerd: fetch rejects redirect mode `error` with
+TypeError before any external response. Node-level fetch mocks had missed this
+runtime difference. Use `manual`; the existing non-2xx check rejects redirects
+without following them. A real workerd synthetic outbound-service test verifies
+one request only and an application behavior test verifies redirected sources
+are rejected. No access-control bypass or alternative source is introduced.
