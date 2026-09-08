@@ -18,12 +18,13 @@ test('competition source sync uses the requested live source URLs', async () => 
   assert.match(source, /searchParams\.get\("c_seq"\)/);
 });
 
-test('live source parser keeps only registration-open or upcoming rows and supports month-day dates', async () => {
+test('live source parser classifies active status and supports month-day dates without breaking legacy import fixtures', async () => {
   const source = await sourceText();
   assert.match(source, /function sourceStatusFrom\(/);
   assert.match(source, /접수\\s\*중/);
   assert.match(source, /접수\\s\*\(\?:전\|예정\)/);
-  assert.match(source, /if \(!sourceStatus\) continue/);
+  assert.match(source, /status:\s*"unknown",\s*label:\s*"상태 확인 필요"/);
+  assert.doesNotMatch(source, /if \(!sourceStatus\) continue/);
   assert.match(source, /function datesFrom\(value: string, fetchedAt: string\)/);
   assert.match(source, /matchAll\(\/\(\\d\{1,2\}\)\\s\*\[\.\\-\/월\]/);
   assert.match(source, /sourceStatusLabel/);
