@@ -15,15 +15,18 @@ type StoredSubscription = {
   endpoint_encrypted: string;
   p256dh_encrypted: string | null;
   auth_encrypted: string | null;
+  encryption_key_id: string | null;
 };
 
 type PushConfig = {
   publicKey: string | null;
   encryptionKey: Uint8Array | null;
+  encryptionKeyId: string | null;
   privateJwk: JsonWebKey | null;
   subject: string | null;
   subscriptionReady: boolean;
   providerConfigured: boolean;
+  code: string | null;
 };
 
 const BASE64URL = /^[A-Za-z0-9_-]+$/;
@@ -46,6 +49,65 @@ function fromBase64Url(value: string): Uint8Array {
   return Uint8Array.from(raw, (character) => character.charCodeAt(0));
 }
 
+function pushConfigError(code: string): PushConfig {
+  return {
+    publicKey: null,
+    encryptionKey: null,
+    encryptionKeyId: null,
+    privateJwk: null,
+    subject: null,
+    subscriptionReady: false,
+    providerConfigured: false,
+    code,
+  };
+}
+
+function isVapidSubject(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "mailto:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+async function encryptionKeyId(key: Uint8Array): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", bytesBuffer(key));
+  return `sha256:${base64Url(new Uint8Array(digest))}`;
+}
+
+async function validVapidPrivateKey(value: string, publicKey: Uint8Array): Promise<JsonWebKey | null> {
+  let privateJwk: JsonWebKey;
+  try {
+    privateJwk = JSON.parse(value) as JsonWebKey;
+  } catch {
+    return null;
+  }
+  if (privateJwk.kty !== "EC" || privateJwk.crv !== "P-256" || typeof privateJwk.d !== "string" || typeof privateJwk.x !== "string" || typeof privateJwk.y !== "string") return null;
+  try {
+    const [x, y, d] = [privateJwk.x, privateJwk.y, privateJwk.d].map(fromBase64Url);
+    if (x.length !== 32 || y.length !== 32 || d.length !== 32) return null;
+    const privateKey = await crypto.subtle.importKey("jwk", privateJwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
+    const publicCryptoKey = await crypto.subtle.importKey("raw", bytesBuffer(publicKey), { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
+    const challenge = new TextEncoder().encode("kkumeum-vapid-pair-check-v1");
+    const signature = await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, privateKey, challenge);
+    return await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, publicCryptoKey, signature, challenge) ? privateJwk : null;
+  } catch {
+    return null;
+  }
+}
+
+function hasValidVapidPrivateJwkShape(value: string): boolean {
+  try {
+    const privateJwk = JSON.parse(value) as JsonWebKey;
+    if (privateJwk.kty !== "EC" || privateJwk.crv !== "P-256" || typeof privateJwk.d !== "string" || typeof privateJwk.x !== "string" || typeof privateJwk.y !== "string") return false;
+    const [x, y, d] = [privateJwk.x, privateJwk.y, privateJwk.d].map(fromBase64Url);
+    return x.length === 32 && y.length === 32 && d.length === 32;
+  } catch {
+    return false;
+  }
+}
+
 async function endpointHash(endpoint: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(endpoint));
   return base64Url(new Uint8Array(digest));
@@ -62,7 +124,7 @@ function assertSameOrigin(request: Request): void {
   }
 }
 
-function config(env: KkumeumPushEnv): PushConfig {
+async function config(env: KkumeumPushEnv): Promise<PushConfig> {
   const publicKey = text(env.PUSH_VAPID_PUBLIC_KEY, 200) || null;
   let encryptionKey: Uint8Array | null = null;
   try {
@@ -74,22 +136,64 @@ function config(env: KkumeumPushEnv): PushConfig {
   } catch {
     encryptionKey = null;
   }
-  let privateJwk: JsonWebKey | null = null;
-  try {
-    const value = text(env.PUSH_VAPID_PRIVATE_JWK, 4096);
-    if (value) privateJwk = JSON.parse(value) as JsonWebKey;
-  } catch {
-    privateJwk = null;
-  }
   const subject = text(env.PUSH_VAPID_SUBJECT, 240) || null;
-  const subscriptionReady = Boolean(publicKey && encryptionKey);
+  if (!encryptionKey) return pushConfigError("subscription_key_invalid");
+  if (!publicKey) return pushConfigError("vapid_invalid");
+  let publicKeyBytes: Uint8Array;
+  try {
+    publicKeyBytes = fromBase64Url(publicKey);
+    if (publicKeyBytes.length !== 65 || publicKeyBytes[0] !== 4) return pushConfigError("vapid_invalid");
+    await crypto.subtle.importKey("raw", bytesBuffer(publicKeyBytes), { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
+  } catch {
+    return pushConfigError("vapid_invalid");
+  }
+  if (!subject || !isVapidSubject(subject)) {
+    return {
+      publicKey,
+      encryptionKey,
+      encryptionKeyId: await encryptionKeyId(encryptionKey),
+      privateJwk: null,
+      subject: null,
+      subscriptionReady: true,
+      providerConfigured: false,
+      code: "vapid_subject_invalid",
+    };
+  }
+  const privateValue = text(env.PUSH_VAPID_PRIVATE_JWK, 4096);
+  if (!hasValidVapidPrivateJwkShape(privateValue)) {
+    return {
+      publicKey,
+      encryptionKey,
+      encryptionKeyId: await encryptionKeyId(encryptionKey),
+      privateJwk: null,
+      subject,
+      subscriptionReady: true,
+      providerConfigured: false,
+      code: "vapid_invalid",
+    };
+  }
+  const privateJwk = await validVapidPrivateKey(privateValue, publicKeyBytes);
+  if (!privateJwk) {
+    return {
+      publicKey,
+      encryptionKey,
+      encryptionKeyId: await encryptionKeyId(encryptionKey),
+      privateJwk: null,
+      subject,
+      subscriptionReady: true,
+      providerConfigured: false,
+      code: "vapid_key_mismatch",
+    };
+  }
   return {
     publicKey,
     encryptionKey,
+    encryptionKeyId: await encryptionKeyId(encryptionKey),
     privateJwk,
     subject,
-    subscriptionReady,
-    providerConfigured: Boolean(subscriptionReady && privateJwk && subject),
+    subscriptionReady: true,
+    providerConfigured: true,
+    code: null,
   };
 }
 
@@ -121,6 +225,7 @@ export async function ensureKkumeumPushSchema(familyDb: D1Database): Promise<voi
       endpoint_encrypted TEXT NOT NULL,
       p256dh_encrypted TEXT,
       auth_encrypted TEXT,
+      encryption_key_id TEXT,
       platform TEXT,
       active INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL,
@@ -146,7 +251,7 @@ export async function ensureKkumeumPushSchema(familyDb: D1Database): Promise<voi
   ]);
   const columns = await familyDb.prepare("PRAGMA table_info(push_subscriptions)").all<{ name: string }>();
   const known = new Set((columns.results || []).map((column) => column.name));
-  for (const [name, type] of [["p256dh_encrypted", "TEXT"], ["auth_encrypted", "TEXT"], ["last_used_at", "TEXT"], ["revoked_at", "TEXT"]]) {
+  for (const [name, type] of [["p256dh_encrypted", "TEXT"], ["auth_encrypted", "TEXT"], ["encryption_key_id", "TEXT"], ["last_used_at", "TEXT"], ["revoked_at", "TEXT"]]) {
     if (!known.has(name)) await familyDb.exec(`ALTER TABLE push_subscriptions ADD COLUMN ${name} ${type}`);
   }
 }
@@ -187,15 +292,25 @@ export async function guardianPushStatus(familyDb: D1Database, request: Request,
   const guardian = await requireGuardian(familyDb, request);
   const active = await familyDb.prepare(`SELECT id FROM push_subscriptions
     WHERE guardian_id = ? AND active = 1 AND revoked_at IS NULL LIMIT 1`).bind(guardian.guardianId).first<{ id: string }>();
-  const settings = config(env);
-  return { subscribed: Boolean(active), subscriptionReady: settings.subscriptionReady, configured: settings.providerConfigured, publicKey: settings.subscriptionReady ? settings.publicKey : null, code: settings.providerConfigured ? null : "push_not_configured" };
+  const settings = await config(env);
+  const hasActiveSubscription = Boolean(active);
+  return {
+    subscribed: hasActiveSubscription,
+    hasActiveSubscription,
+    subscriptionReady: settings.subscriptionReady,
+    configured: settings.providerConfigured,
+    publicKey: settings.subscriptionReady ? settings.publicKey : null,
+    code: settings.code || (settings.providerConfigured ? null : "push_not_configured"),
+  };
 }
 
 export async function subscribeGuardianPush(familyDb: D1Database, request: Request, env: KkumeumPushEnv, rawInput: unknown) {
   assertSameOrigin(request);
   const guardian = await requireGuardian(familyDb, request);
-  const settings = config(env);
-  if (!settings.providerConfigured || !settings.encryptionKey) throw new DataCoreAccessError(503, "push_not_configured");
+  const settings = await config(env);
+  if (!settings.providerConfigured || !settings.encryptionKey || !settings.encryptionKeyId) {
+    throw new DataCoreAccessError(503, settings.code || "push_not_configured");
+  }
   const input = subscriptionInput(rawInput);
   const hash = await endpointHash(input.endpoint);
   const existing = await familyDb.prepare("SELECT id, guardian_id FROM push_subscriptions WHERE endpoint_hash = ? LIMIT 1").bind(hash).first<{ id: string; guardian_id: string }>();
@@ -203,16 +318,16 @@ export async function subscribeGuardianPush(familyDb: D1Database, request: Reque
   const now = new Date().toISOString();
   const id = existing?.id || crypto.randomUUID();
   await familyDb.prepare(`INSERT INTO push_subscriptions (
-    id, guardian_id, endpoint_hash, endpoint_encrypted, p256dh_encrypted, auth_encrypted, platform, active, created_at, updated_at, last_used_at, revoked_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, NULL)
+    id, guardian_id, endpoint_hash, endpoint_encrypted, p256dh_encrypted, auth_encrypted, encryption_key_id, platform, active, created_at, updated_at, last_used_at, revoked_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, NULL)
   ON CONFLICT(endpoint_hash) DO UPDATE SET endpoint_encrypted = excluded.endpoint_encrypted,
-    p256dh_encrypted = excluded.p256dh_encrypted, auth_encrypted = excluded.auth_encrypted, platform = excluded.platform,
+    p256dh_encrypted = excluded.p256dh_encrypted, auth_encrypted = excluded.auth_encrypted, encryption_key_id = excluded.encryption_key_id, platform = excluded.platform,
     active = 1, updated_at = excluded.updated_at, last_used_at = excluded.last_used_at, revoked_at = NULL`).bind(
     id, guardian.guardianId, hash, await encrypt(input.endpoint, settings.encryptionKey), await encrypt(input.p256dh, settings.encryptionKey),
-    await encrypt(input.auth, settings.encryptionKey), input.platform, now, now, now,
+    await encrypt(input.auth, settings.encryptionKey), settings.encryptionKeyId, input.platform, now, now, now,
   ).run();
   await auditSubscription(familyDb, guardian.guardianId, existing ? "push_subscription.refresh" : "push_subscription.create", id);
-  return { ok: true, subscribed: true, configured: settings.providerConfigured, code: settings.providerConfigured ? null : "push_not_configured" };
+  return { ok: true, subscribed: true, hasActiveSubscription: true, configured: true, code: null };
 }
 
 export async function unsubscribeGuardianPush(familyDb: D1Database, request: Request, rawInput: unknown) {
@@ -289,24 +404,31 @@ async function encryptPushPayload(p256dh: string, auth: string, payload: Record<
   return body;
 }
 
-async function sendPush(subscription: StoredSubscription, settings: PushConfig, announcementId: string): Promise<{ sent: boolean; errorCode: string | null }> {
-  if (!settings.providerConfigured || !settings.encryptionKey || !settings.privateJwk || !settings.subject || !settings.publicKey) return { sent: false, errorCode: "push_not_configured" };
+async function sendPush(subscription: StoredSubscription, settings: PushConfig, announcementId: string): Promise<{ sent: boolean; errorCode: string | null; legacyKeyVerified: boolean }> {
+  if (!settings.providerConfigured || !settings.encryptionKey || !settings.encryptionKeyId || !settings.privateJwk || !settings.subject || !settings.publicKey) {
+    return { sent: false, errorCode: settings.code || "push_not_configured", legacyKeyVerified: false };
+  }
+  if (subscription.encryption_key_id && subscription.encryption_key_id !== settings.encryptionKeyId) {
+    return { sent: false, errorCode: "subscription_key_mismatch", legacyKeyVerified: false };
+  }
   try {
     const endpoint = await decrypt(subscription.endpoint_encrypted, settings.encryptionKey);
     const p256dh = subscription.p256dh_encrypted ? await decrypt(subscription.p256dh_encrypted, settings.encryptionKey) : "";
     const auth = subscription.auth_encrypted ? await decrypt(subscription.auth_encrypted, settings.encryptionKey) : "";
-    if (!p256dh || !auth) return { sent: false, errorCode: "subscription_incomplete" };
+    if (!p256dh || !auth) return { sent: false, errorCode: "subscription_incomplete", legacyKeyVerified: false };
     const response = await fetch(endpoint, {
       method: "POST",
       headers: { Authorization: `vapid t=${await vapidToken(settings.privateJwk, settings.subject, new URL(endpoint).origin)}, k=${settings.publicKey}`, "Content-Encoding": "aes128gcm", "Content-Type": "application/octet-stream", TTL: "300", Urgency: "normal" },
       body: bytesBuffer(await encryptPushPayload(p256dh, auth, { title: "꿈이음", body: "꿈이음 새 소식이 도착했습니다.", noticeId: announcementId, route: `/family/?openNotice=${encodeURIComponent(announcementId)}` })),
     });
-    if (response.ok) return { sent: true, errorCode: null };
-    return { sent: false, errorCode: response.status === 404 || response.status === 410 ? "subscription_gone" : "provider_rejected" };
-  } catch { return { sent: false, errorCode: "provider_error" }; }
+    if (response.ok) return { sent: true, errorCode: null, legacyKeyVerified: !subscription.encryption_key_id };
+    return { sent: false, errorCode: response.status === 404 || response.status === 410 ? "subscription_gone" : "provider_rejected", legacyKeyVerified: false };
+  } catch {
+    return { sent: false, errorCode: subscription.encryption_key_id ? "provider_error" : "subscription_key_mismatch", legacyKeyVerified: false };
+  }
 }
 
-async function recordDelivery(familyDb: D1Database, announcementId: string, subscription: StoredSubscription, result: { sent: boolean; errorCode: string | null }) {
+async function recordDelivery(familyDb: D1Database, announcementId: string, subscription: StoredSubscription, result: { sent: boolean; errorCode: string | null; legacyKeyVerified: boolean }, encryptionKeyId: string | null) {
   const now = new Date().toISOString();
   await familyDb.prepare(`INSERT INTO push_delivery_attempts (
     id, announcement_id, subscription_id, guardian_id, status, error_code, attempted_at
@@ -319,23 +441,26 @@ async function recordDelivery(familyDb: D1Database, announcementId: string, subs
   } else {
     await familyDb.prepare("UPDATE push_subscriptions SET last_used_at = ? WHERE id = ?").bind(now, subscription.id).run();
   }
+  if (result.legacyKeyVerified && encryptionKeyId) {
+    await familyDb.prepare("UPDATE push_subscriptions SET encryption_key_id = ? WHERE id = ? AND encryption_key_id IS NULL").bind(encryptionKeyId, subscription.id).run();
+  }
 }
 
 // Publishing is already committed before this function runs; it must never throw into the publish response.
 export async function dispatchGuardianAnnouncementPush(familyDb: D1Database, env: KkumeumPushEnv, announcementId: string): Promise<{ sent: number; failed: number; code: string | null }> {
   try {
     await ensureKkumeumPushSchema(familyDb);
-    const subscriptions = await familyDb.prepare(`SELECT ps.id, ps.guardian_id, ps.endpoint_encrypted, ps.p256dh_encrypted, ps.auth_encrypted
+    const subscriptions = await familyDb.prepare(`SELECT ps.id, ps.guardian_id, ps.endpoint_encrypted, ps.p256dh_encrypted, ps.auth_encrypted, ps.encryption_key_id
       FROM push_subscriptions ps INNER JOIN family_guardians g ON g.id = ps.guardian_id
       WHERE ps.active = 1 AND ps.revoked_at IS NULL AND g.status = 'active'`).all<StoredSubscription>();
-    const settings = config(env);
+    const settings = await config(env);
     let sent = 0; let failed = 0;
     for (const subscription of subscriptions.results || []) {
       if (!(await guardianCanViewPublishedAnnouncement(familyDb, announcementId, subscription.guardian_id))) continue;
       const result = await sendPush(subscription, settings, announcementId);
-      await recordDelivery(familyDb, announcementId, subscription, result);
+      await recordDelivery(familyDb, announcementId, subscription, result, settings.encryptionKeyId);
       if (result.sent) sent += 1; else failed += 1;
     }
-    return { sent, failed, code: settings.providerConfigured ? null : "push_not_configured" };
+    return { sent, failed, code: settings.code || (settings.providerConfigured ? null : "push_not_configured") };
   } catch { return { sent: 0, failed: 0, code: "push_delivery_unavailable" }; }
 }

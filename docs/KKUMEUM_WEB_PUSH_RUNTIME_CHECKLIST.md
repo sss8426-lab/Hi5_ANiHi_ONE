@@ -18,7 +18,7 @@ private JWK와 subscription encryption key는 Git/Issue/로그/스크린샷/명�
 3. public key와 private JWK가 같은 keypair인지 검증한다.
 4. subject가 `mailto:` 또는 `https:` 형식인지 검증한다.
 5. subscription encryption key가 정확히 32 bytes인지 확인한다.
-6. encryption key는 이미 저장된 subscription이 생긴 뒤 임의 교체하지 않는다. 교체 시 기존 subscription re-enrollment 또는 명시적 rotation plan이 필요하다.
+6. encryption key는 이미 저장된 subscription이 생긴 뒤 임의 교체하지 않는다. 새 구독 row에는 non-secret SHA-256 key id가 기록되며, 일치하지 않는 row는 `subscription_key_mismatch`로 안전 실패한다. 기존 key id 없는 row는 현재 key로 한 번의 복호화/전송이 성공했을 때만 key id를 backfill한다.
 7. provider 설정이 일부만 존재할 때 `configured=true`로 표시하지 않는다.
 
 ## 운영 smoke
@@ -35,9 +35,4 @@ private JWK와 subscription encryption key는 Git/Issue/로그/스크린샷/명�
 
 ## 키 회전
 
-초기 production에서는 subscription encryption key를 안정적으로 보존한다. 향후 회전이 필요하면:
-- key id/version을 subscription row에 기록
-- current/previous key를 제한된 기간 지원하거나
-- 기존 구독을 명시적으로 revoke하고 재구독을 요청
-
-중 하나를 먼저 구현한 뒤 회전한다. 값만 교체해서 기존 ciphertext를 복호화 불가능하게 만들지 않는다.
+초기 production에서는 subscription encryption key를 안정적으로 보존한다. key id는 회전 감지와 안전 실패를 위한 것이며, 자체로 previous key를 복구하거나 plaintext를 노출하지 않는다. 회전이 필요하면 current/previous key를 제한된 기간 지원하거나 기존 구독을 명시적으로 revoke하고 재구독을 요청하는 운영 절차를 먼저 승인한 뒤 수행한다.
