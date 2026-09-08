@@ -1,4 +1,5 @@
 import { DataCoreAccessError } from "./data-core-access";
+import { ensureKkumeumConsentSchema, type KkumeumConsentPolicy } from "./kkumeum-consents";
 import {
   ensureKkumeumGuardianAuthSchema,
   kkumeumGuardianSessionIdentity,
@@ -103,11 +104,102 @@ function guardianBindings(guardianId: string): string[] {
   return [guardianId, guardianId, guardianId, guardianId];
 }
 
+type TargetVisibility = { sql: string; bindings: string[] };
+
+async function consentPolicy(familyDb: D1Database): Promise<KkumeumConsentPolicy> {
+  await ensureKkumeumConsentSchema(familyDb);
+  const row = await familyDb.prepare(
+    `SELECT consent_type, required_version, enforcement_enabled, updated_at
+     FROM family_consent_policy WHERE id = 1`,
+  ).first<{
+    consent_type: string | null;
+    required_version: string | null;
+    enforcement_enabled: number;
+    updated_at: string | null;
+  }>();
+  const policy: KkumeumConsentPolicy = {
+    consentType: row?.consent_type || null,
+    requiredVersion: row?.required_version || null,
+    enforcementEnabled: Boolean(row?.enforcement_enabled),
+    updatedAt: row?.updated_at || null,
+  };
+  if (policy.enforcementEnabled && (!policy.consentType || !policy.requiredVersion)) {
+    throw new DataCoreAccessError(503, "보호자 동의 정책 설정을 확인할 수 없습니다.");
+  }
+  return policy;
+}
+
+function targetVisibility(guardianId: string, policy: KkumeumConsentPolicy): TargetVisibility {
+  if (!policy.enforcementEnabled || !policy.consentType || !policy.requiredVersion) {
+    return { sql: VISIBLE_TARGET_SQL, bindings: guardianBindings(guardianId) };
+  }
+  const type = policy.consentType;
+  const version = policy.requiredVersion;
+  return {
+    sql: `(
+      t.target_type = 'organization'
+      OR (t.target_type = 'guardian' AND t.target_id = ? AND EXISTS (
+        SELECT 1
+        FROM student_guardians sg
+        INNER JOIN consents c
+          ON c.student_id = sg.student_id
+         AND c.guardian_id = sg.guardian_id
+         AND c.consent_type = ?
+         AND c.version = ?
+         AND c.revoked_at IS NULL
+        WHERE sg.guardian_id = ?
+      ))
+      OR (t.target_type = 'student' AND EXISTS (
+        SELECT 1
+        FROM student_guardians sg
+        INNER JOIN consents c
+          ON c.student_id = sg.student_id
+         AND c.guardian_id = sg.guardian_id
+         AND c.consent_type = ?
+         AND c.version = ?
+         AND c.revoked_at IS NULL
+        WHERE sg.guardian_id = ? AND sg.student_id = t.target_id
+      ))
+      OR (t.target_type = 'campus' AND EXISTS (
+        SELECT 1
+        FROM student_guardians sg
+        INNER JOIN family_students s ON s.id = sg.student_id
+        INNER JOIN consents c
+          ON c.student_id = sg.student_id
+         AND c.guardian_id = sg.guardian_id
+         AND c.consent_type = ?
+         AND c.version = ?
+         AND c.revoked_at IS NULL
+        WHERE sg.guardian_id = ? AND s.campus_id = t.target_id
+      ))
+      OR (t.target_type = 'class' AND EXISTS (
+        SELECT 1
+        FROM student_guardians sg
+        INNER JOIN family_students s ON s.id = sg.student_id
+        INNER JOIN consents c
+          ON c.student_id = sg.student_id
+         AND c.guardian_id = sg.guardian_id
+         AND c.consent_type = ?
+         AND c.version = ?
+         AND c.revoked_at IS NULL
+        WHERE sg.guardian_id = ? AND s.current_class_id = t.target_id
+      ))
+    )`,
+    bindings: [
+      guardianId, type, version, guardianId,
+      type, version, guardianId,
+      type, version, guardianId,
+      type, version, guardianId,
+    ],
+  };
+}
+
 export async function listGuardianNotices(
   familyDb: D1Database,
   request: Request,
 ): Promise<{ notices: GuardianNotice[]; unreadCount: number }> {
   const guardian = await requireGuardian(familyDb, request);
+  const visibility = targetVisibility(guardian.guardianId, await consentPolicy(familyDb));
   const result = await familyDb.prepare(
     `SELECT DISTINCT
        a.id,
@@ -124,12 +216,12 @@ export async function listGuardianNotices(
       AND rr.resource_id = a.id
      WHERE a.status = 'published'
        AND a.published_at IS NOT NULL
-       AND ${VISIBLE_TARGET_SQL}
+       AND ${visibility.sql}
      ORDER BY a.published_at DESC, a.id DESC
      LIMIT 100`,
   ).bind(
     guardian.guardianId,
-    ...guardianBindings(guardian.guardianId),
+    ...visibility.bindings,
   ).all<{
     id: string;
     announcement_type: string;
@@ -160,6 +252,7 @@ export async function markGuardianNoticeRead(
 ): Promise<{ ok: true; announcementId: string; readAt: string }> {
   assertSameOrigin(request);
   const guardian = await requireGuardian(familyDb, request);
+  const visibility = targetVisibility(guardian.guardianId, await consentPolicy(familyDb));
   const visible = await familyDb.prepare(
     `SELECT a.id
      FROM announcements a
@@ -167,11 +260,11 @@ export async function markGuardianNoticeRead(
      WHERE a.id = ?
        AND a.status = 'published'
        AND a.published_at IS NOT NULL
-       AND ${VISIBLE_TARGET_SQL}
+       AND ${visibility.sql}
      LIMIT 1`,
   ).bind(
     announcementId,
-    ...guardianBindings(guardian.guardianId),
+    ...visibility.bindings,
   ).first<{ id: string }>();
   if (!visible) {
     throw new DataCoreAccessError(403, "이 소식을 볼 권한이 없습니다.");
