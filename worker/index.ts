@@ -31,6 +31,12 @@ import {
   updateDataRecord,
 } from "./data-core-records";
 import {
+  createAcademyCalendarEvent,
+  deleteAcademyCalendarEvent,
+  listAcademyCalendar,
+  updateAcademyCalendarEvent,
+} from "./data-core-calendar";
+import {
   getDataRecordContent,
   searchDataCore,
   setDataRecordContent,
@@ -274,6 +280,33 @@ async function handleDataCoreApi(request: Request, env: Env) {
   if (url.pathname === "/api/data-core/audit" && request.method === "GET") {
     if (!env.DB) throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
     return jsonResponse({ logs: await listAuditLogs(env.DB, context, url) });
+  }
+
+  if (url.pathname === "/api/data-core/calendar" && request.method === "GET") {
+    if (!env.DB) throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
+    return jsonResponse({ events: await listAcademyCalendar(env.DB, context, url) });
+  }
+
+  if (url.pathname === "/api/data-core/calendar" && request.method === "POST") {
+    if (!env.DB) throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
+    return jsonResponse(
+      { event: await createAcademyCalendarEvent(env.DB, context, await readJsonBody(request)) },
+      { status: 201 },
+    );
+  }
+
+  const calendarMatch = url.pathname.match(/^\/api\/data-core\/calendar\/([^/]+)$/);
+  if (calendarMatch) {
+    if (!env.DB) throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
+    const recordId = decodeURIComponent(calendarMatch[1]);
+    if (request.method === "PATCH") {
+      return jsonResponse({
+        event: await updateAcademyCalendarEvent(env.DB, context, recordId, await readJsonBody(request)),
+      });
+    }
+    if (request.method === "DELETE") {
+      return jsonResponse(await deleteAcademyCalendarEvent(env.DB, context, recordId));
+    }
   }
 
   if (url.pathname === "/api/data-core/records" && request.method === "GET") {

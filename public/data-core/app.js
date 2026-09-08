@@ -37,6 +37,9 @@ const state = {
   awardFiles: [],
   selectedAwardFolderId: null,
   guideDraft: null,
+  calendarEvents: [],
+  calendarMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+  calendarSelectedDate: null,
   currentMode: 'mode',
   currentView: 'mode-home',
   droppedFiles: [],
@@ -182,6 +185,7 @@ function switchView(view, options = {}) {
     loadCompetitions();
     loadAwardFolders();
   }
+  if (view === 'counseling-home' || view === 'work-home') loadCalendar();
   if (view === 'admin' && isSuperAdmin()) loadMemberships();
 }
 
@@ -362,6 +366,7 @@ function renderCampusSelectors() {
   fillCampusSelect($('uploadCampus'), { allowOrganization: true });
   fillCampusSelect($('competitionCampus'), { allowOrganization: true });
   fillCampusSelect($('awardFolderCampus'), { allowOrganization: true });
+  fillCampusSelect($('calendarCampus'), { allowOrganization: true });
   fillCampusSelect($('memberCampus'), { all: false });
   $('campusCount').textContent = state.campuses.length;
   renderLibraryFolders();
@@ -386,6 +391,7 @@ async function loadHealthAndContext() {
     const campusResponse = await api('/api/data-core/campuses');
     state.campuses = campusResponse.campuses || [];
     renderCampusSelectors();
+    if (state.currentView === 'counseling-home' || state.currentView === 'work-home') await loadCalendar();
   } catch (error) {
     toast(error.message, 'error');
   }
@@ -1036,6 +1042,179 @@ async function revokeMembership(id) {
   }
 }
 
+function calendarDateKey(date) {
+  const local = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  return `${local.getFullYear()}-${String(local.getMonth() + 1).padStart(2, '0')}-${String(local.getDate()).padStart(2, '0')}`;
+}
+
+function calendarRange() {
+  const month = state.calendarMonth;
+  const first = new Date(month.getFullYear(), month.getMonth(), 1);
+  const last = new Date(month.getFullYear(), month.getMonth() + 1, 0);
+  return { from: calendarDateKey(first), to: calendarDateKey(last) };
+}
+
+function calendarEventTypeLabel(value) {
+  return ({ class: '수업', admission: '입시', competition: '공모전', marketing: '홍보', holiday: '휴일', meeting: '회의', other: '기타' })[value] || '기타';
+}
+
+function calendarEventsForDate(date) {
+  return state.calendarEvents.filter((event) => {
+    const metadata = event.metadata || {};
+    return metadata.startDate <= date && (metadata.endDate || metadata.startDate) >= date;
+  });
+}
+
+function canManageCalendarEvent(event) {
+  return isSuperAdmin() || event.createdByUserId === state.context?.user?.internalUserId;
+}
+
+function renderCalendar() {
+  const homes = document.querySelectorAll('[data-calendar-home]');
+  if (!homes.length) return;
+  const month = state.calendarMonth;
+  const { from, to } = calendarRange();
+  const today = calendarDateKey(new Date());
+  const first = new Date(month.getFullYear(), month.getMonth(), 1);
+  const last = new Date(month.getFullYear(), month.getMonth() + 1, 0);
+  const gridStart = new Date(month.getFullYear(), month.getMonth(), 1 - first.getDay());
+  const gridEnd = new Date(month.getFullYear(), month.getMonth() + 1, 6 - last.getDay());
+  const dates = [];
+  for (let cursor = new Date(gridStart); cursor <= gridEnd; cursor.setDate(cursor.getDate() + 1)) {
+    dates.push(new Date(cursor));
+  }
+  const selectedDate = state.calendarSelectedDate && state.calendarSelectedDate >= from && state.calendarSelectedDate <= to
+    ? state.calendarSelectedDate
+    : from;
+  state.calendarSelectedDate = selectedDate;
+
+  const grid = dates.map((date) => {
+    const key = calendarDateKey(date);
+    const events = calendarEventsForDate(key);
+    const metadata = events.map((event) => event.metadata || {});
+    const classes = [
+      'calendar-day',
+      date.getMonth() === month.getMonth() ? '' : 'outside',
+      key === today ? 'today' : '',
+      key === selectedDate ? 'selected' : '',
+    ].filter(Boolean).join(' ');
+    return `<button class="${classes}" type="button" data-calendar-date="${h(key)}" aria-label="${h(key)} 일정 보기">
+      <span class="calendar-date">${date.getDate()}</span>
+      ${events.slice(0, 2).map((event, index) => `<span class="calendar-event-chip ${h(metadata[index].eventType || 'other')}">${h(event.title)}</span>`).join('')}
+      ${events.length > 2 ? `<span class="calendar-more">+${events.length - 2}</span>` : ''}
+    </button>`;
+  }).join('');
+
+  const selectedEvents = calendarEventsForDate(selectedDate);
+  const list = !state.context?.authenticated
+    ? '<div class="empty-state compact">로그인 후 내부 일정을 확인할 수 있습니다.</div>'
+    : selectedEvents.length
+      ? `<h4>${h(selectedDate)} 일정</h4><div class="calendar-event-list">${selectedEvents.map((event) => {
+        const metadata = event.metadata || {};
+        const range = metadata.endDate ? `${metadata.startDate} ~ ${metadata.endDate}` : metadata.startDate;
+        return `<article class="calendar-event-row"><div><strong>${h(event.title)}</strong><small>${h(calendarEventTypeLabel(metadata.eventType))} · ${h(event.campusName || '조직 공통')} · ${h(range)}${event.summary ? ` · ${h(event.summary)}` : ''}</small></div>${canManageCalendarEvent(event) ? `<div class="calendar-event-actions"><button class="ghost-btn" type="button" data-calendar-edit="${h(event.id)}">수정</button><button class="danger-btn" type="button" data-calendar-delete="${h(event.id)}">삭제</button></div>` : ''}</article>`;
+      }).join('')}</div>`
+      : `<div class="empty-state compact">${h(selectedDate)}에 등록된 일정이 없습니다.</div>`;
+
+  homes.forEach((home) => {
+    home.querySelector('[data-calendar-month]').textContent = `${month.getFullYear()}년 ${month.getMonth() + 1}월`;
+    home.querySelector('[data-calendar-grid]').innerHTML = grid;
+    home.querySelector('[data-calendar-list]').innerHTML = list;
+    home.querySelector('[data-calendar-add]').classList.toggle('hidden', !canWrite());
+  });
+  document.querySelectorAll('[data-calendar-date]').forEach((button) => {
+    button.onclick = () => {
+      state.calendarSelectedDate = button.dataset.calendarDate;
+      renderCalendar();
+    };
+  });
+  document.querySelectorAll('[data-calendar-edit]').forEach((button) => {
+    button.onclick = () => openCalendarModal(state.calendarEvents.find((event) => event.id === button.dataset.calendarEdit));
+  });
+  document.querySelectorAll('[data-calendar-delete]').forEach((button) => {
+    button.onclick = () => deleteCalendarEvent(button.dataset.calendarDelete);
+  });
+}
+
+async function loadCalendar() {
+  if (!state.context?.authenticated) {
+    state.calendarEvents = [];
+    renderCalendar();
+    return;
+  }
+  const { from, to } = calendarRange();
+  try {
+    const response = await api(`/api/data-core/calendar?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+    state.calendarEvents = response.events || [];
+  } catch (error) {
+    state.calendarEvents = [];
+    if (error.status !== 401) toast(error.message, 'error');
+  }
+  renderCalendar();
+}
+
+function openCalendarModal(event = null) {
+  if (!canWrite()) return;
+  const date = state.calendarSelectedDate || calendarRange().from;
+  const metadata = event?.metadata || {};
+  $('calendarModalTitle').textContent = event ? '일정 수정' : '일정 등록';
+  $('calendarEventId').value = event?.id || '';
+  $('calendarTitle').value = event?.title || '';
+  $('calendarStartDate').value = metadata.startDate || date;
+  $('calendarEndDate').value = metadata.endDate || '';
+  $('calendarEventType').value = metadata.eventType || 'other';
+  $('calendarSummary').value = event?.summary || '';
+  $('calendarCampus').value = event?.campusId || '';
+  openModal('calendarModal');
+}
+
+async function saveCalendarEvent(event) {
+  event.preventDefault();
+  const id = $('calendarEventId').value;
+  const campusId = $('calendarCampus').value || null;
+  const payload = {
+    title: $('calendarTitle').value.trim(),
+    summary: $('calendarSummary').value.trim() || null,
+    campusId,
+    visibility: campusId ? 'campus' : 'organization',
+    metadata: {
+      startDate: $('calendarStartDate').value,
+      endDate: $('calendarEndDate').value || undefined,
+      allDay: true,
+      eventType: $('calendarEventType').value,
+    },
+  };
+  const button = $('calendarSubmitBtn');
+  button.disabled = true;
+  try {
+    await api(id ? `/api/data-core/calendar/${encodeURIComponent(id)}` : '/api/data-core/calendar', {
+      method: id ? 'PATCH' : 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    state.calendarSelectedDate = payload.metadata.startDate;
+    closeModal('calendarModal');
+    await loadCalendar();
+    toast(id ? '일정을 수정했습니다.' : '일정을 등록했습니다.');
+  } catch (error) {
+    toast(error.message, 'error');
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function deleteCalendarEvent(id) {
+  const event = state.calendarEvents.find((item) => item.id === id);
+  if (!event || !confirm(`'${event.title}' 일정을 삭제할까요?`)) return;
+  try {
+    await api(`/api/data-core/calendar/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    await loadCalendar();
+    toast('일정을 삭제했습니다.');
+  } catch (error) {
+    toast(error.message, 'error');
+  }
+}
+
 function bindEvents() {
   document.querySelectorAll('[data-mode-card]').forEach((card) => {
     card.onclick = (event) => {
@@ -1070,6 +1249,32 @@ function bindEvents() {
   };
   $('membershipForm').onsubmit = grantMembership;
   $('refreshMembershipsBtn').onclick = loadMemberships;
+  document.querySelectorAll('[data-calendar-prev]').forEach((button) => {
+    button.onclick = () => {
+      state.calendarMonth = new Date(state.calendarMonth.getFullYear(), state.calendarMonth.getMonth() - 1, 1);
+      state.calendarSelectedDate = calendarRange().from;
+      loadCalendar();
+    };
+  });
+  document.querySelectorAll('[data-calendar-next]').forEach((button) => {
+    button.onclick = () => {
+      state.calendarMonth = new Date(state.calendarMonth.getFullYear(), state.calendarMonth.getMonth() + 1, 1);
+      state.calendarSelectedDate = calendarRange().from;
+      loadCalendar();
+    };
+  });
+  document.querySelectorAll('[data-calendar-today]').forEach((button) => {
+    button.onclick = () => {
+      const today = new Date();
+      state.calendarMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      state.calendarSelectedDate = calendarDateKey(today);
+      loadCalendar();
+    };
+  });
+  document.querySelectorAll('[data-calendar-add]').forEach((button) => {
+    button.onclick = () => openCalendarModal();
+  });
+  $('calendarForm').onsubmit = saveCalendarEvent;
   $('memberRole').onchange = () => {
     $('memberCampus').disabled = $('memberRole').value === 'SUPER_ADMIN';
   };

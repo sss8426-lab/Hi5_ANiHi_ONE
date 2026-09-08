@@ -158,6 +158,21 @@
             <small>입시컨설팅 데이터와 지원 전략</small>
           </a>
         </div>
+        <section class="panel calendar-panel" data-calendar-home="counseling" aria-label="학원 공통 일정">
+          <div class="calendar-head">
+            <div><h3>학원 공통 일정</h3><p>캠퍼스 일정과 조직 공통 일정을 함께 봅니다.</p></div>
+            <div class="calendar-controls">
+              <button class="icon-btn" type="button" data-calendar-prev aria-label="이전 달">‹</button>
+              <button class="ghost-btn" type="button" data-calendar-today>오늘</button>
+              <button class="icon-btn" type="button" data-calendar-next aria-label="다음 달">›</button>
+              <button class="primary-btn hidden" type="button" data-calendar-add>+ 일정</button>
+            </div>
+          </div>
+          <h4 class="calendar-month" data-calendar-month></h4>
+          <div class="calendar-weekdays" aria-hidden="true"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div>
+          <div class="calendar-grid" data-calendar-grid></div>
+          <div class="calendar-day-events" data-calendar-list></div>
+        </section>
       </section>
 
       <section class="view" id="view-work-home">
@@ -182,6 +197,21 @@
             <small>2160 x 2700px, 4:5 캡션 초안</small>
           </a>
         </div>
+        <section class="panel calendar-panel" data-calendar-home="work" aria-label="학원 공통 일정">
+          <div class="calendar-head">
+            <div><h3>학원 공통 일정</h3><p>캠퍼스 일정과 조직 공통 일정을 함께 봅니다.</p></div>
+            <div class="calendar-controls">
+              <button class="icon-btn" type="button" data-calendar-prev aria-label="이전 달">‹</button>
+              <button class="ghost-btn" type="button" data-calendar-today>오늘</button>
+              <button class="icon-btn" type="button" data-calendar-next aria-label="다음 달">›</button>
+              <button class="primary-btn hidden" type="button" data-calendar-add>+ 일정</button>
+            </div>
+          </div>
+          <h4 class="calendar-month" data-calendar-month></h4>
+          <div class="calendar-weekdays" aria-hidden="true"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div>
+          <div class="calendar-grid" data-calendar-grid></div>
+          <div class="calendar-day-events" data-calendar-list></div>
+        </section>
       </section>
 
       <section class="view" id="view-library">
@@ -417,6 +447,25 @@
     </div>
   </div>
 
+  <div class="modal-backdrop hidden" id="calendarModal">
+    <div class="modal">
+      <div class="modal-head">
+        <div><h3 id="calendarModalTitle">일정 등록</h3><p>등록한 일정은 권한이 있는 DATA CORE 화면에만 표시됩니다.</p></div>
+        <button class="icon-btn" type="button" data-close-modal="calendarModal" aria-label="닫기">×</button>
+      </div>
+      <form id="calendarForm" class="form-grid">
+        <input id="calendarEventId" type="hidden">
+        <label class="span-2"><span>일정명</span><input id="calendarTitle" maxlength="240" required></label>
+        <label><span>시작일</span><input id="calendarStartDate" type="date" required></label>
+        <label><span>종료일</span><input id="calendarEndDate" type="date"></label>
+        <label><span>유형</span><select id="calendarEventType"><option value="class">수업</option><option value="admission">입시</option><option value="competition">공모전</option><option value="marketing">홍보</option><option value="holiday">휴일</option><option value="meeting">회의</option><option value="other">기타</option></select></label>
+        <label><span>공유 범위</span><select id="calendarCampus"></select></label>
+        <label class="span-2"><span>메모</span><textarea id="calendarSummary" rows="4" maxlength="10000"></textarea></label>
+        <div class="form-actions span-2"><button class="primary-btn" type="submit" id="calendarSubmitBtn">일정 저장</button></div>
+      </form>
+    </div>
+  </div>
+
   <div class="modal-backdrop hidden" id="competitionModal">
     <div class="modal modal-wide">
       <div class="modal-head">
@@ -443,6 +492,6 @@
   </div>
 
   <div class="toast hidden" id="toast"></div>
-  <script src="/data-core/app.js?v=20260908-library-cleanup"></script>
+  <script src="/data-core/app.js?v=20260908-academy-calendar"></script>
 </body>
 </html>
