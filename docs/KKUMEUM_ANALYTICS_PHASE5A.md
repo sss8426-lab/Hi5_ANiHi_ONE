@@ -6,7 +6,9 @@ Issue #111 adds a deliberately narrow analytics bridge between `FAMILY_DB` and D
 
 `FAMILY_DB` remains the source of truth for students, guardians, reports, artworks and private files. The preview API calculates aggregate metrics in memory and never returns student IDs/names, school names, guardian/login/contact data, teacher IDs, report IDs or report/free-text fields, artwork/file IDs, URLs or R2 keys.
 
-Current `growth_points_json` is **not** treated as a safe analytics taxonomy because the report editor currently accepts arbitrary keys/string values. Phase 5A therefore does not aggregate or sync growth-point keys/values. A later phase may add a separate reviewed enum/tag contract before those values can be used analytically.
+Current `growth_points_json` is **not** treated as a safe analytics taxonomy because the report editor currently accepts arbitrary keys/string values. Phase 5A therefore does not aggregate or sync growth-point keys/values.
+
+The reviewed canonical successor contract starts at `docs/KKUMEUM_GROWTH_SKILL_TAXONOMY_V1.json` / `docs/KKUMEUM_GROWTH_SKILL_TAXONOMY_V1.md`. Defining that registry does **not** by itself make skill analytics active: runtime report storage and any aggregate skill breakdown must be implemented separately, must require the matching taxonomy version, and must keep the same minimum-cohort suppression rules. Legacy `growth_points_json` remains excluded.
 
 ## Preview
 
@@ -54,3 +56,5 @@ Each successful sync adds a FAMILY audit row containing only campus, month, sche
 ## Production posture
 
 Read-only preview may be deployed without real-data bulk import or all-campus activation. Keep `KKUMEUM_ANALYTICS_SYNC_ENABLED` disabled until a separate operating decision explicitly approves aggregate DATA CORE sync.
+
+The existence of the growth-skill taxonomy must not be interpreted as approval to create student-level DATA CORE records, rankings, or automatic all-campus skill analytics.
