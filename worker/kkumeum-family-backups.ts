@@ -77,7 +77,6 @@ export async function createKkumeumFamilyBackupManifest(
   ).run();
   return manifest;
 }
-
 // This is deliberately test-only: callers must pass an explicit synthetic marker and no production restore endpoint exists.
 export function assertSyntheticRestoreTarget(target: { marker?: string; production?: boolean }): void {
   if (target.marker !== "KKUMEUM_SYNTHETIC_RESTORE_ONLY" || target.production) {

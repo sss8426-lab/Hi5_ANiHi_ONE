@@ -59,6 +59,8 @@ test('FAMILY backup manifest is private, ephemeral, and never persists object ke
 
     const listed = await h.request('/api/kkumeum/admin/family-backups');
     assert.equal(listed.status, 405);
+    const crossOrigin = await h.request('/api/kkumeum/admin/family-backups/manifest', 'POST', {}, 'https://invalid.example');
+    assert.equal(crossOrigin.status, 403);
     const noRestore = await h.request('/api/kkumeum/admin/family-backups/restore', 'POST', {});
     assert.equal(noRestore.status, 405);
   } finally { await h.mf.dispose(); }
