@@ -6,6 +6,9 @@ import { sites } from "./build/sites-vite-plugin";
 const DATA_CORE_DATABASE_NAME = "site-creator-d1";
 const DATA_CORE_DATABASE_ID = "7a25ebae-c784-40a3-bd71-496f3623bf29";
 const DATA_CORE_R2_BUCKET_NAME = "anihi-admissions-images";
+const FAMILY_DATABASE_NAME = "hi5-anihi-family";
+const FAMILY_DATABASE_ID = "72137d46-50d1-4dd7-8caa-0e31bab003c3";
+const FAMILY_R2_BUCKET_NAME = "hi5-anihi-family-files";
 
 const { d1, r2 } = hostingConfig;
 
@@ -20,6 +23,11 @@ const localBindingConfig = {
           database_name: DATA_CORE_DATABASE_NAME,
           database_id: DATA_CORE_DATABASE_ID,
         },
+        {
+          binding: "FAMILY_DB",
+          database_name: FAMILY_DATABASE_NAME,
+          database_id: FAMILY_DATABASE_ID,
+        },
       ]
     : [],
   r2_buckets: r2
@@ -27,6 +35,10 @@ const localBindingConfig = {
         {
           binding: r2,
           bucket_name: DATA_CORE_R2_BUCKET_NAME,
+        },
+        {
+          binding: "FAMILY_FILES",
+          bucket_name: FAMILY_R2_BUCKET_NAME,
         },
       ]
     : [],

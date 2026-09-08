@@ -47,7 +47,7 @@ test('보호자 session identity는 인증정보만 반환하고 비밀번호·�
   assert.match(source, /export type KkumeumGuardianIdentity/);
   assert.match(source, /guardianId: string/);
   assert.match(source, /displayName: string/);
-  const identityBlock = source.match(/export async function kkumeumGuardianSessionIdentity[\s\S]*?\n}\n\nexport async function loginKkumeumGuardian/)?.[0] || '';
+  const identityBlock = source.match(/export async function kkumeumGuardianSessionIdentity[\s\S]*?\r?\n}\r?\n\r?\nexport async function loginKkumeumGuardian/)?.[0] || '';
   assert.ok(identityBlock);
   assert.doesNotMatch(identityBlock, /password_hash/);
   assert.doesNotMatch(identityBlock, /token_hash:/);
