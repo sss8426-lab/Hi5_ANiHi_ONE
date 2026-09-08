@@ -6,6 +6,11 @@ import {
 } from "./kkumeum-guardian-auth";
 import { requireKkumeumGuardianConsentPolicy } from "./kkumeum-consents";
 import { ensureKkumeumPhase2Schema } from "./kkumeum-phase2-schema";
+import {
+  KKUMEUM_GROWTH_SKILL_REGISTRY,
+  KKUMEUM_GROWTH_SKILL_TAXONOMY_VERSION,
+  isKkumeumGrowthSkillCode,
+} from "./kkumeum-growth-skills";
 
 type GuardianChildLink = {
   student_id: string;
@@ -25,6 +30,10 @@ export type GuardianChildSummary = {
   className: string | null;
 };
 
+const GROWTH_SKILL_LABEL_BY_CODE = new Map(
+  KKUMEUM_GROWTH_SKILL_REGISTRY.map((skill) => [skill.code, skill.labelKo]),
+);
+
 function parseJsonObject(value: unknown): Record<string, unknown> {
   if (!value) return {};
   try {
@@ -34,6 +43,25 @@ function parseJsonObject(value: unknown): Record<string, unknown> {
       : {};
   } catch {
     return {};
+  }
+}
+
+function guardianGrowthSkillLabels(version: unknown, codesJson: unknown): string[] {
+  if (version !== KKUMEUM_GROWTH_SKILL_TAXONOMY_VERSION || !codesJson) return [];
+  try {
+    const parsed = JSON.parse(String(codesJson));
+    if (!Array.isArray(parsed)) return [];
+    const labels: string[] = [];
+    const seen = new Set<string>();
+    for (const raw of parsed) {
+      if (!isKkumeumGrowthSkillCode(raw) || seen.has(raw)) continue;
+      seen.add(raw);
+      const label = GROWTH_SKILL_LABEL_BY_CODE.get(raw);
+      if (label) labels.push(label);
+    }
+    return labels;
+  } catch {
+    return [];
   }
 }
 
@@ -133,7 +161,8 @@ export async function listGuardianChildReports(
   await requireKkumeumGuardianConsentPolicy(familyDb, studentId, guardian.guardianId);
   const result = await familyDb.prepare(
     `SELECT id, year_month, title, summary, evaluation_text,
-            growth_points_json, next_month_focus, sent_at
+            growth_points_json, growth_skill_taxonomy_version, growth_skill_codes_json,
+            next_month_focus, sent_at
      FROM monthly_reports
      WHERE student_id = ? AND status = 'sent'
      ORDER BY year_month DESC, sent_at DESC`,
@@ -144,6 +173,8 @@ export async function listGuardianChildReports(
     summary: string | null;
     evaluation_text: string | null;
     growth_points_json: string;
+    growth_skill_taxonomy_version: string | null;
+    growth_skill_codes_json: string | null;
     next_month_focus: string | null;
     sent_at: string | null;
   }>();
@@ -154,6 +185,10 @@ export async function listGuardianChildReports(
     summary: row.summary || "",
     evaluationText: row.evaluation_text || "",
     growthPoints: parseJsonObject(row.growth_points_json),
+    growthSkillLabels: guardianGrowthSkillLabels(
+      row.growth_skill_taxonomy_version,
+      row.growth_skill_codes_json,
+    ),
     nextMonthFocus: row.next_month_focus || "",
     sentAt: row.sent_at || null,
   }));
