@@ -18,6 +18,10 @@ import {
   markGuardianNoticeRead,
 } from "./kkumeum-announcements";
 import {
+  guardianMonthlyReportReadMap,
+  markGuardianMonthlyReportRead,
+} from "./kkumeum-report-read-receipts";
+import {
   guardianPushStatus,
   subscribeGuardianPush,
   unsubscribeGuardianPush,
@@ -154,11 +158,28 @@ async function handleFamilyGuardianFeedApi(request: Request, env: Env): Promise<
     return privateJsonResponse({ children: await listGuardianChildren(env.FAMILY_DB, request) });
   }
 
+  const childReportReadMatch = url.pathname.match(
+    /^\/api\/family\/children\/([^/]+)\/reports\/([^/]+)\/read$/,
+  );
+  if (childReportReadMatch && request.method === "POST") {
+    return privateJsonResponse(await markGuardianMonthlyReportRead(
+      env.FAMILY_DB,
+      request,
+      decodeURIComponent(childReportReadMatch[1]),
+      decodeURIComponent(childReportReadMatch[2]),
+    ));
+  }
+
   const childReportsMatch = url.pathname.match(/^\/api\/family\/children\/([^/]+)\/reports$/);
   if (childReportsMatch && request.method === "GET") {
     const studentId = decodeURIComponent(childReportsMatch[1]);
+    const reports = await listGuardianChildReports(env.FAMILY_DB, request, studentId);
+    const receipts = await guardianMonthlyReportReadMap(env.FAMILY_DB, request, studentId);
     return privateJsonResponse({
-      reports: await listGuardianChildReports(env.FAMILY_DB, request, studentId),
+      reports: reports.map((report) => ({
+        ...report,
+        readAt: receipts.get(report.reportId) || null,
+      })),
     });
   }
 
