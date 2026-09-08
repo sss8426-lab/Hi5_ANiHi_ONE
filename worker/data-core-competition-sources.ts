@@ -14,7 +14,7 @@ import {
 
 export const COMPETITION_SOURCES = ["artmd", "mgood"] as const;
 export type CompetitionSource = (typeof COMPETITION_SOURCES)[number];
-type LiveSourceStatus = "open" | "upcoming";
+type LiveSourceStatus = "open" | "upcoming" | "unknown";
 
 type NormalizedCompetition = {
   title: string;
@@ -150,13 +150,13 @@ function datesFrom(value: string, fetchedAt: string) {
   return { applicationStart: dates[0] || null, applicationEnd: dates[1] || null };
 }
 
-function sourceStatusFrom(value: string): { status: LiveSourceStatus; label: string } | null {
+function sourceStatusFrom(value: string): { status: LiveSourceStatus; label: string } {
   const normalized = text(value, 500);
   if (/접수\s*중/i.test(normalized)) return { status: "open", label: "접수중" };
   if (/접수\s*(?:전|예정)/i.test(normalized) || /(^|\s)예정(\s|$)/.test(normalized)) {
     return { status: "upcoming", label: "예정" };
   }
-  return null;
+  return { status: "unknown", label: "상태 확인 필요" };
 }
 
 function externalIdFrom(url: string) {
@@ -211,7 +211,6 @@ export function normalizeCompetitionSourceHtml(
       ? cells.join(" ")
       : stripHtml(html.slice(Math.max(0, (match.index || 0) - 500), (match.index || 0) + match[0].length + 500));
     const sourceStatus = sourceStatusFrom(nearby);
-    if (!sourceStatus) continue;
     const dates = datesFrom(nearby, fetchedAt);
     const kindText = source === "artmd" ? (cells[1] || title) : (cells[0] || title);
     const organizer = source === "artmd"
@@ -402,8 +401,8 @@ function mergeSources(existing: CompetitionSourceProvenance[], next: Competition
     sourceUrl: next.sourceUrl,
     sourceName: "",
     source: next.source,
-    sourceStatus: "open",
-    sourceStatusLabel: "접수중",
+    sourceStatus: "unknown",
+    sourceStatusLabel: "상태 확인 필요",
     externalSourceId: next.externalSourceId || null,
     fetchedAt: next.fetchedAt,
   })), next].slice(-12);
