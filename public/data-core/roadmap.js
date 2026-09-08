@@ -1,341 +1,154 @@
-const CATALOG = Array.isArray(window.HI5_DREAM_CATALOG) ? window.HI5_DREAM_CATALOG : [];
-const PUBLIC_ROADMAP = Array.isArray(window.HI5_PUBLIC_ROADMAP) ? window.HI5_PUBLIC_ROADMAP : [];
-const state = { goals: [], current: null, selectedCatalog: null, activeGroup: '전체' };
+import { normalize, searchCareers, matchServerGoal, careerStages, programView, filterPrograms, admissionTrend, safeUrl } from './roadmap-model.js?v=20260908-2';
+
+const content = window.HI5_ROADMAP_CONTENT || { careers: [], tracks: [], lessonAreas: [], sources: [] };
 const $ = (id) => document.getElementById(id);
+const state = { family: '', group: '', query: '', career: null, programs: [], controller: null, request: 0 };
+const familyNames = { story: '만화·애니메이션·게임', design: '디자인' };
+const h = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+const art = (career) => `<span class="career-art art-${career.art}" role="img" aria-label="${h(career.name)}의 작업 장면"></span>`;
+const pathFor = (career) => `#family=${career.family}&career=${career.id}`;
 
-function h(value) {
-  return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-  }[ch]));
+function notice(message, login = false) {
+  $('notice').hidden = !message;
+  $('notice').innerHTML = h(message) + (login ? ` <a href="/data-core/login?next=${encodeURIComponent('/data-core/roadmap' + pathFor(state.career))}">교직원 로그인</a>` : '');
 }
 
-function normalize(value) {
-  return String(value || '').toLowerCase().replace(/[·ㆍ/\s_-]+/g, '').replace(/디자이너|디자인/g, 'design');
+function renderCatalog() {
+  $('familyLabel').textContent = familyNames[state.family] || '전체 관심 분야';
+  const groups = [...new Set(content.careers.filter((c) => c.family === state.family).map((c) => c.group))];
+  $('groupTabs').innerHTML = groups.length > 1 ? ['', ...groups].map((group) => `<button class="group-tab" type="button" data-group="${h(group)}" aria-pressed="${group === state.group}">${h(group || '전체')}</button>`).join('') : '';
+  const careers = searchCareers(content.careers, state.query, state.family).filter((career) => !state.group || career.group === state.group);
+  $('careerCount').textContent = `${careers.length}개의 꿈`;
+  $('goalGrid').innerHTML = careers.length ? careers.map((career) => `<a class="dream-card" href="${pathFor(career)}">${art(career)}<span class="dream-copy"><small>${h(career.group)}</small><strong>${h(career.name)}</strong><span class="dream-summary">${h(career.summary)}</span></span></a>`).join('') : '<p class="empty-state">검색된 꿈이 없어요. 다른 직업명이나 전공을 입력해보세요.</p>';
 }
 
-async function api(url) {
-  const response = await fetch(url, { cache: 'no-store', credentials: 'include' });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body?.error || `HTTP ${response.status}`);
-  return body;
+function renderEducation(career) {
+  const track = content.tracks.find((t) => t.id === career.trackId);
+  $('resultGroup').textContent = `${familyNames[career.family]} / ${career.group}`;
+  $('resultGoal').textContent = career.name;
+  $('resultGoalSummary').textContent = career.summary;
+  $('resultPortrait').innerHTML = art(career);
+  $('changeGoalBtn').href = `#family=${career.family}`;
+  $('majorGrid').innerHTML = career.majors.map((major) => `<span class="major-item">${h(major)}</span>`).join('');
+  $('skillGrid').innerHTML = career.skills.map((skill) => `<span>${h(skill)}</span>`).join('');
+  $('careerOutcome').textContent = career.outcome;
+  $('universityExamples').innerHTML = career.universityExamples.map((example) => `<li>${h(example)}</li>`).join('');
+  $('referenceSources').innerHTML = content.sources.filter((s) => ['커리어넷', '대입정보포털 어디가', '전문대학포털'].includes(s.name) && safeUrl(s.url)).map((source) => `<a href="${h(safeUrl(source.url))}" target="_blank" rel="noopener noreferrer">${h(source.name)} ↗</a>`).join('');
+  const steps = careerStages(career);
+  $('curriculumTimeline').innerHTML = steps.map(([name, summary]) => `<li><h3>${h(name)}</h3><p>${h(summary)}</p></li>`).join('');
+  $('trackDescription').textContent = `${track?.name || career.name} · 미술 기초부터 전공 프로젝트와 입시까지 연결하는 학원 교육 가이드`;
+  const preparation = [
+    ['미술 기초', career.foundation.join(' → '), '관찰하고 표현하는 힘'],
+    ['전공 기초', (track?.focus || career.specialization).join(' · '), '나의 전공 언어 익히기'],
+    ['전공 심화', career.advanced.join(' → '), `대표 결과물: ${career.outcome}`],
+    ['대학입시', career.preparation, '목표 대학의 최종 모집요강에 맞춰 준비'],
+  ];
+  $('preparationGrid').innerHTML = preparation.map(([name, description, note]) => `<article class="preparation-item"><h3>${h(name)}</h3><p>${h(description)}</p><small>${h(note)}</small></article>`).join('');
+  $('lessonAreas').innerHTML = content.lessonAreas.filter((l) => l['단계'].startsWith('1 ')).map((l) => `<div class="lesson-row"><strong>${h(l['수업영역'])}</strong><span>${h(l['교육목표'])}<br>${h(l['권장 순서'])}</span></div>`).join('');
 }
 
-function setLoading(value) { $('loading').classList.toggle('hidden', !value); }
-function showNotice(message) {
-  $('notice').textContent = message || '';
-  $('notice').classList.toggle('hidden', !message);
-}
-
-function groups() {
-  return ['전체', ...Array.from(new Set(CATALOG.map((item) => item.group)))];
-}
-
-function renderGroupTabs() {
-  $('groupTabs').innerHTML = groups().map((group) => `<button class="group-tab ${group === state.activeGroup ? 'active' : ''}" type="button" data-group="${h(group)}">${h(group)}</button>`).join('');
-  document.querySelectorAll('[data-group]').forEach((button) => {
-    button.onclick = () => {
-      state.activeGroup = button.dataset.group || '전체';
-      renderGroupTabs();
-      renderGoals();
-    };
-  });
-}
-
-function exactServerGoal(catalogItem) {
-  const target = normalize(catalogItem?.name);
-  return state.goals.find((goal) => normalize(goal.name) === target)
-    || state.goals.find((goal) => target && (normalize(goal.name).includes(target) || target.includes(normalize(goal.name))));
-}
-
-function renderGoals() {
-  const items = state.activeGroup === '전체' ? CATALOG : CATALOG.filter((item) => item.group === state.activeGroup);
-  $('goalGrid').innerHTML = items.map((goal) => {
-    const connected = Boolean(exactServerGoal(goal));
-    return `<button class="dream-card" type="button" data-catalog-name="${h(goal.name)}">
-      <span class="dream-icon" aria-hidden="true">${h(goal.icon)}</span>
-      <span class="dream-meta">${h(goal.group)}${connected ? ' · DATA CORE 연결' : ''}</span>
-      <strong>${h(goal.name)}</strong>
-      <span class="dream-summary">${h(goal.summary)}</span>
-    </button>`;
-  }).join('');
-  document.querySelectorAll('[data-catalog-name]').forEach((button) => {
-    button.onclick = () => selectCatalogGoal(button.dataset.catalogName);
-  });
-}
-
-function selectCatalogGoal(name) {
-  const item = CATALOG.find((row) => row.name === name);
-  if (!item) return;
-  state.selectedCatalog = item;
-  const serverGoal = exactServerGoal(item);
-  loadRoadmap(item.name, serverGoal?.id || '');
-}
-
-function fallbackRoadmap(goalName) {
-  const item = state.selectedCatalog || CATALOG.find((row) => normalize(row.name) === normalize(goalName));
-  return {
-    goal: goalName,
-    goalMatches: item ? [{ name: item.name, summary: item.summary }] : [{ name: goalName, summary: '선택한 목표에 맞는 전공과 준비과정을 확인하세요.' }],
-    roadmap: {
-      majors: item?.majorHint ? [{ id: `fallback:${item.name}`, name: item.majorHint, summary: `${item.name}과 연결되는 대표 전공군` }] : [],
-      universityPrograms: [],
-      universities: [],
-      admissionMethods: [],
-      requiredSkills: [],
-      curriculumSequence: [],
-      missingData: { universityPrograms: true, universities: true, admissionMethods: true },
-    },
-    fallback: true,
-  };
-}
-
-function matchFitsSelection(payload) {
-  if (!state.selectedCatalog) return true;
-  const match = payload?.goalMatches?.[0];
-  if (!match?.name) return false;
-  const a = normalize(state.selectedCatalog.name);
-  const b = normalize(match.name);
-  return a === b || a.includes(b) || b.includes(a);
-}
-
-function renderMajors(majors) {
-  let rows = majors || [];
-  if (!rows.length && state.selectedCatalog?.majorHint) {
-    rows = state.selectedCatalog.majorHint.split(/[·,]/).map((name, index) => ({ id: `hint:${index}`, name: name.trim(), summary: `${state.selectedCatalog.name}과 연결되는 전공` })).filter((item) => item.name);
-  }
-  $('majorCount').textContent = rows.length;
-  $('majorGrid').innerHTML = rows.length ? rows.map((major) => `<article class="major-item">
-    <strong>${h(major.name)}</strong>
-    <p>${h(major.summary || '')}</p>
-  </article>`).join('') : '<div class="university-empty"><strong>연결 전공 데이터 준비 중</strong><p>DATA CORE 지식 그래프에 전공 연결이 추가되면 자동으로 표시됩니다.</p></div>';
-}
-
-function ratio(value) {
-  if (value === null || value === undefined || value === '') return '확인 필요';
-  const number = Number(value);
-  return Number.isFinite(number) ? `${number}%` : h(value);
-}
-
-function metric(value) {
-  if (value === null || value === undefined || value === '') return '확인 필요';
-  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : '확인 필요';
-  if (typeof value === 'string') return value.trim() || '확인 필요';
-  return '확인 필요';
-}
-
-function textOrEmpty(value) {
-  return typeof value === 'string' || typeof value === 'number' ? String(value).trim() : '';
-}
-
-function sourceUrl(value) {
-  const candidate = textOrEmpty(value);
-  if (!candidate) return '';
-  try {
-    const url = new URL(candidate);
-    return /^https?:$/.test(url.protocol) ? url.href : '';
-  } catch {
-    return '';
-  }
-}
-
-function deepScoreValue(value, wantedKeys) {
-  if (!value || typeof value !== 'object') return null;
-  const stack = [value];
-  while (stack.length) {
-    const current = stack.shift();
-    if (!current || typeof current !== 'object') continue;
-    for (const [key, child] of Object.entries(current)) {
-      const normalizedKey = String(key).toLowerCase().replace(/[\s_-]/g, '');
-      if (wantedKeys.some((wanted) => normalizedKey.includes(wanted))) {
-        if (typeof child === 'string' || typeof child === 'number') return child;
-      }
-      if (child && typeof child === 'object') stack.push(child);
-    }
-  }
-  return null;
-}
-
-function programRow(program) {
-  const metadata = program.metadata || {};
-  const scores = metadata.requiredScores || {};
-  const average = deepScoreValue(scores, ['average', 'avg', 'mean', '평균', '합격평균']);
-  const minimum = deepScoreValue(scores, ['minimum', 'min', 'lowest', '최저', '최저성적']);
-  return {
-    university: metadata.universityName || metadata.schoolName || '대학 확인 필요',
-    department: metadata.major || program.name || '학과 확인 필요',
-    region: metadata.region || metadata.area || metadata.location || '확인 필요',
-    skillRatio: ratio(metadata.skillRatio),
-    gradeRatio: ratio(metadata.gradeRatio),
-    competition: metric(metadata.rateCurrent),
-    average: metric(average),
-    minimum: metric(minimum),
-    admission: metadata.admission || '',
-    practical: metadata.practicalType || '',
-    year: metadata.year || '',
-    schoolType: metadata.schoolType || metadata.degreeType || '',
-    source: sourceUrl(metadata.officialSourceUrl || metadata.sourceUrl || metadata.officialUrl),
-    verification: textOrEmpty(metadata.verificationStatus || metadata.reviewStatus || metadata.verifiedAt),
-  };
-}
-
-function renderUniversities(roadmap) {
-  const programs = roadmap.universityPrograms || [];
-  const universities = roadmap.universities || [];
-  const rows = programs.map(programRow);
-  for (const university of universities) {
-    if (!rows.some((row) => row.university === university.name)) {
-      rows.push({ university: university.name, department: '학과 정보 연결 중', region: '확인 필요', skillRatio: '확인 필요', gradeRatio: '확인 필요', competition: '확인 필요', average: '확인 필요', minimum: '확인 필요', admission: '', practical: '', year: '', schoolType: '', source: '', verification: '' });
-    }
-  }
-
+function renderUniversities() {
+  const filters = { region: $('regionFilter').value, schoolType: $('schoolFilter').value, admission: $('admissionFilter').value, focus: $('focusFilter').value };
+  const rows = filterPrograms(state.programs, filters);
+  $('universityCount').textContent = state.programs.length ? `${rows.length}개 전형` : '';
+  $('universityFilters').hidden = !state.programs.length;
   if (!rows.length) {
-    $('universityContent').innerHTML = `<div class="university-empty">
-      <strong>대학·학과 데이터 연결 준비 중</strong>
-      <p>검증되지 않은 경쟁률·합격성적을 임의로 보여주지 않습니다. 기존 대학합격 로드맵의 실제 대학·입시 데이터를 DATA CORE와 연결하면 이 표에 자동으로 채워집니다.</p>
-    </div>`;
+    $('universityContent').innerHTML = `<p class="empty-state">${state.programs.length ? '선택한 조건에 해당하는 전형이 없습니다.' : '연결된 대학별 전형 정보가 아직 없습니다. 아래 대학·학과 예시부터 살펴보세요.'}</p>`;
     return;
   }
-
-  $('universityContent').innerHTML = `<div class="university-table-wrap"><table class="university-table">
-    <thead><tr><th>대학명</th><th>학과명</th><th>지역</th><th>실기반영비</th><th>성적반영비</th><th>경쟁률</th><th>합격평균성적</th><th>최저성적</th><th>출처·검수</th></tr></thead>
-    <tbody>${rows.map((row) => `<tr>
-      <td><strong>${h(row.university)}</strong>${row.year ? `<small>${h(row.year)}학년도</small>` : ''}</td>
-      <td>${h(row.department)}${[row.schoolType, row.admission, row.practical].filter(Boolean).length ? `<small>${h([row.schoolType, row.admission, row.practical].filter(Boolean).join(' · '))}</small>` : ''}</td>
-      <td>${h(row.region)}</td><td>${h(row.skillRatio)}</td><td>${h(row.gradeRatio)}</td><td>${h(row.competition)}</td><td>${h(row.average)}</td><td>${h(row.minimum)}</td>
-      <td><small>${row.source ? `<a class="source-link" href="${h(row.source)}" target="_blank" rel="noopener">공식 출처</a>` : '공식 출처 확인 필요'}${row.verification ? `<br>검수: ${h(row.verification)}` : '<br>검수 상태 확인 필요'}</small></td>
-    </tr>`).join('')}</tbody>
-  </table></div>`;
+  $('universityContent').innerHTML = `<div class="university-grid">${rows.map((p) => `<article class="university-item"><h3>${h(p.university)}</h3><p class="department">${h(p.department)}</p><p class="program-meta">${h([p.region || '지역 확인 필요', p.schoolType || '학교 유형 확인 필요', p.admission || '모집 시기 확인 필요', p.year ? `${p.year}학년도` : '학년도 확인 필요'].join(' · '))}</p><div class="ratios"><span>성적 <strong>${p.grade === null ? '확인 필요' : `${p.grade}%`}</strong></span><span>실기 <strong>${p.skill === null ? '확인 필요' : `${p.skill}%`}</strong></span></div><p class="program-meta">실기: ${h(p.practical || '모집요강 확인 필요')}</p><p class="source-line">${p.source ? `<a href="${h(p.source)}" target="_blank" rel="noopener noreferrer">${p.verified ? '검수된 모집요강' : '등록 출처 확인'} ↗</a>` : '공식 출처 확인 필요'}<br>${p.verified ? `검수 완료 · ${h(p.verifiedAt)}${p.page ? ` · p.${h(p.page)}` : ' · 원문 페이지 확인 필요'}` : '추가 검수 필요 · 전형 비율 미공개'}</p></article>`).join('')}</div>`;
 }
 
-function fallbackSkills() {
-  const group = state.selectedCatalog?.group;
-  if (group === '디자인') {
-    return [
-      { name: '기초조형', summary: '형태·구성·비례를 시각적으로 정리하는 힘' },
-      { name: '색채·재질', summary: '색의 관계와 소재 특성을 목적에 맞게 사용하는 힘' },
-      { name: '아이디어·문제해결', summary: '주제를 분석하고 새로운 시각적 해결안을 만드는 힘' },
-      { name: '디지털 제작', summary: '디지털 도구로 결과물을 정리하고 완성하는 힘' },
-    ];
-  }
-  return [
-    { name: '관찰·드로잉', summary: '형태와 비례를 정확하게 보고 표현하는 힘' },
-    { name: '인체·공간', summary: '캐릭터와 배경을 자연스럽게 구성하는 힘' },
-    { name: '색채·완성도', summary: '빛, 색, 재질과 화면의 집중도를 조절하는 힘' },
-    { name: '스토리·전공표현', summary: '희망 전공의 방식으로 아이디어와 이야기를 전달하는 힘' },
-  ];
-}
-
-function renderSkills(skills) {
-  const rows = skills?.length ? skills : fallbackSkills();
-  $('skillCount').textContent = rows.length;
-  $('skillGrid').innerHTML = rows.map((skill, index) => `<article class="skill-item">
-    <span class="skill-order">${String(index + 1).padStart(2, '0')}</span>
-    <strong>${h(skill.name)}</strong>
-    <p>${h(skill.summary || '')}</p>
-  </article>`).join('');
-}
-
-function specificModules(sequence, index) {
-  const stageMap = [
-    ['기초'],
-    ['중급'],
-    ['전공'],
-    ['입시'],
-    [],
-    [],
-  ];
-  const stages = stageMap[index] || [];
-  return (sequence || []).filter((item) => stages.includes(String(item.stage || ''))).map((item) => item.name).slice(0, 4);
-}
-
-function renderCurriculum(sequence) {
-  const base = PUBLIC_ROADMAP.length ? PUBLIC_ROADMAP : [
-    { stage: '미술 기초', name: '표현의 기초 만들기', summary: '선·형태·관찰·명암·색채·인체·투시·배경·구도를 익힙니다.' },
-    { stage: '전공 탐색/기초', name: '내 전공의 언어 익히기', summary: '전공 이해와 기초 프로젝트를 경험합니다.' },
-    { stage: '전공 심화', name: '전공 프로젝트 완성하기', summary: '전공별 표현기법과 제작 능력을 강화합니다.' },
-    { stage: '대학입시', name: '목표 대학 기준에 맞추기', summary: '대학별 실기·기출·모의고사·포트폴리오·면접을 준비합니다.' },
-    { stage: '대학 전공교육', name: '전공을 체계적으로 확장하기', summary: '대학에서 전공교육과 협업 경험을 넓힙니다.' },
-    { stage: '취업·창작·데뷔', name: '결과를 진로로 연결하기', summary: '포트폴리오와 창작·취업·데뷔로 연결합니다.' },
-  ];
-  $('curriculumTimeline').innerHTML = base.map((item, index) => {
-    const modules = specificModules(sequence, index);
-    return `<article class="timeline-item">
-      <span class="timeline-step">${String(index + 1).padStart(2, '0')}</span>
-      <div class="timeline-body">
-        <div class="timeline-meta"><span class="stage-pill">${h(item.stage)}</span></div>
-        <strong>${h(item.name)}</strong>
-        <p>${h(item.summary || '')}</p>
-        ${modules.length ? `<div class="module-tags">${modules.map((name) => `<span>${h(name)}</span>`).join('')}</div>` : ''}
-      </div>
-    </article>`;
-  }).join('');
-}
-
-function renderRoadmap(payload) {
-  const roadmap = payload.roadmap;
-  if (!roadmap) {
-    renderRoadmap(fallbackRoadmap(payload.goal || state.selectedCatalog?.name || '선택한 목표'));
+function renderTrend() {
+  const trend = admissionTrend(state.programs);
+  if (!trend) {
+    $('trendContent').innerHTML = '<p class="empty-state">비교할 수 있는 검수된 전형 비율이 아직 충분하지 않습니다.</p><p class="trend-note">성적·실기 중요도를 임의의 비율로 정하지 않습니다. 같은 전공이라도 대학과 전형에 따라 준비 비중이 달라요.</p>';
     return;
   }
-  showNotice(payload.fallback ? '이 분야의 세부 대학 데이터는 연결 중이며, 확인된 정보만 표시합니다.' : '');
-  state.current = payload;
-  const match = payload.goalMatches?.[0];
-  const catalog = state.selectedCatalog || CATALOG.find((item) => normalize(item.name) === normalize(match?.name));
-  $('resultGoalIcon').textContent = catalog?.icon || '✦';
-  $('resultGoal').textContent = catalog?.name || match?.name || payload.goal || '선택한 목표';
-  $('resultGoalSummary').textContent = catalog?.summary || match?.summary || '꿈에서 역산한 준비 과정을 확인하세요.';
-  renderMajors(roadmap.majors || []);
-  renderUniversities(roadmap);
-  renderSkills(roadmap.requiredSkills || []);
-  renderCurriculum(roadmap.curriculumSequence || []);
-  $('roadmapResult').classList.remove('hidden');
-  $('roadmapResult').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  $('trendContent').innerHTML = `<p>${h(trend.year)}학년도 · 연결된 검수 전형 ${trend.count}건의 평균</p><div class="trend-bars">${[['성적 반영', trend.grade], ['실기 반영', trend.skill]].map(([label, value]) => `<div class="bar-row"><span>${label}</span><div class="bar-track" role="meter" aria-label="${label}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${value.toFixed(1)}"><span style="width:${value.toFixed(1)}%"></span></div><strong>${value.toFixed(1)}%</strong></div>`).join('')}</div><p class="trend-note">전체 전공의 평균 중요도나 합격 가능성이 아닙니다. 위에 연결된 일부 전형만의 단순 평균이며, 면접·서류 등 다른 요소가 있을 수 있습니다. 실제 지원은 개별 대학의 최신 모집요강을 기준으로 해요.</p>`;
 }
 
-async function loadRoadmap(goal, goalId = '') {
-  setLoading(true);
-  try {
-    const params = new URLSearchParams();
-    if (goalId) params.set('goalId', goalId);
-    else params.set('goal', goal);
-    const payload = await api(`/api/data-core/roadmap?${params}`);
-    if (!matchFitsSelection(payload)) renderRoadmap(fallbackRoadmap(goal));
-    else renderRoadmap(payload);
-  } catch (error) {
-    if (state.selectedCatalog) renderRoadmap(fallbackRoadmap(state.selectedCatalog.name));
-    else showNotice(error.message);
-  } finally {
-    setLoading(false);
+function setPrograms(programs) {
+  state.programs = programs.map(programView);
+  for (const [id, key] of [['regionFilter', 'region'], ['schoolFilter', 'schoolType']]) {
+    $(id).innerHTML = '<option value="">전체</option>' + [...new Set(state.programs.map((p) => p[key]).filter(Boolean))].sort().map((v) => `<option value="${h(v)}">${h(v)}</option>`).join('');
   }
+  $('admissionFilter').value = '';
+  $('focusFilter').value = '';
+  renderUniversities();
+  renderTrend();
 }
 
-async function loadGoals() {
+async function api(url, signal) {
+  const response = await fetch(url, { credentials: 'include', cache: 'no-store', signal });
+  if (!response.ok) { const error = new Error('연결 실패'); error.status = response.status; throw error; }
+  return response.json();
+}
+
+async function loadConnectedPrograms(career) {
+  const requestId = ++state.request;
+  state.controller?.abort();
+  const controller = new AbortController();
+  state.controller = controller;
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  notice('대학별 전형 정보를 확인하고 있습니다.');
   try {
-    const response = await api('/api/data-core/roadmap/goals');
-    state.goals = response.goals || [];
+    const { goals = [] } = await api('/api/data-core/roadmap/goals', controller.signal);
+    const exact = matchServerGoal(career, goals);
+    const related = goals.filter((goal) => goal.nodeType === 'major' && career.majors.some((name) => normalize(name) === normalize(goal.name)));
+    const starts = exact ? [exact] : related;
+    const responses = await Promise.all(starts.map((goal) => api(`/api/data-core/roadmap?goalId=${encodeURIComponent(goal.id)}`, controller.signal)));
+    if (requestId !== state.request) return;
+    const programs = new Map();
+    for (const payload of responses) for (const program of payload.roadmap?.universityPrograms || []) programs.set(program.id, program);
+    setPrograms([...programs.values()]);
+    notice('');
   } catch (error) {
-    state.goals = [];
-    showNotice('DATA CORE 지식 연결을 불러오지 못했습니다. 기본 전공 카탈로그를 표시합니다.');
-  }
-  renderGroupTabs();
-  renderGoals();
+    if (requestId !== state.request) return;
+    setPrograms([]);
+    notice(error.status === 401 ? '대학별 운영 입시정보는 교직원 로그인 후 확인할 수 있어요.' : '대학별 전형 정보를 불러오지 못했습니다. 잠시 후 다시 선택해주세요.', error.status === 401);
+  } finally { clearTimeout(timeout); }
 }
 
-$('goalSearchForm').addEventListener('submit', (event) => {
-  event.preventDefault();
-  const value = $('goalSearchInput').value.trim();
-  if (!value) return;
-  const catalog = CATALOG.find((item) => normalize(item.name).includes(normalize(value)) || normalize(value).includes(normalize(item.name)) || normalize(item.summary).includes(normalize(value)));
-  state.selectedCatalog = catalog || null;
-  const serverGoal = catalog ? exactServerGoal(catalog) : null;
-  loadRoadmap(catalog?.name || value, serverGoal?.id || '');
+function route() {
+  const params = new URLSearchParams(location.hash.slice(1));
+  const family = params.get('family');
+  const career = content.careers.find((c) => c.id === params.get('career'));
+  state.controller?.abort();
+  state.request++;
+  const nextFamily = career?.family || (familyNames[family] ? family : '');
+  if (nextFamily !== state.family) { state.group = ''; state.query = ''; $('goalSearchInput').value = ''; }
+  state.family = nextFamily;
+  state.career = career || null;
+  $('hero').hidden = Boolean(state.family);
+  $('explore').hidden = Boolean(state.family);
+  $('catalogSection').hidden = !state.family || Boolean(career);
+  $('roadmapResult').hidden = !career;
+  document.querySelectorAll('details').forEach((el) => { el.open = false; });
+  if (career) {
+    renderEducation(career);
+    setPrograms([]);
+    $('resultGoal').focus({ preventScroll: true });
+    loadConnectedPrograms(career);
+  } else if (state.family) {
+    renderCatalog();
+    $('catalogTitle').focus({ preventScroll: true });
+  }
+  document.title = `${career?.name || '꿈·전공 로드맵'} | HI5·ANiHi`;
+  if (location.hash === '#explore') $('explore').scrollIntoView();
+  else window.scrollTo({ top: 0, behavior: 'instant' });
+}
+
+$('groupTabs').addEventListener('click', (event) => {
+  const button = event.target.closest('[data-group]');
+  if (button) { state.group = button.dataset.group; renderCatalog(); }
 });
-
-$('changeGoalBtn').onclick = () => {
-  $('roadmapResult').classList.add('hidden');
-  state.selectedCatalog = null;
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-  setTimeout(() => $('goalSearchInput').focus(), 350);
-};
-
-loadGoals();
+$('goalSearchForm').addEventListener('submit', (event) => { event.preventDefault(); state.query = $('goalSearchInput').value; renderCatalog(); });
+$('goalSearchInput').addEventListener('input', () => { state.query = $('goalSearchInput').value; renderCatalog(); });
+for (const id of ['regionFilter', 'schoolFilter', 'admissionFilter', 'focusFilter']) $(id).addEventListener('change', renderUniversities);
+document.querySelectorAll('.flow-strip a').forEach((link) => link.addEventListener('click', (event) => { event.preventDefault(); document.querySelector(link.getAttribute('href')).scrollIntoView(); }));
+$('printRoadmap').addEventListener('click', () => window.print());
+window.addEventListener('hashchange', route);
+// Revalidate private admissions on page restore; never persist the response in browser storage.
+window.addEventListener('pageshow', (event) => { if (event.persisted) route(); });
+route();
