@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import { createHash } from 'node:crypto';
 import { Miniflare } from 'miniflare';
 import { occupationImageConcepts } from '../public/data-core/occupation-image-concepts.js';
-import { careerMajorKeywords, matchesCareer, universityIdentity, indexUniversities, matchUniversity, projectUniversity, projectGuideline, decodePublicGuidelines, publicColumns, parseSimpleRatios, guidelineIdentity, preserveKnownValues, selectGuidelines } from '../public/data-core/admissions-model.js';
+import { careerMajorKeywords, matchesCareer, universityIdentity, indexUniversities, matchUniversity, explainUniversityMatch, mappingReasonLabels, projectUniversity, projectGuideline, decodePublicGuidelines, publicColumns, parseSimpleRatios, guidelineIdentity, preserveKnownValues, selectGuidelines } from '../public/data-core/admissions-model.js';
 
 function packed(rows) {
   const c=[...new Set([...Object.values(publicColumns),'전년도 합격자 통계'])],p=[''];
@@ -72,6 +72,35 @@ test('public string-pool decoder excludes member-only statistics, retains zero, 
   assert.throws(()=>decodePublicGuidelines(packed([fact({'학년도':''})]),'susi',provenance));
 });
 
+test('terminal admission label matching requires exact school campus department year and a unique candidate',()=>{
+  const row={universityName:'합성대(서울)',campus:'서울',department:'웹툰학과',academicYear:'2027',admissionType:'실기우수자'};
+  const u={id:'synthetic-1',name:'합성대학교',campus:'서울',major:'웹툰학과',year:2027,admission:'실기우수자전형'};
+  assert.deepEqual(explainUniversityMatch(row,indexUniversities([u])),{universityId:'synthetic-1',mappingStatus:'matched',mappingReason:'matched-label'});
+  assert.equal(explainUniversityMatch({...row,admissionType:'일반(교과)전형'},[{...u,admission:'일반(교과)'}]).mappingReason,'matched-label');
+  for(const changed of [{name:'다른대학교'},{campus:'수원'},{major:'웹툰학부'},{year:2028},{year:null},{year:''},{admission:'실기우수자특별전형'},{admission:'실기전형우수자'},{id:null},{hiddenDuplicate:true}]){
+    assert.equal(matchUniversity(row,[{...u,...changed}]).universityId,null,JSON.stringify(changed));
+  }
+  assert.equal(matchUniversity(row,[u,{...u,id:'synthetic-2'}]).universityId,null);
+  assert.equal(explainUniversityMatch(row,[u,{...u,id:'synthetic-2'}]).mappingReason,'multiple-candidates');
+  assert.equal(matchUniversity({...row,universityName:'합성대',campus:''},[{...u,campus:''},u]).universityId,null);
+  assert.equal(matchUniversity({...row,academicYear:''},[u]).universityId,null);
+  assert.equal(matchUniversity({...row,admissionType:'전형'},[{...u,admission:''}]).universityId,'synthetic-1','legacy exact behavior stays compatible');
+  const exact={...u,admission:'실기우수자'};
+  assert.equal(explainUniversityMatch(row,[exact]).mappingReason,'matched');
+  assert.equal(matchUniversity(row,[exact]).universityId,'synthetic-1');
+});
+
+test('mapping review reasons and filters do not relax department campus year or duplicate safeguards',()=>{
+  const r={universityName:'합성대',department:'웹툰',academicYear:2027,admissionType:'실기'};
+  const u={id:1,name:'합성대학교',major:'웹툰',year:2027,admission:'실기'};
+  const scenarios=[['university-missing',[]],['campus-mismatch',[{...u,campus:'서울'}]],['department-mismatch',[{...u,major:'웹툰학과'}]],['year-mismatch',[{...u,year:2028}]],['admission-mismatch',[{...u,admission:'학생부'}]],['multiple-candidates',[u,{...u,id:2}]],['campus-ambiguous',[u,{...u,campus:'서울',id:3}]]];
+  for(const [reason,schools] of scenarios){const explained=explainUniversityMatch(r,schools);assert.equal(explained.mappingReason,reason);assert.equal(explained.universityId,null);assert.ok(mappingReasonLabels[reason]);}
+  const rows=scenarios.map(([reason])=>({...r,mappingStatus:'review',mappingReason:reason}));
+  assert.equal(selectGuidelines(rows,{mappingStatus:'matched'}).length,0);
+  assert.equal(selectGuidelines(rows,{mappingStatus:'review',mappingReason:'campus-mismatch'}).length,1);
+  assert.equal(selectGuidelines(rows,{mappingReason:'unknown'}).length,0);
+});
+
 test('indexed university matching preserves ambiguity rules without scanning unrelated schools for every guideline',()=>{
   let nameReads=0;
   const schools=Array.from({length:5000},(_,id)=>({id, get name(){nameReads++;return `합성${id}대학교`;},major:'웹툰',year:2027,admission:'실기'}));
@@ -113,7 +142,7 @@ test('D1/R2 behavior: authenticated university-only read and admin preview/apply
     const db=await mf.getD1Database('DB'),files=await mf.getR2Bucket('FILES');
     const previews=new Map();
     globalThis.caches={default:{async put(key,response){previews.set(key.url,response.clone());},async match(key){return previews.get(key.url)?.clone();},async delete(key){return previews.delete(key.url);}}};
-    const originals={students:[{id:'synthetic-only',name:'PRIVATE_STUDENT'}],universities:[{id:1,name:'합성대학교',major:'웹툰콘텐츠학과',admission:'실기우수',year:2027,notes:'PRIVATE_NOTES'},{id:2,name:'합성대학교',major:'패션디자인학과',year:2027}],cases:[{private:'PRIVATE_CASE'}],awardFolders:[{id:'preserve'}],settings:{preserve:true}};
+    const originals={students:[{id:'synthetic-only',name:'PRIVATE_STUDENT'}],universities:[{id:1,name:'합성대학교',major:'웹툰콘텐츠학과',admission:'실기우수전형',year:2027,notes:'PRIVATE_NOTES'},{id:2,name:'합성대학교',major:'패션디자인학과',year:2027}],cases:[{private:'PRIVATE_CASE'}],awardFolders:[{id:'preserve'}],settings:{preserve:true}};
     const originalJson=JSON.stringify(originals);await files.put('state/admissions-data.json',originalJson);
     const admin={'oai-authenticated-user-id':'synthetic-catalog-admin','oai-authenticated-user-email':'catalog-admin@example.test'};
     const staff={'oai-authenticated-user-id':'synthetic-catalog-staff','oai-authenticated-user-email':'catalog-staff@example.test'};
@@ -155,6 +184,14 @@ test('D1/R2 behavior: authenticated university-only read and admin preview/apply
     await globalThis.caches.default.put(cacheKey(preview.token),Response.json({...cachedPlan,expiresAt:0}));
     assert.equal((await call(sync,{body:{mode:'apply',token:preview.token,offset:0}})).status,409,'expired preview timestamp is enforced');
     const list=await call('/api/data-core/admissions/guidelines?season=susi&year=2027&query=합성');const listed=await list.json();assert.equal(listed.total,1);assert.equal(listed.rows[0].quota,12);assert.doesNotMatch(JSON.stringify(listed),/PRIVATE_/);
+    assert.equal(listed.rows[0].universityId,'1');assert.equal(listed.rows[0].mappingReason,'matched-label');
+    assert.equal((await call('/api/data-core/admissions/guidelines?mappingStatus=review',{headers:{}})).status,401);
+    const staffFiltered=await call('/api/data-core/admissions/guidelines?season=susi&mappingStatus=matched&mappingReason=matched-label',{headers:staff});
+    assert.equal(staffFiltered.status,200);const safe=await staffFiltered.text();assert.doesNotMatch(safe,/PRIVATE_|notes|students|acceptedStats|guardian/);assert.equal(JSON.parse(safe).total,1);
+    assert.equal((await(await call('/api/data-core/admissions/guidelines?mappingReason=campus-mismatch')).json()).total,0);
+    await files.put('state/admissions-data.json','PRIVATE_INVALID_SYNTHETIC_SOURCE');
+    const degraded=await call('/api/data-core/admissions/guidelines?season=susi');assert.equal(degraded.status,200);const degradedBody=await degraded.text();assert.doesNotMatch(degradedBody,/PRIVATE_/);assert.equal(JSON.parse(degradedBody).rows[0].mappingReason,'source-unavailable');
+    await files.put('state/admissions-data.json',originalJson);
     const connected=await (await call(url)).json();assert.equal(connected.programs.length,3);
     empty=true;preview=await (await call(sync,{body:{mode:'preview'}})).json();await call(sync,{body:{mode:'apply',token:preview.token,offset:0}});
     assert.equal((await (await call('/api/data-core/admissions/guidelines?season=susi')).json()).rows[0].quota,12);

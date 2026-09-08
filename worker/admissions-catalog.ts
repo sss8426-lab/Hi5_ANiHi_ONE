@@ -2,7 +2,7 @@ import { DEFAULT_ORGANIZATION_ID } from './data-core';
 import { createHash } from 'node:crypto';
 import { DataCoreAccessError, requireAuthenticatedAccess, resolveDataCoreAccess } from './data-core-access';
 import { readAdmissionsState } from './data-core-admissions-knowledge-sync';
-import { careerMajorKeywords, decodePublicGuidelines, guidelineIdentity, indexUniversities, matchUniversity, matchesCareer, preserveKnownValues, projectUniversity, projectGuideline, selectGuidelines } from '../public/data-core/admissions-model.js';
+import { careerMajorKeywords, decodePublicGuidelines, explainUniversityMatch, guidelineIdentity, indexUniversities, matchUniversity, matchesCareer, preserveKnownValues, projectUniversity, projectGuideline, selectGuidelines } from '../public/data-core/admissions-model.js';
 
 interface Env { DB?: D1Database; FILES?: R2Bucket; DATA_CORE_SUPER_ADMIN_EMAILS?: string }
 type Row = Record<string, any>;
@@ -162,6 +162,17 @@ export async function handleAdmissionsCatalog(request: Request, env: Env): Promi
     if (guidelines) {
       stage = 'read-catalog';
       const records: Row[] = (await savedRows(env.DB)).filter((r)=>!r.deleted).map((r)=>({id:r.id,...projectGuideline(r.data)}));
+      try {
+        const schools=indexUniversities(await universities(env.DB,env.FILES));
+        for (const r of records) {
+          const current=explainUniversityMatch(r,schools);
+          // Explain current candidates, but never silently persist or advertise an unapplied link.
+          r.mappingReason=current.mappingStatus==='matched' && (r.mappingStatus!=='matched' || r.universityId!==current.universityId) ? 'pending-sync' : current.mappingReason;
+        }
+      } catch {
+        // A legacy source outage must not take the already stored public catalog offline.
+        for (const r of records) r.mappingReason='source-unavailable';
+      }
       const filters = Object.fromEntries(url.searchParams);
       const filtered = selectGuidelines(records,filters);
       const page = Math.floor(Math.max(1,Math.min(1000,Number(url.searchParams.get('page')) || 1)));
