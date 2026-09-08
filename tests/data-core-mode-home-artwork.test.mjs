@@ -3,15 +3,22 @@ import fs from 'node:fs';
 
 const enhancement = fs.readFileSync('public/data-core/mode-home-artwork.js', 'utf8');
 const nav = fs.readFileSync('public/data-core/work/kkumeum-nav.js', 'utf8');
+const html = fs.readFileSync('public/data-core/index.html', 'utf8');
+const app = fs.readFileSync('public/data-core/app.js', 'utf8');
+const styles = fs.readFileSync('public/data-core/styles.css', 'utf8');
 
-assert.match(enhancement, /mode-counseling\.webp/);
-assert.match(enhancement, /mode-work\.webp/);
-assert.match(enhancement, /mode-sidebar\.svg/);
-assert.match(enhancement, /\/data-core\/counseling/);
-assert.match(enhancement, /\/data-core\/work/);
 assert.match(enhancement, /mode-home-artwork-active/);
-assert.match(enhancement, /mode-artwork-arrow/);
 assert.match(nav, /mode-home-artwork\.js/);
+assert.match(html, /mode-counseling\.webp\?v=20260908-mode-home/);
+assert.match(html, /mode-work\.webp\?v=20260908-mode-home/);
+assert.match(html, /href="\/data-core\/counseling" data-mode-card="counseling"/);
+assert.match(html, /href="\/data-core\/work" data-mode-card="work"/);
+assert.match(html, /mode-artwork-arrow/);
+assert.match(html, /mode-home-artwork\.js\?v=20260908-mode-home/);
+assert.doesNotMatch(app, /querySelectorAll\('\[data-mode-card\]'\)/);
+assert.match(styles, /object-fit:\s*cover/);
+assert.match(styles, /mode-sidebar\.svg\?v=20260908-mode-home/);
+assert.match(styles, /grid-template-columns:\s*1fr/);
 
 for (const file of [
   'public/data-core/assets/mode-counseling.webp',

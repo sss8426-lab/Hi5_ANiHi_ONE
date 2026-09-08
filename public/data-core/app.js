@@ -1267,12 +1267,6 @@ async function deleteCalendarEvent(id) {
 }
 
 function bindEvents() {
-  document.querySelectorAll('[data-mode-card]').forEach((card) => {
-    card.onclick = (event) => {
-      event.preventDefault();
-      switchView(card.dataset.modeCard === 'work' ? 'work-home' : 'counseling-home');
-    };
-  });
   document.querySelectorAll('.nav-item[data-view], .feature-card[data-view]').forEach((button) => {
     button.onclick = () => switchView(button.dataset.view);
   });

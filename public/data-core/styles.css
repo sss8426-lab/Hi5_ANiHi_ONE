@@ -69,6 +69,7 @@ a { color: inherit; text-decoration: none; }
 .mode-overlay { position: absolute; left: 24px; right: 24px; bottom: 24px; z-index: 2; color: #fff; }
 .mode-overlay strong { display: block; font-size: 34px; line-height: 1.1; letter-spacing: 0; }
 .mode-overlay small { display: block; margin-top: 10px; color: #dbeafe; font-size: 15px; line-height: 1.45; }
+.mode-artwork-arrow { display: none; }
 .menu-card-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .feature-card { min-height: 180px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); padding: 22px; display: grid; align-content: start; gap: 10px; text-align: left; box-shadow: 0 3px 14px rgba(15,23,42,.03); }
 .feature-card:hover { border-color: #bfdbfe; box-shadow: 0 16px 34px rgba(37,99,235,.1); transform: translateY(-1px); }
@@ -355,4 +356,135 @@ td strong { font-size: 12px; }
   .competition-detail-head { display: grid; }
   .form-grid { grid-template-columns: 1fr; }
   .span-2 { grid-column: auto; }
+}
+
+/* The illustrated treatment belongs only to the DATA CORE mode-selection home. */
+body.mode-home-artwork-active { background: #f8fafd; }
+body.mode-home-artwork-active .sidebar {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.20), rgba(255,255,255,.34)),
+    url('/data-core/assets/mode-sidebar.svg?v=20260908-mode-home') center / cover no-repeat;
+  color: #17315e;
+  border-right: 1px solid rgba(148,163,184,.28);
+}
+body.mode-home-artwork-active .brand,
+body.mode-home-artwork-active .sidebar-bottom {
+  border-radius: 16px;
+  background: rgba(255,255,255,.68);
+  backdrop-filter: blur(12px);
+}
+body.mode-home-artwork-active .brand { margin: -4px -2px 12px; padding: 10px 8px 18px; }
+body.mode-home-artwork-active .sidebar-bottom { padding: 10px; margin: auto -2px -2px; }
+body.mode-home-artwork-active .brand strong,
+body.mode-home-artwork-active .connection-card strong { color: #0f172a; }
+body.mode-home-artwork-active .brand small,
+body.mode-home-artwork-active .connection-card small { color: #64748b; }
+body.mode-home-artwork-active [data-nav-scope="mode"] .nav-item {
+  color: #17315e;
+  background: rgba(255,255,255,.76);
+  border: 1px solid rgba(191,219,254,.78);
+  box-shadow: 0 8px 24px rgba(37,99,235,.08);
+  backdrop-filter: blur(10px);
+}
+body.mode-home-artwork-active [data-nav-scope="mode"] .nav-item:hover,
+body.mode-home-artwork-active [data-nav-scope="mode"] .nav-item.active {
+  color: #1d4ed8;
+  background: rgba(239,246,255,.95);
+}
+body.mode-home-artwork-active .connection-card {
+  background: rgba(255,255,255,.78);
+  border-color: rgba(148,163,184,.30);
+}
+body.mode-home-artwork-active .back-link { color: #31558f; }
+body.mode-home-artwork-active .back-link:hover { color: #1d4ed8; }
+body.mode-home-artwork-active .main { background: #f8fafd; }
+body.mode-home-artwork-active .topbar { border-bottom-color: #e6ecf4; }
+body.mode-home-artwork-active .mode-grid { gap: 20px; padding-top: 20px; align-items: stretch; }
+body.mode-home-artwork-active .mode-card {
+  min-height: 540px;
+  border: 1px solid #dfe7f1;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 18px 48px rgba(31,67,120,.10);
+  transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+}
+body.mode-home-artwork-active .mode-card:hover,
+body.mode-home-artwork-active .mode-card:focus-visible {
+  transform: translateY(-4px);
+  border-color: #bfdbfe;
+  box-shadow: 0 24px 60px rgba(37,99,235,.16);
+  outline: none;
+}
+body.mode-home-artwork-active .mode-card img {
+  inset: 0 0 auto;
+  width: 100%;
+  height: calc(100% - 132px);
+  object-fit: cover;
+  object-position: center;
+  transition: transform .35s ease;
+}
+body.mode-home-artwork-active .mode-card:hover img,
+body.mode-home-artwork-active .mode-card:focus-visible img { transform: scale(1.012); }
+body.mode-home-artwork-active .mode-card::after { display: none; }
+body.mode-home-artwork-active .mode-overlay {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  min-height: 132px;
+  padding: 25px 92px 22px 26px;
+  color: #17233c;
+  background: #fff;
+}
+body.mode-home-artwork-active .mode-overlay strong { font-size: 31px; }
+body.mode-home-artwork-active .mode-overlay small { margin-top: 8px; color: #53647e; font-size: 14px; }
+body.mode-home-artwork-active .mode-artwork-arrow {
+  position: absolute;
+  right: 26px;
+  bottom: 35px;
+  z-index: 3;
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #c5d6eb;
+  border-radius: 50%;
+  color: #1d4ed8;
+  font-size: 27px;
+  line-height: 1;
+  background: #f7fbff;
+  transition: transform .2s ease, background .2s ease, color .2s ease;
+}
+body.mode-home-artwork-active .mode-card:hover .mode-artwork-arrow,
+body.mode-home-artwork-active .mode-card:focus-visible .mode-artwork-arrow {
+  transform: translateX(3px);
+  color: #fff;
+  background: #2563eb;
+}
+
+@media (min-width: 681px) and (max-width: 980px) {
+  body.mode-home-artwork-active .app-shell { grid-template-columns: 210px minmax(0, 1fr); }
+  body.mode-home-artwork-active .sidebar { padding: 20px 14px; }
+  body.mode-home-artwork-active .brand { justify-content: flex-start; }
+  body.mode-home-artwork-active .brand > div,
+  body.mode-home-artwork-active .nav-item span:last-child,
+  body.mode-home-artwork-active .sidebar-bottom .connection-card div,
+  body.mode-home-artwork-active .back-link { display: block; }
+  body.mode-home-artwork-active .nav-item { justify-content: flex-start; }
+  body.mode-home-artwork-active .connection-card { justify-content: flex-start; }
+  body.mode-home-artwork-active .mode-card { min-height: 500px; }
+}
+
+@media (max-width: 980px) {
+  body.mode-home-artwork-active .mode-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 680px) {
+  body.mode-home-artwork-active .sidebar {
+    background-image: linear-gradient(180deg, rgba(255,255,255,.78), rgba(255,255,255,.90)), url('/data-core/assets/mode-sidebar.svg?v=20260908-mode-home');
+  }
+  body.mode-home-artwork-active .mode-card { min-height: 430px; border-radius: 18px; }
+  body.mode-home-artwork-active .mode-card img { height: calc(100% - 120px); }
+  body.mode-home-artwork-active .mode-overlay { min-height: 120px; padding: 21px 78px 18px 20px; }
+  body.mode-home-artwork-active .mode-overlay strong { font-size: 27px; }
+  body.mode-home-artwork-active .mode-artwork-arrow { right: 20px; bottom: 34px; width: 46px; height: 46px; }
 }

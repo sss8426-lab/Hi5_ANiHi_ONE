@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>HI5·ANiHi DATA CORE</title>
-  <link rel="stylesheet" href="/data-core/styles.css">
+  <link rel="stylesheet" href="/data-core/styles.css?v=20260908-mode-home">
 </head>
 <body>
   <div class="app-shell">
@@ -120,18 +120,20 @@
       <section class="view active" id="view-mode-home">
         <div class="mode-grid" aria-label="DATA CORE 사용 모드">
           <a class="mode-card counseling" href="/data-core/counseling" data-mode-card="counseling">
-            <img src="/data-core/assets/counseling-mode.svg" alt="" aria-hidden="true">
+            <img src="/data-core/assets/mode-counseling.webp?v=20260908-mode-home" alt="" aria-hidden="true">
             <span class="mode-overlay">
               <strong>상담용</strong>
               <small>학생·학부모 상담과 진로·입시 설계</small>
             </span>
+            <span class="mode-artwork-arrow" aria-hidden="true">→</span>
           </a>
           <a class="mode-card work" href="/data-core/work" data-mode-card="work">
-            <img src="/data-core/assets/work-mode.svg" alt="" aria-hidden="true">
+            <img src="/data-core/assets/mode-work.webp?v=20260908-mode-home" alt="" aria-hidden="true">
             <span class="mode-overlay">
               <strong>업무용</strong>
               <small>자료 정리, 업로드, 블로그·인스타 자동화</small>
             </span>
+            <span class="mode-artwork-arrow" aria-hidden="true">→</span>
           </a>
         </div>
       </section>
@@ -471,5 +473,6 @@
 
   <div class="toast hidden" id="toast"></div>
   <script src="/data-core/app.js?v=20260908-academy-calendar"></script>
+  <script src="/data-core/mode-home-artwork.js?v=20260908-mode-home"></script>
 </body>
 </html>
