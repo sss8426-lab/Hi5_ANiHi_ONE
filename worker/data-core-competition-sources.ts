@@ -14,6 +14,7 @@ import {
 
 export const COMPETITION_SOURCES = ["artmd", "mgood"] as const;
 export type CompetitionSource = (typeof COMPETITION_SOURCES)[number];
+type LiveSourceStatus = "open" | "upcoming";
 
 type NormalizedCompetition = {
   title: string;
@@ -30,13 +31,31 @@ type NormalizedCompetition = {
   sourceUrl: string;
   sourceName: string;
   source: CompetitionSource;
+  sourceStatus: LiveSourceStatus;
+  sourceStatusLabel: string;
   externalSourceId: string | null;
   fetchedAt: string;
 };
 
-const SOURCE_CONFIG: Record<CompetitionSource, { name: string; url: string }> = {
-  artmd: { name: "미대입시", url: "https://www.artmd.kr/contest/21001_contest_list.php" },
-  mgood: { name: "엠굿", url: "https://www.mgood.co.kr/contest/21001_contest_list.php" },
+type CompetitionSourceConfig = {
+  name: string;
+  urls: readonly string[];
+};
+
+// `artmd` remains the internal legacy source key so existing provenance rows stay compatible.
+// Its current public feed is Art & Design, while mgood aggregates both the main and other lists.
+const SOURCE_CONFIG: Record<CompetitionSource, CompetitionSourceConfig> = {
+  artmd: {
+    name: "아트앤디자인",
+    urls: ["https://artndesign.com/shop/list.php?ca_id=20"],
+  },
+  mgood: {
+    name: "엠굿",
+    urls: [
+      "https://www.mgood.co.kr/contest/21001_contest_list.php",
+      "https://www.mgood.co.kr/contest/21001_contest_list.php?state=other",
+    ],
+  },
 };
 
 const SOURCE_FIELDS = [
@@ -94,13 +113,50 @@ function normalizedUrl(value: unknown) {
   }
 }
 
-function datesFrom(value: string) {
-  const matches = value.match(/20\d{2}[.\-/년\s]+\d{1,2}[.\-/월\s]+\d{1,2}/g) || [];
-  const dates = matches.map((item) => {
+function isoDate(year: number, month: number, day: number) {
+  if (!Number.isInteger(year) || month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const value = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value ? value : null;
+}
+
+function datesFrom(value: string, fetchedAt: string) {
+  const fullMatches = value.match(/20\d{2}[.\-/년\s]+\d{1,2}[.\-/월\s]+\d{1,2}/g) || [];
+  const fullDates = fullMatches.map((item) => {
     const parts = item.match(/(20\d{2})\D+(\d{1,2})\D+(\d{1,2})/);
-    return parts ? `${parts[1]}-${parts[2].padStart(2, "0")}-${parts[3].padStart(2, "0")}` : null;
+    return parts ? isoDate(Number(parts[1]), Number(parts[2]), Number(parts[3])) : null;
   }).filter((item): item is string => Boolean(item));
+  if (fullDates.length >= 2) {
+    return { applicationStart: fullDates[0], applicationEnd: fullDates[1] };
+  }
+
+  const currentYear = new Date(fetchedAt).getUTCFullYear();
+  const monthDays = Array.from(value.matchAll(/(\d{1,2})\s*[.\-/월]\s*(\d{1,2})(?:일)?/g))
+    .map((match) => ({ month: Number(match[1]), day: Number(match[2]) }))
+    .filter((entry) => entry.month >= 1 && entry.month <= 12 && entry.day >= 1 && entry.day <= 31);
+
+  const dates = [...fullDates];
+  for (const entry of monthDays) {
+    const candidate = isoDate(currentYear, entry.month, entry.day);
+    if (candidate && !dates.some((date) => date.slice(5) === candidate.slice(5))) dates.push(candidate);
+    if (dates.length >= 2) break;
+  }
+  if (dates.length >= 2 && dates[1] < dates[0]) {
+    const [year, month, day] = dates[1].split("-").map(Number);
+    if (month <= 3 && Number(dates[0].slice(5, 7)) >= 10) {
+      dates[1] = isoDate(year + 1, month, day) || dates[1];
+    }
+  }
   return { applicationStart: dates[0] || null, applicationEnd: dates[1] || null };
+}
+
+function sourceStatusFrom(value: string): { status: LiveSourceStatus; label: string } | null {
+  const normalized = text(value, 500);
+  if (/접수\s*중/i.test(normalized)) return { status: "open", label: "접수중" };
+  if (/접수\s*(?:전|예정)/i.test(normalized) || /(^|\s)예정(\s|$)/.test(normalized)) {
+    return { status: "upcoming", label: "예정" };
+  }
+  return null;
 }
 
 function externalIdFrom(url: string) {
@@ -110,6 +166,7 @@ function externalIdFrom(url: string) {
       || parsed.searchParams.get("idx")
       || parsed.searchParams.get("no")
       || parsed.searchParams.get("id")
+      || parsed.searchParams.get("it_id")
       || null;
   } catch {
     return null;
@@ -127,15 +184,21 @@ function tableCellsAround(html: string, index: number) {
 }
 
 /** Extract only concise facts and links; source HTML is deliberately never retained. */
-export function normalizeCompetitionSourceHtml(sourceValue: string, html: string, fetchedAt = new Date().toISOString()) {
+export function normalizeCompetitionSourceHtml(
+  sourceValue: string,
+  html: string,
+  fetchedAt = new Date().toISOString(),
+  baseUrl?: string,
+) {
   const source = sourceFrom(sourceValue);
   const config = SOURCE_CONFIG[source];
+  const sourceBaseUrl = baseUrl || config.urls[0];
   const anchors = Array.from(html.matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi));
   const seen = new Set<string>();
   const items: NormalizedCompetition[] = [];
 
   for (const match of anchors) {
-    const sourceUrl = absoluteUrl(match[1], config.url);
+    const sourceUrl = absoluteUrl(match[1], sourceBaseUrl);
     const title = stripHtml(match[2]);
     if (!sourceUrl || title.length < 4 || title.length > 240) continue;
     if (!/(contest|competition|공모전|대회|실기|미술|디자인|입시)/i.test(`${title} ${sourceUrl}`)) continue;
@@ -146,10 +209,14 @@ export function normalizeCompetitionSourceHtml(sourceValue: string, html: string
     const cells = tableCellsAround(html, match.index || 0);
     const nearby = cells.length
       ? cells.join(" ")
-      : stripHtml(html.slice(Math.max(0, (match.index || 0) - 400), (match.index || 0) + match[0].length + 400));
-    const dates = datesFrom(nearby);
-    const kindText = cells[0] || title;
-    const organizer = cells.length >= 3 ? text(cells[2], 200) || null : null;
+      : stripHtml(html.slice(Math.max(0, (match.index || 0) - 500), (match.index || 0) + match[0].length + 500));
+    const sourceStatus = sourceStatusFrom(nearby);
+    if (!sourceStatus) continue;
+    const dates = datesFrom(nearby, fetchedAt);
+    const kindText = source === "artmd" ? (cells[1] || title) : (cells[0] || title);
+    const organizer = source === "artmd"
+      ? (cells.length >= 5 ? text(cells[4], 200) || null : null)
+      : (cells.length >= 3 ? text(cells[2], 200) || null : null);
 
     items.push({
       title,
@@ -166,33 +233,57 @@ export function normalizeCompetitionSourceHtml(sourceValue: string, html: string
       sourceUrl,
       sourceName: config.name,
       source,
+      sourceStatus: sourceStatus.status,
+      sourceStatusLabel: sourceStatus.label,
       externalSourceId: externalIdFrom(sourceUrl),
       fetchedAt,
     });
-    if (items.length >= 40) break;
+    if (items.length >= 80) break;
   }
   return items;
 }
 
-async function fetchSource(source: CompetitionSource) {
-  const config = SOURCE_CONFIG[source];
+async function fetchSourcePage(source: CompetitionSource, sourceUrl: string, fetchedAt: string) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8_000);
   try {
-    const response = await fetch(config.url, {
+    const response = await fetch(sourceUrl, {
       signal: controller.signal,
       headers: { accept: "text/html,application/xhtml+xml" },
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const html = await response.text();
-    const items = normalizeCompetitionSourceHtml(source, html);
-    if (!items.length) throw new Error("no usable source facts");
-    return items;
-  } catch {
-    throw new DataCoreAccessError(502, `${config.name} 연결을 확인해 주세요. 기존 대회 데이터는 변경되지 않았습니다.`);
+    return normalizeCompetitionSourceHtml(source, html, fetchedAt, sourceUrl);
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function fetchSource(source: CompetitionSource) {
+  const config = SOURCE_CONFIG[source];
+  const fetchedAt = new Date().toISOString();
+  const results = await Promise.allSettled(
+    config.urls.map((sourceUrl) => fetchSourcePage(source, sourceUrl, fetchedAt)),
+  );
+  const seen = new Set<string>();
+  const items: NormalizedCompetition[] = [];
+  for (const result of results) {
+    if (result.status !== "fulfilled") continue;
+    for (const item of result.value) {
+      const key = `${normalizedUrl(item.sourceUrl)}|${normalizedTitle(item.title)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      items.push(item);
+    }
+  }
+  if (!items.length) {
+    throw new DataCoreAccessError(502, `${config.name} 연결을 확인해 주세요. 기존 대회 데이터는 변경되지 않았습니다.`);
+  }
+  return items.slice(0, 120);
+}
+
+function hasCompetitionReadPermission(context: DataCoreAccessContext) {
+  if (!context.authenticated) throw new DataCoreAccessError(401, "로그인 후 외부 대회 소식을 확인할 수 있습니다.");
 }
 
 function hasCompetitionPermission(context: DataCoreAccessContext) {
@@ -311,6 +402,8 @@ function mergeSources(existing: CompetitionSourceProvenance[], next: Competition
     sourceUrl: next.sourceUrl,
     sourceName: "",
     source: next.source,
+    sourceStatus: "open",
+    sourceStatusLabel: "접수중",
     externalSourceId: next.externalSourceId || null,
     fetchedAt: next.fetchedAt,
   })), next].slice(-12);
@@ -355,7 +448,7 @@ function sourcePayload(item: NormalizedCompetition, existing?: Record<string, un
 }
 
 export async function previewCompetitionSource(db: D1Database, context: DataCoreAccessContext, sourceValue: string) {
-  hasCompetitionPermission(context);
+  hasCompetitionReadPermission(context);
   const source = sourceFrom(sourceValue);
   const items = await fetchSource(source);
   const existing = await listCompetitions(db, context, new URL("https://data-core.invalid/api/data-core/competitions?limit=100")) as Record<string, unknown>[];
