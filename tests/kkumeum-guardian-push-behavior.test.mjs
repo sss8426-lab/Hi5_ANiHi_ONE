@@ -76,12 +76,30 @@ async function seed(h) {
 
 async function enableProvider(h) {
   const pair = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+  const publicJwk = await crypto.subtle.exportKey('jwk', pair.publicKey);
+  h.env.PUSH_VAPID_PUBLIC_KEY = Buffer.concat([
+    Buffer.from([4]),
+    Buffer.from(publicJwk.x, 'base64url'),
+    Buffer.from(publicJwk.y, 'base64url'),
+  ]).toString('base64url');
   h.env.PUSH_VAPID_PRIVATE_JWK = JSON.stringify(await crypto.subtle.exportKey('jwk', pair.privateKey));
   h.env.PUSH_VAPID_SUBJECT = 'mailto:push@example.test';
 }
 
 function subscription(endpoint) {
   return { endpoint, keys: { p256dh, auth }, platform: 'test-browser' };
+}
+
+async function deliverableSubscription(endpoint) {
+  const pair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
+  return {
+    endpoint,
+    keys: {
+      p256dh: Buffer.from(await crypto.subtle.exportKey('raw', pair.publicKey)).toString('base64url'),
+      auth,
+    },
+    platform: 'synthetic-provider-smoke',
+  };
 }
 
 test('guardian push APIs are private, authenticated, same-origin, and encrypt subscription material', async () => {
@@ -171,6 +189,45 @@ test('notice publish remains successful while unconfigured push records only the
     assert.deepEqual(deliveries.results, [{ guardian_id: GUARDIAN_A, status: 'failed', error_code: 'push_not_configured' }]);
     assert.doesNotMatch(JSON.stringify(deliveries.results), /민감 본문|push\.example/);
   } finally { await h.mf.dispose(); }
+});
+
+test('synthetic provider smoke signs and encrypts one generic delivery without a real browser subscription', async () => {
+  const h = await harness();
+  const originalFetch = globalThis.fetch;
+  const captured = [];
+  globalThis.fetch = async (input, init) => {
+    captured.push({ url: String(input), headers: new Headers(init.headers), body: init.body });
+    return new Response(null, { status: 201 });
+  };
+  try {
+    await seed(h);
+    await enableProvider(h);
+    const cookie = `kkumeum_family_session=${TOKEN_A}`;
+    const status = await h.request('/api/family/push/status', { cookie });
+    assert.equal(status.body.configured, true);
+    assert.equal((await h.request('/api/family/push/subscribe', {
+      method: 'POST', cookie, origin: 'http://localhost', body: await deliverableSubscription('https://synthetic.push.example/delivery'),
+    })).status, 200);
+    const created = await h.request('/api/kkumeum/announcements', {
+      method: 'POST', admin: true, origin: 'http://localhost',
+      body: { campusId: 'campus-push', announcementType: 'child-message', title: '내부 점검', body: '이 본문은 push에 노출되면 안 됩니다.', targets: [{ targetType: 'student', targetId: STUDENT_A }] },
+    });
+    const published = await h.request(`/api/kkumeum/announcements/${created.body.announcement.id}/publish`, { method: 'POST', admin: true, origin: 'http://localhost' });
+    assert.equal(published.status, 200);
+    assert.deepEqual(published.body.push, { sent: 1, failed: 0, code: null });
+    assert.equal(captured.length, 1);
+    assert.equal(captured[0].url, 'https://synthetic.push.example/delivery');
+    assert.match(captured[0].headers.get('authorization'), /^vapid t=[A-Za-z0-9._-]+, k=[A-Za-z0-9_-]+$/);
+    assert.equal(captured[0].headers.get('content-encoding'), 'aes128gcm');
+    assert.equal(captured[0].headers.get('content-type'), 'application/octet-stream');
+    assert.ok(captured[0].body instanceof ArrayBuffer);
+    assert.doesNotMatch(Buffer.from(captured[0].body).toString('utf8'), /본문은 push에 노출되면 안 됩니다|내부 점검|테스트학생/);
+    const delivery = await h.env.FAMILY_DB.prepare('SELECT status, error_code FROM push_delivery_attempts').first();
+    assert.deepEqual(delivery, { status: 'sent', error_code: null });
+  } finally {
+    globalThis.fetch = originalFetch;
+    await h.mf.dispose();
+  }
 });
 
 test('guardian service worker keeps API network-only and displays only a generic notification payload', async () => {
