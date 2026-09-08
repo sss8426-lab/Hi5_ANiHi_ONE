@@ -78,8 +78,9 @@ function setPushMessage(message = '') {
   element.classList.toggle('hidden', !message);
 }
 
-function renderPushStatus(status) {
+function renderPushStatus(status, currentSubscription = null) {
   state.pushStatus = status;
+  state.currentPushSubscription = currentSubscription;
   const label = $('pushStatus');
   const button = $('pushToggleBtn');
   if (!label || !button) return;
@@ -101,8 +102,8 @@ function renderPushStatus(status) {
     return;
   }
   button.disabled = false;
-  button.textContent = status.subscribed ? '알림 끄기' : '알림 받기';
-  label.textContent = status.subscribed
+  button.textContent = currentSubscription ? '알림 끄기' : '알림 받기';
+  label.textContent = currentSubscription
     ? '이 기기에서 새 소식 알림을 받고 있습니다.'
     : permission === 'granted' ? '이 기기에서 알림을 켤 수 있습니다.' : '알림을 받으려면 버튼을 눌러 허용해 주세요.';
   setPushMessage(status.configured
@@ -110,9 +111,19 @@ function renderPushStatus(status) {
     : '알림 발송 설정이 아직 완료되지 않았습니다. 설정이 완료되면 이 기기에서만 알림을 받을 수 있습니다.');
 }
 
+async function currentDevicePushSubscription() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return null;
+  const registration = await navigator.serviceWorker.ready;
+  return registration.pushManager.getSubscription();
+}
+
 async function loadPushStatus() {
   try {
-    renderPushStatus(await api('/api/family/push/status'));
+    const [status, currentSubscription] = await Promise.all([
+      api('/api/family/push/status'),
+      currentDevicePushSubscription().catch(() => null),
+    ]);
+    renderPushStatus(status, currentSubscription);
   } catch (error) {
     if (!genericAccessMessage(error)) setPushMessage('알림 상태를 확인하지 못했습니다.');
   }
@@ -127,7 +138,7 @@ async function togglePush() {
   }
   const registration = await navigator.serviceWorker.ready;
   const existing = await registration.pushManager.getSubscription();
-  if (status.subscribed && existing) {
+  if (existing) {
     await api('/api/family/push/unsubscribe', { method: 'DELETE', body: JSON.stringify({ endpoint: existing.endpoint }) });
     await existing.unsubscribe();
     setPushMessage('이 기기의 알림을 껐습니다.');
