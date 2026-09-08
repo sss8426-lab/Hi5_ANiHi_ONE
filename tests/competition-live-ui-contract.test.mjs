@@ -20,7 +20,7 @@ test('competition news auto-loads active source previews and renders source stat
   assert.match(ui, /접수중/);
   assert.match(ui, /예정/);
   assert.match(ui, /setTimeout\(\(\) => refreshLiveNews\(false\), 700\)/);
-  assert.match(loader, /competition-live-enhancement\.js\?v=20260908-live-calendar/);
+  assert.match(loader, /competition-live-enhancement\.js\?v=20260908-live-calendar-v2/);
 });
 
 test('registration deadlines are projected into both shared calendars without DATA CORE writes', () => {
