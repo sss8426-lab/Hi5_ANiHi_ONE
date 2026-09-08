@@ -40,9 +40,14 @@ async function fetchSource(season: keyof typeof sourceUrls) {
   }) as Row[];
 }
 const fingerprintFields = (row: Row) => Object.fromEntries(Object.entries(row).filter(([key]) => !['fetchedAt','sourceFingerprint'].includes(key)).sort(([a],[b])=>a.localeCompare(b)));
-async function plan(db: D1Database, files?: R2Bucket) {
+async function plan(db: D1Database, files?: R2Bucket, stage: (name: string) => void = () => {}) {
+  stage('read-universities');
   const schools = await universities(db,files);
-  const source = [...await fetchSource('susi'), ...await fetchSource('jungsi')];
+  stage('fetch-susi');
+  const source = await fetchSource('susi');
+  stage('fetch-jungsi');
+  source.push(...await fetchSource('jungsi'));
+  stage('normalize-source');
   const identities = new Map<string, Row>(); const conflicts = new Set<string>();
   for (const r of source) {
     const identity = guidelineIdentity(r);
@@ -58,6 +63,7 @@ async function plan(db: D1Database, files?: R2Bucket) {
   }
   rows.sort((a,b)=>a.id.localeCompare(b.id));
   const token = await digest(rows.map((r)=>[r.id,r.data.sourceFingerprint,r.review]));
+  stage('read-catalog');
   const saved = new Map((await savedRows(db)).map((r)=>[r.id,r]));
   const counts: Record<string, Record<string,number>> = {susi:{new:0,changed:0,unchanged:0,review:0,mappingReview:0},jungsi:{new:0,changed:0,unchanged:0,review:0,mappingReview:0}};
   for (const r of rows) {
@@ -78,6 +84,7 @@ export async function handleAdmissionsCatalog(request: Request, env: Env): Promi
   const guidelines = url.pathname === '/api/data-core/admissions/guidelines';
   const sync = url.pathname === '/api/data-core/admin/admissions/guidelines/sync';
   if (!programs && !guidelines && !sync) return null;
+  let stage = 'authorize';
   try {
     if (!env.DB) throw new DataCoreAccessError(503,'DATA CORE DB 연결이 필요합니다.');
     const context = await resolveDataCoreAccess(request,env.DB,env.DATA_CORE_SUPER_ADMIN_EMAILS);
@@ -90,7 +97,7 @@ export async function handleAdmissionsCatalog(request: Request, env: Env): Promi
       if (Number(request.headers.get('content-length')) > 2048) throw new DataCoreAccessError(413,'요청이 너무 큽니다.');
       const input = await request.json() as {mode?:string;token?:string;offset?:number};
       if (!['preview','apply'].includes(input.mode || '')) throw new DataCoreAccessError(400,'미리보기 또는 적용을 선택하세요.');
-      const p = await plan(env.DB,env.FILES);
+      const p = await plan(env.DB,env.FILES,(value) => { stage = value; });
       if (input.mode === 'preview') return privateJson({token:p.token,total:p.rows.length,counts:p.counts,batchSize:100});
       if (input.token !== p.token) throw new DataCoreAccessError(409,'원본이나 대학 연결이 변경됐습니다. 다시 미리보기 해주세요.');
       const offset = input.offset;
@@ -108,6 +115,7 @@ export async function handleAdmissionsCatalog(request: Request, env: Env): Promi
           `${r.data.universityName} · ${r.data.department} · ${r.data.academicYear}`,JSON.stringify(r.merged),now,now,r.previous?.raw || '__new__'));
       statements.push(env.DB.prepare(`INSERT INTO audit_logs (id,organization_id,campus_id,actor_user_id,action,resource_type,resource_id,metadata_json,created_at)
         VALUES (?,?,NULL,?,'sync','admission_guidelines','grinalda',?,?)`).bind(crypto.randomUUID(),DEFAULT_ORGANIZATION_ID,context.user!.internalUserId,JSON.stringify({offset,attempted:batch.length,token:p.token}),now));
+      stage = 'apply-batch';
       const results = await env.DB.batch(statements);
       const applied = results.slice(0,-1).reduce((sum,r)=>sum+Number(r.meta?.changes || 0),0);
       if (applied !== batch.length) throw new DataCoreAccessError(409,'일부 자료가 동시에 변경되어 건너뛰었습니다. 기존 값을 보존했으니 다시 미리보기 해주세요.');
@@ -115,6 +123,7 @@ export async function handleAdmissionsCatalog(request: Request, env: Env): Promi
     }
     if (request.method !== 'GET') return privateJson({error:'조회 전용 API입니다.'},405);
     if (guidelines) {
+      stage = 'read-catalog';
       const records: Row[] = (await savedRows(env.DB)).filter((r)=>!r.deleted).map((r)=>({id:r.id,...projectGuideline(r.data)}));
       const filters = Object.fromEntries(url.searchParams);
       const filtered = selectGuidelines(records,filters);
@@ -125,6 +134,7 @@ export async function handleAdmissionsCatalog(request: Request, env: Env): Promi
     }
     const careerId = url.searchParams.get('careerId') || '';
     if (!(careerId in careerMajorKeywords)) throw new DataCoreAccessError(400,'등록된 직업을 선택하세요.');
+    stage = 'read-universities';
     const source = await universities(env.DB,env.FILES);
     const rows: Row[] = source.filter((u)=>!u.hiddenDuplicate && matchesCareer(u.major || u.department,careerId)).map(projectUniversity);
     for (const saved of await savedRows(env.DB)) {
@@ -137,8 +147,9 @@ export async function handleAdmissionsCatalog(request: Request, env: Env): Promi
     }
     return privateJson({programs:rows,source:'admissions-universities',matchBasis:'department-name',readOnly:true});
   } catch (error) {
-    if (error instanceof DataCoreAccessError) return privateJson({error:error.message},error.status);
+    if (error instanceof DataCoreAccessError) return privateJson({error:error.message,stage},error.status);
     // Raw source records, response bodies and request credentials never enter logs.
-    return privateJson({error:'대학 자료를 확인하지 못했습니다. 기존 원본은 변경하지 않았습니다.'},502);
+    const kind = error instanceof Error && ['TimeoutError','AbortError','TypeError','SyntaxError','RangeError'].includes(error.name) ? error.name : 'InternalError';
+    return privateJson({error:`대학 자료를 확인하지 못했습니다. 기존 원본은 변경하지 않았습니다. (${stage}/${kind})`,stage,kind},502);
   }
 }

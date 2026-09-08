@@ -105,6 +105,13 @@ test('D1/R2 behavior: authenticated university-only read and admin preview/apply
     empty=true;preview=await (await call(sync,{body:{mode:'preview'}})).json();await call(sync,{body:{mode:'apply',token:preview.token,offset:0}});
     assert.equal((await (await call('/api/data-core/admissions/guidelines?season=susi')).json()).rows[0].quota,12);
     const before=await db.prepare("SELECT id,metadata_json FROM data_records WHERE source_app='admissions' ORDER BY id").all();
+    const successfulFetch=globalThis.fetch;
+    globalThis.fetch=async()=>{throw new TypeError('PRIVATE_SOURCE_PAYLOAD must never escape');};
+    const failedSource=await call(sync,{body:{mode:'preview'}});
+    const diagnostic=await failedSource.json();
+    assert.equal(failedSource.status,502);assert.equal(diagnostic.stage,'fetch-susi');assert.equal(diagnostic.kind,'TypeError');
+    assert.doesNotMatch(JSON.stringify(diagnostic),/PRIVATE_SOURCE_PAYLOAD/);
+    globalThis.fetch=successfulFetch;
     fail=true;assert.equal((await call(sync,{body:{mode:'preview'}})).status,502);
     assert.deepEqual((await db.prepare("SELECT id,metadata_json FROM data_records WHERE source_app='admissions' ORDER BY id").all()).results,before.results);
     fail=false;empty=false;conflict=true;preview=await (await call(sync,{body:{mode:'preview'}})).json();assert.equal(preview.counts.susi.review,1);assert.equal((await (await call(sync,{body:{mode:'apply',token:preview.token,offset:0}})).json()).applied,0);
