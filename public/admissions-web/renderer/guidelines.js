@@ -1,8 +1,9 @@
-import { careerMajorKeywords } from '/data-core/admissions-model.js?v=20260909-1';
+import { careerMajorKeywords, mappingReasonLabels } from '/data-core/admissions-model.js?v=20260909-2';
 import { occupationImageConcepts } from '/data-core/occupation-image-concepts.js?v=20260909-1';
 
 const h = (v) => String(v ?? '').replace(/[&<>"']/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const names = {susi:'미대 수시 입시요강',jungsi:'미대 정시 입시요강'};
+const mappingStatuses={matched:'대학 연결됨',review:'연결 검토 필요',unmatched:'대학 후보 없음'};
 const state = {susi:{},jungsi:{}};
 let requestId=0, controller;
 const date = (v) => v && Number.isFinite(Date.parse(v)) ? new Date(v).toLocaleString('ko-KR') : '확인 필요';
@@ -23,6 +24,9 @@ function detail(row) {
   if(row.sourceUrl && /^https:\/\/grinalda\.net\/univ-info-(susi|jungsi)\/$/.test(row.sourceUrl)){const a=document.createElement('a');a.href=row.sourceUrl;a.target='_blank';a.rel='noopener noreferrer';a.textContent='공개 원문 보기 ↗';dialog.append(a);}
   if(row.universityId){const a=document.createElement('a');a.href=`/#page=admin&university=${encodeURIComponent(row.universityId)}`;a.target='_top';a.textContent=' · 연결된 대학 데이터 보기';dialog.append(a);}
   document.body.append(dialog);dialog.querySelector('.close').onclick=()=>dialog.close();dialog.addEventListener('close',()=>dialog.remove());dialog.showModal();
+  const review=document.createElement('p');review.className='guideline-note';review.dataset.mappingReview='';
+  review.textContent=`${mappingStatuses[row.mappingStatus] || '연결 확인 필요'} · ${mappingReasonLabels[row.mappingReason] || '검토 필요'}. 대학 연결은 공식 모집요강 검수와 별개입니다.`;
+  dialog.querySelector('header').after(review);
 }
 
 export async function renderGuidelines(season) {
@@ -34,6 +38,9 @@ export async function renderGuidelines(season) {
   root.innerHTML=`<div class="top"><div><h1>${names[season]}</h1><p>${season==='susi'?'전국 미술·디자인계열 수시 전형':'전국 미술·디자인계열 정시 전형과 수능·실기 반영방법'}</p></div><div class="actions"><button class="btn" data-other>${names[season==='susi'?'jungsi':'susi']} →</button><button class="btn" data-sync hidden>↻ 입시요강 데이터 새로고침</button></div></div><form class="guideline-toolbar"><label class="query">대학·학과·지역·전형 검색<input name="query" type="search" value="${h(filters.query || '')}" placeholder="대학명, 학과, 전형명"></label><label>학년도<select name="year"><option value="">전체</option></select></label><label>지역<select name="region"><option value="">전체</option></select></label><button class="btn primary" type="submit">검색</button><button class="btn" type="reset">초기화</button></form><details><summary>상세 조건</summary><div class="guideline-filters">${[['university','대학'],['major','연결 직업·전공'],['category','전형유형'],['practical','실기유형'],...(season==='jungsi'?[['group','모집군'],['csatSubjects','수능 응시영역']]:[['minimum','수능최저']]),['gradeRatio','학생부 비율'],['practicalRatio','실기 비율'],...(season==='jungsi'?[['csatRatio','수능 비율']]:[]),['sort','정렬']].map(([name,label])=>`<label>${label}<select name="${name}"><option value="">전체</option></select></label>`).join('')}</div></details><div class="guideline-status" role="status" data-status>저장된 입시요강을 불러오고 있습니다.</div><div data-results></div><p class="guideline-note">출처: 그리날다 공개 입시정보 · 회원 전용 상세정보는 수집하지 않습니다.<br>반영비율을 단일 수치로 확인할 수 없는 단계별 전형은 상세 반영방법을 확인하세요.<br>실제 지원 전 반드시 해당 대학의 공식 모집요강을 확인하세요.</p>`;
   root.querySelector('[data-other]').onclick=()=>document.querySelector(`#nav button[data-page="${season==='susi'?'jungsi':'susi'}"]`).click();
   const status=root.querySelector('[data-status]');
+  const mappingFilters=document.createElement('div');mappingFilters.className='guideline-filters';
+  mappingFilters.innerHTML='<label>대학 연결<select name="mappingStatus"><option value="">전체</option></select></label><label>검토 사유<select name="mappingReason"><option value="">전체</option></select></label>';
+  status.before(mappingFilters);
   const form=root.querySelector('form');
   let currentRows=[];
   const readFilters=()=>{root.querySelectorAll('input[name],select[name]').forEach((el)=>filters[el.name]=el.value);filters.page=1;};
@@ -42,6 +49,8 @@ export async function renderGuidelines(season) {
     el.innerHTML='<option value="">전체</option>'+values.map((v)=>`<option value="${h(v)}">${h(labels?.[v] || v)}</option>`).join('');el.value=filters[name] || '';
   }
   options('major',Object.keys(careerMajorKeywords),Object.fromEntries(occupationImageConcepts.map((c)=>[c.occupationId,c.title])));
+  options('mappingStatus',Object.keys(mappingStatuses),mappingStatuses);
+  options('mappingReason',Object.keys(mappingReasonLabels),mappingReasonLabels);
   for(const key of ['gradeRatio','practicalRatio','csatRatio'])options(key,['0','30','50','70','100'],{'0':'0% 이상','30':'30% 이상','50':'50% 이상','70':'70% 이상','100':'100%'});
   options('minimum',['yes','none'],{yes:'있음',none:'없음'});options('sort',['university','region','practical','grade','competition'],{university:'대학명',region:'지역',practical:'실기 반영비율 높은 순',grade:'학생부 반영비율 높은 순',competition:'전년도 경쟁률 높은 순'});
   async function load() {

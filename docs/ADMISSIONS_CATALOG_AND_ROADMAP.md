@@ -90,6 +90,39 @@ Source failure/empty schema aborts before writes; missing values do not erase
 known facts. Mapping ambiguities never choose an arbitrary university ID.
 No new university is created and no original university is overwritten.
 
+## Mapping Review Pass
+
+The mapping review extends exact matching only for the terminal generic label
+`전형` (for example `실기우수자` / `실기우수자전형`). Additional links require the
+same school, unambiguous campus, exact department, explicit matching academic
+year and one unique candidate ID. Hidden duplicate candidates, different
+departments/years/campuses, special eligibility words and multiple candidate IDs
+are not collapsed. Original exact-match compatibility is retained. Stable source
+identities and admissions numbers do not change; this is not official verification.
+
+The stored catalog supports `mappingStatus` and `mappingReason` filters. Reasons
+are computed server-side from current university candidates, never accepted from
+arbitrary saved metadata. Only fixed reason codes leave the server, not candidate
+rows or notes. An available but unapplied link is `pending-sync`; legacy-source
+failure leaves stored catalog browsing available with `source-unavailable`.
+The normal admin preview/apply workflow persists reviewed links; reads never write.
+
+Read-only production audit before this change: 3826 source rows, 2604 linked and
+1222 needing review. The conservative rule proposes 59 new links, zero changed
+links and zero removed links. Remaining 1163: admission-name mismatch 738,
+department mismatch 169, campus ambiguity 153, duplicate candidates 72, academic
+year mismatch 27 and campus mismatch 4. These remain unresolved, not fabricated.
+The local audit script requires `--remote-read-only`, reads Wrangler output in
+memory with Wrangler disk logging disabled, selects only mapping identity columns
+from D1, and emits counts plus whole-domain preservation hashes only. No payload,
+PII, credentials or backup files are written. Production application of this pass
+must be recorded after CI/Preview, merge/deploy and a fresh idempotency preview.
+
+Local validation for the mapping pass: npm ci, build, typecheck, browser syntax,
+187 full behavior tests and Wrangler dry-run passed. Synthetic browser checks:
+113 admissions and 103 roadmap; desktop/tablet/mobile/small-mobile layouts,
+mapping filters, distinction from official verification, and source navigation.
+
 Source priorities reserved: official-university=100, manual-verified=80,
 grinalda=50. This release does not modify any existing priority in bulk.
 Public guidelines are organization-visible factual records; no student-level

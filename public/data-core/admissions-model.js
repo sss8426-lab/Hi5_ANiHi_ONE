@@ -41,17 +41,41 @@ export function indexUniversities(universities) {
   }
   return index;
 }
-export function matchUniversity(row, universities) {
+export const mappingReasonLabels = {
+  matched:'정확히 일치', 'matched-label':'전형명 표기 일치',
+  'university-missing':'대학 후보 없음', 'campus-mismatch':'캠퍼스 불일치',
+  'department-mismatch':'학과 불일치', 'year-mismatch':'학년도 불일치',
+  'admission-mismatch':'전형명 불일치', 'multiple-candidates':'동일 조건 후보 중복',
+  'campus-ambiguous':'캠퍼스 구분 필요',
+  'pending-sync':'연결 가능 · 새로고침 필요',
+  'source-unavailable':'대학 원본 확인 불가',
+};
+const admissionLabel = (value) => normalizeName(value).replace(/전형$/, '');
+export function explainUniversityMatch(row, universities) {
   const wanted = universityIdentity(row.universityName, row.campus);
   const candidates = universities instanceof Map ? (universities.get(wanted.school) || []) : universities.filter((u) => universityIdentity(u.name || u.universityName, u.campus).school === wanted.school);
   const exact = candidates.filter((u) => universityIdentity(u.name || u.universityName, u.campus).campus === wanted.campus);
   const campusVariants = new Set(candidates.map((u) => universityIdentity(u.name || u.universityName, u.campus).campus));
   // A university row is also a department/term. Do not pick an arbitrary ID among departments.
-  const program = exact.filter((u) => normalizeName(u.major || u.department) === normalizeName(row.department) &&
-    (!u.year || String(u.year) === String(row.academicYear)) && (!u.admission || normalizeName(u.admission) === normalizeName(row.admissionType)));
+  const departments = exact.filter((u) => normalizeName(u.major || u.department) === normalizeName(row.department));
+  const years = departments.filter((u) => !u.year || String(u.year) === String(row.academicYear));
+  const program = years.filter((u) => !u.admission || normalizeName(u.admission) === normalizeName(row.admissionType));
   const ids = [...new Set(program.map((u) => String(u.id)).filter((id) => id && id !== 'undefined'))];
-  if (ids.length === 1 && (wanted.campus || campusVariants.size <= 1)) return { universityId: ids[0], mappingStatus: 'matched' };
-  return { universityId: null, mappingStatus: candidates.length ? 'review' : 'unmatched' };
+  const campusKnown = Boolean(wanted.campus || campusVariants.size <= 1);
+  if (ids.length === 1 && campusKnown) return { universityId: ids[0], mappingStatus: 'matched', mappingReason:'matched' };
+  // Only the terminal generic label differs. No fuzzy matching, missing year or campus inference.
+  const labels = !program.length && campusKnown && /^20\d{2}$/.test(String(row.academicYear)) && admissionLabel(row.admissionType)
+    ? departments.filter((u) => !u.hiddenDuplicate && String(u.year) === String(row.academicYear) &&
+      admissionLabel(u.admission) === admissionLabel(row.admissionType) && ['string','number'].includes(typeof u.id) && String(u.id).trim()) : [];
+  const labelIds = [...new Set(labels.map((u) => String(u.id)))];
+  if (labelIds.length === 1) return {universityId:labelIds[0],mappingStatus:'matched',mappingReason:'matched-label'};
+  const mappingReason = !candidates.length ? 'university-missing' : !exact.length ? 'campus-mismatch' : !departments.length ? 'department-mismatch'
+    : !years.length ? 'year-mismatch' : labelIds.length>1 || ids.length>1 ? 'multiple-candidates' : !program.length ? 'admission-mismatch' : 'campus-ambiguous';
+  return { universityId: null, mappingStatus: candidates.length ? 'review' : 'unmatched', mappingReason };
+}
+export function matchUniversity(row, universities) {
+  const {universityId,mappingStatus}=explainUniversityMatch(row,universities);
+  return {universityId,mappingStatus};
 }
 
 // Never forward legacy records, conversion rules, notes, student stats or arbitrary metadata.
@@ -140,6 +164,7 @@ export function projectGuideline(row) {
 export function selectGuidelines(rows, filters = {}) {
   const needles = String(filters.query || '').trim().split(/\s+/).map(normalizeName).filter(Boolean);
   const result = rows.filter((r) => (!filters.id || r.id === filters.id) && (!filters.season || r.admissionSeason === filters.season) &&
+    (!filters.mappingStatus || r.mappingStatus === filters.mappingStatus) && (!filters.mappingReason || r.mappingReason === filters.mappingReason) &&
     (!filters.year || String(r.academicYear) === String(filters.year)) && (!filters.region || r.region === filters.region) &&
     (!filters.university || r.universityName === filters.university) && (!filters.group || r.admissionGroup === filters.group) &&
     (!filters.category || r.admissionCategory === filters.category) && (!filters.practical || r.practicalType === filters.practical) &&
