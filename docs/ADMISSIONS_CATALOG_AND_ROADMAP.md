@@ -124,3 +124,12 @@ authentication states, source links, history and synthetic admin sync.
 The 35 WebP assets total 2,831,912 bytes. Public source inspection found 2,643
 susi and 1,183 jungsi identities. These are source inspection counts, not proof
 of production imports or official university verification.
+
+PR #155 passed CI/Cloudflare Preview and deployed as production Worker
+4378d14d-f0d9-44c9-8e2f-f2ffa0476e5e. All 35 production image hashes match;
+the authenticated webtoon view renders 318 existing university program rows.
+The first production guideline preview failed before any apply. Error responses
+now include only a fixed processing stage and allowlisted exception class,
+never exception messages, raw source content or credentials. A synthetic
+exception containing private markers verifies that diagnostics do not leak it.
+Initial production guideline import remains unverified until a successful apply.
