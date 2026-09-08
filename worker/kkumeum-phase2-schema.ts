@@ -30,6 +30,8 @@ const PHASE2_SCHEMA = [
     evaluation_text TEXT,
     teacher_note TEXT,
     growth_points_json TEXT NOT NULL DEFAULT '{}',
+    growth_skill_taxonomy_version TEXT,
+    growth_skill_codes_json TEXT,
     next_month_focus TEXT,
     status TEXT NOT NULL DEFAULT 'draft'
       CHECK (status IN ('draft', 'ready', 'sent')),
@@ -76,18 +78,25 @@ const PHASE2_SCHEMA = [
     ON student_artworks(report_id, sort_order)`,
 ] as const;
 
-async function ensureTeacherNoteColumn(familyDb: D1Database): Promise<void> {
+async function ensureMonthlyReportColumns(familyDb: D1Database): Promise<void> {
   const result = await familyDb
     .prepare("PRAGMA table_info(monthly_reports)")
     .all<{ name: string }>();
-  if ((result.results || []).some((column) => column.name === "teacher_note")) return;
-  await familyDb.exec("ALTER TABLE monthly_reports ADD COLUMN teacher_note TEXT");
+  const known = new Set((result.results || []).map((column) => column.name));
+  const columns = [
+    ["teacher_note", "TEXT"],
+    ["growth_skill_taxonomy_version", "TEXT"],
+    ["growth_skill_codes_json", "TEXT"],
+  ] as const;
+  for (const [name, type] of columns) {
+    if (!known.has(name)) await familyDb.exec(`ALTER TABLE monthly_reports ADD COLUMN ${name} ${type}`);
+  }
 }
 
 export async function ensureKkumeumPhase2Schema(familyDb: D1Database): Promise<void> {
   await ensureKkumeumPhase1Schema(familyDb);
   await familyDb.batch(PHASE2_SCHEMA.map((sql) => familyDb.prepare(sql)));
-  await ensureTeacherNoteColumn(familyDb);
+  await ensureMonthlyReportColumns(familyDb);
 }
 
 export const KKUMEUM_PHASE2_TABLES = [

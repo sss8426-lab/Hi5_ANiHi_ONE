@@ -74,6 +74,13 @@ async function makeHarness() {
 test('꿈이음 월간평가 권한·상태·revision·AI 미연결 계약을 실제 라우터에서 지킨다', async () => {
   const { mf, env, request } = await makeHarness();
   try {
+    const catalog = await request('/api/kkumeum/growth-skills/catalog', { user: ADMIN });
+    assert.equal(catalog.status, 200);
+    assert.equal(catalog.headers.get('cache-control'), 'private, no-store');
+    assert.equal(catalog.body.taxonomyVersion, 'kkumeum-growth-skill-v1');
+    assert.equal(catalog.body.maxSelections, 5);
+    assert.ok(catalog.body.categories.some((category) => category.code === 'FIGURE_CHARACTER'));
+
     const classResult = await request('/api/kkumeum/classes', {
       method: 'POST',
       body: { campusId: CAMPUS, name: '평가테스트반', stage: '기초' },
@@ -130,13 +137,56 @@ test('꿈이음 월간평가 권한·상태·revision·AI 미연결 계약을 �
         evaluationText: '인체 비례를 관찰하며 표현하는 힘이 좋아졌습니다.',
         teacherNote: '보호자 화면에는 노출하지 않을 내부 메모',
         growthPoints: { drawing: '향상' },
+        growthSkillCodes: ['figure_anatomy', 'color_harmony', 'figure_anatomy'],
         nextMonthFocus: '배경 공간감을 강화합니다.',
       },
     });
     assert.equal(created.status, 201);
     assert.equal(created.body.report.status, 'draft');
+    assert.equal(created.body.report.growthSkillTaxonomyVersion, 'kkumeum-growth-skill-v1');
+    assert.deepEqual(created.body.report.growthSkillCodes, ['figure_anatomy', 'color_harmony']);
+    assert.deepEqual(created.body.report.growthSkills.map((skill) => skill.labelKo), ['인체 구조', '색채·조화']);
     assert.equal(created.headers.get('cache-control'), 'private, no-store');
     const reportId = created.body.report.id;
+
+    const columns = await env.FAMILY_DB.prepare('PRAGMA table_info(monthly_reports)').all();
+    assert.ok(columns.results.some((column) => column.name === 'growth_skill_taxonomy_version'));
+    assert.ok(columns.results.some((column) => column.name === 'growth_skill_codes_json'));
+
+    const unknownCode = await request('/api/kkumeum/reports', {
+      user: TEACHER,
+      method: 'POST',
+      body: { campusId: CAMPUS, studentId, yearMonth: '2026-10', evaluationText: '검증', growthSkillCodes: ['not_a_skill'] },
+    });
+    assert.equal(unknownCode.status, 400);
+
+    const tooManyCodes = await request('/api/kkumeum/reports', {
+      user: TEACHER,
+      method: 'POST',
+      body: {
+        campusId: CAMPUS, studentId, yearMonth: '2026-10', evaluationText: '검증',
+        growthSkillCodes: ['form_observation', 'proportion_accuracy', 'line_control', 'figure_anatomy', 'pose_motion', 'face_expression'],
+      },
+    });
+    assert.equal(tooManyCodes.status, 400);
+
+    const cleared = await request(`/api/kkumeum/reports/${reportId}`, {
+      user: TEACHER,
+      method: 'PATCH',
+      body: { evaluationText: '인체 비례를 관찰하며 표현하는 힘이 좋아졌습니다.', growthSkillCodes: [] },
+    });
+    assert.equal(cleared.status, 200);
+    assert.equal(cleared.body.report.growthSkillTaxonomyVersion, null);
+    assert.deepEqual(cleared.body.report.growthSkillCodes, []);
+
+    const updated = await request(`/api/kkumeum/reports/${reportId}`, {
+      user: TEACHER,
+      method: 'PATCH',
+      body: { evaluationText: '인체 비례를 관찰하며 표현하는 힘이 좋아졌습니다.', growthSkillCodes: ['figure_anatomy', 'color_harmony'] },
+    });
+    assert.equal(updated.status, 200);
+    assert.equal(updated.body.report.growthSkillTaxonomyVersion, 'kkumeum-growth-skill-v1');
+    assert.deepEqual(updated.body.report.growthSkillCodes, ['figure_anatomy', 'color_harmony']);
 
     const generation = await request('/api/kkumeum/reports/generate', {
       user: TEACHER,
@@ -189,11 +239,13 @@ test('꿈이음 월간평가 권한·상태·revision·AI 미연결 계약을 �
         title: '9월 성장평가 수정본',
         evaluationText: '교사 확인 후 수정 이력을 남긴 평가입니다.',
         teacherNote: '수정 사유 내부 확인',
+        growthSkillCodes: ['composition_focus'],
       },
     });
     assert.equal(revised.status, 200);
     assert.ok(revised.body.revisionId);
     assert.equal(revised.body.report.status, 'sent');
+    assert.deepEqual(revised.body.report.growthSkillCodes, ['composition_focus']);
 
     const revisions = await request(`/api/kkumeum/reports/${reportId}/revisions`, {
       user: TEACHER,
@@ -204,6 +256,15 @@ test('꿈이음 월간평가 권한·상태·revision·AI 미연결 계약을 �
       revisions.body.revisions[0].snapshot.evaluationText,
       '인체 비례를 관찰하며 표현하는 힘이 좋아졌습니다.',
     );
+    assert.equal(revisions.body.revisions[0].snapshot.growthSkillTaxonomyVersion, 'kkumeum-growth-skill-v1');
+    assert.deepEqual(revisions.body.revisions[0].snapshot.growthSkillCodes, ['figure_anatomy', 'color_harmony']);
+
+    await env.FAMILY_DB.prepare(`UPDATE monthly_reports
+      SET growth_skill_taxonomy_version = NULL, growth_skill_codes_json = NULL WHERE id = ?`).bind(reportId).run();
+    const legacy = await request(`/api/kkumeum/reports/${reportId}`, { user: TEACHER });
+    assert.equal(legacy.status, 200);
+    assert.equal(legacy.body.report.growthSkillTaxonomyVersion, null);
+    assert.deepEqual(legacy.body.report.growthSkillCodes, []);
   } finally {
     await mf.dispose();
   }

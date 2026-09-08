@@ -1,7 +1,7 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]));
-  const state = { student: null, artworks: [], reports: [], guardians: [], yearMonth: new Date().toISOString().slice(0, 7) };
+  const state = { student: null, artworks: [], reports: [], guardians: [], growthSkillCatalog: null, yearMonth: new Date().toISOString().slice(0, 7) };
   const app = () => window.KkumeumStaff;
   const campusId = () => app()?.state?.campusId || '';
   const manager = () => Boolean(app()?.isManager?.());
@@ -16,13 +16,15 @@
 
   function note(id, value) { const node = $(id)?.querySelector('[data-feedback]'); if (node) node.textContent = value || ''; }
 
-  function dialog(title, body, save) {
+  function dialog(title, body, save, afterOpen) {
     const root = document.createElement('dialog');
     root.className = 'kk-dialog';
     root.innerHTML = `<form method="dialog"><div class="kk-dialog-head"><h3>${escapeHtml(title)}</h3><button type="button" data-close aria-label="닫기">×</button></div>${body}<p data-feedback class="kk-dialog-feedback"></p><div class="kk-dialog-actions"><button type="button" data-close>취소</button><button class="primary" type="submit">저장</button></div></form>`;
     document.body.append(root);
     root.querySelectorAll('[data-close]').forEach((button) => button.onclick = () => root.close());
-    root.querySelector('form').onsubmit = async (event) => { event.preventDefault(); try { await save(new FormData(event.currentTarget)); root.close(); } catch (error) { root.querySelector('[data-feedback]').textContent = error.message || '저장하지 못했습니다.'; } };
+    const form = root.querySelector('form');
+    form.onsubmit = async (event) => { event.preventDefault(); try { await save(new FormData(event.currentTarget)); root.close(); } catch (error) { root.querySelector('[data-feedback]').textContent = error.message || '저장하지 못했습니다.'; } };
+    afterOpen?.(form);
     root.onclose = () => root.remove(); root.showModal();
   }
 
@@ -74,18 +76,42 @@
   }
   async function trash(id) { if (!id || !window.confirm('이 작품을 휴지통으로 이동할까요?')) return; await api(`/api/kkumeum/artworks/${encodeURIComponent(id)}`, {method:'DELETE'}); await load(state.student.id); const undo = document.createElement('button'); undo.type='button'; undo.textContent='방금 삭제한 작품 복원'; undo.onclick=async()=>{await api(`/api/kkumeum/artworks/${encodeURIComponent(id)}/restore`, {method:'POST'}); await load(state.student.id);}; $('kkArtworkOperations').append(undo); }
 
+  function growthSkillPicker(report, readOnly = false) {
+    const catalog = state.growthSkillCatalog;
+    if (!catalog?.categories) return '<p class="kk-skill-loading">성장 영역 카탈로그를 불러오는 중입니다.</p>';
+    const selected = new Set(Array.isArray(report?.growthSkillCodes) ? report.growthSkillCodes : []);
+    const max = Number(catalog.maxSelections || 5);
+    return `<fieldset class="kk-growth-skill-picker" data-growth-skill-picker data-max="${max}" data-read-only="${readOnly ? 'true' : 'false'}"><legend>성장 영역 <output data-growth-skill-count>${selected.size} / ${max}</output></legend><p>이번 달에 관찰하거나 지도한 영역만 선택합니다.</p><div class="kk-growth-skill-groups">${catalog.categories.map((category) => `<section><strong>${escapeHtml(category.labelKo)}</strong><div>${category.skills.map((skill) => `<label class="kk-growth-skill-chip"><input type="checkbox" name="growthSkillCodes" value="${escapeHtml(skill.code)}" data-growth-skill ${selected.has(skill.code) ? 'checked' : ''} ${readOnly ? 'disabled' : ''}><span>${escapeHtml(skill.labelKo)}</span></label>`).join('')}</div></section>`).join('')}</div></fieldset>`;
+  }
+
+  function bindGrowthSkillPicker(root) {
+    const picker = root.querySelector('[data-growth-skill-picker]');
+    if (!picker || picker.dataset.readOnly === 'true') return;
+    const max = Number(picker.dataset.max || 5);
+    const inputs = [...picker.querySelectorAll('[data-growth-skill]')];
+    const count = picker.querySelector('[data-growth-skill-count]');
+    const sync = () => {
+      const selected = inputs.filter((input) => input.checked).length;
+      if (count) count.textContent = `${selected} / ${max}`;
+      inputs.forEach((input) => { input.disabled = !input.checked && selected >= max; });
+    };
+    inputs.forEach((input) => input.addEventListener('change', sync));
+    sync();
+  }
+
   function reportForm() {
     const root = $('kkReportOperations'); if (!root || !state.student) return;
     const report = currentReport(); const readOnly = report?.status === 'sent'; const growth = report?.growthPoints?.growth || '';
-    root.innerHTML = `<div class="kk-operation-head"><div><strong>${escapeHtml(state.student.name)} 월간 평가</strong><small>${state.yearMonth} · ${report?.status || '미작성'}</small></div></div><form id="kkReportForm" class="kk-report-form"><label><span>잘된 점</span><textarea name="strengths" ${readOnly ? 'readonly' : ''}>${escapeHtml(report?.title || '')}</textarea></label><label><span>성장한 부분</span><textarea name="growth" ${readOnly ? 'readonly' : ''}>${escapeHtml(growth)}</textarea></label><label><span>보완할 부분</span><textarea name="improvements" ${readOnly ? 'readonly' : ''}>${escapeHtml(report?.teacherNote || '')}</textarea></label><label><span>다음 달 목표</span><textarea name="nextMonthFocus" ${readOnly ? 'readonly' : ''}>${escapeHtml(report?.nextMonthFocus || '')}</textarea></label><label><span>종합 평가</span><textarea name="evaluationText" ${readOnly ? 'readonly' : ''}>${escapeHtml(report?.evaluationText || '')}</textarea></label><div class="kk-report-actions">${readOnly ? '<button data-revise type="button">개정 작성</button>' : '<button type="submit">임시저장</button><button data-ai type="button">AI 초안</button>'}${report && !readOnly ? `<button data-next="${report.status === 'draft' ? 'ready' : 'send'}" type="button">${report.status === 'draft' ? '검토 완료' : '보호자 전달'}</button>` : ''}</div><p data-feedback class="kk-inline-feedback"></p></form><div class="kk-history"><strong>전달 이력</strong>${state.reports.filter((item) => item.status === 'sent').map((item) => `<span>${escapeHtml(item.yearMonth)} 전달 완료</span>`).join('') || '<span>전달 이력이 없습니다.</span>'}</div>`;
+    root.innerHTML = `<div class="kk-operation-head"><div><strong>${escapeHtml(state.student.name)} 월간 평가</strong><small>${state.yearMonth} · ${report?.status || '미작성'}</small></div></div><form id="kkReportForm" class="kk-report-form"><label><span>잘된 점</span><textarea name="strengths" ${readOnly ? 'readonly' : ''}>${escapeHtml(report?.title || '')}</textarea></label><label><span>성장한 부분</span><textarea name="growth" ${readOnly ? 'readonly' : ''}>${escapeHtml(growth)}</textarea></label>${growthSkillPicker(report, readOnly)}<label><span>보완할 부분</span><textarea name="improvements" ${readOnly ? 'readonly' : ''}>${escapeHtml(report?.teacherNote || '')}</textarea></label><label><span>다음 달 목표</span><textarea name="nextMonthFocus" ${readOnly ? 'readonly' : ''}>${escapeHtml(report?.nextMonthFocus || '')}</textarea></label><label><span>종합 평가</span><textarea name="evaluationText" ${readOnly ? 'readonly' : ''}>${escapeHtml(report?.evaluationText || '')}</textarea></label><div class="kk-report-actions">${readOnly ? '<button data-revise type="button">개정 작성</button>' : '<button type="submit">임시저장</button><button data-ai type="button">AI 초안</button>'}${report && !readOnly ? `<button data-next="${report.status === 'draft' ? 'ready' : 'send'}" type="button">${report.status === 'draft' ? '검토 완료' : '보호자 전달'}</button>` : ''}</div><p data-feedback class="kk-inline-feedback"></p></form><div class="kk-history"><strong>전달 이력</strong>${state.reports.filter((item) => item.status === 'sent').map((item) => `<span>${escapeHtml(item.yearMonth)} 전달 완료</span>`).join('') || '<span>전달 이력이 없습니다.</span>'}</div>`;
     $('kkReportForm').onsubmit = async (event) => { event.preventDefault(); await saveReport(new FormData(event.currentTarget)); };
+    bindGrowthSkillPicker($('kkReportForm'));
     root.querySelector('[data-ai]')?.addEventListener('click', generate); root.querySelector('[data-next]')?.addEventListener('click', (event) => transition(event.currentTarget.dataset.next)); root.querySelector('[data-revise]')?.addEventListener('click', revise);
   }
-  function payload(form) { return {campusId:campusId(),studentId:state.student.id,yearMonth:state.yearMonth,title:form.get('strengths') || '',summary:'교사가 검토한 월간 성장 기록',teacherNote:form.get('improvements') || '',growthPoints:{growth:form.get('growth') || ''},nextMonthFocus:form.get('nextMonthFocus') || '',evaluationText:form.get('evaluationText') || ''}; }
+  function payload(form) { return {campusId:campusId(),studentId:state.student.id,yearMonth:state.yearMonth,title:form.get('strengths') || '',summary:'교사가 검토한 월간 성장 기록',teacherNote:form.get('improvements') || '',growthPoints:{growth:form.get('growth') || ''},growthSkillCodes:form.getAll('growthSkillCodes'),nextMonthFocus:form.get('nextMonthFocus') || '',evaluationText:form.get('evaluationText') || ''}; }
   async function saveReport(form) { const report=currentReport(); if (report) await api(`/api/kkumeum/reports/${encodeURIComponent(report.id)}`, {method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify(payload(form))}); else await api('/api/kkumeum/reports',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload(form))}); await load(state.student.id); note('kkReportOperations','월간 평가를 저장했습니다.'); }
   async function generate() { try { const result=await api('/api/kkumeum/reports/generate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({campusId:campusId(),studentId:state.student.id,yearMonth:state.yearMonth})}); if(result.available){const form=$('kkReportForm');form.elements.strengths.value=result.draft.title||'';form.elements.growth.value=result.draft.growthPoints?.growth||'';form.elements.nextMonthFocus.value=result.draft.nextMonthFocus||'';form.elements.evaluationText.value=result.draft.evaluationText||'';}}catch(error){note('kkReportOperations', error.body?.message || error.message || 'AI 초안 제공자가 아직 연결되지 않았습니다.');} }
   async function transition(action) { const report=currentReport(); if(!report || (action==='send' && !window.confirm('검토한 평가를 보호자에게 전달할까요?')))return; await api(`/api/kkumeum/reports/${encodeURIComponent(report.id)}/${action}`,{method:'POST'}); await load(state.student.id); }
-  function revise() { const report=currentReport(); dialog('전달 완료 평가 개정','<label><span>개정 내용</span><textarea name="evaluationText" required></textarea></label>',async(form)=>{await api(`/api/kkumeum/reports/${encodeURIComponent(report.id)}/revise`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({evaluationText:form.get('evaluationText')})});await load(state.student.id);}); }
+  function revise() { const report=currentReport(); dialog('전달 완료 평가 개정',`<label><span>개정 내용</span><textarea name="evaluationText" required>${escapeHtml(report.evaluationText || '')}</textarea></label>${growthSkillPicker(report)}`,async(form)=>{await api(`/api/kkumeum/reports/${encodeURIComponent(report.id)}/revise`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({evaluationText:form.get('evaluationText'),growthSkillCodes:form.getAll('growthSkillCodes')})});await load(state.student.id);},bindGrowthSkillPicker); }
 
   function guardians() {
     const root=$('kkGuardianOperations'); if(!root||!state.student||!manager())return;
@@ -102,8 +128,8 @@
   async function load(studentId) {
     const student = await api(`/api/kkumeum/students/${encodeURIComponent(studentId)}?campusId=${encodeURIComponent(campusId())}`);
     state.student=student.student;
-    const calls=[api(`/api/kkumeum/artworks?campusId=${encodeURIComponent(campusId())}&studentId=${encodeURIComponent(studentId)}`),api(`/api/kkumeum/reports?campusId=${encodeURIComponent(campusId())}&studentId=${encodeURIComponent(studentId)}`)]; if(manager())calls.push(api(`/api/kkumeum/guardians?campusId=${encodeURIComponent(campusId())}&studentId=${encodeURIComponent(studentId)}`));
-    const [artworks,reports,guardianResult]=await Promise.all(calls); state.artworks=(artworks.artworks||[]).filter((item)=>String(item.lessonDate||item.createdAt||'').slice(0,7)===state.yearMonth);state.reports=reports.reports||[];state.guardians=guardianResult?.guardians||[];renderDetail();renderArtworks();reportForm();guardians();
+    const calls=[api(`/api/kkumeum/artworks?campusId=${encodeURIComponent(campusId())}&studentId=${encodeURIComponent(studentId)}`),api(`/api/kkumeum/reports?campusId=${encodeURIComponent(campusId())}&studentId=${encodeURIComponent(studentId)}`),api('/api/kkumeum/growth-skills/catalog')]; if(manager())calls.push(api(`/api/kkumeum/guardians?campusId=${encodeURIComponent(campusId())}&studentId=${encodeURIComponent(studentId)}`));
+    const [artworks,reports,catalog,guardianResult]=await Promise.all(calls); state.artworks=(artworks.artworks||[]).filter((item)=>String(item.lessonDate||item.createdAt||'').slice(0,7)===state.yearMonth);state.reports=reports.reports||[];state.growthSkillCatalog=catalog;state.guardians=guardianResult?.guardians||[];renderDetail();renderArtworks();reportForm();guardians();
   }
   function ready(){if(!app())return;const nav=document.querySelector('.kk-manager-nav');if(nav)nav.hidden=!manager();const guardianSection=$('kkGuardiansSection');if(guardianSection)guardianSection.hidden=!manager();overview();}
   window.addEventListener('kkumeum:ready',ready);window.addEventListener('kkumeum:students-updated',overview);window.addEventListener('kkumeum:select-student',(event)=>load(event.detail.studentId).catch((error)=>{const root=$('kkStudentDetail');root.hidden=false;root.textContent=error.message||'학생 정보를 불러오지 못했습니다.';}));if(app())ready();

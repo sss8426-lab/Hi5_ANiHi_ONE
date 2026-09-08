@@ -140,7 +140,7 @@ test('family feed does not wait for service-worker readiness just to render push
   assert.match(source, /navigator\.serviceWorker\.getRegistration\('\/family\/'\)/);
   assert.match(source, /void loadPushStatus\(\);[\s\S]*api\('\/api\/family\/children'\)/);
   assert.match(source, /serviceWorker\.register\('\/family\/sw\.js'[\s\S]*if \(state\.session\) void loadPushStatus\(\)/);
-  const currentDeviceBlock = source.match(/async function currentDevicePushSubscription\(\)[\s\S]*?\n}\n/);
+  const currentDeviceBlock = source.match(/async function currentDevicePushSubscription\(\)[\s\S]*?\r?\n}\r?\n/);
   assert.ok(currentDeviceBlock);
   assert.doesNotMatch(currentDeviceBlock[0], /serviceWorker\.ready/);
   assert.match(source, /async function togglePush\(\)[\s\S]*serviceWorker\.ready/);

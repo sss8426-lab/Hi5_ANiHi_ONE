@@ -55,6 +55,7 @@ import {
 } from "./kkumeum-guardian-admin";
 import { assertKkumeumPilotCampus } from "./kkumeum-pilot";
 import { dispatchGuardianAnnouncementPush, type KkumeumPushEnv } from "./kkumeum-push";
+import { kkumeumGrowthSkillCatalog } from "./kkumeum-growth-skills";
 
 export type KkumeumRouterEnv = KkumeumBindings & KkumeumPushEnv;
 
@@ -138,6 +139,13 @@ export async function handleKkumeumApi(
   if (!url.pathname.startsWith("/api/kkumeum")) return null;
   const respond = privateJsonResponder(jsonResponse);
   requireAuthenticatedAccess(context);
+
+  if (url.pathname === "/api/kkumeum/growth-skills/catalog") {
+    if (request.method !== "GET") {
+      return respond({ error: "지원하지 않는 성장 영역 카탈로그 요청입니다." }, { status: 405 });
+    }
+    return respond(kkumeumGrowthSkillCatalog());
+  }
 
   if (url.pathname === "/api/kkumeum/health") {
     if (request.method !== "GET") {

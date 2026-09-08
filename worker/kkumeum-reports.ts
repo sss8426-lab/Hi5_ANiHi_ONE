@@ -4,6 +4,12 @@ import {
   requireAuthenticatedAccess,
 } from "./data-core-access";
 import { requireKkumeumStudentAccess } from "./kkumeum-core";
+import {
+  isKkumeumGrowthSkillCode,
+  KKUMEUM_GROWTH_SKILL_REGISTRY,
+  KKUMEUM_GROWTH_SKILL_TAXONOMY_VERSION,
+  normalizeKkumeumGrowthSkillCodes,
+} from "./kkumeum-growth-skills";
 import { ensureKkumeumPhase2Schema } from "./kkumeum-phase2-schema";
 
 export type MonthlyReportInput = {
@@ -15,6 +21,7 @@ export type MonthlyReportInput = {
   evaluationText?: unknown;
   teacherNote?: unknown;
   growthPoints?: unknown;
+  growthSkillCodes?: unknown;
   nextMonthFocus?: unknown;
 };
 
@@ -83,7 +90,29 @@ function parseGrowthPoints(value: unknown): Record<string, unknown> {
   }
 }
 
+function parseStoredGrowthSkillCodes(value: unknown, taxonomyVersion: unknown): string[] {
+  if (taxonomyVersion !== KKUMEUM_GROWTH_SKILL_TAXONOMY_VERSION) return [];
+  try {
+    const parsed = JSON.parse(String(value || "[]"));
+    if (!Array.isArray(parsed)) return [];
+    const unique = new Set<string>();
+    for (const code of parsed) {
+      if (isKkumeumGrowthSkillCode(code)) unique.add(code);
+    }
+    return [...unique].slice(0, 5);
+  } catch {
+    return [];
+  }
+}
+
 function reportResponse(row: Record<string, unknown>) {
+  const growthSkillTaxonomyVersion = typeof row.growth_skill_taxonomy_version === "string"
+    ? row.growth_skill_taxonomy_version
+    : null;
+  const growthSkillCodes = parseStoredGrowthSkillCodes(
+    row.growth_skill_codes_json,
+    growthSkillTaxonomyVersion,
+  );
   return {
     id: row.id,
     studentId: row.student_id,
@@ -95,6 +124,11 @@ function reportResponse(row: Record<string, unknown>) {
     evaluationText: row.evaluation_text || "",
     teacherNote: row.teacher_note || "",
     growthPoints: parseGrowthPoints(row.growth_points_json),
+    growthSkillTaxonomyVersion,
+    growthSkillCodes,
+    growthSkills: growthSkillCodes
+      .map((code) => KKUMEUM_GROWTH_SKILL_REGISTRY.find((skill) => skill.code === code))
+      .filter(Boolean),
     nextMonthFocus: row.next_month_focus || "",
     status: row.status,
     sentAt: row.sent_at || null,
@@ -166,12 +200,15 @@ async function reportRowById(
 }
 
 function reportValues(input: MonthlyReportInput) {
+  const growthSkillCodes = normalizeKkumeumGrowthSkillCodes(input.growthSkillCodes);
   return {
     title: cleanText(input.title, 240),
     summary: cleanText(input.summary, 2000),
     evaluationText: cleanText(input.evaluationText, 8000),
     teacherNote: cleanText(input.teacherNote, 8000),
     growthPoints: normalizeGrowthPoints(input.growthPoints),
+    growthSkillCodes,
+    growthSkillTaxonomyVersion: growthSkillCodes.length ? KKUMEUM_GROWTH_SKILL_TAXONOMY_VERSION : null,
     nextMonthFocus: cleanText(input.nextMonthFocus, 3000),
   };
 }
@@ -202,8 +239,9 @@ export async function createMonthlyReport(
       `INSERT INTO monthly_reports (
          id, student_id, campus_id, year_month, teacher_user_id,
          title, summary, evaluation_text, teacher_note, growth_points_json,
+         growth_skill_taxonomy_version, growth_skill_codes_json,
          next_month_focus, status, sent_at, created_at, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', NULL, ?, ?)`,
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', NULL, ?, ?)`,
     )
     .bind(
       id,
@@ -216,6 +254,8 @@ export async function createMonthlyReport(
       values.evaluationText,
       values.teacherNote,
       JSON.stringify(values.growthPoints),
+      values.growthSkillTaxonomyVersion,
+      JSON.stringify(values.growthSkillCodes),
       values.nextMonthFocus,
       now,
       now,
@@ -269,7 +309,8 @@ export async function updateMonthlyReport(
     .prepare(
       `UPDATE monthly_reports
        SET title = ?, summary = ?, evaluation_text = ?, teacher_note = ?,
-           growth_points_json = ?, next_month_focus = ?, updated_at = ?
+           growth_points_json = ?, growth_skill_taxonomy_version = ?, growth_skill_codes_json = ?,
+           next_month_focus = ?, updated_at = ?
        WHERE id = ?`,
     )
     .bind(
@@ -278,6 +319,8 @@ export async function updateMonthlyReport(
       values.evaluationText,
       values.teacherNote,
       JSON.stringify(values.growthPoints),
+      values.growthSkillTaxonomyVersion,
+      JSON.stringify(values.growthSkillCodes),
       values.nextMonthFocus,
       now,
       reportId,
@@ -349,7 +392,8 @@ export async function reviseSentMonthlyReport(
     .prepare(
       `UPDATE monthly_reports
        SET title = ?, summary = ?, evaluation_text = ?, teacher_note = ?,
-           growth_points_json = ?, next_month_focus = ?, updated_at = ?
+           growth_points_json = ?, growth_skill_taxonomy_version = ?, growth_skill_codes_json = ?,
+           next_month_focus = ?, updated_at = ?
        WHERE id = ?`,
     )
     .bind(
@@ -358,6 +402,8 @@ export async function reviseSentMonthlyReport(
       values.evaluationText,
       values.teacherNote,
       JSON.stringify(values.growthPoints),
+      values.growthSkillTaxonomyVersion,
+      JSON.stringify(values.growthSkillCodes),
       values.nextMonthFocus,
       now,
       reportId,

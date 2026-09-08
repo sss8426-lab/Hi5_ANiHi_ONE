@@ -13,6 +13,9 @@ test('꿈이음 Phase 2 report schema stays isolated and keeps sent revisions', 
   assert.match(schema, /UNIQUE\(student_id, year_month\)/);
   assert.match(schema, /CHECK \(status IN \('draft', 'ready', 'sent'\)\)/);
   assert.match(schema, /snapshot_json TEXT NOT NULL/);
+  assert.match(schema, /growth_skill_taxonomy_version TEXT/);
+  assert.match(schema, /growth_skill_codes_json TEXT/);
+  assert.match(schema, /ALTER TABLE monthly_reports ADD COLUMN/);
   assert.match(schema, /r2_key TEXT NOT NULL UNIQUE/);
   assert.doesNotMatch(schema, /\benv\.DB\b/);
   assert.doesNotMatch(schema, /\benv\.FILES\b/);
@@ -26,8 +29,22 @@ test('월간평가는 교사 검토 후에만 전달되고 sent 직접 덮어쓰
   assert.match(reports, /throw new DataCoreAccessError\(409, "전달 완료된 평가는 직접 덮어쓸 수 없습니다/);
   assert.match(reports, /INSERT INTO monthly_report_revisions/);
   assert.match(reports, /JSON\.stringify\(reportResponse\(current\)\)/);
+  assert.match(reports, /normalizeKkumeumGrowthSkillCodes/);
+  assert.match(reports, /growthSkillTaxonomyVersion/);
   assert.match(reports, /requiresTeacherReview: true/);
   assert.match(reports, /autoSend: false/);
+});
+
+test('성장 영역 catalog와 교직원 UI는 canonical registry를 API로만 사용한다', async () => {
+  const router = await read('worker/kkumeum-router.ts');
+  const ui = await read('public/data-core/work/kkumeum-operations.js');
+  assert.match(router, /\/api\/kkumeum\/growth-skills\/catalog/);
+  assert.match(router, /kkumeumGrowthSkillCatalog\(\)/);
+  assert.match(ui, /\/api\/kkumeum\/growth-skills\/catalog/);
+  assert.match(ui, /data-growth-skill/);
+  assert.match(ui, /growthSkillCodes:form\.getAll\('growthSkillCodes'\)/);
+  assert.match(ui, /selected >= max/);
+  assert.doesNotMatch(ui, /figure_anatomy|color_harmony|form_observation/);
 });
 
 test('AI provider 미연결은 가짜 생성 결과 없이 503 계약을 유지한다', async () => {
