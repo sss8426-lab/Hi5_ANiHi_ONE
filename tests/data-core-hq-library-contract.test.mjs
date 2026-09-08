@@ -26,8 +26,23 @@ test('HQ folder creation and upload stay master-only organization workflows', as
   assert.match(source, /sourceApp: SOURCE_APP/);
   assert.match(source, /recordId', state\.selectedId/);
   assert.match(source, /campusId', ''/);
-  assert.match(source, /api\(`\/api\/data-core\/files\?recordId=\$\{encodeURIComponent\(folderId\)\}&limit=100`\)/);
+  assert.match(source, /const UPLOAD_CATEGORY = 'hq-workspace'/);
+  assert.match(source, /recordId=\$\{encodeURIComponent\(folderId\)\}&category=\$\{encodeURIComponent\(UPLOAD_CATEGORY\)\}/);
   assert.match(source, /isSuperAdmin\(\) \? '<button class="ghost-btn hq-library-add"/);
+});
+
+test('HQ workspace upload has server-side master and folder guards', async () => {
+  const source = await read('worker/data-core-files.ts');
+  assert.match(source, /"hq-workspace"/);
+  assert.match(source, /category === "hq-workspace"/);
+  assert.match(source, /if \(!context\.isSuperAdmin\)/);
+  assert.match(source, /본원 작업물 업로드는 마스터 관리자만/);
+  assert.match(source, /folder\.campus_id !== null/);
+  assert.match(source, /folder\.record_type !== "hq-library-folder"/);
+  assert.match(source, /folder\.source_app !== "data-core-library"/);
+  assert.match(source, /folder\.visibility !== "organization"/);
+  assert.match(source, /sourceApp: "hq-library"/);
+  assert.match(source, /visibility: "organization" as const/);
 });
 
 test('HQ library reuses current DATA CORE storage instead of creating a new backend', async () => {
@@ -35,7 +50,7 @@ test('HQ library reuses current DATA CORE storage instead of creating a new back
   const loader = await read('public/data-core/work/kkumeum-nav.js');
   assert.match(source, /\/api\/data-core\/records/);
   assert.match(source, /\/api\/data-core\/files/);
-  assert.match(source, /const UPLOAD_CATEGORY = 'counseling-material'/);
+  assert.match(source, /const UPLOAD_CATEGORY = 'hq-workspace'/);
   assert.doesNotMatch(source, /new R2|new D1|FAMILY_FILES/);
   assert.match(loader, /\/data-core\/work\/hq-library\.js/);
 });
