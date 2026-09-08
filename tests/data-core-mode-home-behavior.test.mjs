@@ -18,6 +18,6 @@ assert.match(styles, /body\.mode-home-artwork-active \.mode-overlay \{[\s\S]*?ba
 assert.match(styles, /body\.mode-home-artwork-active \.mode-card::after \{ display: none; \}/u);
 assert.match(styles, /@media \(max-width: 980px\) \{[\s\S]*?\.mode-grid \{ grid-template-columns: 1fr; \}/u);
 assert.match(styles, /@media \(max-width: 680px\) \{[\s\S]*?\.mode-card \{ min-height: 430px/u);
-assert.match(styles, /@media \(min-width: 681px\) and \(max-width: 980px\)[\s\S]*?\.connection-card div,\n  body\.mode-home-artwork-active \.back-link \{ display: block; \}/u);
+assert.match(styles, /@media \(min-width: 681px\) and \(max-width: 980px\)[\s\S]*?\.connection-card div,\r?\n  body\.mode-home-artwork-active \.back-link \{ display: block; \}/u);
 
 assert.doesNotMatch(app, /event\.preventDefault\(\);\s*switchView\(card\.dataset\.modeCard/u);
