@@ -5,6 +5,7 @@ import {
 } from "./data-core-access";
 import { syncAdmissionsKnowledge } from "./data-core-admissions-knowledge-sync";
 import { ensureKnowledgeSchema } from "./data-core-knowledge";
+import { handleAdmissionsCatalog } from "./admissions-catalog";
 
 interface Env {
   ASSETS?: Fetcher;
@@ -82,6 +83,8 @@ async function handleAdmissionsKnowledgeApi(request: Request, env: Env) {
 
 const worker = {
   async fetch(request: Request, env: Env): Promise<Response> {
+    const catalog = await handleAdmissionsCatalog(request, env);
+    if (catalog) return catalog;
     try {
       const response = await handleAdmissionsKnowledgeApi(request, env);
       if (response) return response;

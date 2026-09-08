@@ -48,7 +48,7 @@ function stableId(prefix: string, value: string) {
   return `knowledge:${prefix}:admissions:${hashText(value.toLowerCase().replace(/\s+/g, " ").trim())}`;
 }
 
-async function readAdmissionsState(db: D1Database, files?: R2Bucket) {
+export async function readAdmissionsState(db: D1Database, files?: R2Bucket) {
   if (files) {
     const object = await files.get(ADMISSIONS_STATE_KEY);
     if (object) {

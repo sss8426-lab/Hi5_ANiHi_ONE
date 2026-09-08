@@ -1,11 +1,15 @@
-import { normalize, searchCareers, matchServerGoal, careerStages, programView, filterPrograms, admissionTrend, safeUrl } from './roadmap-model.js?v=20260908-2';
+import { careerStages, programView, filterPrograms, admissionTrend, safeUrl, searchCareers } from './roadmap-model.js?v=20260909-1';
+import { occupationImageConcepts } from './occupation-image-concepts.js?v=20260909-1';
 
 const content = window.HI5_ROADMAP_CONTENT || { careers: [], tracks: [], lessonAreas: [], sources: [] };
 const $ = (id) => document.getElementById(id);
 const state = { family: '', group: '', query: '', career: null, programs: [], controller: null, request: 0 };
 const familyNames = { story: '만화·애니메이션·게임', design: '디자인' };
 const h = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-const art = (career) => `<span class="career-art art-${career.art}" role="img" aria-label="${h(career.name)}의 작업 장면"></span>`;
+const art = (career) => {
+  const concept = occupationImageConcepts.find((c) => c.occupationId === career.id);
+  return concept ? `<img class="career-art job-image" src="${concept.asset}?v=${concept.version}" alt="${h(concept.action)}" width="480" height="640" loading="lazy" decoding="async">` : `<span class="career-art missing-art" data-missing-occupation="${h(career.id)}">이미지 준비 중</span>`;
+};
 const pathFor = (career) => `#family=${career.family}&career=${career.id}`;
 
 function notice(message, login = false) {
@@ -76,7 +80,21 @@ function setPrograms(programs) {
   $('admissionFilter').value = '';
   $('focusFilter').value = '';
   renderUniversities();
+  linkUniversitySources();
   renderTrend();
+}
+
+function linkUniversitySources() {
+  const rows = filterPrograms(state.programs, {region:$('regionFilter').value,schoolType:$('schoolFilter').value,admission:$('admissionFilter').value,focus:$('focusFilter').value});
+  $('universityContent').querySelectorAll('.university-item').forEach((item,index) => {
+    const row = rows[index];
+    if (!row?.sourceUniversityId && !row?.guidelineId) return;
+    const link = document.createElement('a');
+    link.href = row.guidelineId ? `/#page=${row.admissionSeason}&guideline=${encodeURIComponent(row.guidelineId)}` : `/#page=admin&university=${encodeURIComponent(row.sourceUniversityId)}`;
+    link.className = 'university-source-link';
+    link.textContent = row.guidelineId ? '저장된 입시요강 상세 보기 ↗' : '대학 데이터 관리에서 보기 ↗';
+    item.append(link);
+  });
 }
 
 async function api(url, signal) {
@@ -94,15 +112,9 @@ async function loadConnectedPrograms(career) {
   const timeout = setTimeout(() => controller.abort(), 45000);
   notice('대학별 전형 정보를 확인하고 있습니다.');
   try {
-    const { goals = [] } = await api('/api/data-core/roadmap/goals', controller.signal);
-    const exact = matchServerGoal(career, goals);
-    const related = goals.filter((goal) => goal.nodeType === 'major' && career.majors.some((name) => normalize(name) === normalize(goal.name)));
-    const starts = exact ? [exact] : related;
-    const responses = await Promise.all(starts.map((goal) => api(`/api/data-core/roadmap?goalId=${encodeURIComponent(goal.id)}`, controller.signal)));
+    const response = await api(`/api/data-core/roadmap/programs?careerId=${encodeURIComponent(career.id)}`, controller.signal);
     if (requestId !== state.request) return;
-    const programs = new Map();
-    for (const payload of responses) for (const program of payload.roadmap?.universityPrograms || []) programs.set(program.id, program);
-    setPrograms([...programs.values()]);
+    setPrograms(response.programs || []);
     notice('');
   } catch (error) {
     if (requestId !== state.request) return;
@@ -146,7 +158,7 @@ $('groupTabs').addEventListener('click', (event) => {
 });
 $('goalSearchForm').addEventListener('submit', (event) => { event.preventDefault(); state.query = $('goalSearchInput').value; renderCatalog(); });
 $('goalSearchInput').addEventListener('input', () => { state.query = $('goalSearchInput').value; renderCatalog(); });
-for (const id of ['regionFilter', 'schoolFilter', 'admissionFilter', 'focusFilter']) $(id).addEventListener('change', renderUniversities);
+for (const id of ['regionFilter', 'schoolFilter', 'admissionFilter', 'focusFilter']) $(id).addEventListener('change', () => { renderUniversities(); linkUniversitySources(); });
 document.querySelectorAll('.flow-strip a').forEach((link) => link.addEventListener('click', (event) => { event.preventDefault(); document.querySelector(link.getAttribute('href')).scrollIntoView(); }));
 $('printRoadmap').addEventListener('click', () => window.print());
 window.addEventListener('hashchange', route);

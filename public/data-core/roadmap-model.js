@@ -50,6 +50,8 @@ export function programView(program) {
     schoolType: String(m.schoolType || m.degreeType || ''), admission: String(m.admission || ''), practical: verified ? String(m.practicalType || '') : '',
     source, year, verified, verifiedAt: verified ? verifiedAt.slice(0, 10) : '', page: verified ? String(m.sourcePage || m.documentPage || '') : '',
     grade: validPair ? grade : null, skill: validPair ? skill : null,
+    sourceUniversityId: String(m.sourceUniversityId || ''), campus: String(m.campus || ''),
+    guidelineId: String(m.guidelineId || ''), admissionSeason: ['susi','jungsi'].includes(m.admissionSeason) ? m.admissionSeason : '',
   };
 }
 export function filterPrograms(programs, filters) {
