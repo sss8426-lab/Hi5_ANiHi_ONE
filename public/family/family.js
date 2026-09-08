@@ -6,6 +6,7 @@ const state = {
   artworks: [],
   activeTab: 'home',
   pushStatus: null,
+  currentPushSubscription: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -58,6 +59,7 @@ function clearPrivateUi() {
   state.reports = [];
   state.artworks = [];
   state.pushStatus = null;
+  state.currentPushSubscription = null;
   ['reportList', 'artworkGallery', 'latestReport', 'latestArtworks'].forEach((id) => {
     const node = $(id);
     if (node) node.replaceChildren();
@@ -113,8 +115,8 @@ function renderPushStatus(status, currentSubscription = null) {
 
 async function currentDevicePushSubscription() {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return null;
-  const registration = await navigator.serviceWorker.ready;
-  return registration.pushManager.getSubscription();
+  const registration = await navigator.serviceWorker.getRegistration('/family/');
+  return registration ? registration.pushManager.getSubscription() : null;
 }
 
 async function loadPushStatus() {
@@ -352,7 +354,7 @@ async function enterFamily(session) {
   $('guardianAccountName').textContent = text(session.displayName, '보호자');
   showView('familyView');
   switchTab('home');
-  await loadPushStatus();
+  void loadPushStatus();
   try {
     const response = await api('/api/family/children');
     state.children = Array.isArray(response.children) ? response.children : [];
@@ -453,7 +455,11 @@ document.querySelectorAll('[data-tab]').forEach((button) => button.addEventListe
 document.querySelectorAll('[data-go-tab]').forEach((button) => button.addEventListener('click', () => switchTab(button.dataset.goTab)));
 
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('/family/sw.js', { scope: '/family/' }).catch(() => {}));
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/family/sw.js', { scope: '/family/' })
+      .then(() => { if (state.session) void loadPushStatus(); })
+      .catch(() => {});
+  });
 }
 
 checkSession();
