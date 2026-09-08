@@ -15,6 +15,14 @@ function packed(rows) {
 const fact=(extra={})=>({'학년도':'2027','대학':'합성대학교','모집단위':'웹툰콘텐츠학과','전형명':'실기우수','전형유형':'실기','모집인원':'0','전년도 경쟁률':'12.5','전형요소 반영비율':'학생부 30 + 실기 70','전년도 합격자 통계':'PRIVATE_SYNTHETIC_STATS',...extra});
 const provenance={sourceName:'그리날다',sourceUrl:'https://grinalda.net/univ-info-susi/',sourceUpdatedAt:null,fetchedAt:'2026-09-09T00:00:00Z'};
 
+test('public source redirect policy runs in workerd and never follows redirects',async()=>{
+  const code=fs.readFileSync('worker/admissions-catalog.ts','utf8');
+  assert.match(code,/redirect:'manual'/);
+  let calls=0;
+  const mf=new Miniflare({modules:true,script:`export default {async fetch(){const r=await fetch('https://synthetic.example/source',{redirect:'manual',signal:AbortSignal.timeout(20000)});return Response.json({status:r.status});}}`,outboundService:()=>{calls++;return new Response(null,{status:302,headers:{location:'https://synthetic.example/forbidden'}});}});
+  try{const r=await mf.dispatchFetch('http://localhost');assert.deepEqual(await r.json(),{status:302});assert.equal(calls,1);}finally{await mf.dispose();}
+});
+
 test('every occupation has its own existing optimized WebP asset',()=>{
   const hashes=new Set();
   for(const concept of occupationImageConcepts){
@@ -111,6 +119,9 @@ test('D1/R2 behavior: authenticated university-only read and admin preview/apply
     const diagnostic=await failedSource.json();
     assert.equal(failedSource.status,502);assert.equal(diagnostic.stage,'fetch-susi');assert.equal(diagnostic.kind,'TypeError');
     assert.doesNotMatch(JSON.stringify(diagnostic),/PRIVATE_SOURCE_PAYLOAD/);
+    globalThis.fetch=successfulFetch;
+    globalThis.fetch=async()=>new Response(null,{status:302,headers:{location:'https://synthetic.example/forbidden'}});
+    assert.equal((await call(sync,{body:{mode:'preview'}})).status,502,'redirects are rejected, never followed');
     globalThis.fetch=successfulFetch;
     fail=true;assert.equal((await call(sync,{body:{mode:'preview'}})).status,502);
     assert.deepEqual((await db.prepare("SELECT id,metadata_json FROM data_records WHERE source_app='admissions' ORDER BY id").all()).results,before.results);
