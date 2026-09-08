@@ -2,7 +2,7 @@
 
 `FAMILY_DB`와 `FAMILY_FILES`만 백업 매니페스트 대상으로 삼는다. 기존 `DB`와 `FILES`는 읽기, 쓰기, fallback 어느 경우에도 사용하지 않는다.
 
-- 매니페스트는 스키마 버전, FAMILY 테이블별 행 수, R2 객체 key/size/etag, 생성 시각만 보존한다.
+- 상세 R2 key/size/etag는 SUPER_ADMIN의 생성 응답에서만 `private, no-store`로 확인한다. 저장 및 감사에는 객체 수와 총 바이트만 보존한다.
 - 비밀번호, 비밀번호 hash/salt, 세션 token/hash, 임시 비밀번호와 보호자 연락처는 내보내지 않는다.
 - `/api/kkumeum/admin/family-backups`는 SUPER_ADMIN, private/no-store, same-origin POST만 허용한다.
 - production overwrite restore API는 제공하지 않는다. 복원 대상은 `KKUMEUM_SYNTHETIC_RESTORE_ONLY` marker가 있는 test/staging 환경만 허용한다.

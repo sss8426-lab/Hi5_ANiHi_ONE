@@ -41,7 +41,7 @@ test('FAMILY backup manifest records only isolated inventory and has no producti
   const h = await harness();
   try {
     await h.env.FAMILY_FILES.put('synthetic/drill-artwork.txt', 'synthetic-artwork');
-    const created = await h.request('/api/kkumeum/admin/family-backups', 'POST', {});
+    const created = await h.request('/api/kkumeum/admin/family-backups/manifest', 'POST', {});
     assert.equal(created.status, 201);
     assert.equal(created.headers.get('cache-control'), 'private, no-store');
     assert.equal(created.body.manifest.syntheticOnly, true);
@@ -51,6 +51,12 @@ test('FAMILY backup manifest records only isolated inventory and has no producti
     const listed = await h.request('/api/kkumeum/admin/family-backups');
     assert.equal(listed.status, 200);
     assert.equal(listed.body.manifests.length, 1);
+    assert.deepEqual(listed.body.manifests[0].fileSummary, { count: 1, totalBytes: 17 });
+    assert.doesNotMatch(JSON.stringify(listed.body.manifests), /drill-artwork\.txt/);
+    const stored = await h.env.FAMILY_DB.prepare('SELECT file_inventory_json FROM family_backup_manifests').first();
+    assert.doesNotMatch(stored.file_inventory_json, /drill-artwork\.txt/);
+    const crossOrigin = await h.request('/api/kkumeum/admin/family-backups/manifest', 'POST', {}, 'https://invalid.example');
+    assert.equal(crossOrigin.status, 403);
     const noRestore = await h.request('/api/kkumeum/admin/family-backups/restore', 'POST', {});
     assert.equal(noRestore.status, 405);
   } finally { await h.mf.dispose(); }
