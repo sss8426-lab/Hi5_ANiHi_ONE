@@ -757,3 +757,90 @@ test("competition award folders link existing DATA CORE files and preserve origi
     await h.mf.dispose();
   }
 });
+
+test("academy calendar shares validated events while enforcing campus ownership and date ranges", async () => {
+  const h = await createHarness();
+  try {
+    const unauthenticated = await h.request("GET", "/api/data-core/calendar?from=2026-10-01&to=2026-10-31");
+    assert.equal(unauthenticated.response.status, 401);
+
+    const organizationDenied = await h.request("POST", "/api/data-core/calendar", users.a, {
+      title: "forged organization event",
+      visibility: "organization",
+      startDate: "2026-10-10",
+      eventType: "meeting",
+    });
+    assert.equal(organizationDenied.response.status, 403);
+
+    const crossCampusDenied = await h.request("POST", "/api/data-core/calendar", users.a, {
+      title: "forged campus event",
+      campusId: CAMPUS_B,
+      visibility: "campus",
+      startDate: "2026-10-10",
+      eventType: "meeting",
+    });
+    assert.equal(crossCampusDenied.response.status, 403);
+
+    const created = await h.request("POST", "/api/data-core/calendar", users.a, {
+      title: "Campus schedule",
+      campusId: CAMPUS_A,
+      visibility: "campus",
+      summary: "synthetic test event",
+      startDate: "2026-10-10",
+      endDate: "2026-10-12",
+      allDay: false,
+      eventType: "class",
+    });
+    assert.equal(created.response.status, 201, JSON.stringify(created.body));
+    assert.equal(created.body.event.recordType, "academy-calendar-event");
+    assert.equal(created.body.event.sourceApp, "academy-calendar");
+    assert.equal(created.body.event.metadata.schemaVersion, 1);
+    assert.equal(created.body.event.metadata.allDay, true);
+    assert.equal(created.body.event.metadata.endDate, "2026-10-12");
+    const eventId = created.body.event.id;
+
+    const range = await h.request("GET", "/api/data-core/calendar?from=2026-10-11&to=2026-10-11", users.a);
+    assert.equal(range.response.status, 200, JSON.stringify(range.body));
+    assert.deepEqual(range.body.events.map((event) => event.id), [eventId]);
+
+    const outsideRange = await h.request("GET", "/api/data-core/calendar?from=2026-10-13&to=2026-10-13", users.a);
+    assert.equal(outsideRange.response.status, 200);
+    assert.deepEqual(outsideRange.body.events, []);
+
+    const crossCampusList = await h.request("GET", `/api/data-core/calendar?from=2026-10-01&to=2026-10-31&campusId=${CAMPUS_B}`, users.a);
+    assert.equal(crossCampusList.response.status, 403);
+
+    const updated = await h.request("PATCH", `/api/data-core/calendar/${eventId}`, users.a, {
+      title: "Updated schedule",
+      summary: "updated synthetic event",
+      campusId: CAMPUS_A,
+      visibility: "campus",
+      metadata: { startDate: "2026-10-11", eventType: "meeting" },
+    });
+    assert.equal(updated.response.status, 200, JSON.stringify(updated.body));
+    assert.equal(updated.body.event.title, "Updated schedule");
+    assert.equal(updated.body.event.metadata.startDate, "2026-10-11");
+    assert.equal(updated.body.event.metadata.endDate, "2026-10-12");
+
+    const otherUsersEvent = await h.request("POST", "/api/data-core/calendar", users.admin, {
+      title: "Admin campus event",
+      campusId: CAMPUS_A,
+      visibility: "campus",
+      startDate: "2026-10-14",
+      eventType: "meeting",
+    });
+    assert.equal(otherUsersEvent.response.status, 201, JSON.stringify(otherUsersEvent.body));
+    const editOthersEvent = await h.request("PATCH", `/api/data-core/calendar/${otherUsersEvent.body.event.id}`, users.a, {
+      title: "not allowed",
+      campusId: CAMPUS_A,
+      visibility: "campus",
+      metadata: { startDate: "2026-10-14", eventType: "meeting" },
+    });
+    assert.equal(editOthersEvent.response.status, 403);
+
+    const deleted = await h.request("DELETE", `/api/data-core/calendar/${eventId}`, users.a);
+    assert.equal(deleted.response.status, 200, JSON.stringify(deleted.body));
+  } finally {
+    await h.mf.dispose();
+  }
+});

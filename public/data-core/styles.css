@@ -132,6 +132,43 @@ td strong { font-size: 12px; }
 .row-actions { display: flex; gap: 6px; justify-content: flex-end; }
 .empty-state { padding: 46px 12px; text-align: center; color: var(--muted); font-size: 13px; }
 
+.calendar-panel { margin-top: 22px; }
+.calendar-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+.calendar-head h3, .calendar-month { margin: 0; }
+.calendar-head h3 { font-size: 16px; }
+.calendar-head p { margin: 5px 0 0; color: var(--muted); font-size: 12px; }
+.calendar-controls { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
+.calendar-controls .icon-btn { font-size: 20px; }
+.calendar-month { padding: 10px 0 14px; font-size: 18px; text-align: center; }
+.calendar-weekdays, .calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.calendar-weekdays { border: 1px solid var(--line); border-bottom: 0; background: var(--surface-soft); }
+.calendar-weekdays span { padding: 9px 5px; color: var(--muted); font-size: 11px; font-weight: 700; text-align: center; }
+.calendar-weekdays span:first-child { color: #b42318; }
+.calendar-weekdays span:last-child { color: #175cd3; }
+.calendar-grid { border-left: 1px solid var(--line); }
+.calendar-day { min-height: 102px; overflow: hidden; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); background: #fff; color: var(--text); padding: 7px; text-align: left; }
+.calendar-day:hover { background: #f8fbff; }
+.calendar-day.outside { background: #fafbfc; color: #98a2b3; }
+.calendar-day.selected { outline: 2px solid #93c5fd; outline-offset: -2px; background: #eff6ff; }
+.calendar-day.today .calendar-date { color: var(--primary); font-weight: 800; }
+.calendar-date { display: block; margin-bottom: 6px; font-size: 11px; }
+.calendar-event-chip { display: block; overflow: hidden; margin-top: 3px; border-left: 3px solid #64748b; color: #344054; font-size: 10px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.calendar-event-chip.class { border-color: #175cd3; }
+.calendar-event-chip.admission { border-color: #7f56d9; }
+.calendar-event-chip.competition { border-color: #b54708; }
+.calendar-event-chip.marketing { border-color: #027a48; }
+.calendar-event-chip.holiday { border-color: #b42318; }
+.calendar-event-chip.meeting { border-color: #475467; }
+.calendar-more { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; }
+.calendar-day-events { min-height: 76px; margin-top: 14px; }
+.calendar-day-events h4 { margin: 0 0 8px; font-size: 13px; }
+.calendar-event-list { display: grid; gap: 7px; }
+.calendar-event-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid #edf1f7; border-radius: 8px; background: #fcfcfd; }
+.calendar-event-row strong, .calendar-event-row small { display: block; }
+.calendar-event-row strong { font-size: 12px; }
+.calendar-event-row small { margin-top: 3px; color: var(--muted); font-size: 10px; }
+.calendar-event-actions { display: flex; gap: 6px; flex: 0 0 auto; }
+
 .search-hero { margin-bottom: 18px; }
 .global-search-box { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 10px; }
 .global-search-box input { font-size: 15px; padding: 13px 15px; }
@@ -252,6 +289,7 @@ td strong { font-size: 12px; }
   .filters { grid-template-columns: 1fr 1fr; }
   .filter-button { grid-column: span 2; }
   .admin-grid { grid-template-columns: 1fr; }
+  .calendar-day { min-height: 86px; }
 }
 
 @media (max-width: 680px) {
@@ -278,6 +316,11 @@ td strong { font-size: 12px; }
   .hero-row { display: grid; }
   .hero-row .primary-btn { width: 100%; }
   .stats-grid { grid-template-columns: 1fr; }
+  .calendar-head { display: grid; }
+  .calendar-controls { justify-content: flex-start; }
+  .calendar-day { min-height: 72px; padding: 5px; }
+  .calendar-event-chip { font-size: 9px; }
+  .calendar-event-row { align-items: flex-start; display: grid; }
   .filters { grid-template-columns: 1fr; }
   .filter-button { grid-column: auto; }
   .global-search-box { grid-template-columns: 1fr; }
