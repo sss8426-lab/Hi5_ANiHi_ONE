@@ -1,7 +1,7 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]));
-  const state = { student: null, artworks: [], reports: [], guardians: [], growthSkillCatalog: null, yearMonth: new Date().toISOString().slice(0, 7) };
+  const state = { student: null, artworks: [], reports: [], guardians: [], growthSkillCatalog: null, yearMonth: new Date().toISOString().slice(0, 7), deliveryFilter: 'all' };
   const app = () => window.KkumeumStaff;
   const campusId = () => app()?.state?.campusId || '';
   const manager = () => Boolean(app()?.isManager?.());
@@ -104,12 +104,39 @@
     return `보호자 확인 ${String(report.guardianFirstReadAt).slice(0, 10)}`;
   }
 
+  function filteredDeliveryReports(reports, filter) {
+    const sent = reports.filter((report) => report.status === 'sent');
+    if (filter === 'unconfirmed') return sent.filter((report) => !report.guardianConfirmed || !report.guardianFirstReadAt);
+    if (filter === 'confirmed') return sent.filter((report) => report.guardianConfirmed && report.guardianFirstReadAt);
+    return sent;
+  }
+
+  function deliveryHistory() {
+    const reports = filteredDeliveryReports(state.reports, state.deliveryFilter);
+    const options = [
+      ['all', '전체 전달 이력'],
+      ['unconfirmed', '보호자 확인 전'],
+      ['confirmed', '보호자 확인 완료'],
+    ].map(([value, label]) => `<option value="${value}" ${value === state.deliveryFilter ? 'selected' : ''}>${label}</option>`).join('');
+    const items = reports.map((item) => `<span>${escapeHtml(item.yearMonth)} 전달 완료 · ${escapeHtml(guardianConfirmationLabel(item))}</span>`).join('') || '<span>전달 이력이 없습니다.</span>';
+    return `<div class="kk-history"><div class="kk-history-head"><strong>전달 이력</strong><label>확인 상태 <select id="kkDeliveryFilter">${options}</select></label></div><div class="kk-history-items">${items}</div></div>`;
+  }
+
+  function bindDeliveryFilter(root) {
+    root.querySelector('#kkDeliveryFilter')?.addEventListener('change', (event) => {
+      state.deliveryFilter = ['all', 'unconfirmed', 'confirmed'].includes(event.target.value) ? event.target.value : 'all';
+      root.querySelector('.kk-history')?.replaceWith(document.createRange().createContextualFragment(deliveryHistory()));
+      bindDeliveryFilter(root);
+    });
+  }
+
   function reportForm() {
     const root = $('kkReportOperations'); if (!root || !state.student) return;
     const report = currentReport(); const readOnly = report?.status === 'sent'; const growth = report?.growthPoints?.growth || '';
-    root.innerHTML = `<div class="kk-operation-head"><div><strong>${escapeHtml(state.student.name)} 월간 평가</strong><small>${state.yearMonth} · ${report?.status || '미작성'}</small></div></div><form id="kkReportForm" class="kk-report-form"><label><span>잘된 점</span><textarea name="strengths" ${readOnly ? 'readonly' : ''}>${escapeHtml(report?.title || '')}</textarea></label><label><span>성장한 부분</span><textarea name="growth" ${readOnly ? 'readonly' : ''}>${escapeHtml(growth)}</textarea></label>${growthSkillPicker(report, readOnly)}<label><span>보완할 부분</span><textarea name="improvements" ${readOnly ? 'readonly' : ''}>${escapeHtml(report?.teacherNote || '')}</textarea></label><label><span>다음 달 목표</span><textarea name="nextMonthFocus" ${readOnly ? 'readonly' : ''}>${escapeHtml(report?.nextMonthFocus || '')}</textarea></label><label><span>종합 평가</span><textarea name="evaluationText" ${readOnly ? 'readonly' : ''}>${escapeHtml(report?.evaluationText || '')}</textarea></label><div class="kk-report-actions">${readOnly ? '<button data-revise type="button">개정 작성</button>' : '<button type="submit">임시저장</button><button data-ai type="button">AI 초안</button>'}${report && !readOnly ? `<button data-next="${report.status === 'draft' ? 'ready' : 'send'}" type="button">${report.status === 'draft' ? '검토 완료' : '보호자 전달'}</button>` : ''}</div><p data-feedback class="kk-inline-feedback"></p></form><div class="kk-history"><strong>전달 이력</strong>${state.reports.filter((item) => item.status === 'sent').map((item) => `<span>${escapeHtml(item.yearMonth)} 전달 완료 · ${escapeHtml(guardianConfirmationLabel(item))}</span>`).join('') || '<span>전달 이력이 없습니다.</span>'}</div>`;
+    root.innerHTML = `<div class="kk-operation-head"><div><strong>${escapeHtml(state.student.name)} 월간 평가</strong><small>${state.yearMonth} · ${report?.status || '미작성'}</small></div></div><form id="kkReportForm" class="kk-report-form"><label><span>잘된 점</span><textarea name="strengths" ${readOnly ? 'readonly' : ''}>${escapeHtml(report?.title || '')}</textarea></label><label><span>성장한 부분</span><textarea name="growth" ${readOnly ? 'readonly' : ''}>${escapeHtml(growth)}</textarea></label>${growthSkillPicker(report, readOnly)}<label><span>보완할 부분</span><textarea name="improvements" ${readOnly ? 'readonly' : ''}>${escapeHtml(report?.teacherNote || '')}</textarea></label><label><span>다음 달 목표</span><textarea name="nextMonthFocus" ${readOnly ? 'readonly' : ''}>${escapeHtml(report?.nextMonthFocus || '')}</textarea></label><label><span>종합 평가</span><textarea name="evaluationText" ${readOnly ? 'readonly' : ''}>${escapeHtml(report?.evaluationText || '')}</textarea></label><div class="kk-report-actions">${readOnly ? '<button data-revise type="button">개정 작성</button>' : '<button type="submit">임시저장</button><button data-ai type="button">AI 초안</button>'}${report && !readOnly ? `<button data-next="${report.status === 'draft' ? 'ready' : 'send'}" type="button">${report.status === 'draft' ? '검토 완료' : '보호자 전달'}</button>` : ''}</div><p data-feedback class="kk-inline-feedback"></p></form>${deliveryHistory()}`;
     $('kkReportForm').onsubmit = async (event) => { event.preventDefault(); await saveReport(new FormData(event.currentTarget)); };
     bindGrowthSkillPicker($('kkReportForm'));
+    bindDeliveryFilter(root);
     root.querySelector('[data-ai]')?.addEventListener('click', generate); root.querySelector('[data-next]')?.addEventListener('click', (event) => transition(event.currentTarget.dataset.next)); root.querySelector('[data-revise]')?.addEventListener('click', revise);
   }
   function payload(form) { return {campusId:campusId(),studentId:state.student.id,yearMonth:state.yearMonth,title:form.get('strengths') || '',summary:'교사가 검토한 월간 성장 기록',teacherNote:form.get('improvements') || '',growthPoints:{growth:form.get('growth') || ''},growthSkillCodes:form.getAll('growthSkillCodes'),nextMonthFocus:form.get('nextMonthFocus') || '',evaluationText:form.get('evaluationText') || ''}; }
