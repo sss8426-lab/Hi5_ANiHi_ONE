@@ -8,6 +8,7 @@ let requestId=0, controller;
 const date = (v) => v && Number.isFinite(Date.parse(v)) ? new Date(v).toLocaleString('ko-KR') : '확인 필요';
 async function api(path,body,signal) {
   const response = await fetch(path,{method:body?'POST':'GET',credentials:'include',cache:'no-store',headers:body?{'content-type':'application/json'}:undefined,body:body?JSON.stringify(body):undefined,signal});
+  if(!response.headers.get('content-type')?.includes('application/json')) throw new Error(`요청을 완료하지 못했습니다. 잠시 후 다시 시도해주세요. (HTTP ${response.status})`);
   const data = await response.json();
   if(!response.ok) throw new Error(data.error || '자료를 불러오지 못했습니다.');
   return data;

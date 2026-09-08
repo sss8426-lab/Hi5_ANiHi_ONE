@@ -1,7 +1,7 @@
 import { DEFAULT_ORGANIZATION_ID } from './data-core';
 import { DataCoreAccessError, requireAuthenticatedAccess, resolveDataCoreAccess } from './data-core-access';
 import { readAdmissionsState } from './data-core-admissions-knowledge-sync';
-import { careerMajorKeywords, decodePublicGuidelines, guidelineIdentity, matchUniversity, matchesCareer, preserveKnownValues, projectUniversity, projectGuideline, selectGuidelines } from '../public/data-core/admissions-model.js';
+import { careerMajorKeywords, decodePublicGuidelines, guidelineIdentity, indexUniversities, matchUniversity, matchesCareer, preserveKnownValues, projectUniversity, projectGuideline, selectGuidelines } from '../public/data-core/admissions-model.js';
 
 interface Env { DB?: D1Database; FILES?: R2Bucket; DATA_CORE_SUPER_ADMIN_EMAILS?: string }
 type Row = Record<string, any>;
@@ -42,7 +42,7 @@ async function fetchSource(season: keyof typeof sourceUrls) {
 const fingerprintFields = (row: Row) => Object.fromEntries(Object.entries(row).filter(([key]) => !['fetchedAt','sourceFingerprint'].includes(key)).sort(([a],[b])=>a.localeCompare(b)));
 async function plan(db: D1Database, files?: R2Bucket, stage: (name: string) => void = () => {}) {
   stage('read-universities');
-  const schools = await universities(db,files);
+  const schools = indexUniversities(await universities(db,files));
   stage('fetch-susi');
   const source = await fetchSource('susi');
   stage('fetch-jungsi');

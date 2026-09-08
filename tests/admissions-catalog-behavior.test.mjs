@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import { createHash } from 'node:crypto';
 import { Miniflare } from 'miniflare';
 import { occupationImageConcepts } from '../public/data-core/occupation-image-concepts.js';
-import { careerMajorKeywords, matchesCareer, universityIdentity, matchUniversity, projectUniversity, projectGuideline, decodePublicGuidelines, publicColumns, parseSimpleRatios, guidelineIdentity, preserveKnownValues, selectGuidelines } from '../public/data-core/admissions-model.js';
+import { careerMajorKeywords, matchesCareer, universityIdentity, indexUniversities, matchUniversity, projectUniversity, projectGuideline, decodePublicGuidelines, publicColumns, parseSimpleRatios, guidelineIdentity, preserveKnownValues, selectGuidelines } from '../public/data-core/admissions-model.js';
 
 function packed(rows) {
   const c=[...new Set([...Object.values(publicColumns),'전년도 합격자 통계'])],p=[''];
@@ -59,6 +59,18 @@ test('public string-pool decoder excludes member-only statistics, retains zero, 
   assert.throws(()=>decodePublicGuidelines({c:[],p:[],r:[]},'susi',provenance));
   const bad=packed([fact()]);bad.r[0][0]=99999;assert.throws(()=>decodePublicGuidelines(bad,'susi',provenance));
   assert.throws(()=>decodePublicGuidelines(packed([fact({'학년도':''})]),'susi',provenance));
+});
+
+test('indexed university matching preserves ambiguity rules without scanning unrelated schools for every guideline',()=>{
+  let nameReads=0;
+  const schools=Array.from({length:5000},(_,id)=>({id, get name(){nameReads++;return `합성${id}대학교`;},major:'웹툰',year:2027,admission:'실기'}));
+  const index=indexUniversities(schools);
+  for(let id=0;id<1000;id++)assert.equal(matchUniversity({universityName:`합성${id}대`,department:'웹툰',academicYear:2027,admissionType:'실기'},index).universityId,String(id));
+  assert.ok(nameReads<10000,'Lookup must not repeat a full university scan per source row');
+  const ambiguous=[{id:1,name:'합성대',major:'웹툰'},{id:2,name:'합성대',major:'웹툰',campus:'서울'}];
+  const row={universityName:'합성대',department:'웹툰',academicYear:2027};
+  assert.deepEqual(matchUniversity(row,indexUniversities(ambiguous)),matchUniversity(row,ambiguous));
+  assert.equal(matchUniversity(row,indexUniversities(ambiguous)).universityId,null);
 });
 test('only simple complete percentage formulas become ratios; changed staged formula invalidates stale ratios',()=>{
   for(const f of ['1단계 학생부 100 / 2단계 실기 70','학생부 300점 + 실기 700점','학생부 60 + 실기 70','학생부 30 또는 실기 70','실기 80'])assert.equal(parseSimpleRatios(f).practicalRatio,null);

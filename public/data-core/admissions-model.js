@@ -32,9 +32,18 @@ export function universityIdentity(name, campus = '') {
   school = normalizeName(school).replace(/대학교$/, '대').replace(/대학$/, '대');
   return { school, campus: branch };
 }
+export function indexUniversities(universities) {
+  const index = new Map();
+  for (const u of universities) {
+    const key = universityIdentity(u.name || u.universityName,u.campus).school;
+    if (!index.has(key)) index.set(key,[]);
+    index.get(key).push(u);
+  }
+  return index;
+}
 export function matchUniversity(row, universities) {
   const wanted = universityIdentity(row.universityName, row.campus);
-  const candidates = universities.filter((u) => universityIdentity(u.name || u.universityName, u.campus).school === wanted.school);
+  const candidates = universities instanceof Map ? (universities.get(wanted.school) || []) : universities.filter((u) => universityIdentity(u.name || u.universityName, u.campus).school === wanted.school);
   const exact = candidates.filter((u) => universityIdentity(u.name || u.universityName, u.campus).campus === wanted.campus);
   const campusVariants = new Set(candidates.map((u) => universityIdentity(u.name || u.universityName, u.campus).campus));
   // A university row is also a department/term. Do not pick an arbitrary ID among departments.
