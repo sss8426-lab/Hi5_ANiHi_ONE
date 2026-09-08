@@ -7,27 +7,36 @@
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="dashboard.css">
 <link rel="stylesheet" href="student-management.css">
+<link rel="stylesheet" href="counseling-theme.css?v=20260909-1">
 </head>
-<body>
+<body class="admissions-counseling">
 <div class="app">
   <aside class="sidebar">
-    <div class="brand">대학 합격 로드맵<small>미술·만화·웹툰·게임일러스트</small></div>
+    <a class="core-brand" href="/data-core" target="_top"><span>H5</span><strong>HI5·ANiHi<small>DATA CORE</small></strong></a>
+    <div class="brand">대학 합격 로드맵<small>꿈에서 대학으로 이어지는 진로 설계</small></div>
     <nav id="nav">
       <button class="active" data-page="dashboard">대시보드</button>
       <button data-page="students">학생 관리</button>
       <button data-page="cases">합격·불합격 사례</button>
       <button data-page="strategy">지원 전략</button>
       <button data-page="admin">대학 데이터 관리</button>
+      <div class="admission-subnav" aria-label="미대 입시요강">
+        <button data-page="susi">미대 수시 입시요강</button>
+        <button data-page="jungsi">미대 정시 입시요강</button>
+      </div>
       <button data-page="settings">설정 / 백업</button>
     </nav>
     <a href="/data-core/counseling" target="_top" style="display:block;margin:14px 14px 0;padding:11px 12px;border-radius:10px;background:#eff6ff;color:#1d4ed8;text-decoration:none;font-size:12px;font-weight:800;text-align:center;">상담용 홈으로 돌아가기</a>
   </aside>
   <main class="main">
+    <header class="admissions-masthead"><img src="/data-core/assets/mode-counseling.webp?v=20260908-1" alt="미술과 디자인의 다양한 진로" width="1200" height="480"><div><p>HI5·ANiHi COUNSELING</p><h1>대학 합격 로드맵</h1><p>나의 꿈에 맞는 전공, 함께 준비하는 대학</p><a href="/data-core/roadmap" target="_top">꿈·전공 로드맵 <span aria-hidden="true">↗</span></a></div></header>
     <section id="dashboard" class="page"></section>
     <section id="students" class="page hidden"></section>
     <section id="cases" class="page hidden"></section>
     <section id="strategy" class="page hidden"></section>
     <section id="admin" class="page hidden"></section>
+    <section id="susi" class="page hidden"></section>
+    <section id="jungsi" class="page hidden"></section>
     <section id="awards" class="page hidden" aria-hidden="true"></section>
     <section id="settings" class="page hidden"></section>
   </main>
@@ -42,6 +51,6 @@
 <script src="../src/services/gradeConversion/gradeConversionService.js"></script>
 <script src="data-core-upload-bridge.js"></script>
 <script src="web-desktop-api.js"></script>
-<script src="app.js"></script>
+<script src="app.js?v=20260909-1"></script>
 </body>
 </html>

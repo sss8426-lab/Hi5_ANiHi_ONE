@@ -1401,15 +1401,28 @@ async function boot(){
   try{
     setStateData(await window.desktopAPI.getAll());
     bindNav();
-    renderPage(activePageId());
+    routeAdmissions();
   }catch(error){
     renderAppError(error);
   }
 }
-function bindNav(){ document.querySelectorAll('#nav button').forEach(b=>b.addEventListener('click',()=>showPage(b.dataset.page))); }
-function showPage(page){
+function admissionsHistoryWindow(){ try { return window.top.location.origin === location.origin ? window.top : window; } catch { return window; } }
+function routeAdmissions(){
+  const params = new URLSearchParams(admissionsHistoryWindow().location.hash.slice(1));
+  const page = ['dashboard','students','cases','strategy','admin','awards','settings','susi','jungsi'].includes(params.get('page')) ? params.get('page') : 'dashboard';
+  const university = params.get('university');
+  if(page === 'admin' && university && state.data.universities.some(u=>String(u.id)===university)) state.selectedUniversityId = state.data.universities.find(u=>String(u.id)===university).id;
+  showPage(page, false);
+}
+function bindNav(){
+  document.querySelectorAll('#nav button').forEach(b=>b.addEventListener('click',()=>showPage(b.dataset.page)));
+  admissionsHistoryWindow().addEventListener('popstate',routeAdmissions);
+  admissionsHistoryWindow().addEventListener('hashchange',routeAdmissions);
+}
+function showPage(page, updateHistory=true){
   const target = $(page);
   if(!target) return;
+  if(updateHistory) admissionsHistoryWindow().history.pushState(null,'',`#page=${encodeURIComponent(page)}`);
   pageRenderToken += 1;
   const token = pageRenderToken;
   document.querySelectorAll('.page').forEach(p=>p.classList.add('hidden'));
@@ -1430,6 +1443,7 @@ function renderPage(page){
     if(page==='admin') renderAdmin();
     if(page==='awards') renderAwards();
     if(page==='settings') renderSettings();
+    if(page==='susi' || page==='jungsi') import('./guidelines.js?v=20260909-1').then(m=>m.renderGuidelines(page)).catch(()=>{ $(page).textContent='입시요강 화면을 불러오지 못했습니다. 새로고침해주세요.'; });
   }catch(error){
     renderAppError(error, page);
   }

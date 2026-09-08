@@ -25,16 +25,16 @@ try {
       { id: 'career-webtoon', name: '웹툰 작가', nodeType: 'career' },
       { id: 'career-visual', name: '시각 디자이너', nodeType: 'career' },
     ] } });
-    const visual = url.searchParams.get('goalId') === 'career-visual';
+    const visual = url.searchParams.get('careerId') === 'D017';
     if (!visual && holdWebtoon) {
       announceWebtoon();
       await new Promise((resolve) => { releaseWebtoon = resolve; });
     }
     const metadata = { universityName: '합성 검증대학', major: visual ? '시각디자인학과' : '웹툰학과', region: '서울', schoolType: '4년제', year: '2027', admission: '수시', gradeRatio: 30, skillRatio: 70, officialSourceUrl: 'https://example.edu/guide.pdf', verifiedAt: '2026-09-03', verificationStatus: 'approved', practicalType: '포트폴리오', studentName: privateMarkers[0], guardianPhone: privateMarkers[1] };
-    return route.fulfill({ json: { roadmap: { universityPrograms: [
-      { id: 'synthetic-1', metadata },
+    return route.fulfill({ json: { programs: [
+      { id: 'synthetic-1', metadata: {...metadata, sourceUniversityId:'synthetic-school-1'} },
       { id: 'synthetic-2', metadata: { ...metadata, universityName: '<img src=x onerror=alert(1)>', region: '부산', verificationStatus: 'pending', gradeRatio: 99, skillRatio: 1 } },
-    ] } } }).catch(() => {});
+    ] } }).catch(() => {});
   });
   const page = await context.newPage();
   page.on('pageerror', (error) => errors.push(error.message));
@@ -62,6 +62,12 @@ try {
     await page.locator('a[href="#family=story"]').click();
     await page.locator('.dream-card').first().waitFor();
     assert.equal(await page.locator('.dream-card:visible').count(), 16);
+    for (const img of await page.locator('.dream-card img.job-image').all()) {
+      await img.scrollIntoViewIfNeeded();
+      await img.evaluate((el) => el.decode());
+      assert.ok(await img.evaluate((el) => el.naturalWidth === 600 && el.naturalHeight === 800));
+    }
+    await page.evaluate(() => scrollTo(0, 0));
     await noOverflow();
     await page.screenshot({ path: path.join(output, `${name}-careers.png`), fullPage: true });
     await page.locator('a[href="#family=story&career=D001"]').click();
@@ -84,6 +90,13 @@ try {
   await page.goto(base + '/data-core/roadmap#family=design');
   await page.locator('.dream-card').first().waitFor();
   assert.equal(await page.locator('.dream-card').count(), 19);
+  for (const img of await page.locator('.dream-card img.job-image').all()) {
+    await img.scrollIntoViewIfNeeded();
+    await img.evaluate((el) => el.decode());
+    assert.ok(await img.evaluate((el) => el.naturalWidth === 600 && el.naturalHeight === 800));
+  }
+  await page.evaluate(() => scrollTo(0, 0));
+  await page.screenshot({ path: path.join(output, 'design-careers.png'), fullPage: true });
   await page.locator('#goalSearchInput').fill('UI·UX');
   assert.equal(await page.locator('.dream-card').count(), 1);
   await page.locator('#goalSearchInput').fill('존재하지않는직업');
@@ -93,6 +106,7 @@ try {
   await page.locator('a[href="#family=design&career=D017"]').click();
   await page.locator('.university-item').first().waitFor();
   assert.equal(await page.locator('.university-item').count(), 2);
+  assert.equal(await page.locator('.university-source-link').getAttribute('href'), '/#page=admin&university=synthetic-school-1');
   assert.equal(await page.locator('.bar-row').count(), 2);
   assert.equal(await page.locator('#universityContent img').count(), 0);
   assert.doesNotMatch(await page.locator('#roadmapResult').innerText(), /SYNTHETIC_PRIVATE|99%/);
