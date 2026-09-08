@@ -36,15 +36,38 @@ type NormalizedCompetition = {
 
 const SOURCE_CONFIG: Record<CompetitionSource, { name: string; url: string }> = {
   artmd: { name: "미대입시", url: "https://www.artmd.kr/contest/21001_contest_list.php" },
-  mgood: { name: "엠굿", url: "https://mgood.co.kr/" },
+  mgood: { name: "엠굿", url: "https://www.mgood.co.kr/contest/21001_contest_list.php" },
 };
+
+const SOURCE_FIELDS = [
+  "competitionKind",
+  "organizer",
+  "hostSchool",
+  "applicationStart",
+  "applicationEnd",
+  "eventDate",
+  "resultDate",
+  "targetGrades",
+  "majors",
+  "practicalTypes",
+  "sourceUrl",
+] as const;
+
+type SourceField = (typeof SOURCE_FIELDS)[number];
 
 function text(value: unknown, max = 240) {
   return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
 }
 
 function stripHtml(value: string) {
-  return text(value.replace(/<[^>]*>/g, " ").replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&"));
+  return text(
+    value
+      .replace(/<[^>]*>/g, " ")
+      .replace(/&nbsp;/gi, " ")
+      .replace(/&amp;/gi, "&")
+      .replace(/&#39;/gi, "'")
+      .replace(/&quot;/gi, '"'),
+  );
 }
 
 function sourceFrom(value: string): CompetitionSource {
@@ -61,6 +84,16 @@ function absoluteUrl(value: string, base: string) {
   }
 }
 
+function normalizedUrl(value: unknown) {
+  try {
+    const url = new URL(String(value || ""));
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return text(value, 2000);
+  }
+}
+
 function datesFrom(value: string) {
   const matches = value.match(/20\d{2}[.\-/년\s]+\d{1,2}[.\-/월\s]+\d{1,2}/g) || [];
   const dates = matches.map((item) => {
@@ -73,10 +106,24 @@ function datesFrom(value: string) {
 function externalIdFrom(url: string) {
   try {
     const parsed = new URL(url);
-    return parsed.searchParams.get("idx") || parsed.searchParams.get("no") || parsed.searchParams.get("id") || null;
+    return parsed.searchParams.get("c_seq")
+      || parsed.searchParams.get("idx")
+      || parsed.searchParams.get("no")
+      || parsed.searchParams.get("id")
+      || null;
   } catch {
     return null;
   }
+}
+
+function tableCellsAround(html: string, index: number) {
+  const start = html.lastIndexOf("<tr", index);
+  const end = html.indexOf("</tr>", index);
+  if (start < 0 || end < 0 || end - start > 8_000) return [];
+  const row = html.slice(start, end + 5);
+  return Array.from(row.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/gi))
+    .map((match) => stripHtml(match[1]))
+    .filter(Boolean);
 }
 
 /** Extract only concise facts and links; source HTML is deliberately never retained. */
@@ -95,12 +142,19 @@ export function normalizeCompetitionSourceHtml(sourceValue: string, html: string
     const key = `${sourceUrl}|${title}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    const nearby = stripHtml(html.slice(Math.max(0, match.index! - 400), match.index! + match[0].length + 400));
+
+    const cells = tableCellsAround(html, match.index || 0);
+    const nearby = cells.length
+      ? cells.join(" ")
+      : stripHtml(html.slice(Math.max(0, (match.index || 0) - 400), (match.index || 0) + match[0].length + 400));
     const dates = datesFrom(nearby);
+    const kindText = cells[0] || title;
+    const organizer = cells.length >= 3 ? text(cells[2], 200) || null : null;
+
     items.push({
       title,
-      competitionKind: /실기/i.test(title) ? "practical-competition" : "contest",
-      organizer: null,
+      competitionKind: /실기/i.test(kindText) ? "practical-competition" : "contest",
+      organizer,
       hostSchool: null,
       applicationStart: dates.applicationStart,
       applicationEnd: dates.applicationEnd,
@@ -166,11 +220,51 @@ function sourceEntries(metadata: Record<string, unknown>) {
   return Array.isArray(metadata.sources) ? metadata.sources as CompetitionSourceProvenance[] : [];
 }
 
+function sourceValuePresent(value: unknown) {
+  if (value === null || value === undefined || value === "") return false;
+  if (Array.isArray(value)) return value.length > 0;
+  return true;
+}
+
+function comparableValue(value: unknown) {
+  if (Array.isArray(value)) return [...value].map((entry) => text(entry, 200)).sort();
+  return value ?? null;
+}
+
+function sourceValuesEqual(left: unknown, right: unknown) {
+  return JSON.stringify(comparableValue(left)) === JSON.stringify(comparableValue(right));
+}
+
+function sourceCanReplace(metadata: Record<string, unknown>, fieldSources: Record<string, CompetitionFieldSource>, source: CompetitionSource, field: SourceField) {
+  return !sourceValuePresent(metadata[field]) || fieldSources[field]?.source === source;
+}
+
+function sourceOwnedFactsChanged(item: NormalizedCompetition, record: Record<string, unknown>) {
+  const metadata = metadataOf(record);
+  const fieldSources = metadata.fieldSources && typeof metadata.fieldSources === "object"
+    ? metadata.fieldSources as Record<string, CompetitionFieldSource>
+    : {};
+  return SOURCE_FIELDS.some((field) => {
+    const incoming = item[field];
+    if (!sourceValuePresent(incoming)) return false;
+    if (!sourceCanReplace(metadata, fieldSources, item.source, field)) return false;
+    return !sourceValuesEqual(metadata[field], incoming);
+  });
+}
+
+function sameSourceIdentity(entry: CompetitionSourceProvenance, item: NormalizedCompetition) {
+  if (entry.source !== item.source) return false;
+  if (item.externalSourceId && entry.externalSourceId === item.externalSourceId) return true;
+  return normalizedUrl(entry.sourceUrl) === normalizedUrl(item.sourceUrl);
+}
+
 function matchExisting(item: NormalizedCompetition, records: Record<string, unknown>[]) {
-  const bySourceId = records.filter((record) => sourceEntries(metadataOf(record)).some((entry) => (
-    entry.source === item.source && entry.externalSourceId && entry.externalSourceId === item.externalSourceId
-  )));
-  if (bySourceId.length === 1) return { kind: "same" as const, record: bySourceId[0] };
+  const bySourceId = records.filter((record) => sourceEntries(metadataOf(record)).some((entry) => sameSourceIdentity(entry, item)));
+  if (bySourceId.length === 1) {
+    return sourceOwnedFactsChanged(item, bySourceId[0])
+      ? { kind: "matched" as const, record: bySourceId[0] }
+      : { kind: "same" as const, record: bySourceId[0] };
+  }
   if (bySourceId.length > 1) return { kind: "ambiguous" as const };
 
   const title = normalizedTitle(item.title);
@@ -202,33 +296,59 @@ function provenance(item: NormalizedCompetition): CompetitionSourceProvenance {
 }
 
 function mergeSources(existing: CompetitionSourceProvenance[], next: CompetitionSourceProvenance) {
-  return [...existing.filter((entry) => !(entry.source === next.source && entry.externalSourceId === next.externalSourceId)), next].slice(-12);
+  return [...existing.filter((entry) => !sameSourceIdentity(entry, {
+    title: "",
+    competitionKind: "other",
+    organizer: null,
+    hostSchool: null,
+    applicationStart: null,
+    applicationEnd: null,
+    eventDate: null,
+    resultDate: null,
+    targetGrades: [],
+    majors: [],
+    practicalTypes: [],
+    sourceUrl: next.sourceUrl,
+    sourceName: "",
+    source: next.source,
+    externalSourceId: next.externalSourceId || null,
+    fetchedAt: next.fetchedAt,
+  })), next].slice(-12);
 }
 
 function sourcePayload(item: NormalizedCompetition, existing?: Record<string, unknown>): CompetitionInput {
   const metadata = existing ? metadataOf(existing) : {};
   const next = provenance(item);
   const fieldSources = { ...(metadata.fieldSources as Record<string, CompetitionFieldSource> || {}) };
-  const sourceCanReplace = (field: string) => !metadata[field] || fieldSources[field]?.source === item.source;
-  const fields = ["organizer", "hostSchool", "applicationStart", "applicationEnd", "eventDate", "resultDate", "targetGrades", "majors", "practicalTypes", "sourceUrl"];
-  fields.forEach((field) => {
-    if (sourceCanReplace(field)) fieldSources[field] = { source: item.source, sourceUrl: item.sourceUrl, fetchedAt: item.fetchedAt };
+  const mayReplace = (field: SourceField) => sourceCanReplace(metadata, fieldSources, item.source, field);
+  const updateValue = <T>(field: SourceField, value: T): T | undefined => (
+    !existing || (mayReplace(field) && sourceValuePresent(value)) ? value : undefined
+  );
+
+  SOURCE_FIELDS.forEach((field) => {
+    const incoming = item[field];
+    if ((!existing || sourceValuePresent(incoming)) && mayReplace(field)) {
+      fieldSources[field] = { source: item.source, sourceUrl: item.sourceUrl, fetchedAt: item.fetchedAt };
+    }
   });
+
   return {
     title: existing ? String(existing.title) : item.title,
     visibility: "organization",
-    competitionKind: item.competitionKind,
-    organizer: sourceCanReplace("organizer") ? item.organizer : undefined,
-    hostSchool: sourceCanReplace("hostSchool") ? item.hostSchool : undefined,
-    applicationStart: sourceCanReplace("applicationStart") ? item.applicationStart : undefined,
-    applicationEnd: sourceCanReplace("applicationEnd") ? item.applicationEnd : undefined,
-    eventDate: sourceCanReplace("eventDate") ? item.eventDate : undefined,
-    resultDate: sourceCanReplace("resultDate") ? item.resultDate : undefined,
-    targetGrades: sourceCanReplace("targetGrades") ? item.targetGrades : undefined,
-    majors: sourceCanReplace("majors") ? item.majors : undefined,
-    practicalTypes: sourceCanReplace("practicalTypes") ? item.practicalTypes : undefined,
-    sourceUrl: sourceCanReplace("sourceUrl") ? item.sourceUrl : undefined,
-    year: item.applicationStart ? Number(item.applicationStart.slice(0, 4)) : undefined,
+    competitionKind: updateValue("competitionKind", item.competitionKind),
+    organizer: updateValue("organizer", item.organizer),
+    hostSchool: updateValue("hostSchool", item.hostSchool),
+    applicationStart: updateValue("applicationStart", item.applicationStart),
+    applicationEnd: updateValue("applicationEnd", item.applicationEnd),
+    eventDate: updateValue("eventDate", item.eventDate),
+    resultDate: updateValue("resultDate", item.resultDate),
+    targetGrades: updateValue("targetGrades", item.targetGrades),
+    majors: updateValue("majors", item.majors),
+    practicalTypes: updateValue("practicalTypes", item.practicalTypes),
+    sourceUrl: updateValue("sourceUrl", item.sourceUrl),
+    year: !existing || (mayReplace("applicationStart") && sourceValuePresent(item.applicationStart))
+      ? (item.applicationStart ? Number(item.applicationStart.slice(0, 4)) : undefined)
+      : undefined,
     sourceProvenance: mergeSources(sourceEntries(metadata), next),
     fieldSources,
   };
@@ -261,7 +381,9 @@ export async function importCompetitionSource(request: Request, db: D1Database, 
     if (match.kind === "ambiguous") { summary.ambiguous += 1; continue; }
     if (match.kind === "same") { summary.unchanged += 1; continue; }
     if (match.kind === "matched") {
-      await updateCompetition(db, context, String(match.record.id), sourcePayload(item, match.record));
+      const updated = await updateCompetition(db, context, String(match.record.id), sourcePayload(item, match.record));
+      const index = existing.findIndex((record) => String(record.id) === String(match.record.id));
+      if (index >= 0) existing[index] = updated as Record<string, unknown>;
       summary.updated += 1;
       continue;
     }
