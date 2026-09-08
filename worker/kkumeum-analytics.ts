@@ -5,6 +5,11 @@ import {
 } from "./data-core-access";
 import { DEFAULT_ORGANIZATION_ID, ensureDataCoreDatabase } from "./data-core";
 import { ensureKkumeumPhase2Schema } from "./kkumeum-phase2-schema";
+import {
+  KKUMEUM_GROWTH_SKILL_REGISTRY,
+  KKUMEUM_GROWTH_SKILL_TAXONOMY_VERSION,
+  isKkumeumGrowthSkillCode,
+} from "./kkumeum-growth-skills";
 
 export const KKUMEUM_ANALYTICS_SCHEMA_VERSION = "kkumeum-growth-aggregate-v1";
 export const KKUMEUM_ANALYTICS_MIN_COHORT_SIZE = 5;
@@ -31,6 +36,19 @@ export type KkumeumAnalyticsPreview = {
     suppressed: boolean;
     reason: "minimum_cohort" | null;
     buckets: Array<{ stage: string; studentCount: number }>;
+  };
+  growthSkills: {
+    taxonomyVersion: string;
+    eligibleReportCount: number | null;
+    suppressed: boolean;
+    reason: "minimum_cohort" | null;
+    buckets: Array<{
+      code: string;
+      label: string;
+      categoryCode: string;
+      categoryLabel: string;
+      reportCount: number;
+    }>;
   };
 };
 
@@ -86,6 +104,74 @@ function numeric(value: unknown): number {
 
 function oneDecimal(value: number): number {
   return Math.round(value * 10) / 10;
+}
+
+function parseGrowthSkillCodes(value: unknown): string[] {
+  if (typeof value !== "string" || !value.trim()) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    const seen = new Set<string>();
+    const codes: string[] = [];
+    for (const raw of parsed) {
+      if (!isKkumeumGrowthSkillCode(raw) || seen.has(raw)) continue;
+      seen.add(raw);
+      codes.push(raw);
+    }
+    return codes;
+  } catch {
+    return [];
+  }
+}
+
+async function computeGrowthSkillBreakdown(
+  familyDb: D1Database,
+  campusId: string,
+  yearMonth: string,
+): Promise<KkumeumAnalyticsPreview["growthSkills"]> {
+  const rows = await familyDb
+    .prepare(
+      `SELECT r.growth_skill_codes_json
+       FROM monthly_reports r
+       INNER JOIN family_students s ON s.id = r.student_id
+       WHERE r.campus_id = ? AND r.year_month = ?
+         AND s.campus_id = ? AND s.status = 'active'
+         AND r.growth_skill_taxonomy_version = ?`,
+    )
+    .bind(campusId, yearMonth, campusId, KKUMEUM_GROWTH_SKILL_TAXONOMY_VERSION)
+    .all<{ growth_skill_codes_json: string | null }>();
+
+  const eligibleReportCount = (rows.results || []).length;
+  const counts = new Map<string, number>();
+  for (const row of rows.results || []) {
+    for (const code of parseGrowthSkillCodes(row.growth_skill_codes_json)) {
+      counts.set(code, (counts.get(code) || 0) + 1);
+    }
+  }
+
+  const rawBuckets = KKUMEUM_GROWTH_SKILL_REGISTRY
+    .map((skill) => ({
+      code: skill.code,
+      label: skill.labelKo,
+      categoryCode: skill.categoryCode,
+      categoryLabel: skill.categoryLabelKo,
+      reportCount: counts.get(skill.code) || 0,
+    }))
+    .filter((bucket) => bucket.reportCount > 0);
+
+  const cohortTooSmall = eligibleReportCount < KKUMEUM_ANALYTICS_MIN_COHORT_SIZE;
+  const hasSmallBucket = rawBuckets.some(
+    (bucket) => bucket.reportCount > 0 && bucket.reportCount < KKUMEUM_ANALYTICS_MIN_COHORT_SIZE,
+  );
+  const suppressed = cohortTooSmall || hasSmallBucket;
+
+  return {
+    taxonomyVersion: KKUMEUM_GROWTH_SKILL_TAXONOMY_VERSION,
+    eligibleReportCount: cohortTooSmall ? null : eligibleReportCount,
+    suppressed,
+    reason: suppressed ? "minimum_cohort" : null,
+    buckets: suppressed ? [] : rawBuckets,
+  };
 }
 
 export async function computeKkumeumAnalyticsPreview(
@@ -157,6 +243,7 @@ export async function computeKkumeumAnalyticsPreview(
   const suppressStages = rawStageBuckets.some(
     (bucket) => bucket.studentCount > 0 && bucket.studentCount < KKUMEUM_ANALYTICS_MIN_COHORT_SIZE,
   );
+  const growthSkills = await computeGrowthSkillBreakdown(familyDb, campusId, yearMonth);
 
   return {
     schemaVersion: KKUMEUM_ANALYTICS_SCHEMA_VERSION,
@@ -181,6 +268,7 @@ export async function computeKkumeumAnalyticsPreview(
       reason: suppressStages ? "minimum_cohort" : null,
       buckets: suppressStages ? [] : rawStageBuckets,
     },
+    growthSkills,
   };
 }
 
@@ -248,7 +336,8 @@ export async function syncKkumeumAnalyticsToDataCore(
 
   const recordId = aggregateRecordId(preview.campusId, preview.yearMonth);
   const now = new Date().toISOString();
-  const metadata = JSON.stringify(preview);
+  const { growthSkills: _growthSkills, ...syncPreview } = preview;
+  const metadata = JSON.stringify(syncPreview);
   await db
     .prepare(
       `INSERT INTO data_records (

@@ -42,6 +42,19 @@
     if (node) node.textContent = message;
   }
 
+  function growthSkillsNode() {
+    let node = $('kkAnalyticsGrowthSkills');
+    if (node) return node;
+    const breakdown = $('kkAnalyticsBreakdown');
+    if (!breakdown?.parentElement) return null;
+    node = document.createElement('div');
+    node.id = 'kkAnalyticsGrowthSkills';
+    node.className = 'kk-empty';
+    node.innerHTML = '<strong>이번 달 성장영역</strong><p>현재 taxonomy의 표준 성장영역만 안전하게 집계합니다.</p>';
+    breakdown.insertAdjacentElement('afterend', node);
+    return node;
+  }
+
   function renderCards(data) {
     const cards = $('kkAnalyticsCards');
     if (!cards) return;
@@ -71,6 +84,28 @@
     )).join('')}</div><p>모든 표시 집단은 최소 ${escapeHtml(data.minimumCohortSize)}명 이상입니다.</p>`;
   }
 
+  function renderGrowthSkills(data) {
+    const node = growthSkillsNode();
+    if (!node) return;
+    const growthSkills = data.growthSkills;
+    if (!growthSkills) {
+      node.innerHTML = '<strong>성장영역 집계를 사용할 수 없습니다.</strong><p>표준 성장영역이 연결된 월간평가만 안전하게 집계합니다.</p>';
+      return;
+    }
+    if (growthSkills.suppressed) {
+      node.innerHTML = `<strong>표본 부족으로 세부 성장영역을 표시하지 않습니다.</strong><p>현재 표준 분류에 맞는 평가 수 또는 하나 이상의 성장영역 집계가 ${escapeHtml(data.minimumCohortSize)}건 미만이어서 작은 집단을 역산할 수 없도록 전체 성장영역 breakdown을 숨겼습니다.</p>`;
+      return;
+    }
+    if (!growthSkills.buckets.length) {
+      node.innerHTML = '<strong>이번 달 표준 성장영역 집계가 없습니다.</strong><p>자유서술 성장포인트나 이전 taxonomy 데이터는 자동 추측하거나 집계하지 않습니다.</p>';
+      return;
+    }
+    const eligible = growthSkills.eligibleReportCount == null ? '' : ` · 집계 대상 평가 ${escapeHtml(growthSkills.eligibleReportCount)}건`;
+    node.innerHTML = `<strong>이번 달 성장영역${eligible}</strong><div class="kk-class-grid">${growthSkills.buckets.map((bucket) => (
+      `<button type="button" disabled><span>${escapeHtml(bucket.label)}<small>${escapeHtml(bucket.categoryLabel)}</small></span><b>${escapeHtml(bucket.reportCount)}</b></button>`
+    )).join('')}</div><p>현재 표준 성장영역 코드만 집계하며 학생·교사 순위나 개인별 비교는 제공하지 않습니다.</p>`;
+  }
+
   async function loadAnalytics() {
     if (loading || !showForAccess()) return;
     const core = staff();
@@ -86,6 +121,7 @@
       const data = result.analytics;
       renderCards(data);
       renderBreakdown(data);
+      renderGrowthSkills(data);
       const sync = $('kkAnalyticsSync');
       if (sync) {
         sync.hidden = !core.state.context?.isSuperAdmin;
@@ -97,6 +133,10 @@
     } catch (error) {
       const cards = $('kkAnalyticsCards');
       if (cards) cards.replaceChildren();
+      const breakdown = $('kkAnalyticsBreakdown');
+      const growthSkills = $('kkAnalyticsGrowthSkills');
+      if (breakdown) breakdown.replaceChildren();
+      if (growthSkills) growthSkills.replaceChildren();
       setFeedback(error?.message || '성장 통계를 불러오지 못했습니다.');
     } finally {
       loading = false;
@@ -129,6 +169,7 @@
   }
 
   function initializeControls() {
+    growthSkillsNode();
     const month = $('kkAnalyticsMonth');
     if (month && !month.value) month.value = localYearMonth();
     if ($('kkAnalyticsRefresh')) $('kkAnalyticsRefresh').onclick = () => loadAnalytics();
