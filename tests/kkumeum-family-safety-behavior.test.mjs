@@ -37,7 +37,7 @@ async function harness({ files = true } = {}) {
   return { mf, env, request };
 }
 
-test('FAMILY backup manifest records only isolated inventory and has no production restore endpoint', async () => {
+test('FAMILY backup manifest is private, ephemeral, and never persists object keys', async () => {
   const h = await harness();
   try {
     await h.env.FAMILY_FILES.put('synthetic/drill-artwork.txt', 'synthetic-artwork');
@@ -46,15 +46,19 @@ test('FAMILY backup manifest records only isolated inventory and has no producti
     assert.equal(created.headers.get('cache-control'), 'private, no-store');
     assert.equal(created.body.manifest.syntheticOnly, true);
     assert.equal(created.body.manifest.files[0].key, 'synthetic/drill-artwork.txt');
+    assert.equal(created.body.manifest.fileCount, 1);
+    assert.ok(created.body.manifest.totalBytes > 0);
     assert.equal(created.body.manifest.tableCounts.family_guardians, 0);
     assert.doesNotMatch(JSON.stringify(created.body), /password_hash|token_hash|temporaryPassword/);
+
+    const persistedManifestTable = await h.env.FAMILY_DB.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type='table' AND name='family_backup_manifests'").first();
+    assert.equal(Number(persistedManifestTable.count), 0);
+    const audit = await h.env.FAMILY_DB.prepare("SELECT metadata_json FROM family_audit_logs WHERE action = 'family.backup.manifest_create' ORDER BY created_at DESC LIMIT 1").first();
+    assert.ok(audit?.metadata_json);
+    assert.doesNotMatch(String(audit.metadata_json), /synthetic\/drill-artwork\.txt/);
+
     const listed = await h.request('/api/kkumeum/admin/family-backups');
-    assert.equal(listed.status, 200);
-    assert.equal(listed.body.manifests.length, 1);
-    assert.deepEqual(listed.body.manifests[0].fileSummary, { count: 1, totalBytes: 17 });
-    assert.doesNotMatch(JSON.stringify(listed.body.manifests), /drill-artwork\.txt/);
-    const stored = await h.env.FAMILY_DB.prepare('SELECT file_inventory_json FROM family_backup_manifests').first();
-    assert.doesNotMatch(stored.file_inventory_json, /drill-artwork\.txt/);
+    assert.equal(listed.status, 405);
     const crossOrigin = await h.request('/api/kkumeum/admin/family-backups/manifest', 'POST', {}, 'https://invalid.example');
     assert.equal(crossOrigin.status, 403);
     const noRestore = await h.request('/api/kkumeum/admin/family-backups/restore', 'POST', {});
@@ -80,7 +84,7 @@ test('pilot defaults remain disabled, allow exactly one selected campus, and nev
   } finally { await h.mf.dispose(); }
   const noFiles = await harness({ files: false });
   try {
-    const response = await noFiles.request('/api/kkumeum/admin/family-backups');
+    const response = await noFiles.request('/api/kkumeum/admin/family-backups/manifest', 'POST', {});
     assert.equal(response.status, 503);
     const generic = await noFiles.env.DB.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type='table' AND name='family_backup_manifests'").first();
     assert.equal(Number(generic.count), 0);

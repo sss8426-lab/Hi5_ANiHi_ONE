@@ -13,26 +13,10 @@ export type FamilyBackupManifest = {
   syntheticOnly: boolean;
   createdAt: string;
   tableCounts: Record<string, number>;
+  fileCount: number;
+  totalBytes: number;
   files: Array<{ key: string; size: number; etag: string }>;
 };
-
-type FileInventorySummary = {
-  count: number;
-  totalBytes: number;
-};
-
-export async function ensureKkumeumBackupSchema(familyDb: D1Database): Promise<void> {
-  await ensureKkumeumPhase1Schema(familyDb);
-  await familyDb.prepare(`CREATE TABLE IF NOT EXISTS family_backup_manifests (
-    id TEXT PRIMARY KEY NOT NULL,
-    schema_version TEXT NOT NULL,
-    synthetic_only INTEGER NOT NULL DEFAULT 1,
-    table_counts_json TEXT NOT NULL,
-    file_inventory_json TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    created_by TEXT
-  )`).run();
-}
 
 async function tableCounts(familyDb: D1Database): Promise<Record<string, number>> {
   const result: Record<string, number> = {};
@@ -56,57 +40,43 @@ async function fileInventory(files: R2Bucket): Promise<Array<{ key: string; size
   return result.sort((left, right) => left.key.localeCompare(right.key));
 }
 
-function fileInventorySummary(files: FamilyBackupManifest["files"]): FileInventorySummary {
-  return {
-    count: files.length,
-    totalBytes: files.reduce((total, file) => total + file.size, 0),
-  };
-}
-
 export async function createKkumeumFamilyBackupManifest(
   familyDb: D1Database,
   familyFiles: R2Bucket,
   context: DataCoreAccessContext,
 ): Promise<FamilyBackupManifest> {
   if (!context.isSuperAdmin) throw new DataCoreAccessError(403, "FAMILY 백업 매니페스트는 최고관리자만 생성할 수 있습니다.");
-  await ensureKkumeumBackupSchema(familyDb);
+  // Only ensure the canonical FAMILY schema needed for aggregate counts/audit.
+  // The manifest itself is deliberately returned in-memory and is not persisted because it contains private R2 object keys.
+  await ensureKkumeumPhase1Schema(familyDb);
+  const files = await fileInventory(familyFiles);
   const manifest: FamilyBackupManifest = {
-    id: crypto.randomUUID(), schemaVersion: "kkumeum-family-v1", syntheticOnly: true,
-    createdAt: new Date().toISOString(), tableCounts: await tableCounts(familyDb), files: await fileInventory(familyFiles),
+    id: crypto.randomUUID(),
+    schemaVersion: "kkumeum-family-v1",
+    syntheticOnly: true,
+    createdAt: new Date().toISOString(),
+    tableCounts: await tableCounts(familyDb),
+    fileCount: files.length,
+    totalBytes: files.reduce((sum, item) => sum + Number(item.size || 0), 0),
+    files,
   };
-  const files = fileInventorySummary(manifest.files);
-  await familyDb.batch([
-    familyDb.prepare(`INSERT INTO family_backup_manifests (id, schema_version, synthetic_only, table_counts_json, file_inventory_json, created_at, created_by)
-      VALUES (?, ?, 1, ?, ?, ?, ?)`).bind(manifest.id, manifest.schemaVersion, JSON.stringify(manifest.tableCounts), JSON.stringify(files), manifest.createdAt, context.user?.internalUserId || null),
-    familyDb.prepare(`INSERT INTO family_audit_logs (id, campus_id, actor_type, actor_id, action, resource_type, resource_id, metadata_json, created_at)
-      VALUES (?, NULL, 'staff', ?, 'family.backup.manifest_create', 'family_backup_manifest', ?, ?, ?)`).bind(
-      crypto.randomUUID(), context.user?.internalUserId || null, manifest.id,
-      JSON.stringify({ tableCount: Object.keys(manifest.tableCounts).length, fileCount: files.count, totalBytes: files.totalBytes, syntheticOnly: true }), manifest.createdAt,
-    ),
-  ]);
+  await familyDb.prepare(`INSERT INTO family_audit_logs (
+    id, campus_id, actor_type, actor_id, action, resource_type, resource_id, metadata_json, created_at
+  ) VALUES (?, NULL, 'staff', ?, 'family.backup.manifest_create', 'family_backup_manifest', ?, ?, ?)`).bind(
+    crypto.randomUUID(),
+    context.user?.internalUserId || null,
+    manifest.id,
+    JSON.stringify({
+      schemaVersion: manifest.schemaVersion,
+      tableCount: Object.keys(manifest.tableCounts).length,
+      fileCount: manifest.fileCount,
+      totalBytes: manifest.totalBytes,
+      syntheticOnly: true,
+    }),
+    manifest.createdAt,
+  ).run();
   return manifest;
 }
-
-export async function listKkumeumFamilyBackupManifests(familyDb: D1Database, context: DataCoreAccessContext) {
-  if (!context.isSuperAdmin) throw new DataCoreAccessError(403, "FAMILY 백업 매니페스트는 최고관리자만 조회할 수 있습니다.");
-  await ensureKkumeumBackupSchema(familyDb);
-  const result = await familyDb.prepare("SELECT id, schema_version, synthetic_only, table_counts_json, file_inventory_json, created_at FROM family_backup_manifests ORDER BY created_at DESC").all<{
-    id: string; schema_version: string; synthetic_only: number; table_counts_json: string; file_inventory_json: string; created_at: string;
-  }>();
-  return (result.results || []).map((row) => {
-    const stored = JSON.parse(row.file_inventory_json) as FileInventorySummary | FamilyBackupManifest["files"];
-    const fileSummary = Array.isArray(stored) ? fileInventorySummary(stored) : stored;
-    return {
-      id: row.id,
-      schemaVersion: row.schema_version,
-      syntheticOnly: Boolean(row.synthetic_only),
-      tableCounts: JSON.parse(row.table_counts_json),
-      fileSummary,
-      createdAt: row.created_at,
-    };
-  });
-}
-
 // This is deliberately test-only: callers must pass an explicit synthetic marker and no production restore endpoint exists.
 export function assertSyntheticRestoreTarget(target: { marker?: string; production?: boolean }): void {
   if (target.marker !== "KKUMEUM_SYNTHETIC_RESTORE_ONLY" || target.production) {
