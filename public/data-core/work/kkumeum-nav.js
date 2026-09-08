@@ -1,6 +1,7 @@
 (() => {
   const KKUMEUM_HREF = '/data-core/kkumeum';
   const HQ_LIBRARY_SRC = '/data-core/work/hq-library.js';
+  const COMPETITION_SOURCES_SRC = '/data-core/counseling/competition-sources.js';
 
   function addWorkSidebarLink() {
     const workNav = document.querySelector('[data-nav-scope="work"]');
@@ -39,17 +40,21 @@
     document.head.appendChild(style);
   }
 
-  function loadHqLibraryEnhancement() {
-    if (!document.getElementById('folderGroups')) return;
-    if (document.querySelector(`script[src="${HQ_LIBRARY_SRC}"]`)) return;
+  function loadScriptOnce(src) {
+    if (document.querySelector(`script[src="${src}"]`)) return;
     const script = document.createElement('script');
-    script.src = HQ_LIBRARY_SRC;
+    script.src = src;
     script.defer = true;
     document.body.appendChild(script);
+  }
+
+  function loadPageEnhancements() {
+    if (document.getElementById('folderGroups')) loadScriptOnce(HQ_LIBRARY_SRC);
+    if (document.getElementById('view-competitions')) loadScriptOnce(COMPETITION_SOURCES_SRC);
   }
 
   addWorkSidebarLink();
   addWorkHomeCard();
   addResponsiveStyle();
-  loadHqLibraryEnhancement();
+  loadPageEnhancements();
 })();
