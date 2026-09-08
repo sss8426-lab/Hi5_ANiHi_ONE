@@ -42,6 +42,19 @@
     if (node) node.textContent = message;
   }
 
+  function growthSkillsNode() {
+    let node = $('kkAnalyticsGrowthSkills');
+    if (node) return node;
+    const breakdown = $('kkAnalyticsBreakdown');
+    if (!breakdown?.parentElement) return null;
+    node = document.createElement('div');
+    node.id = 'kkAnalyticsGrowthSkills';
+    node.className = 'kk-empty';
+    node.innerHTML = '<strong>이번 달 성장영역</strong><p>현재 taxonomy의 표준 성장영역만 안전하게 집계합니다.</p>';
+    breakdown.insertAdjacentElement('afterend', node);
+    return node;
+  }
+
   function renderCards(data) {
     const cards = $('kkAnalyticsCards');
     if (!cards) return;
@@ -72,7 +85,7 @@
   }
 
   function renderGrowthSkills(data) {
-    const node = $('kkAnalyticsGrowthSkills');
+    const node = growthSkillsNode();
     if (!node) return;
     const growthSkills = data.growthSkills;
     if (!growthSkills) {
@@ -156,6 +169,7 @@
   }
 
   function initializeControls() {
+    growthSkillsNode();
     const month = $('kkAnalyticsMonth');
     if (month && !month.value) month.value = localYearMonth();
     if ($('kkAnalyticsRefresh')) $('kkAnalyticsRefresh').onclick = () => loadAnalytics();
