@@ -9,7 +9,7 @@ const output=path.resolve('outputs/admissions-browser');await fs.mkdir(output,{r
 const browser=await chromium.launch({headless:true,channel:process.env.ROADMAP_BROWSER_CHANNEL || 'chrome'});
 let checks=0;const errors=[];
 try{
-  const ctx=await browser.newContext();let admin=true;
+  const ctx=await browser.newContext();let admin=true, gatewayError=false;
   const university={id:1,name:'합성대학교',major:'웹툰콘텐츠학과',admission:'실기우수',year:2027,gradeRatio:30,skillRatio:70,requiredScores:{},acceptedStats:{},checkedComplete:true};
   await ctx.route('**/api/data',r=>r.fulfill({json:{students:[],universities:[university],cases:[],awardFolders:[],settings:{consultantName:'합성 상담교사'}}}));
   const fact={id:'synthetic-fact',academicYear:'2027',universityName:'합성대학교',department:'웹툰콘텐츠학과',admissionType:'실기우수',region:'테스트지역',quota:12,gradeRatio:30,practicalRatio:70,competitionRate:12.5,sourceName:'그리날다',sourceUrl:'https://grinalda.net/univ-info-susi/',sourceUpdatedAt:'2026-08-25T12:24:01Z',fetchedAt:'2026-09-09T00:00:00Z',universityId:'1'};
@@ -43,6 +43,9 @@ try{
   await page.locator('#susi [data-sync]').click();await page.locator('dialog [data-apply]').waitFor();assert.equal(applied,0);
   await page.locator('dialog [data-cancel]').click();assert.equal(applied,0);
   await page.locator('#susi [data-sync]').click();await page.locator('dialog [data-apply]').click();await page.getByText('입시요강 1건 적용 완료.',{exact:false}).waitFor();assert.equal(applied,1);checks+=3;
+  await ctx.route('**/api/data-core/admin/admissions/guidelines/sync',async r=>gatewayError?r.fulfill({status:500,contentType:'text/html',body:'<!DOCTYPE html>PRIVATE_GATEWAY_PAYLOAD'}):r.fallback());
+  gatewayError=true;await page.locator('#susi [data-sync]').click();await page.getByText('HTTP 500',{exact:false}).waitFor();
+  assert.doesNotMatch(await page.locator('#susi [data-status]').textContent(),/PRIVATE_GATEWAY_PAYLOAD|DOCTYPE|Unexpected token/);checks++;
   admin=false;await page.reload();await page.locator('#susi [data-detail]').waitFor();assert.equal(await page.locator('#susi [data-sync]').isVisible(),false);checks++;
   assert.deepEqual(errors,[]);console.log(JSON.stringify({passed:checks,pageErrors:0,screenshots:output}));
 }finally{await browser.close();}

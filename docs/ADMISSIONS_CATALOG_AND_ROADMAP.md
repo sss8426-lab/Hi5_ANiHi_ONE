@@ -140,3 +140,15 @@ runtime difference. Use `manual`; the existing non-2xx check rejects redirects
 without following them. A real workerd synthetic outbound-service test verifies
 one request only and an application behavior test verifies redirected sources
 are rejected. No access-control bypass or alternative source is introduced.
+
+Full production preview then reached the configured CPU limit before apply:
+filtered Wrangler tail reported outcome exceededCpu, CPU 2010ms. University
+matching had repeatedly normalized the entire legacy university array for each
+source row. Build a school-name index once per plan and keep the same campus,
+department and ambiguity checks within matching buckets. Synthetic 5000-school /
+1000-guideline tests bound lookups and confirm identical ambiguity behavior.
+Cloudflare limits and bindings are unchanged. Non-JSON gateway error bodies are
+not displayed; the UI reports only the HTTP status and a retry message.
+The indexed implementation passed npm ci/build/typecheck/browser syntax,
+all 183 behavior tests, 89 admissions browser checks (including a synthetic
+HTML gateway failure that must not expose its body), and Wrangler dry-run.
