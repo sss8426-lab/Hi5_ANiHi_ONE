@@ -1,5 +1,6 @@
 (() => {
   const KKUMEUM_HREF = '/data-core/kkumeum';
+  const HQ_LIBRARY_SRC = '/data-core/work/hq-library.js';
 
   function addWorkSidebarLink() {
     const workNav = document.querySelector('[data-nav-scope="work"]');
@@ -38,7 +39,17 @@
     document.head.appendChild(style);
   }
 
+  function loadHqLibraryEnhancement() {
+    if (!document.getElementById('folderGroups')) return;
+    if (document.querySelector(`script[src="${HQ_LIBRARY_SRC}"]`)) return;
+    const script = document.createElement('script');
+    script.src = HQ_LIBRARY_SRC;
+    script.defer = true;
+    document.body.appendChild(script);
+  }
+
   addWorkSidebarLink();
   addWorkHomeCard();
   addResponsiveStyle();
+  loadHqLibraryEnhancement();
 })();
