@@ -1,6 +1,7 @@
 import { DataCoreAccessContext, DataCoreAccessError, requireAuthenticatedAccess } from "./data-core-access";
 import { createKkumeumGuardianPasswordRecord, ensureKkumeumGuardianAuthSchema } from "./kkumeum-guardian-auth";
 import { setKkumeumInternalGuardianBeta } from "./kkumeum-pilot";
+import { revokeGuardianPushSubscriptions } from "./kkumeum-push";
 
 function text(value: unknown, maximum = 160): string {
   return String(value ?? "").trim().slice(0, maximum);
@@ -153,6 +154,7 @@ export async function updateKkumeumGuardianLink(
     );
   }
   await familyDb.batch(statements);
+  if (status === "disabled") await revokeGuardianPushSubscriptions(familyDb, guardianId);
   await audit(familyDb, context, campusId, status === "disabled" ? "guardian.disable" : "guardian.update", guardianId, studentId);
   return { id: guardianId, status: status || "unchanged" };
 }
@@ -198,6 +200,7 @@ export async function revokeKkumeumGuardianSessions(
   if (!linked) throw new DataCoreAccessError(404, "보호자 연결을 찾을 수 없습니다.");
   await familyDb.prepare("UPDATE guardian_sessions SET revoked_at = ? WHERE guardian_id = ? AND revoked_at IS NULL")
     .bind(new Date().toISOString(), guardianId).run();
+  await revokeGuardianPushSubscriptions(familyDb, guardianId);
   await audit(familyDb, context, campusId, "guardian.sessions_revoke", guardianId, studentId);
   return { ok: true };
 }
