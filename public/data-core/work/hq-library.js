@@ -7,7 +7,7 @@
   ];
   const RECORD_TYPE = 'hq-library-folder';
   const SOURCE_APP = 'data-core-library';
-  const UPLOAD_CATEGORY = 'counseling-material';
+  const UPLOAD_CATEGORY = 'hq-workspace';
   const state = { context: null, folders: [], selectedId: '', files: [], ensuring: false };
 
   const h = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({
@@ -85,7 +85,7 @@
       renderFiles();
       return;
     }
-    const response = await api(`/api/data-core/files?recordId=${encodeURIComponent(folderId)}&limit=100`);
+    const response = await api(`/api/data-core/files?recordId=${encodeURIComponent(folderId)}&category=${encodeURIComponent(UPLOAD_CATEGORY)}&limit=100`);
     state.files = response.files || [];
     renderFiles();
   }

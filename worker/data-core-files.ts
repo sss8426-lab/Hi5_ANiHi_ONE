@@ -31,6 +31,7 @@ const LIBRARY_FILE_CATEGORIES = new Set([
   "blog-source",
   "instagram-source",
   "promotion-material",
+  "hq-workspace",
 ]);
 const BLOCKED_EXTENSIONS = new Set([
   "exe",
@@ -70,6 +71,13 @@ function normalizeArea(value: unknown): DataCoreFileArea {
 function libraryFileProfile(category: string, campusId: string | null) {
   if (!LIBRARY_FILE_CATEGORIES.has(category)) {
     throw new DataCoreAccessError(400, "자료보관함 분류가 올바르지 않습니다.");
+  }
+  if (category === "hq-workspace") {
+    return {
+      area: "documents-private" as const,
+      visibility: "organization" as const,
+      sourceApp: "hq-library",
+    };
   }
   if (category === "student-artwork") {
     return { area: "student-private" as const, visibility: "private" as const, sourceApp: "data-core" };
@@ -153,6 +161,48 @@ async function assertRecordLinkAllowed(
   }
 }
 
+async function assertHqWorkspaceUpload(
+  db: D1Database,
+  context: DataCoreAccessContext,
+  category: string,
+  campusId: string | null,
+  recordId: string | null,
+) {
+  if (category !== "hq-workspace") return;
+  if (!context.isSuperAdmin) {
+    throw new DataCoreAccessError(403, "본원 작업물 업로드는 마스터 관리자만 할 수 있습니다.");
+  }
+  if (campusId) {
+    throw new DataCoreAccessError(400, "본원 작업물은 조직 공통으로만 업로드할 수 있습니다.");
+  }
+  if (!recordId) {
+    throw new DataCoreAccessError(400, "본원 작업물 폴더를 먼저 선택하세요.");
+  }
+  const folder = await db
+    .prepare(
+      `SELECT id, campus_id, record_type, source_app, visibility
+       FROM data_records
+       WHERE id = ? AND organization_id = ? AND deleted_at IS NULL`,
+    )
+    .bind(recordId, DEFAULT_ORGANIZATION_ID)
+    .first<{
+      id: string;
+      campus_id: string | null;
+      record_type: string;
+      source_app: string;
+      visibility: string;
+    }>();
+  if (
+    !folder ||
+    folder.campus_id !== null ||
+    folder.record_type !== "hq-library-folder" ||
+    folder.source_app !== "data-core-library" ||
+    folder.visibility !== "organization"
+  ) {
+    throw new DataCoreAccessError(400, "유효한 본원 작업물 폴더가 아닙니다.");
+  }
+}
+
 function fileRowToResponse(row: Record<string, unknown>) {
   return {
     id: row.id,
@@ -196,12 +246,17 @@ export async function uploadDataCoreFile(
   }
 
   const campusId = cleanText(form.get("campusId"), 120) || null;
-  if (!context.isSuperAdmin && !campusId) {
-    throw new DataCoreAccessError(400, "캠퍼스 사용자는 campusId가 필요합니다.");
-  }
-  if (campusId) requireCampusAccess(context, campusId);
-
   const category = cleanText(form.get("category") || form.get("purpose") || "general", 80) || "general";
+  const recordId = cleanText(form.get("recordId"), 120) || null;
+
+  await assertHqWorkspaceUpload(db, context, category, campusId, recordId);
+  if (category !== "hq-workspace") {
+    if (!context.isSuperAdmin && !campusId) {
+      throw new DataCoreAccessError(400, "캠퍼스 사용자는 campusId가 필요합니다.");
+    }
+    if (campusId) requireCampusAccess(context, campusId);
+  }
+
   const isLibraryUpload = new URL(request.url).pathname === "/api/data-core/files";
   const profile = isLibraryUpload
     ? libraryFileProfile(category, campusId)
@@ -211,7 +266,6 @@ export async function uploadDataCoreFile(
       sourceApp: cleanText(form.get("sourceApp") || "data-core", 80) || "data-core",
     };
   const { area, visibility, sourceApp } = profile;
-  const recordId = cleanText(form.get("recordId"), 120) || null;
   const year = cleanText(form.get("year"), 8).replace(/[^0-9]/g, "");
   const ownerRef = cleanText(form.get("ownerId"), 120) || "shared";
   await assertRecordLinkAllowed(db, context, recordId, campusId);
