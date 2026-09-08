@@ -1,4 +1,6 @@
 (() => {
+  const COMPETITION_LIVE_SRC = '/data-core/competition-live-enhancement.js?v=20260908-live-calendar-v2';
+
   function modeHomeIsActive() {
     return document.getElementById('view-mode-home')?.classList.contains('active') || false;
   }
@@ -62,9 +64,18 @@
     document.head.appendChild(style);
   }
 
+  function loadCompetitionLiveEnhancement() {
+    if (document.querySelector(`script[src="${COMPETITION_LIVE_SRC}"]`)) return;
+    const script = document.createElement('script');
+    script.src = COMPETITION_LIVE_SRC;
+    script.defer = true;
+    document.body.appendChild(script);
+  }
+
   function init() {
     syncBodyState();
     addLoginChipStyle();
+    loadCompetitionLiveEnhancement();
 
     const view = document.getElementById('view-mode-home');
     if (view) {
