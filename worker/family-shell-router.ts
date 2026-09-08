@@ -1,6 +1,8 @@
 import appWorker from "./readiness-router";
 import { handleKkumeumConsentApi } from "./kkumeum-consent-router";
 import { handleKkumeumRetentionApi } from "./kkumeum-retention-router";
+import { handleKkumeumFamilyBackupApi } from "./kkumeum-family-backup-router";
+import { handleKkumeumPilotApi } from "./kkumeum-pilot-router";
 
 interface Env {
   ASSETS?: Fetcher;
@@ -29,6 +31,10 @@ const worker = {
   async fetch(request: Request, env: Env): Promise<Response> {
     const shell = await familyShell(request, env);
     if (shell) return shell;
+    const backup = await handleKkumeumFamilyBackupApi(request, env);
+    if (backup) return backup;
+    const pilot = await handleKkumeumPilotApi(request, env);
+    if (pilot) return pilot;
     const retention = await handleKkumeumRetentionApi(request, env);
     if (retention) return retention;
     const consent = await handleKkumeumConsentApi(request, env);

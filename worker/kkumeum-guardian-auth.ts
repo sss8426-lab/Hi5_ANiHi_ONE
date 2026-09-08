@@ -1,5 +1,6 @@
 import { DataCoreAccessError } from "./data-core-access";
 import { ensureKkumeumPhase1Schema } from "./kkumeum-schema";
+import { assertInternalGuardianBeta } from "./kkumeum-pilot";
 
 export const KKUMEUM_GUARDIAN_COOKIE_NAME = "kkumeum_family_session";
 const GUARDIAN_SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
@@ -304,6 +305,9 @@ export async function loginKkumeumGuardian(
     await auditGuardianAuth(familyDb, guardian.id, "login_failed");
     throw new DataCoreAccessError(401, "로그인 ID 또는 비밀번호가 올바르지 않습니다.");
   }
+
+  // When closed beta is explicitly enabled, reject before a session is issued.
+  await assertInternalGuardianBeta(familyDb, guardian.id);
 
   await familyDb.prepare(
     `UPDATE family_guardians

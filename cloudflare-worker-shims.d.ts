@@ -37,9 +37,22 @@ interface R2PutOptions {
   customMetadata?: Record<string, string>;
 }
 
+interface R2Object {
+  key: string;
+  size: number;
+  etag: string;
+}
+
+interface R2Objects {
+  objects: R2Object[];
+  truncated: boolean;
+  cursor?: string;
+}
+
 interface R2Bucket {
   put(key: string, value: unknown, options?: R2PutOptions): Promise<unknown>;
   get(key: string): Promise<R2ObjectBody | null>;
+  list(options?: { cursor?: string }): Promise<R2Objects>;
   delete(keys: string | string[]): Promise<void>;
 }
 
