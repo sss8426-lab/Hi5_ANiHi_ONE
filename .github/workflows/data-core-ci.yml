@@ -48,3 +48,6 @@ jobs:
           node --check public/data-core/work/kkumeum-notices.js
           node --check public/data-core/work/kkumeum-operations.js
           node --check public/admissions-web/renderer/data-core-upload-bridge.js
+
+      - name: Wrangler deploy dry run
+        run: npx wrangler deploy --dry-run
