@@ -1,4 +1,5 @@
 import appWorker from "./readiness-router";
+import { handleCompetitionSourceApi } from "./data-core-competition-source-router";
 import { handleKkumeumConsentApi } from "./kkumeum-consent-router";
 import { handleKkumeumRetentionApi } from "./kkumeum-retention-router";
 import { handleKkumeumFamilyBackupApi } from "./kkumeum-family-backup-router";
@@ -35,6 +36,8 @@ const worker = {
   async fetch(request: Request, env: Env): Promise<Response> {
     const shell = await familyShell(request, env);
     if (shell) return shell;
+    const competitionSources = await handleCompetitionSourceApi(request, env);
+    if (competitionSources) return competitionSources;
     const backup = await handleKkumeumFamilyBackupApi(request, env);
     if (backup) return backup;
     const pilot = await handleKkumeumPilotApi(request, env);
