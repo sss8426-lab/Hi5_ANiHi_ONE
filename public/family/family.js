@@ -78,12 +78,26 @@ function setPushMessage(message = '') {
   element.classList.toggle('hidden', !message);
 }
 
+function pushSupported() {
+  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+}
+
+async function currentDevicePushSubscription() {
+  if (!pushSupported()) return null;
+  try {
+    const registration = await navigator.serviceWorker.getRegistration('/family/');
+    return registration ? registration.pushManager.getSubscription() : null;
+  } catch {
+    return null;
+  }
+}
+
 function renderPushStatus(status) {
   state.pushStatus = status;
   const label = $('pushStatus');
   const button = $('pushToggleBtn');
   if (!label || !button) return;
-  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+  if (!pushSupported()) {
     label.textContent = '이 브라우저는 푸시 알림을 지원하지 않습니다.';
     button.disabled = true;
     return;
@@ -101,8 +115,8 @@ function renderPushStatus(status) {
     return;
   }
   button.disabled = false;
-  button.textContent = status.subscribed ? '알림 끄기' : '알림 받기';
-  label.textContent = status.subscribed
+  button.textContent = status.currentDeviceSubscribed ? '알림 끄기' : '알림 받기';
+  label.textContent = status.currentDeviceSubscribed
     ? '이 기기에서 새 소식 알림을 받고 있습니다.'
     : permission === 'granted' ? '이 기기에서 알림을 켤 수 있습니다.' : '알림을 받으려면 버튼을 눌러 허용해 주세요.';
   setPushMessage(status.configured
@@ -112,7 +126,9 @@ function renderPushStatus(status) {
 
 async function loadPushStatus() {
   try {
-    renderPushStatus(await api('/api/family/push/status'));
+    const status = await api('/api/family/push/status');
+    const existing = await currentDevicePushSubscription();
+    renderPushStatus({ ...status, currentDeviceSubscribed: Boolean(existing) });
   } catch (error) {
     if (!genericAccessMessage(error)) setPushMessage('알림 상태를 확인하지 못했습니다.');
   }
@@ -120,14 +136,14 @@ async function loadPushStatus() {
 
 async function togglePush() {
   const status = state.pushStatus;
-  if (!status || !('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return;
+  if (!status || !pushSupported()) return;
   if (Notification.permission === 'denied') {
     setPushMessage('브라우저 설정에서 꿈이음 알림을 허용한 뒤 다시 시도해 주세요. iPhone은 홈 화면에 추가한 앱에서 설정할 수 있습니다.');
     return;
   }
   const registration = await navigator.serviceWorker.ready;
   const existing = await registration.pushManager.getSubscription();
-  if (status.subscribed && existing) {
+  if (existing) {
     await api('/api/family/push/unsubscribe', { method: 'DELETE', body: JSON.stringify({ endpoint: existing.endpoint }) });
     await existing.unsubscribe();
     setPushMessage('이 기기의 알림을 껐습니다.');
@@ -136,7 +152,7 @@ async function togglePush() {
   if (!status.subscriptionReady || !status.publicKey) return;
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') return loadPushStatus();
-  const subscription = existing || await registration.pushManager.subscribe({
+  const subscription = await registration.pushManager.subscribe({
     userVisibleOnly: true,
     applicationServerKey: urlBase64ToUint8Array(status.publicKey),
   });
