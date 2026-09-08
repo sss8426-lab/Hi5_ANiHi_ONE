@@ -7,11 +7,27 @@ test('roadmap D1 schema supports fresh and repeated reads without replacing exis
   try {
     const { default: worker } = await import('../dist/server/index.js');
     const db = await mf.getD1Database('DB');
-    const env = { DB: db, DATA_CORE_SUPER_ADMIN_EMAILS: 'roadmap-admin@example.test' };
+    let schemaAttempts = 0;
+    let failSchemaOnce = true;
+    const runtimeDb = new Proxy(db, { get(target, property) {
+      if (property === 'prepare') return (sql) => {
+        if (/CREATE TABLE IF NOT EXISTS knowledge_(nodes|edges)/.test(sql)) {
+          schemaAttempts++;
+          if (failSchemaOnce) { failSchemaOnce = false; throw new Error('Synthetic schema initialization failure'); }
+        }
+        return target.prepare(sql);
+      };
+      const value = target[property];
+      return typeof value === 'function' ? value.bind(target) : value;
+    } });
+    const env = { DB: runtimeDb, DATA_CORE_SUPER_ADMIN_EMAILS: 'roadmap-admin@example.test' };
     const headers = { 'oai-authenticated-user-id': 'synthetic-roadmap-admin', 'oai-authenticated-user-email': 'roadmap-admin@example.test', 'oai-authenticated-user-full-name': 'Synthetic Admin' };
     const request = (path, authenticated = true) => worker.fetch(new Request(`http://localhost${path}`, { headers: authenticated ? headers : {} }), env, { waitUntil() {}, passThroughOnException() {} });
     const unauthenticated = await request('/api/data-core/roadmap/goals', false);
     assert.equal(unauthenticated.status, 401);
+
+    const failedInitialization = await request('/api/data-core/roadmap/goals');
+    assert.equal(failedInitialization.status, 500);
 
     const first = await request('/api/data-core/roadmap/goals');
     assert.equal(first.status, 200, await first.clone().text());
@@ -31,6 +47,7 @@ test('roadmap D1 schema supports fresh and repeated reads without replacing exis
       assert.ok(Array.isArray((await detail.json()).roadmap.universityPrograms));
     }
     assert.deepEqual(await counts(), before);
+    assert.equal(schemaAttempts, 3, 'failed initialization retries once; successful DDL is not repeated during graph reads');
     assert.equal(await db.prepare('SELECT summary FROM knowledge_nodes WHERE id = ?').bind(goal.id).first('summary'), 'Synthetic preservation marker');
   } finally { await mf.dispose(); }
 });
