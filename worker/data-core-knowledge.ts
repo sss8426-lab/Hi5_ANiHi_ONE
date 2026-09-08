@@ -192,7 +192,8 @@ async function audit(
 
 export async function ensureKnowledgeSchema(db: D1Database) {
   await ensureDataCoreMigrations(db);
-  await db.exec(`CREATE TABLE IF NOT EXISTS knowledge_nodes (
+  // D1 exec splits on newlines; prepare keeps each multiline DDL statement intact.
+  await db.prepare(`CREATE TABLE IF NOT EXISTS knowledge_nodes (
     id TEXT PRIMARY KEY NOT NULL,
     organization_id TEXT NOT NULL,
     campus_id TEXT,
@@ -210,7 +211,7 @@ export async function ensureKnowledgeSchema(db: D1Database) {
     FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
     FOREIGN KEY (campus_id) REFERENCES campuses(id) ON DELETE SET NULL,
     FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE SET NULL
-  )`);
+  )`).run();
   await db.exec(
     "CREATE INDEX IF NOT EXISTS knowledge_nodes_type_idx ON knowledge_nodes(node_type)",
   );
@@ -221,7 +222,7 @@ export async function ensureKnowledgeSchema(db: D1Database) {
     "CREATE INDEX IF NOT EXISTS knowledge_nodes_campus_idx ON knowledge_nodes(campus_id)",
   );
 
-  await db.exec(`CREATE TABLE IF NOT EXISTS knowledge_edges (
+  await db.prepare(`CREATE TABLE IF NOT EXISTS knowledge_edges (
     id TEXT PRIMARY KEY NOT NULL,
     organization_id TEXT NOT NULL,
     campus_id TEXT,
@@ -239,7 +240,7 @@ export async function ensureKnowledgeSchema(db: D1Database) {
     FOREIGN KEY (from_node_id) REFERENCES knowledge_nodes(id) ON DELETE CASCADE,
     FOREIGN KEY (to_node_id) REFERENCES knowledge_nodes(id) ON DELETE CASCADE,
     FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE SET NULL
-  )`);
+  )`).run();
   await db.exec(
     "CREATE INDEX IF NOT EXISTS knowledge_edges_from_idx ON knowledge_edges(from_node_id, relation_type)",
   );

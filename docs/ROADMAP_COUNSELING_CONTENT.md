@@ -57,3 +57,10 @@ exact graph matching, admissions verification requirements, invalid ratio cases,
 filters, year/sample handling and output-field allowlisting. Browser checks additionally
 cover both families, career selection/search, history, slow requests, unauthenticated
 fallback, synthetic authenticated data, all 35 cards and desktop/tablet/mobile layouts.
+
+Production verification exposed an existing D1 `exec()` multiline-DDL failure in
+`ensureKnowledgeSchema`: `CREATE TABLE IF NOT EXISTS knowledge_nodes (` was parsed
+as an incomplete statement. The two table statements now use `prepare().run()`;
+their definitions, indexes, bindings and existing records remain unchanged.
+The Miniflare regression test covers fresh initialization, repeated goals/detail
+reads, unauthenticated denial and preservation of an existing synthetic node.
