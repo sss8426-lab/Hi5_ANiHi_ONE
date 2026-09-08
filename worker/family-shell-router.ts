@@ -11,6 +11,10 @@ interface Env {
   FAMILY_DB?: D1Database;
   FAMILY_FILES?: R2Bucket;
   DATA_CORE_SUPER_ADMIN_EMAILS?: string;
+  PUSH_VAPID_PUBLIC_KEY?: string;
+  PUSH_VAPID_PRIVATE_JWK?: string;
+  PUSH_VAPID_SUBJECT?: string;
+  PUSH_SUBSCRIPTION_ENCRYPTION_KEY?: string;
 }
 
 async function familyShell(request: Request, env: Env): Promise<Response | null> {

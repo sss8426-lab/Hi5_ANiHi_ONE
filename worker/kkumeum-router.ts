@@ -54,8 +54,9 @@ import {
   updateKkumeumGuardianLink,
 } from "./kkumeum-guardian-admin";
 import { assertKkumeumPilotCampus } from "./kkumeum-pilot";
+import { dispatchGuardianAnnouncementPush, type KkumeumPushEnv } from "./kkumeum-push";
 
-export type KkumeumRouterEnv = KkumeumBindings;
+export type KkumeumRouterEnv = KkumeumBindings & KkumeumPushEnv;
 
 type JsonResponder = (value: unknown, init?: ResponseInit) => Response;
 
@@ -171,13 +172,13 @@ export async function handleKkumeumApi(
     }
     assertSameOrigin(request);
     const familyDb = requireFamilyDatabase(context, env.FAMILY_DB);
-    return respond({
-      announcement: await publishStaffAnnouncement(
-        familyDb,
-        context,
-        decodeURIComponent(announcementPublishMatch[1]),
-      ),
-    });
+    const announcement = await publishStaffAnnouncement(
+      familyDb,
+      context,
+      decodeURIComponent(announcementPublishMatch[1]),
+    );
+    const push = await dispatchGuardianAnnouncementPush(familyDb, env, announcement.id);
+    return respond({ announcement, push });
   }
 
   const announcementMatch = url.pathname.match(/^\/api\/kkumeum\/announcements\/([^/]+)$/);

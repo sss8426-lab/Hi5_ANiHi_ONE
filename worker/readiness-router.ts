@@ -17,6 +17,11 @@ import {
   listGuardianNotices,
   markGuardianNoticeRead,
 } from "./kkumeum-announcements";
+import {
+  guardianPushStatus,
+  subscribeGuardianPush,
+  unsubscribeGuardianPush,
+} from "./kkumeum-push";
 
 interface Env {
   ASSETS?: Fetcher;
@@ -25,6 +30,10 @@ interface Env {
   FAMILY_DB?: D1Database;
   FAMILY_FILES?: R2Bucket;
   DATA_CORE_SUPER_ADMIN_EMAILS?: string;
+  PUSH_VAPID_PUBLIC_KEY?: string;
+  PUSH_VAPID_PRIVATE_JWK?: string;
+  PUSH_VAPID_SUBJECT?: string;
+  PUSH_SUBSCRIPTION_ENCRYPTION_KEY?: string;
 }
 
 function privateJsonResponse(value: unknown, init: ResponseInit = {}) {
@@ -114,6 +123,18 @@ async function handleFamilyGuardianFeedApi(request: Request, env: Env): Promise<
   if (url.pathname.startsWith("/api/family/auth/")) return null;
   if (!env.FAMILY_DB) {
     throw new DataCoreAccessError(503, "꿈이음 보호자 전용 FAMILY_DB 연결이 필요합니다.");
+  }
+
+  if (url.pathname === "/api/family/push/status" && request.method === "GET") {
+    return privateJsonResponse(await guardianPushStatus(env.FAMILY_DB, request, env));
+  }
+
+  if (url.pathname === "/api/family/push/subscribe" && request.method === "POST") {
+    return privateJsonResponse(await subscribeGuardianPush(env.FAMILY_DB, request, env, await readJson(request)));
+  }
+
+  if (url.pathname === "/api/family/push/unsubscribe" && request.method === "DELETE") {
+    return privateJsonResponse(await unsubscribeGuardianPush(env.FAMILY_DB, request, await readJson(request)));
   }
 
   if (url.pathname === "/api/family/notices" && request.method === "GET") {

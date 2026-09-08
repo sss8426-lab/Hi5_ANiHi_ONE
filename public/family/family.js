@@ -5,6 +5,7 @@ const state = {
   reports: [],
   artworks: [],
   activeTab: 'home',
+  pushStatus: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -56,11 +57,95 @@ function clearPrivateUi() {
   state.selectedChildId = '';
   state.reports = [];
   state.artworks = [];
+  state.pushStatus = null;
   ['reportList', 'artworkGallery', 'latestReport', 'latestArtworks'].forEach((id) => {
     const node = $(id);
     if (node) node.replaceChildren();
   });
   if ($('childSelect')) $('childSelect').replaceChildren();
+}
+
+function urlBase64ToUint8Array(value) {
+  const padded = `${value}${'='.repeat((4 - (value.length % 4)) % 4)}`.replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(padded);
+  return Uint8Array.from(raw, (character) => character.charCodeAt(0));
+}
+
+function setPushMessage(message = '') {
+  const element = $('pushHelp');
+  if (!element) return;
+  element.textContent = message;
+  element.classList.toggle('hidden', !message);
+}
+
+function renderPushStatus(status) {
+  state.pushStatus = status;
+  const label = $('pushStatus');
+  const button = $('pushToggleBtn');
+  if (!label || !button) return;
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+    label.textContent = '이 브라우저는 푸시 알림을 지원하지 않습니다.';
+    button.disabled = true;
+    return;
+  }
+  const permission = Notification.permission;
+  if (!status.configured || !status.subscriptionReady) {
+    label.textContent = '알림 서비스 설정을 준비하고 있습니다.';
+    button.disabled = true;
+    return;
+  }
+  if (permission === 'denied') {
+    label.textContent = '브라우저에서 알림이 차단되어 있습니다.';
+    button.disabled = false;
+    button.textContent = '설정 안내';
+    return;
+  }
+  button.disabled = false;
+  button.textContent = status.subscribed ? '알림 끄기' : '알림 받기';
+  label.textContent = status.subscribed
+    ? '이 기기에서 새 소식 알림을 받고 있습니다.'
+    : permission === 'granted' ? '이 기기에서 알림을 켤 수 있습니다.' : '알림을 받으려면 버튼을 눌러 허용해 주세요.';
+  setPushMessage(status.configured
+    ? 'iPhone에서는 홈 화면에 추가한 뒤 알림을 허용할 수 있습니다. 로그아웃해도 이 기기의 알림 설정은 유지됩니다.'
+    : '알림 발송 설정이 아직 완료되지 않았습니다. 설정이 완료되면 이 기기에서만 알림을 받을 수 있습니다.');
+}
+
+async function loadPushStatus() {
+  try {
+    renderPushStatus(await api('/api/family/push/status'));
+  } catch (error) {
+    if (!genericAccessMessage(error)) setPushMessage('알림 상태를 확인하지 못했습니다.');
+  }
+}
+
+async function togglePush() {
+  const status = state.pushStatus;
+  if (!status || !('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return;
+  if (Notification.permission === 'denied') {
+    setPushMessage('브라우저 설정에서 꿈이음 알림을 허용한 뒤 다시 시도해 주세요. iPhone은 홈 화면에 추가한 앱에서 설정할 수 있습니다.');
+    return;
+  }
+  const registration = await navigator.serviceWorker.ready;
+  const existing = await registration.pushManager.getSubscription();
+  if (status.subscribed && existing) {
+    await api('/api/family/push/unsubscribe', { method: 'DELETE', body: JSON.stringify({ endpoint: existing.endpoint }) });
+    await existing.unsubscribe();
+    setPushMessage('이 기기의 알림을 껐습니다.');
+    return loadPushStatus();
+  }
+  if (!status.subscriptionReady || !status.publicKey) return;
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') return loadPushStatus();
+  const subscription = existing || await registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(status.publicKey),
+  });
+  await api('/api/family/push/subscribe', {
+    method: 'POST',
+    body: JSON.stringify({ endpoint: subscription.endpoint, keys: subscription.toJSON().keys || {}, platform: navigator.userAgent.slice(0, 120) }),
+  });
+  setPushMessage('이 기기에서 알림을 받도록 설정했습니다.');
+  return loadPushStatus();
 }
 
 function unavailable(error) {
@@ -256,6 +341,7 @@ async function enterFamily(session) {
   $('guardianAccountName').textContent = text(session.displayName, '보호자');
   showView('familyView');
   switchTab('home');
+  await loadPushStatus();
   try {
     const response = await api('/api/family/children');
     state.children = Array.isArray(response.children) ? response.children : [];
@@ -351,6 +437,7 @@ $('childSelect').addEventListener('change', (event) => loadChildFeed(event.targe
 $('retryBtn').addEventListener('click', checkSession);
 $('logoutBtn').addEventListener('click', logout);
 $('logoutTopBtn').addEventListener('click', logout);
+$('pushToggleBtn').addEventListener('click', () => togglePush().catch((error) => setPushMessage(error?.status === 503 ? '알림 발송 설정을 준비하고 있습니다.' : '알림 설정을 완료하지 못했습니다.')));
 document.querySelectorAll('[data-tab]').forEach((button) => button.addEventListener('click', () => switchTab(button.dataset.tab)));
 document.querySelectorAll('[data-go-tab]').forEach((button) => button.addEventListener('click', () => switchTab(button.dataset.goTab)));
 

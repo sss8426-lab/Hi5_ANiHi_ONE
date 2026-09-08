@@ -43,3 +43,29 @@ self.addEventListener('fetch', (event) => {
     })),
   );
 });
+
+self.addEventListener('push', (event) => {
+  let noticeId = '';
+  try {
+    const payload = event.data ? event.data.json() : {};
+    noticeId = String(payload?.noticeId || '').slice(0, 160);
+  } catch {
+    // Keep the notification generic when a provider payload is malformed.
+  }
+  const route = noticeId ? `/family/?openNotice=${encodeURIComponent(noticeId)}` : '/family/';
+  event.waitUntil(self.registration.showNotification('꿈이음', {
+    body: '꿈이음 새 소식이 도착했습니다.',
+    tag: `kkumeum-notice-${noticeId || 'latest'}`,
+    renotify: false,
+    data: { route },
+  }));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const route = String(event.notification.data?.route || '/family/');
+  event.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
+    const existing = windows.find((client) => new URL(client.url).origin === self.location.origin);
+    return existing ? existing.focus().then(() => existing.navigate(route)) : clients.openWindow(route);
+  }));
+});

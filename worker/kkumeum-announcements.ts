@@ -104,7 +104,7 @@ function guardianBindings(guardianId: string): string[] {
   return [guardianId, guardianId, guardianId, guardianId];
 }
 
-type TargetVisibility = { sql: string; bindings: string[] };
+export type TargetVisibility = { sql: string; bindings: string[] };
 
 async function consentPolicy(familyDb: D1Database): Promise<KkumeumConsentPolicy> {
   await ensureKkumeumConsentSchema(familyDb);
@@ -129,7 +129,7 @@ async function consentPolicy(familyDb: D1Database): Promise<KkumeumConsentPolicy
   return policy;
 }
 
-function targetVisibility(guardianId: string, policy: KkumeumConsentPolicy): TargetVisibility {
+export function targetVisibility(guardianId: string, policy: KkumeumConsentPolicy): TargetVisibility {
   if (!policy.enforcementEnabled || !policy.consentType || !policy.requiredVersion) {
     return { sql: VISIBLE_TARGET_SQL, bindings: guardianBindings(guardianId) };
   }
@@ -192,6 +192,22 @@ function targetVisibility(guardianId: string, policy: KkumeumConsentPolicy): Tar
       type, version, guardianId,
     ],
   };
+}
+
+export async function guardianCanViewPublishedAnnouncement(
+  familyDb: D1Database,
+  announcementId: string,
+  guardianId: string,
+): Promise<boolean> {
+  await ensureKkumeumAnnouncementSchema(familyDb);
+  const visibility = targetVisibility(guardianId, await consentPolicy(familyDb));
+  const visible = await familyDb.prepare(`SELECT a.id
+    FROM announcements a
+    INNER JOIN announcement_targets t ON t.announcement_id = a.id
+    WHERE a.id = ? AND a.status = 'published' AND a.published_at IS NOT NULL
+      AND ${visibility.sql}
+    LIMIT 1`).bind(announcementId, ...visibility.bindings).first<{ id: string }>();
+  return Boolean(visible);
 }
 
 export async function listGuardianNotices(
