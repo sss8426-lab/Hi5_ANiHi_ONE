@@ -23,7 +23,7 @@ Until the four settings below exist, the API intentionally reports `push_not_con
 3. `PUSH_VAPID_SUBJECT`: a monitored `mailto:` contact value. Store as a Cloudflare secret or protected environment value.
 4. `PUSH_SUBSCRIPTION_ENCRYPTION_KEY`: a randomly generated 32-byte URL-safe base64 key. Store only as a Cloudflare secret. It encrypts subscription endpoint and browser keys in `FAMILY_DB`.
 
-Do not put any of these values in Git, GitHub Issue/PR comments, browser code, D1 rows, logs, or a Worker response. A real Push test also requires a human-operated browser subscription, so it is intentionally separate from CI and this deployment.
+`PUSH_VAPID_PUBLIC_KEY` is intentionally returned by the authenticated status API because the browser needs it to create a subscription. Do not put the private JWK, subscription encryption key, or their raw derived values in Git, GitHub Issue/PR comments, browser code, D1 rows, logs, or a Worker response. A real Push test also requires a human-operated browser subscription, so it is intentionally separate from CI and this deployment.
 
 ## Schema
 
