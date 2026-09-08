@@ -71,3 +71,9 @@ tail delivery. Successful schema initialization is now memoized per D1 binding i
 a WeakMap; failures evict the promise so the next request can retry. This caches
 only schema readiness, never user authorization or knowledge/API results. The D1
 regression also injects a failed initialization and asserts retry and no repeated DDL.
+
+The sequential goals + graph UI request budget is 45 seconds (not 15 seconds),
+bounded by the same navigation cancellation and stale-response guard. Production
+cold requests can each take several seconds even after removing repeated DDL.
+A synthetic browser case holds a successful response beyond the old 15-second
+limit and checks that loading continues and the eventual result renders.

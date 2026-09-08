@@ -90,7 +90,8 @@ async function loadConnectedPrograms(career) {
   state.controller?.abort();
   const controller = new AbortController();
   state.controller = controller;
-  const timeout = setTimeout(() => controller.abort(), 15000);
+  // Goals and graph are sequential; allow cold-start D1 setup for both requests.
+  const timeout = setTimeout(() => controller.abort(), 45000);
   notice('대학별 전형 정보를 확인하고 있습니다.');
   try {
     const { goals = [] } = await api('/api/data-core/roadmap/goals', controller.signal);

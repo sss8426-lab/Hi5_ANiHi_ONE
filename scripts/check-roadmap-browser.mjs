@@ -109,6 +109,17 @@ try {
   webtoonStarted = new Promise((resolve) => { announceWebtoon = resolve; });
   await page.goto(base + '/data-core/roadmap#family=story&career=D001');
   await webtoonStarted;
+  await page.waitForTimeout(16000);
+  assert.match(await page.locator('#notice').textContent(), /확인하고 있습니다/);
+  releaseWebtoon();
+  holdWebtoon = false;
+  await page.locator('.university-item').first().waitFor();
+  assert.equal(await page.locator('#notice').isVisible(), false);
+  checks += 2;
+  holdWebtoon = true;
+  webtoonStarted = new Promise((resolve) => { announceWebtoon = resolve; });
+  await page.reload();
+  await webtoonStarted;
   await page.evaluate(() => { location.hash = 'family=design&career=D017'; });
   await page.locator('.department').filter({ hasText: '시각디자인학과' }).first().waitFor();
   releaseWebtoon();
