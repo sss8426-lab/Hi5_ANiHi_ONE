@@ -19,6 +19,10 @@ try {
     {id:'b',title:'합성 두 번째 폴더',campusId:null,createdAt:'2026-09-02'},
     {id:'a',title:'합성 첫 번째 폴더',campusId:'synthetic-campus',createdAt:'2026-09-01'},
   ];
+  const hqFolders=['class-artwork','director-only','resources','production'].map((key,i)=>({
+    id:`hq-${i}`,title:`Synthetic HQ ${i}`,recordType:'hq-library-folder',sourceApp:'data-core-library',
+    campusId:null,metadata:{folderKey:key,sortOrder:i+1},
+  }));
   const files = (id) => Array.from({length:8},(_,i)=>({id:`${id}-${i}`,recordId:id,mimeType:'image/webp',fileName:`합성 수상작 ${id}-${i}`,category:'competition-material'}));
   await ctx.route('**/*', async route => {
     const req=route.request(), url=new URL(req.url());
@@ -30,13 +34,15 @@ try {
     if (p==='/api/data-core/health') return route.fulfill({json:{ok:true,bindings:{database:true,files:true}}});
     if (p==='/api/data-core/campuses') return route.fulfill({json:{campuses:[{id:'synthetic-campus',name:'합성 캠퍼스'}]}});
     if (p==='/api/data-core/records' && req.method()==='POST') {
-      const body=req.postDataJSON(); const record={...body,id:'c',createdAt:'2026-09-03'};
+      const body=req.postDataJSON();
+      assert.equal(body.recordType,'competition-award-folder','Only the requested synthetic award folder may be created');
+      const record={...body,id:'c',createdAt:'2026-09-03'};
       folders.push(record);return route.fulfill({status:201,json:{record}});
     }
     if (p==='/api/data-core/records/c' && req.method()==='DELETE') {
       folders=folders.filter(f=>f.id!=='c');return route.fulfill({json:{ok:true}});
     }
-    if (p==='/api/data-core/records') return route.fulfill({json:{records:folders}});
+    if (p==='/api/data-core/records') return route.fulfill({json:{records:url.searchParams.get('recordType')==='competition-award-folder'?folders:hqFolders}});
     if (p==='/api/data-core/files' && req.method()==='POST') return route.fulfill({status:201,json:{file:{id:'synthetic-upload'}}});
     if (p==='/api/data-core/files') {
       const id=url.searchParams.get('recordId');
