@@ -38,12 +38,13 @@ $('role').addEventListener('change', () => $('campusField').classList.toggle('hi
 $('temporaryPassword').value = password();
 $('createForm').addEventListener('submit', async (event) => {
   event.preventDefault(); notice('');
+  const form = event.currentTarget;
   const temporaryPassword = $('temporaryPassword').value;
   try {
     await api('/api/auth/accounts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ displayName: $('displayName').value, loginId: $('loginId').value, role: $('role').value, campusId: $('role').value === 'SUPER_ADMIN' ? null : $('campusId').value, temporaryPassword }) });
     $('temporaryResult').textContent = `임시 비밀번호: ${temporaryPassword}`;
     $('temporaryResult').classList.remove('hidden');
-    event.currentTarget.reset(); $('temporaryPassword').value = password(); await load();
+    form.reset(); $('temporaryPassword').value = password(); await load();
   } catch (error) { notice(error.message); }
 });
 $('accountsBody').addEventListener('click', async (event) => {
