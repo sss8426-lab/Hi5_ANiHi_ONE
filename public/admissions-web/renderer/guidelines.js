@@ -37,9 +37,19 @@ const ratioSummary=(row,kind)=>{
 export async function renderGuidelines(season) {
   const root=document.getElementById(season); if(!root || root.classList.contains('hidden')) return;
   const filters=state[season];
-  let deepLink;
-  try { deepLink=new URLSearchParams(window.top.location.hash.slice(1)).get('guideline'); } catch { deepLink=new URLSearchParams(location.hash.slice(1)).get('guideline'); }
+  let historyWindow=window;
+  try { if(window.top.location.origin===location.origin)historyWindow=window.top; } catch { /* Standalone or cross-origin host. */ }
+  let deepLink=new URLSearchParams(historyWindow.location.hash.slice(1)).get('guideline');
+  delete filters.id;
   if(deepLink)filters.id=deepLink;
+  function clearDeepLink() {
+    deepLink=null;delete filters.id;
+    const params=new URLSearchParams(historyWindow.location.hash.slice(1));
+    if(params.has('guideline')){
+      params.delete('guideline');
+      historyWindow.history.replaceState(historyWindow.history.state,'',`#${params}`);
+    }
+  }
   root.innerHTML=`<div class="top"><div><h1>${names[season]}</h1><p>${season==='susi'?'전국 미술·디자인계열 수시 전형':'전국 미술·디자인계열 정시 전형과 수능·실기 반영방법'}</p></div><div class="actions"><button class="btn" data-other>${names[season==='susi'?'jungsi':'susi']} →</button><button class="btn" data-sync hidden>↻ 입시요강 데이터 새로고침</button></div></div><form class="guideline-toolbar"><label class="query">대학·학과·지역·전형 검색<input name="query" type="search" value="${h(filters.query || '')}" placeholder="대학명, 학과, 전형명"></label><label>학년도<select name="year"><option value="">전체</option></select></label><label>지역<select name="region"><option value="">전체</option></select></label><button class="btn primary" type="submit">검색</button><button class="btn" type="reset">초기화</button></form><details><summary>상세 조건</summary><div class="guideline-filters">${[['university','대학'],['major','연결 직업·전공'],['category','전형유형'],['practical','실기유형'],...(season==='jungsi'?[['group','모집군'],['csatSubjects','수능 응시영역']]:[['minimum','수능최저']]),['gradeRatio','학생부 비율'],['practicalRatio','실기 비율'],...(season==='jungsi'?[['csatRatio','수능 비율']]:[]),['sort','정렬']].map(([name,label])=>`<label>${label}<select name="${name}"><option value="">전체</option></select></label>`).join('')}</div></details><div class="guideline-status" role="status" data-status>저장된 입시요강을 불러오고 있습니다.</div><div data-results></div><p class="guideline-note">출처: 그리날다 공개 입시정보 · 회원 전용 상세정보는 수집하지 않습니다.<br>반영비율을 단일 수치로 확인할 수 없는 단계별 전형은 상세 반영방법을 확인하세요.<br>실제 지원 전 반드시 해당 대학의 공식 모집요강을 확인하세요.</p>`;
   root.querySelector('[data-other]').onclick=()=>document.querySelector(`#nav button[data-page="${season==='susi'?'jungsi':'susi'}"]`).click();
   const status=root.querySelector('[data-status]');
@@ -48,7 +58,7 @@ export async function renderGuidelines(season) {
   status.before(mappingFilters);
   const form=root.querySelector('form');
   let currentRows=[];
-  const readFilters=()=>{root.querySelectorAll('input[name],select[name]').forEach((el)=>filters[el.name]=el.value);filters.page=1;};
+  const readFilters=()=>{clearDeepLink();root.querySelectorAll('input[name],select[name]').forEach((el)=>filters[el.name]=el.value);filters.page=1;};
   function options(name,values,labels) {
     const el=root.querySelector(`select[name="${name}"]`);if(!el)return;
     el.innerHTML='<option value="">전체</option>'+values.map((v)=>`<option value="${h(v)}">${h(labels?.[v] || v)}</option>`).join('');el.value=filters[name] || '';
@@ -61,6 +71,7 @@ export async function renderGuidelines(season) {
   async function load() {
     const id=++requestId;controller?.abort();controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),45000);
     status.hidden=false;status.textContent='저장된 입시요강을 확인하고 있습니다.';
+    currentRows=[];root.querySelector('[data-results]').replaceChildren();
     try {
       const params=new URLSearchParams({...filters,season});const data=await api(`${endpoint}?${params}`,null,controller.signal);
       if(id!==requestId || root.classList.contains('hidden'))return;
@@ -73,7 +84,7 @@ export async function renderGuidelines(season) {
     }catch(error){if(id===requestId){status.textContent=error.name==='AbortError'?'조회 시간이 길어졌습니다. 다시 검색해주세요.':error.message;root.querySelector('[data-results]').replaceChildren();}}
     finally{clearTimeout(timeout);}
   }
-  form.onsubmit=(e)=>{e.preventDefault();readFilters();load();};form.onreset=(e)=>{e.preventDefault();state[season]={};renderGuidelines(season);};
+  form.onsubmit=(e)=>{e.preventDefault();readFilters();load();};form.onreset=(e)=>{e.preventDefault();clearDeepLink();state[season]={};renderGuidelines(season);};
   root.querySelectorAll('select').forEach((el)=>el.onchange=()=>{readFilters();load();});
   root.querySelector('[data-sync]').onclick=async()=>{
     const button=root.querySelector('[data-sync]');button.disabled=true;status.hidden=false;status.textContent='공개 원본을 확인하고 변경사항을 비교합니다. 기존 대학 데이터는 수정하지 않습니다.';

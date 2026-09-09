@@ -13,9 +13,10 @@ const art = (career) => {
 };
 const pathFor = (career) => `#family=${career.family}&career=${career.id}`;
 
-function notice(message, login = false) {
+function notice(message, login = false, retry = false) {
   $('notice').hidden = !message;
-  $('notice').innerHTML = h(message) + (login ? ` <a href="/data-core/login?next=${encodeURIComponent('/data-core/roadmap' + pathFor(state.career))}">교직원 로그인</a>` : '');
+  $('notice').innerHTML = h(message) + (login ? ` <a href="/data-core/login?next=${encodeURIComponent('/data-core/roadmap' + pathFor(state.career))}">교직원 로그인</a>` : '') + (retry ? ' <button type="button" class="secondary-button notice-retry">다시 불러오기</button>' : '');
+  if(retry)$('notice').querySelector('button').onclick=()=>{if(state.career)loadConnectedPrograms(state.career);};
 }
 
 function renderCatalog() {
@@ -133,7 +134,7 @@ async function loadConnectedPrograms(career) {
   } catch (error) {
     if (requestId !== state.request) return;
     setPrograms([]);
-    notice(error.status === 401 ? '대학별 운영 입시정보는 교직원 로그인 후 확인할 수 있어요.' : '대학별 전형 정보를 불러오지 못했습니다. 잠시 후 다시 선택해주세요.', error.status === 401);
+    notice(error.status === 401 ? '대학별 운영 입시정보는 교직원 로그인 후 확인할 수 있어요.' : error.status === 403 ? '대학별 전형 정보를 볼 권한이 없습니다.' : '대학별 전형 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.', error.status === 401, ![401,403].includes(error.status));
   } finally { clearTimeout(timeout); }
 }
 
