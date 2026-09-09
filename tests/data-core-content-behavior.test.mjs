@@ -183,6 +183,44 @@ async function createHarness() {
   return { mf, env, request, requestForm, createDraft, seedFile };
 }
 
+test("file and trash campus filters reject unauthorized scopes before returning an empty list", async () => {
+  const h = await createHarness();
+  try {
+    await h.env.DB.prepare("UPDATE memberships SET role = 'STAFF' WHERE user_id = ?")
+      .bind(`oai:${users.a.id}`).run();
+    for (const path of ["/api/data-core/files", "/api/data-core/trash/files"]) {
+      const foreign = await h.request("GET", `${path}?campusId=${CAMPUS_B}&q=no-matching-synthetic-file`, users.a);
+      assert.equal(foreign.response.status, 403, `${path} must reject a foreign campus even when empty`);
+      assert.equal("files" in foreign.body, false);
+      const unknown = await h.request("GET", `${path}?campusId=synthetic-unknown-campus`, users.a);
+      assert.equal(unknown.response.status, 403);
+      assert.deepEqual(unknown.body, foreign.body);
+      const own = await h.request("GET", `${path}?campusId=${CAMPUS_A}&q=no-matching-synthetic-file`, users.a);
+      assert.equal(own.response.status, 200);
+      assert.deepEqual(own.body.files, []);
+      const multiCampus = await h.request("GET", `${path}?campusId=${CAMPUS_B}`, users.b);
+      assert.equal(multiCampus.response.status, 200);
+      const admin = await h.request("GET", `${path}?campusId=${CAMPUS_B}`, users.admin);
+      assert.equal(admin.response.status, 200);
+      const anonymous = await h.request("GET", `${path}?campusId=${CAMPUS_A}`);
+      assert.equal(anonymous.response.status, 401);
+      const unfiltered = await h.request("GET", path, users.a);
+      assert.equal(unfiltered.response.status, 200);
+      assert.equal(unfiltered.body.files.some((file) => file.id === "file-private-b"), false);
+    }
+    await h.seedFile({ id: "synthetic-foreign-private", campusId: CAMPUS_B, ownerUserId: users.b.id, visibility: "campus" });
+    const fileRead = await h.request("GET", "/api/data-core/files/synthetic-foreign-private", users.a);
+    assert.equal(fileRead.response.status, 403);
+    const before = await h.env.DB.prepare("SELECT COUNT(*) AS count FROM file_objects").first();
+    const listed = await h.request("GET", `/api/data-core/files?campusId=${CAMPUS_B}`, users.a);
+    assert.equal(listed.response.status, 403);
+    const after = await h.env.DB.prepare("SELECT COUNT(*) AS count FROM file_objects").first();
+    assert.equal(after.count, before.count);
+  } finally {
+    await h.mf.dispose();
+  }
+});
+
 test("content API enforces draft lifecycle, file reuse, filters, and permissions", async () => {
   const h = await createHarness();
   try {

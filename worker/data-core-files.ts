@@ -345,6 +345,7 @@ export async function listDataCoreFiles(
 ) {
   requireAuthenticatedAccess(context);
   const campusId = cleanText(url.searchParams.get("campusId"), 120);
+  if (campusId) requireCampusAccess(context, campusId);
   const category = cleanText(url.searchParams.get("category"), 80);
   const recordId = cleanText(url.searchParams.get("recordId"), 120);
   const sourceApp = cleanText(url.searchParams.get("sourceApp"), 80);
@@ -400,6 +401,7 @@ export async function listDeletedDataCoreFiles(
 ) {
   requireAuthenticatedAccess(context);
   const campusId = cleanText(url.searchParams.get("campusId"), 120);
+  if (campusId) requireCampusAccess(context, campusId);
   const q = cleanText(url.searchParams.get("q"), 120);
   const limit = Math.min(Math.max(Number(url.searchParams.get("limit")) || 50, 1), 100);
   const conditions = ["fo.organization_id = ?", "fo.deleted_at IS NOT NULL"];
