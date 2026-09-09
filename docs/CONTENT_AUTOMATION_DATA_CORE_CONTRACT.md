@@ -50,12 +50,31 @@
 
 ```json
 {
-  "derivedFromFileId": "...",
-  "transformType": "instagram-4x5",
+  "schemaVersion": 1,
+  "derivedFromFileId": "original-file-id",
+  "derivativeFileId": "new-file-id",
+  "derivativeType": "instagram-4x5",
   "width": 2160,
-  "height": 2700
+  "height": 2700,
+  "aspectRatio": "4:5",
+  "createdBy": "instagram-editor"
 }
 ```
+
+### Deterministic Instagram derivative (2026-09-09)
+
+- Canvas cover crop, centered by default; horizontal/vertical crop sliders. JPEG/PNG/WebP sources, PNG output only. No AI provider or external publishing.
+- `POST /api/data-core/instagram/derivatives`: same-origin multipart `derivedFromFileId` and `file`. Output must decode as a valid, CRC-checked, non-interlaced 8-bit RGB/RGBA PNG at 2160 x 2700, at most 8 MiB. Bounded decompression and a restricted chunk set reject malformed/bomb payloads.
+- Server inherits source campus, owner and visibility. A caller needs write access, source read access, and source campus access. Derivative chains are not accepted.
+- New `file_objects` row: `sourceApp=instagram`, `category=instagram-derived`, new R2 key under existing FILES. Source row and bytes are never changed.
+- Existing `data_records.metadata_json` stores the immutable provenance above as reserved `recordType=instagram-derived-file`; the output's `data_record_id` points to it. No schema or binding changes.
+- Reserved provenance records cannot be created, changed, deleted or linked by generic record/upload APIs. File list responses include validated `metadata`; reads and draft linking recheck the original's current authorization. Missing/deleted/restricted sources fail closed.
+- Private binaries remain behind `/api/data-core/files/:id`. No R2 URL is returned. Generic legacy `/api/files/:key` cannot read DATA CORE keys.
+- `metadata.relatedFileIds` references originals; `metadata.derivedFileIds` references outputs, validated on create/update. Blog continues to use the same original without creating a derivative.
+- Delete outputs through the existing soft-trash policy first, then the synthetic source; R2 objects are retained. Provenance remains for traceability. Source soft-trash makes outputs unreadable until the source is restored and authorized.
+- A save completing after a user switches drafts remains in FILES but is not attached to the new draft. The output can be found through the `instagram-derived` file filter.
+
+Local synthetic browser verification: `node scripts/test-instagram-browser.mjs` with Playwright installed (or `PLAYWRIGHT_MODULE` set to its absolute module path); optional `PLAYWRIGHT_CHANNEL=chrome`. This loopback-only fixture never connects to production. Screenshots go to ignored `outputs/instagram-derivative/`.
 
 ## 3. 콘텐츠 레코드
 

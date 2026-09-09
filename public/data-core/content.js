@@ -7,7 +7,11 @@ const state = {
   sourceApp: location.pathname.endsWith('/instagram') ? 'instagram' : 'blog',
   editingDraftId: null,
   selectedFileIds: [],
+  selectedDerivedFileIds: [],
+  knownFiles: new Map(),
 };
+
+let derivativeEditor;
 
 const $ = (id) => document.getElementById(id);
 
@@ -61,6 +65,7 @@ function categoryLabel(category) {
     'award-work': '수상작',
     'admission-guide': '입시요강',
     'research-work': '연구작',
+    'instagram-derived': '인스타 파생 이미지',
     document: '문서',
   })[category] || category || '기타';
 }
@@ -162,12 +167,22 @@ function setSourceApp(sourceApp) {
 }
 
 function selectedFiles() {
-  const map = new Map(state.files.map((file) => [String(file.id), file]));
-  return state.selectedFileIds.map((id) => map.get(String(id)) || { id, fileName: id });
+  return state.selectedFileIds.map((id) => state.knownFiles.get(String(id)) || { id, fileName: id });
 }
 
 function renderSelectedFiles() {
   const rows = selectedFiles();
+  derivativeEditor?.update(rows, state.sourceApp === 'instagram');
+  $('selectedDerivatives').innerHTML = state.selectedDerivedFileIds.map((id) => {
+    const file = state.knownFiles.get(String(id));
+    return `<div class="selected-file derived-selection"><img src="/api/data-core/files/${encodeURIComponent(id)}" alt="인스타 파생 이미지" loading="lazy"><div><strong>${h(file?.fileName || '인스타 파생 이미지')}</strong><small>2160 × 2700px · 4:5</small></div><button class="ghost-btn" data-remove-derived="${h(id)}" type="button">제외</button></div>`;
+  }).join('');
+  $('selectedDerivatives').querySelectorAll('[data-remove-derived]').forEach((button) => {
+    button.onclick = () => {
+      state.selectedDerivedFileIds = state.selectedDerivedFileIds.filter((id) => id !== button.dataset.removeDerived);
+      renderSelectedFiles(); renderFilePicker();
+    };
+  });
   $('selectedFiles').innerHTML = rows.length ? rows.map((file) => `<div class="selected-file">
     <div>
       <strong>${h(file.fileName || file.id)}</strong>
@@ -215,6 +230,7 @@ async function loadFiles() {
   try {
     const response = await api(`/api/data-core/files?${params}`);
     state.files = response.files || [];
+    state.files.forEach((file) => state.knownFiles.set(String(file.id), file));
     renderFilePicker();
     renderSelectedFiles();
   } catch (error) {
@@ -229,7 +245,7 @@ function renderFilePicker() {
     return;
   }
   list.innerHTML = state.files.map((file) => {
-    const selected = state.selectedFileIds.includes(String(file.id));
+    const selected = [...state.selectedFileIds, ...state.selectedDerivedFileIds].includes(String(file.id));
     return `<article class="file-pick-item">
       <div>
         <strong>${h(file.fileName)}</strong>
@@ -245,9 +261,8 @@ function renderFilePicker() {
   document.querySelectorAll('[data-pick-file]').forEach((button) => {
     button.onclick = () => {
       const id = String(button.dataset.pickFile);
-      state.selectedFileIds = state.selectedFileIds.includes(id)
-        ? state.selectedFileIds.filter((item) => item !== id)
-        : [...state.selectedFileIds, id];
+      const key = state.knownFiles.get(id)?.category === 'instagram-derived' ? 'selectedDerivedFileIds' : 'selectedFileIds';
+      state[key] = state[key].includes(id) ? state[key].filter((item) => item !== id) : [...state[key], id];
       renderFilePicker();
       renderSelectedFiles();
     };
@@ -264,6 +279,7 @@ function draftPayload() {
     contentPurpose: $('contentPurpose').value,
     publishStatus: $('publishStatus').value,
     relatedFileIds: state.selectedFileIds,
+    derivedFileIds: state.selectedDerivedFileIds,
     tags: $('draftTags').value.split(',').map((item) => item.trim()).filter(Boolean),
   };
 }
@@ -298,6 +314,8 @@ async function saveDraft(event) {
 function resetDraftForm(clearSource = true) {
   state.editingDraftId = null;
   state.selectedFileIds = [];
+  state.selectedDerivedFileIds = [];
+  derivativeEditor?.reset();
   $('draftForm').reset();
   if (!clearSource) {
     $('publishStatus').value = 'draft';
@@ -323,6 +341,7 @@ function loadDraftIntoForm(draft) {
   $('draftTags').value = (draft.tags || []).join(', ');
   $('publishStatus').value = metadata.publishStatus || 'draft';
   state.selectedFileIds = Array.isArray(metadata.relatedFileIds) ? metadata.relatedFileIds.map(String) : [];
+  state.selectedDerivedFileIds = Array.isArray(metadata.derivedFileIds) ? metadata.derivedFileIds.map(String) : [];
   $('newDraftBtn').classList.remove('hidden');
   $('deleteDraftBtn').classList.remove('hidden');
   $('saveDraftBtn').textContent = '초안 수정';
@@ -355,7 +374,7 @@ function renderDrafts() {
   }
   list.innerHTML = state.drafts.map((draft) => {
     const metadata = draft.metadata || {};
-    const files = Array.isArray(metadata.relatedFileIds) ? metadata.relatedFileIds.length : 0;
+    const files = (metadata.relatedFileIds?.length || 0) + (metadata.derivedFileIds?.length || 0);
     const snippet = draft.content || draft.summary || '';
     return `<article class="draft-card">
       <div>
@@ -414,6 +433,16 @@ function bindEvents() {
 }
 
 async function init() {
+  derivativeEditor = window.HI5InstagramDerivative.mount({
+    canWrite,
+    onError: (message) => toast(message, 'error'),
+    onSaved: (file) => {
+      state.knownFiles.set(String(file.id), file);
+      state.files.unshift(file);
+      state.selectedDerivedFileIds.push(String(file.id));
+      renderSelectedFiles(); renderFilePicker();
+    },
+  });
   bindEvents();
   setSourceApp(state.sourceApp);
   await loadHealthAndContext();

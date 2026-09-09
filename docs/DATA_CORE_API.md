@@ -356,6 +356,14 @@ DATA CORE에 로그인 기록이 있는 사용자 조회.
 
 # 개발 원칙
 
+## Instagram derivative API (2026-09-09)
+
+`POST /api/data-core/instagram/derivatives` requires an authenticated writer and an exact same-origin `Origin` header. Multipart fields: `derivedFromFileId`, `file` (PNG, 2160 x 2700, <= 8 MiB). JPEG/PNG/WebP original selection is supported by the browser Canvas editor. The server validates actual PNG bytes and inherits source authorization; client campus/owner/visibility/provenance are ignored.
+
+Returns HTTP 201 `{ file: { id, campusId, sourceApp, category, fileName, mimeType, sizeBytes, visibility, metadata, downloadUrl, createdAt } }`. `metadata.derivedFromFileId` is the original file ID; output `id` is always new. Metadata lives in the existing linked `data_records` JSON with reserved type `instagram-derived-file`. Generic record mutations are denied for that type. List/read and content attachment recheck source access. Original bytes/row are unchanged. See `CONTENT_AUTOMATION_DATA_CORE_CONTRACT.md` for format limits and cleanup.
+
+Content create/update accepts additive `derivedFileIds` alongside existing `relatedFileIds`. Both are canonicalized into draft metadata; derived IDs must be authorized registered outputs.
+
 1. 새 앱은 별도 파일 저장소를 만들지 않는다.
 2. 파일은 R2, 메타데이터/관계는 DATA CORE DB에 저장한다.
 3. 캠퍼스와 업로더 정보를 가능한 모든 데이터에 남긴다.

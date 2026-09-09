@@ -17,6 +17,7 @@ import {
   upsertDataCoreMembership,
 } from "./data-core-admin";
 import { listAuditLogs } from "./data-core-audit";
+import { createInstagramDerivative } from './data-core-derivatives';
 import {
   deleteDataCoreFile,
   listDataCoreFiles,
@@ -262,6 +263,11 @@ async function handleDataCoreApi(request: Request, env: Env) {
     env.DB,
     env.DATA_CORE_SUPER_ADMIN_EMAILS,
   );
+
+  if (url.pathname === '/api/data-core/instagram/derivatives' && request.method === 'POST') {
+    if (!env.DB || !env.FILES) throw new DataCoreAccessError(503, 'DATA CORE 저장소가 연결되지 않았습니다.');
+    return jsonResponse({file:await createInstagramDerivative(request, env.DB, env.FILES, context)}, {status:201});
+  }
 
   if (url.pathname === "/api/data-core/context" && request.method === "GET") {
     return jsonResponse(context);

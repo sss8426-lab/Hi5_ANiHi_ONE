@@ -2,6 +2,10 @@
 
 기준일: 2026-09-07
 
+## 2026-09-09 Issue #18 derivative implementation
+
+Instagram now has a deterministic Canvas 4:5 editor, 2160 x 2700 PNG save to the existing FILES, immutable original-file provenance in existing DATA CORE JSON metadata, and draft `derivedFileIds`. Source permissions are inherited and rechecked on output reads. No AI generation, external posting, new DB, schema/binding changes, or real-data migration is included. Existing Phase A/other Phase B production acceptance is not rerun. Production acceptance for these two new items must be recorded separately in Issue #18 after CI, Preview, production deploy and synthetic-only smoke; implementation alone is not production proof.
+
 ## 1. 프로젝트의 최종 목적
 
 HI5미술학원·ANiHi만화학원의 모든 정보와 파일을 하나의 중앙 데이터 허브에 축적하고, 여러 웹앱이 동일한 데이터를 공유·검색·분석하도록 만든다.
