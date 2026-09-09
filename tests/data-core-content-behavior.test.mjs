@@ -758,6 +758,47 @@ test("competition award folders link existing DATA CORE files and preserve origi
   }
 });
 
+test("award folder files enforce campus authorization and retain R2 bytes after folder deletion", async () => {
+  const h = await createHarness();
+  try {
+    // This harness normally gives B both campuses; keep only B's campus for this isolation test.
+    await h.env.DB.prepare("DELETE FROM memberships WHERE user_id = ? AND campus_id = ?")
+      .bind("oai:user-b", CAMPUS_A).run();
+    const created = await h.request("POST", "/api/data-core/records", users.a, {
+      recordType: "competition-award-folder", sourceApp: "competition", campusId: CAMPUS_A,
+      title: "Synthetic campus award folder", visibility: "campus",
+    });
+    assert.equal(created.response.status, 201);
+    const folderId = created.body.record.id;
+    const upload = (campus) => {
+      const form = new FormData();
+      form.append("file", new File(["synthetic-award-bytes"], "synthetic.png", {type:"image/png"}));
+      form.append("campusId", campus);
+      form.append("category", "competition-material");
+      form.append("recordId", folderId);
+      return form;
+    };
+    assert.equal((await h.request("GET", `/api/data-core/records/${folderId}`, users.b)).response.status, 403);
+    assert.equal((await h.requestForm("/api/data-core/files", users.b, upload(CAMPUS_B))).response.status, 403);
+    const uploaded = await h.requestForm("/api/data-core/files", users.a, upload(CAMPUS_A));
+    assert.equal(uploaded.response.status, 201);
+    const fileId = uploaded.body.file.id;
+    assert.equal((await h.request("GET", `/api/data-core/files/${fileId}`, users.b)).response.status, 403);
+    const otherList = await h.request("GET", `/api/data-core/files?recordId=${folderId}`, users.b);
+    assert.deepEqual(otherList.body.files, []);
+    assert.equal((await h.request("DELETE", `/api/data-core/records/${folderId}`, users.b)).response.status, 403);
+    assert.equal((await h.request("DELETE", `/api/data-core/records/${folderId}`, users.a)).response.status, 200);
+    const retained = await h.request("GET", `/api/data-core/files?recordId=${folderId}`, users.a);
+    assert.equal(retained.response.status, 200);
+    assert.equal(retained.body.files[0].id, fileId);
+    const stored = await h.env.DB.prepare("SELECT r2_key, deleted_at FROM file_objects WHERE id = ?").bind(fileId).first();
+    assert.equal(stored.deleted_at, null);
+    assert.equal(await (await h.env.FILES.get(stored.r2_key)).text(), "synthetic-award-bytes");
+  } finally {
+    await h.mf.dispose();
+  }
+});
+
 test("academy calendar shares validated events while enforcing campus ownership and date ranges", async () => {
   const h = await createHarness();
   try {

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>HI5·ANiHi DATA CORE</title>
-  <link rel="stylesheet" href="/data-core/styles.css?v=20260908-mode-home">
+  <link rel="stylesheet" href="/data-core/styles.css?v=20260909-award-gallery">
 </head>
 <body>
   <div class="app-shell">
@@ -322,20 +322,17 @@
             <div class="panel-head">
               <div>
                 <h3>공모전 및 실기대회 수상작</h3>
-                <p>폴더와 원본 파일 연결은 DATA CORE에서 관리합니다.</p>
               </div>
             </div>
-            <form class="award-folder-form" id="awardFolderForm">
-              <label><span>새 폴더</span><input id="awardFolderTitle" required maxlength="240" placeholder="예: 2026 청강대 실기대전"></label>
-              <label><span>캠퍼스</span><select id="awardFolderCampus"></select></label>
-              <button class="secondary-btn" type="submit">새 폴더</button>
-            </form>
-            <div class="award-folder-list" id="awardFolderList"></div>
+            <div class="award-folder-list" aria-label="수상작 폴더">
+              <button class="secondary-btn" id="openAwardFolderBtn" type="button" disabled>+ 새 폴더</button>
+              <div id="awardFolderList"></div>
+            </div>
             <div class="award-library-head">
               <div><strong id="selectedAwardFolderTitle">수상작 폴더를 선택하세요</strong><small id="selectedAwardFolderMeta">폴더를 지워도 원본 파일은 보존됩니다.</small></div>
               <div class="row-actions">
-                <button class="ghost-btn" id="openAwardUploadBtn" type="button">수상작 업로드</button>
-                <button class="danger-btn" id="deleteAwardFolderBtn" type="button">폴더 삭제</button>
+                <button class="ghost-btn" id="openAwardUploadBtn" type="button" disabled>수상작 업로드</button>
+                <button class="danger-btn" id="deleteAwardFolderBtn" type="button" disabled>폴더 삭제</button>
               </div>
             </div>
             <div class="award-library-grid" id="awardLibraryFiles"></div>
@@ -393,6 +390,24 @@
       </section>
     </main>
   </div>
+
+  <dialog class="award-folder-dialog" id="awardFolderModal" aria-labelledby="awardFolderModalTitle">
+    <div class="modal-head">
+      <h3 id="awardFolderModalTitle">새 폴더</h3>
+      <button class="icon-btn" type="button" data-close-modal="awardFolderModal" aria-label="새 폴더 닫기">×</button>
+    </div>
+    <form class="form-stack" id="awardFolderForm">
+      <label><span>폴더명</span><input id="awardFolderTitle" required maxlength="240" placeholder="예: 청강대 2026" autofocus></label>
+      <label><span>캠퍼스</span><select id="awardFolderCampus"></select></label>
+      <button class="primary-btn" type="submit">폴더 만들기</button>
+    </form>
+  </dialog>
+
+  <dialog class="award-lightbox" id="awardLightbox" aria-label="수상작 크게 보기">
+    <button class="icon-btn" id="closeAwardLightboxBtn" type="button" aria-label="수상작 닫기">×</button>
+    <img id="awardLightboxImage" alt="">
+    <p id="awardLightboxCaption"></p>
+  </dialog>
 
   <div class="modal-backdrop hidden" id="uploadModal">
     <div class="modal">
@@ -472,7 +487,7 @@
   </div>
 
   <div class="toast hidden" id="toast"></div>
-  <script src="/data-core/app.js?v=20260908-academy-calendar"></script>
+  <script src="/data-core/app.js?v=20260909-award-gallery"></script>
   <script src="/data-core/mode-home-artwork.js?v=20260908-mode-home"></script>
 </body>
 </html>
