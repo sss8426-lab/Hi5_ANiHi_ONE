@@ -1,10 +1,11 @@
 (() => {
-  const CACHE_KEY = 'hi5:competition-live-news:v1';
+  const CACHE_KEY = 'hi5:competition-live-news:v2';
   const CACHE_TTL_MS = 10 * 60 * 1000;
   const SOURCES = ['mgood', 'artmd'];
   let liveItems = [];
   let loading = false;
   let loadedAt = 0;
+  let lastErrors = [];
   let calendarObservers = [];
 
   const h = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({
@@ -12,7 +13,9 @@
   }[ch]));
 
   function validLiveItem(item) {
-    return item && (item.sourceStatus === 'open' || item.sourceStatus === 'upcoming');
+    const today = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
+    return item && (item.sourceStatus === 'open' || (item.source === 'mgood' && item.sourceStatus === 'upcoming'))
+      && (!item.applicationEnd || item.applicationEnd >= today);
   }
 
   function dday(value) {
@@ -32,14 +35,18 @@
       const sourceUrl = String(item.sourceUrl || '');
       const title = String(item.title || '').trim();
       if (!sourceUrl || !title) continue;
-      const key = `${sourceUrl}|${title}`;
+      let parsed;
+      try { parsed = new URL(sourceUrl); } catch { continue; }
+      if (!['https:', 'http:'].includes(parsed.protocol)) continue;
+      const externalId = item.externalSourceId || parsed.searchParams.get('c_seq') || parsed.searchParams.get('it_id');
+      const key = externalId ? `${item.source}:${externalId}` : `${parsed.origin}${parsed.pathname}|${title}|${item.applicationStart}|${item.applicationEnd}`;
       if (!map.has(key)) map.set(key, item);
     }
     return [...map.values()].sort((a, b) => {
       const aStatus = a.sourceStatus === 'open' ? 0 : 1;
       const bStatus = b.sourceStatus === 'open' ? 0 : 1;
-      if (aStatus !== bStatus) return aStatus - bStatus;
       return String(a.applicationEnd || '9999-99-99').localeCompare(String(b.applicationEnd || '9999-99-99'))
+        || aStatus - bStatus
         || String(a.title || '').localeCompare(String(b.title || ''), 'ko');
     });
   }
@@ -76,6 +83,7 @@
   }
 
   function renderNews() {
+    liveItems = dedupe(liveItems);
     const list = document.getElementById('competitionSourceList');
     if (!list) return;
     if (!liveItems.length) {
@@ -98,12 +106,12 @@
     }).join('');
   }
 
-  function statusText(errors = []) {
+  function statusText(errors = lastErrors) {
     const status = document.getElementById('competitionSourceStatus');
     if (!status) return;
     const openCount = liveItems.filter((item) => item.sourceStatus === 'open').length;
     const upcomingCount = liveItems.filter((item) => item.sourceStatus === 'upcoming').length;
-    const checked = loadedAt ? new Date(loadedAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '';
+    const checked = loadedAt ? new Date(loadedAt + 9 * 3600000).toISOString().slice(0, 16).replace('T', ' ') : '';
     const suffix = errors.length ? ` · 일부 출처 확인 필요: ${errors.join(', ')}` : '';
     status.textContent = `접수중 ${openCount}건 · 예정 ${upcomingCount}건${checked ? ` · ${checked} 확인` : ''}${suffix}`;
   }
@@ -169,34 +177,32 @@
     }
     loading = true;
     const status = document.getElementById('competitionSourceStatus');
-    if (status) status.textContent = '엠굿·아트앤디자인의 접수중·예정 소식을 확인하는 중...';
+    const button = document.getElementById('refreshCompetitionSourcesBtn');
+    if (button) button.disabled = true;
+    if (status) status.textContent = '공모전 소식을 확인하고 있습니다.';
     const results = await Promise.allSettled(SOURCES.map((source) => previewSource(source)));
     const errors = [];
-    const items = [];
+    let items = [...liveItems];
     results.forEach((result, index) => {
-      if (result.status === 'fulfilled') items.push(...(result.value.items || []));
-      else errors.push(SOURCES[index] === 'mgood' ? '엠굿' : '아트앤디자인');
+      const source = SOURCES[index];
+      const name = source === 'mgood' ? '엠굿' : '아트앤디자인';
+      if (result.status !== 'fulfilled') { errors.push(name); return; }
+      const body = result.value;
+      for (const page of body.pages || []) {
+        if (!page.ok) { errors.push(`${name}${page.url.includes('state=other') ? ' 기타' : ''}`); continue; }
+        items = items.filter((item) => item.sourcePage !== page.url);
+        items.push(...(body.items || []).filter((item) => item.sourcePage === page.url));
+      }
     });
-    if (items.length) {
-      liveItems = dedupe(items);
-      loadedAt = Date.now();
-      saveCache();
-    }
+    liveItems = dedupe(items);
+    lastErrors = errors;
+    loadedAt = Date.now();
+    saveCache();
     renderNews();
     statusText(errors);
     renderCalendarDeadlines();
     loading = false;
-  }
-
-  function setNewsOpen(open) {
-    const workspace = document.getElementById('competitionWorkspace');
-    const panel = document.getElementById('competitionNewsPanel');
-    const show = document.getElementById('showCompetitionNewsBtn');
-    if (!workspace || !panel || !show) return;
-    workspace.classList.toggle('news-closed', !open);
-    panel.classList.toggle('hidden', !open);
-    show.classList.toggle('hidden', open);
-    show.setAttribute('aria-expanded', String(open));
+    if (button) button.disabled = false;
   }
 
   function replaceControl(id, setup) {
@@ -216,18 +222,6 @@
       button.textContent = '새로고침';
       button.onclick = () => refreshLiveNews(true);
     });
-    replaceControl('hideCompetitionNewsBtn', (button) => {
-      button.className = 'ghost-btn competition-news-toggle';
-      button.textContent = '소식 가리기';
-      button.title = '소식 가리기';
-      button.setAttribute('aria-label', '소식 가리기');
-      button.onclick = () => setNewsOpen(false);
-    });
-    replaceControl('showCompetitionNewsBtn', (button) => {
-      button.textContent = '소식 보이기';
-      button.setAttribute('aria-expanded', 'false');
-      button.onclick = () => setNewsOpen(true);
-    });
 
     const actions = document.querySelector('.competition-source-actions');
     if (actions) actions.classList.add('live-only-refresh');
@@ -239,7 +233,6 @@
     style.id = 'competition-live-enhancement-style';
     style.textContent = `
       .competition-source-actions.live-only-refresh{display:flex;justify-content:flex-end}
-      .competition-news-toggle{white-space:nowrap;min-width:86px}
       .live-source-status{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:800}
       .live-source-status.open{background:#fff1f2;color:#e11d48}
       .live-source-status.upcoming{background:#eff6ff;color:#2563eb}
@@ -247,7 +240,7 @@
       .external-calendar-deadlines{margin-top:14px;padding-top:12px;border-top:1px solid #e4e7ec}
       .external-calendar-deadlines h4{margin:0 0 8px;font-size:13px;color:#1d4ed8}
       .external-deadline-row .ghost-btn{flex:0 0 auto}
-      @media(max-width:760px){.competition-news-toggle{min-width:0}.external-deadline-row{align-items:flex-start}}
+      @media(max-width:760px){.external-deadline-row{align-items:flex-start}}
     `;
     document.head.appendChild(style);
   }

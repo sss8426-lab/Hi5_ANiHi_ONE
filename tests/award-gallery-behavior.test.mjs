@@ -9,14 +9,15 @@ function harness() {
   const element = (id) => {
     if (!elements.has(id)) elements.set(id, {
       value: '', disabled: false, innerHTML: '', textContent: '',
-      classList: {add() {}, remove() {}}, setAttribute() {},
-      querySelectorAll: () => [], close() {},
+      classList: {add() {}, remove() {}, toggle() {}}, setAttribute() {},
+      querySelectorAll: () => [], close() {}, showModal() {},
     });
     return elements.get(id);
   };
   const context = vm.createContext({
     document: {getElementById: element, querySelectorAll: () => []},
     console, URLSearchParams, FormData, HTMLDialogElement: class {},
+    AwardImageCache: class {clear() {} remove() {}},
   });
   vm.runInContext(source.slice(0, source.lastIndexOf('init().catch')), context);
   vm.runInContext("state.context = {authenticated:true,canWrite:true,isSuperAdmin:true}; toast = () => {};", context);
@@ -89,4 +90,23 @@ test('folder deletion calls only the record endpoint, never the file or R2 delet
   h.run("state.awardFolders=[{id:'synthetic',title:'합성 폴더'}];state.selectedAwardFolderId='synthetic'");
   await h.run('deleteAwardFolder()');
   assert.deepEqual(calls.filter(([,method])=>method==='DELETE'), [['/api/data-core/records/synthetic','DELETE']]);
+});
+
+test('selection deletion snapshots folder, checks ownership, preserves unselected files and handles partial failure', async () => {
+  const h = harness(), calls = [];
+  h.context.api = async (url, options) => {
+    calls.push([url, options?.method]);
+    if (url.includes('/b?')) throw new Error('synthetic failure');
+    return {files: [{id:'b',recordId:'folder'}, {id:'c',recordId:'folder'}]};
+  };
+  h.run("state.awardFolders=[{id:'folder',title:'합성'}]; state.selectedAwardFolderId='folder'; state.awardFiles=['a','b','c'].map(id=>({id,recordId:'folder'})); awardSelected.add('a');awardSelected.add('b');requestAwardDelete()");
+  assert.equal(h.element('awardDeleteSummary').textContent, '합성 · 선택 2개');
+  await h.run('deleteSelectedAwards()');
+  assert.deepEqual(calls.filter(([,method])=>method==='DELETE').map(([url])=>url), [
+    '/api/data-core/files/a?awardFolderId=folder', '/api/data-core/files/b?awardFolderId=folder',
+  ]);
+  assert.equal(h.run('JSON.stringify(state.awardFiles.map(f=>f.id))'), '["b","c"]');
+  h.run("awardSelected.add('b');requestAwardDelete();state.selectedAwardFolderId='other'");
+  await h.run('deleteSelectedAwards()');
+  assert.equal(calls.filter(([,method])=>method==='DELETE').length, 2);
 });

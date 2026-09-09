@@ -96,7 +96,7 @@ test("wires the DATA CORE counseling and work mode split", async () => {
   assert.match(appScript, /부천 디자인 입시관/);
   assert.match(appScript, /서울 광진 입시관/);
   assert.match(appScript, /data-campus-group/);
-  assert.match(dataCoreIndex, /app\.js\?v=20260909-award-gallery/);
+  assert.match(dataCoreIndex, /app\.js\?v=20260909-gallery-ux/);
   assert.match(appScript, /params\.set\('sourceApp', sourceApp\)/);
   assert.match(appScript, /fileCategoryFilter/);
   assert.match(appScript, /loadFiles\(\)/);
@@ -157,19 +157,17 @@ test("wires DATA CORE competition media and academy guide draft interactions", a
   assert.match(filesApi, /conditions\.push\("fo\.source_app = \?"\)/);
 });
 
-test("replaces competition search controls with source preview and slide panel controls", async () => {
+test("competition source panel is always visible with one refresh", async () => {
   const html = await readFile(new URL("../public/data-core/index.html", import.meta.url), "utf8");
   const appScript = await readFile(new URL("../public/data-core/app.js", import.meta.url), "utf8");
   const styles = await readFile(new URL("../public/data-core/styles.css", import.meta.url), "utf8");
   assert.doesNotMatch(html, /competitionSearchInput/);
-  assert.match(html, /data-competition-source="artmd"/);
-  assert.match(html, /data-competition-source="mgood"/);
-  assert.match(html, /hideCompetitionNewsBtn/);
-  assert.match(html, /showCompetitionNewsBtn/);
+  assert.match(html, /refreshCompetitionSourcesBtn/);
+  assert.match(html, /<h3>공모전 소식<\/h3>/);
+  assert.doesNotMatch(html, /hideCompetitionNewsBtn|showCompetitionNewsBtn/);
   assert.match(appScript, /competition-sources\/\$\{encodeURIComponent\(source\)\}\/preview/);
   assert.match(appScript, /competition-sources\/\$\{encodeURIComponent\(source\)\}\/import/);
-  assert.match(styles, /competition-workspace\.news-closed/);
-  assert.match(styles, /competition-news\.hidden/);
+  assert.doesNotMatch(styles, /competition-workspace\.news-closed|competition-news\.hidden/);
 });
 
 test("wires counseling competition folders to existing DATA CORE records and files", async () => {

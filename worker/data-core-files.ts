@@ -136,21 +136,32 @@ async function assertRecordLinkAllowed(
   if (!recordId) return;
   const record = await db
     .prepare(
-      `SELECT id, campus_id, created_by_user_id, record_type
+      `SELECT id, campus_id, created_by_user_id, record_type, source_app, title
        FROM data_records
        WHERE id = ? AND organization_id = ? AND deleted_at IS NULL`,
     )
     .bind(recordId, DEFAULT_ORGANIZATION_ID)
-    .first<{ id: string; campus_id: string | null; created_by_user_id: string | null; record_type:string }>();
+    .first<{ id: string; campus_id: string | null; created_by_user_id: string | null; record_type: string; source_app: string; title: string }>();
   if (!record) throw new DataCoreAccessError(400, "연결할 DATA CORE 레코드를 찾을 수 없습니다.");
   if (record.record_type === DERIVATIVE_RECORD_TYPE) throw new DataCoreAccessError(403, '파생 이미지 원본 관계는 직접 연결할 수 없습니다.');
-  if (context.isSuperAdmin) return;
+  if (record.record_type === 'competition-award-folder' && record.campus_id) requireCampusAccess(context, record.campus_id);
+  if (record.record_type === 'competition-award-folder' && record.campus_id !== campusId) {
+    throw new DataCoreAccessError(400, '파일과 수상작 폴더의 캠퍼스가 다릅니다.');
+  }
+  if (context.isSuperAdmin) return record;
   if (record.created_by_user_id !== context.user?.internalUserId) {
     throw new DataCoreAccessError(403, "본인이 등록한 데이터에만 파일을 연결할 수 있습니다.");
   }
   if (record.campus_id !== campusId) {
     throw new DataCoreAccessError(400, "파일과 연결 데이터의 캠퍼스가 다릅니다.");
   }
+  return record;
+}
+
+export function awardUploadName(folderTitle: string, originalName: string) {
+  const title = folderTitle.replace(/[\\/:*?"<>|\u0000-\u001f\u007f]/g, '_').trim().replace(/[. ]+$/, '').slice(0, 140) || '수상작';
+  const extension = originalName.match(/\.[a-zA-Z0-9]{1,12}$/)?.[0] || '';
+  return title + extension;
 }
 
 async function assertHqWorkspaceUpload(
@@ -261,7 +272,9 @@ export async function uploadDataCoreFile(
   const { area, visibility, sourceApp } = profile;
   const year = cleanText(form.get("year"), 8).replace(/[^0-9]/g, "");
   const ownerRef = cleanText(form.get("ownerId"), 120) || "shared";
-  await assertRecordLinkAllowed(db, context, recordId, campusId);
+  const linkedRecord = await assertRecordLinkAllowed(db, context, recordId, campusId);
+  const fileName = category === 'competition-material' && linkedRecord?.record_type === 'competition-award-folder'
+    && linkedRecord.source_app === 'competition' ? awardUploadName(linkedRecord.title, file.name) : file.name;
 
   const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();
@@ -275,7 +288,7 @@ export async function uploadDataCoreFile(
     category,
     ownerRef,
     pathYear,
-    `${Date.now()}-${id}-${safeFileName(file.name)}`,
+    `${Date.now()}-${id}-${safeFileName(fileName)}`,
   ].join("/");
 
   await files.put(key, file, {
@@ -300,7 +313,7 @@ export async function uploadDataCoreFile(
     area,
     category,
     r2Key: key,
-    originalFileName: file.name,
+    originalFileName: fileName,
     mimeType: file.type || "application/octet-stream",
     sizeBytes: file.size,
     visibility,
@@ -322,7 +335,7 @@ export async function uploadDataCoreFile(
     area,
     category,
     sourceApp,
-    fileName: file.name,
+    fileName,
     mimeType: file.type || "application/octet-stream",
     sizeBytes: file.size,
     visibility,
@@ -480,6 +493,7 @@ export async function deleteDataCoreFile(
   files: R2Bucket,
   context: DataCoreAccessContext,
   fileId: string,
+  awardFolderId?: string,
 ) {
   requireWriteAccess(context);
   void files;
@@ -493,6 +507,17 @@ export async function deleteDataCoreFile(
   if (!row) throw new DataCoreAccessError(404, "파일을 찾을 수 없습니다.");
   if (!canMutateFileRow(context, row)) {
     throw new DataCoreAccessError(403, "본인이 업로드한 파일만 삭제할 수 있습니다.");
+  }
+  if (awardFolderId !== undefined) {
+    if (!awardFolderId || row.data_record_id !== awardFolderId || row.category !== 'competition-material') {
+      throw new DataCoreAccessError(403, '선택한 수상작 폴더의 파일만 삭제할 수 있습니다.');
+    }
+    const campusId = (row.campus_id as string | null) || null;
+    if (campusId) requireCampusAccess(context, campusId);
+    const folder = await assertRecordLinkAllowed(db, context, awardFolderId, campusId);
+    if (folder?.record_type !== 'competition-award-folder' || folder.source_app !== 'competition') {
+      throw new DataCoreAccessError(403, '유효한 수상작 폴더가 아닙니다.');
+    }
   }
 
   const deletedAt = new Date().toISOString();

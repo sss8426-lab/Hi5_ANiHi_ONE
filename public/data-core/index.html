@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>HI5·ANiHi DATA CORE</title>
-  <link rel="stylesheet" href="/data-core/styles.css?v=20260909-award-gallery">
+  <link rel="stylesheet" href="/data-core/styles.css?v=20260909-gallery-ux">
   <link rel="stylesheet" href="/data-core/layout-theme.css?v=20260909-bright-layout">
 </head>
 <body class="data-core-layout">
@@ -336,17 +336,14 @@
                 <button class="danger-btn" id="deleteAwardFolderBtn" type="button" disabled>폴더 삭제</button>
               </div>
             </div>
+            <div class="award-selection-bar hidden" id="awardSelectionBar"><span id="awardSelectionCount">선택 0개</span><button class="danger-btn" id="deleteSelectedAwardsBtn" type="button">선택 삭제</button></div>
             <div class="award-library-grid" id="awardLibraryFiles"></div>
           </aside>
-          <button class="competition-news-reopen hidden" id="showCompetitionNewsBtn" type="button">소식 보기</button>
           <section class="panel competition-news" id="competitionNewsPanel">
             <div class="panel-head">
-              <div><h3>외부 공모전 소식</h3><p>공개 원천의 사실 정보와 원문 링크만 미리봅니다.</p></div>
-              <button class="icon-btn" id="hideCompetitionNewsBtn" type="button" title="소식 접기" aria-label="소식 접기">×</button>
+              <div><h3>공모전 소식</h3></div>
             </div>
             <div class="competition-source-actions">
-              <button class="secondary-btn" data-competition-source="artmd" type="button">미대입시 불러오기</button>
-              <button class="secondary-btn" data-competition-source="mgood" type="button">엠굿 불러오기</button>
               <button class="ghost-btn" id="refreshCompetitionSourcesBtn" type="button">전체 새로고침</button>
             </div>
             <div class="competition-source-status" id="competitionSourceStatus">출처를 선택해 공개 소식을 확인하세요.</div>
@@ -487,8 +484,10 @@
     </div>
   </div>
 
+  <dialog id="awardDeleteDialog" class="award-delete-dialog" aria-labelledby="awardDeleteTitle"><h3 id="awardDeleteTitle">선택한 수상작을 삭제할까요?</h3><p id="awardDeleteSummary"></p><p>휴지통으로 이동하며 원본은 보존됩니다.</p><div class="row-actions"><button class="ghost-btn" id="cancelAwardDeleteBtn" type="button">취소</button><button class="danger-btn" id="confirmAwardDeleteBtn" type="button">휴지통으로 이동</button></div></dialog>
   <div class="toast hidden" id="toast"></div>
-  <script src="/data-core/app.js?v=20260909-award-gallery"></script>
-  <script src="/data-core/mode-home-artwork.js?v=20260908-mode-home"></script>
+  <script src="/data-core/award-image-cache.js?v=20260909-gallery-ux"></script>
+  <script src="/data-core/app.js?v=20260909-gallery-ux"></script>
+  <script src="/data-core/mode-home-artwork.js?v=20260909-gallery-ux"></script>
 </body>
 </html>

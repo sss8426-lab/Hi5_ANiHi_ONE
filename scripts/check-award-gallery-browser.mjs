@@ -14,7 +14,8 @@ let checks=0;
 try {
   const ctx = await browser.newContext();
   const errors=[], writes=[];
-  let authenticated=true, slowA=false;
+  let authenticated=true, slowA=false, role='SUPER_ADMIN';
+  const trashed=new Set(), imageRequests=new Map();
   let folders=[
     {id:'b',title:'합성 두 번째 폴더',campusId:null,createdAt:'2026-09-02'},
     {id:'a',title:'합성 첫 번째 폴더',campusId:'synthetic-campus',createdAt:'2026-09-01'},
@@ -23,14 +24,14 @@ try {
     id:`hq-${i}`,title:`Synthetic HQ ${i}`,recordType:'hq-library-folder',sourceApp:'data-core-library',
     campusId:null,metadata:{folderKey:key,sortOrder:i+1},
   }));
-  const files = (id) => Array.from({length:8},(_,i)=>({id:`${id}-${i}`,recordId:id,mimeType:'image/webp',fileName:`합성 수상작 ${id}-${i}`,category:'competition-material'}));
+  const files = (id) => Array.from({length:8},(_,i)=>({id:`${id}-${i}`,recordId:id,mimeType:'image/webp',fileName:`합성 수상작 ${id}-${i}`,category:'competition-material',ownerUserId:'local:synthetic-admin'})).filter(f=>!trashed.has(f.id));
   await ctx.route('**/*', async route => {
     const req=route.request(), url=new URL(req.url());
     if (url.origin!==base) return route.abort();
     const p=url.pathname;
     if (!p.startsWith('/api/')) return route.continue();
     if (req.method()!=='GET') writes.push({path:p,method:req.method(),body:req.postData()});
-    if (p==='/api/data-core/context') return route.fulfill({json:{authenticated,canWrite:authenticated,isSuperAdmin:authenticated,user:{name:'Synthetic admin'},memberships:[]}});
+    if (p==='/api/data-core/context') return route.fulfill({json:{authenticated,canWrite:authenticated,isSuperAdmin:role==='SUPER_ADMIN',user:{name:'Synthetic user',internalUserId:'local:synthetic-admin'},memberships:[{role,campusId:'synthetic-campus'}]}});
     if (p==='/api/data-core/health') return route.fulfill({json:{ok:true,bindings:{database:true,files:true}}});
     if (p==='/api/data-core/campuses') return route.fulfill({json:{campuses:[{id:'synthetic-campus',name:'합성 캠퍼스'}]}});
     if (p==='/api/data-core/records' && req.method()==='POST') {
@@ -49,11 +50,18 @@ try {
       if (id==='a' && slowA) await new Promise(r=>setTimeout(r,450));
       return route.fulfill({json:{files:id ? [...files(id),...files('foreign')] : []}});
     }
-    if (p.startsWith('/api/data-core/files/')) return route.fulfill({contentType:'image/webp',body:image});
-    if (p.includes('/competition-sources/')) return route.fulfill({json:{items:[
-      {title:'합성 접수중 대회',sourceStatus:'open',sourceUrl:'https://www.mgood.co.kr/synthetic',applicationEnd:'2026-09-20'},
-      {title:'합성 종료 대회',sourceStatus:'closed',sourceUrl:'https://www.mgood.co.kr/closed'},
-    ]}});
+    if (p.startsWith('/api/data-core/files/')) {
+      if(req.method()==='DELETE') { assert.equal(url.searchParams.get('awardFolderId'),p.split('/').pop().split('-')[0]); trashed.add(p.split('/').pop()); return route.fulfill({json:{ok:true,recoverable:true}}); }
+      imageRequests.set(p,(imageRequests.get(p)||0)+1);
+      return route.fulfill({contentType:'image/webp',body:image});
+    }
+    if (p.includes('/competition-sources/')) {
+      const source=p.includes('/mgood/')?'mgood':'artmd', sourcePage=source==='mgood'?'https://www.mgood.co.kr/contest/21001_contest_list.php?state=main':'https://artndesign.com/shop/list.php?ca_id=20';
+      return route.fulfill({json:{pages:[{url:sourcePage,ok:true}],items:[
+        {title:'합성 접수중 대회',source,sourcePage,sourceStatus:'open',sourceUrl:`https://www.mgood.co.kr/synthetic?c_seq=${source}`,applicationEnd:'2099-09-20'},
+        {title:'합성 종료 대회',source,sourcePage,sourceStatus:'unknown',sourceUrl:'https://www.mgood.co.kr/closed'},
+      ]}});
+    }
     return route.fulfill({json:{competitions:[],events:[],files:[],records:[]}});
   });
   const page=await ctx.newPage();page.on('pageerror',e=>errors.push(e.message));
@@ -67,13 +75,24 @@ try {
     assert.equal(await page.locator('#awardLibraryFiles a').count(),8);
     assert.equal(await page.locator('#awardLibraryFiles').evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length),columns);
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,`${name} overflow`);
-    await page.locator('#awardLibraryFiles img').evaluateAll(imgs=>Promise.all(imgs.map(img=>{img.loading='eager';return img.decode();})));
+    for (const img of await page.locator('[data-award-thumbnail]').all()) {
+      await img.scrollIntoViewIfNeeded();
+      await img.evaluate(img=>new Promise((resolve,reject)=>{
+        if(img.complete && img.naturalWidth) return resolve();
+        img.onload=resolve;img.onerror=reject;
+      }));
+    }
+    await page.evaluate(()=>scrollTo(0,0));
     await page.screenshot({path:path.join(output,`${name}.png`),fullPage:true});checks+=6;
     for (const close of ['button','escape','overlay']) {
+      const before=imageRequests.get('/api/data-core/files/a-0');
+      const started=Date.now();
       await page.locator('[data-award-image="a-0"]').click();
       await page.locator('#awardLightbox[open]').waitFor();
-      assert.equal(await page.locator('#awardLightboxImage').getAttribute('src'),'/api/data-core/files/a-0');
+      assert.match(await page.locator('#awardLightboxImage').getAttribute('src'),/^blob:/);
       await page.locator('#awardLightboxImage').evaluate(img=>img.decode());
+      assert.equal(imageRequests.get('/api/data-core/files/a-0'),before);
+      console.log(JSON.stringify({viewport:name,close,warmOpenMs:Date.now()-started}));
       if(close==='button') await page.locator('#closeAwardLightboxBtn').click();
       if(close==='escape') await page.keyboard.press('Escape');
       if(close==='overlay') await page.mouse.click(2,2);
@@ -111,13 +130,32 @@ try {
   await page.locator('#deleteAwardFolderBtn').click();
   await page.locator('[data-award-folder-id="c"]').waitFor({state:'detached'});
   assert.deepEqual(writes.filter(w=>w.method==='DELETE').map(w=>w.path),['/api/data-core/records/c']);checks++;
-  await page.getByRole('button',{name:'소식 가리기',exact:true}).click();
-  await page.getByRole('button',{name:'소식 보이기',exact:true}).click();
+  await page.locator('[data-award-select="a-0"]').check();
+  await page.getByRole('button',{name:'선택 삭제',exact:true}).click();
+  await page.locator('#cancelAwardDeleteBtn').click();
+  assert.equal(await page.locator('#awardLibraryFiles a').count(),8);
+  await page.getByRole('button',{name:'선택 삭제',exact:true}).click();
+  await page.locator('#confirmAwardDeleteBtn').click();
+  await page.locator('[data-award-image="a-0"]').waitFor({state:'detached'});
+  await page.locator('[data-award-image="a-1"]').waitFor();
+  assert.equal(await page.locator('#awardLibraryFiles a').count(),7);
+  trashed.clear();
+  assert.equal(await page.getByRole('button',{name:'소식 가리기',exact:true}).count(),0);
+  assert.equal(await page.getByRole('button',{name:'소식 보이기',exact:true}).count(),0);
   await page.getByRole('button',{name:'새로고침',exact:true}).click();
   assert.equal(await page.getByText('합성 종료 대회',{exact:true}).count(),0);checks++;
   await page.goto(`${base}/data-core/counseling`);
   await page.goBack();await page.locator('[data-award-image="a-0"]').waitFor();
   await page.reload();await page.locator('[data-award-image="a-0"]').waitFor();checks+=2;
+  for (const nextRole of ['SUPER_ADMIN','CAMPUS_DIRECTOR','TEACHER','STAFF']) {
+    role=nextRole;
+    await page.goto(`${base}/data-core/counseling`);
+    await page.locator('#logoutBtn:not(.hidden)').waitFor();
+    const positions=await page.evaluate(()=>{const user=document.getElementById('userChip').getBoundingClientRect(),logout=document.getElementById('logoutBtn').getBoundingClientRect();return {userRight:user.right,logoutLeft:logout.left,userY:user.y,logoutY:logout.y,nameVisible:getComputedStyle(document.querySelector('#userChip > div:last-child')).display};});
+    assert.ok(positions.userRight<=positions.logoutLeft);
+    assert.ok(positions.logoutLeft-positions.userRight<30);
+    assert.notEqual(positions.nameVisible,'none'); checks+=3;
+  }
   authenticated=false;await page.reload();
   await page.getByText('로그인이 필요합니다',{exact:true}).waitFor({state:'attached'});
   assert.equal(await page.getByRole('link',{name:'DATA CORE 로그인 화면 열기'}).isVisible(),true);

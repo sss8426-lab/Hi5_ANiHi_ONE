@@ -275,6 +275,7 @@ async function createHarness() {
 
   async function request(method, pathname, user, body, extraHeaders = {}) {
     const headers = new Headers(user ? authHeaders(user) : undefined);
+    if (pathname.includes('awardFolderId=')) headers.set('origin', 'http://localhost');
     for (const [name, value] of Object.entries(extraHeaders)) headers.set(name, value);
     let requestBody;
     if (body !== undefined) {
@@ -1129,11 +1130,11 @@ test("competition source preview and import keep raw HTML out while preserving s
   const h = await createHarness();
   const originalFetch = globalThis.fetch;
   const artmdHtml = `
-    <a href="/contest/view.php?idx=synthetic-01">Synthetic Art Contest</a>
-    <span>2026.10.01 ~ 2026.10.31</span>`;
+    <li class="list-item"><a href="/shop/item.php?it_id=synthetic-01">Synthetic Art Contest</a>
+    <div class="wr-date">2026.10.01 ~ 2026.10.31</div><div class="wr-wr_15">접수중</div></li>`;
   const mgoodHtml = `
-    <a href="/competition/view?id=synthetic-02">Synthetic Art Contest</a>
-    <span>2026.10.01 ~ 2026.10.31</span>`;
+    <table><tr><td>공모전</td><td><a href="/contest/21002_contest_view.php?c_seq=synthetic-02">Synthetic Art Contest</a></td>
+    <td></td><td>2026.10.01 ~ 2026.10.31</td><td><div class="dDay">접수중</div></td></tr></table>`;
   try {
     globalThis.fetch = async (url) => new Response(String(url).includes("mgood") ? mgoodHtml : artmdHtml, {
       headers: { "content-type": "text/html" },
@@ -1179,7 +1180,7 @@ test("competition source failures and ambiguous matches never replace existing D
   const h = await createHarness();
   const originalFetch = globalThis.fetch;
   const origin = { origin: "http://localhost" };
-  const html = `<a href="/contest/view.php?idx=ambiguous">Ambiguous Contest</a><span>2026.11.01 ~ 2026.11.30</span>`;
+  const html = `<li class="list-item"><a href="/shop/item.php?it_id=ambiguous">Ambiguous Contest</a><div class="wr-date">2026.11.01 ~ 2026.11.30</div><div class="wr-wr_15">접수중</div></li>`;
   try {
     for (const suffix of ["one", "two"]) {
       const created = await h.request("POST", "/api/data-core/competitions", users.admin, {
@@ -1207,4 +1208,74 @@ test("competition source failures and ambiguous matches never replace existing D
     globalThis.fetch = originalFetch;
     await h.mf.dispose();
   }
+});
+
+test('award uploads use authoritative folder names and scoped trash preserves unselected rows and all R2 originals', async () => {
+  const h = await createHarness();
+  try {
+    const create = (title) => h.request('POST', '/api/data-core/records', users.a, {
+      recordType:'competition-award-folder', sourceApp:'competition', campusId:CAMPUS_A, title, visibility:'campus',
+    });
+    const folder = (await create('합성 / 폴더')).body.record;
+    const other = (await create('다른 합성 폴더')).body.record;
+    const originals = [];
+    for (const name of ['one.PNG', 'two.png', 'three.webp']) {
+      const form = new FormData();
+      form.append('file', new File([tinyPng()], name, {type:'image/png'}));
+      form.append('recordId',folder.id); form.append('category','competition-material'); form.append('campusId',CAMPUS_A);
+      form.append('fileName','forged'); form.append('ownerUserId','forged');
+      const saved = await h.requestForm('/api/data-core/files', users.a, form);
+      assert.equal(saved.response.status,201,JSON.stringify(saved.body));
+      const row = await h.env.DB.prepare('SELECT * FROM file_objects WHERE id=?').bind(saved.body.file.id).first();
+      assert.equal(row.original_file_name, '합성 _ 폴더' + name.slice(name.lastIndexOf('.')));
+      assert.equal(row.owner_user_id,'oai:user-a'); assert.equal(row.data_record_id,folder.id);
+      originals.push(row);
+    }
+    assert.equal(new Set(originals.map(row=>row.r2_key)).size,3);
+    const path = `/api/data-core/files/${originals[0].id}?awardFolderId=${folder.id}`;
+    assert.equal((await h.request('DELETE',path,users.b)).response.status,403);
+    assert.equal((await h.request('DELETE',path.replace(folder.id,other.id),users.admin)).response.status,403);
+    assert.equal((await h.request('DELETE',path,users.a,undefined,{origin:'https://attacker.example'})).response.status,403);
+    await h.env.DB.prepare('DELETE FROM memberships WHERE user_id=? AND campus_id=?').bind('oai:user-a',CAMPUS_A).run();
+    assert.equal((await h.request('DELETE',path,users.a)).response.status,403);
+    assert.equal((await h.request('DELETE',path,users.admin)).response.status,200);
+    assert.equal((await h.request('GET',`/api/data-core/files/${originals[0].id}`,users.admin)).response.status,404);
+    for (const row of originals) assert.deepEqual(new Uint8Array(await (await h.env.FILES.get(row.r2_key)).arrayBuffer()),tinyPng());
+    for (const row of originals.slice(1)) assert.deepEqual(await h.env.DB.prepare('SELECT * FROM file_objects WHERE id=?').bind(row.id).first(),row);
+    const restored = await h.request('POST',`/api/data-core/trash/files/${originals[0].id}/restore`,users.admin);
+    assert.equal(restored.response.status,200,JSON.stringify(restored.body));
+    assert.equal((await h.request('GET',`/api/data-core/files/${originals[0].id}`,users.admin)).response.status,200);
+  } finally { await h.mf.dispose(); }
+});
+
+test('live news isolates exact row status, ignores comments, reports three pages and keeps partial failures read-only', async () => {
+  const h = await createHarness(), originalFetch = globalThis.fetch;
+  const artRow = (id,status,date='09.01 ~ 09.30') => `<li class="list-item"><div class="wr-subject"><a href="./item.php?it_id=${id}&amp;ca_id=20">합성 대회 ${id}</a></div><div class="wr-date">${date}</div><div class="wr-wr_4">합성 주최</div><div class="wr-wr_15">${status}</div></li>`;
+  const mgoodRow = (id,status) => `<tr><td>실기대회</td><td><a href="21002_contest_view.php?c_seq=${id}&amp;state=other">합성 대회 ${id}</a></td><td>합성 주최</td><td>2099-09-01<br>~<br>2099-09-30</td><td><div class="dDay">${status}</div><div class="dd">D-20</div></td></tr>`;
+  try {
+    let failOther = false;
+    globalThis.fetch = async (url) => {
+      if (String(url).includes('artndesign')) return new Response(artRow('1','접수중','2099.09.01 ~ 2099.09.30') + artRow('2','접수전') + artRow('3','수험표발급') + artRow('4','접수중','2020.09.01 ~ 2020.09.30') + `<!--${artRow('comment','접수중')}-->`);
+      if (String(url).includes('state=other')) {
+        if (failOther) throw new Error('synthetic timeout');
+        return new Response(`<table>${mgoodRow('one','접수중')}${mgoodRow('two','예정')}${mgoodRow('three','접수전')}${mgoodRow('four','마감')}</table>`);
+      }
+      return new Response(`<table>${mgoodRow('closed','종료')}<!--${mgoodRow('comment','접수중')}--></table>`);
+    };
+    const art = await h.request('POST','/api/data-core/competition-sources/artmd/preview',users.admin);
+    assert.equal(art.response.status,200); assert.equal(art.body.items.length,4);
+    assert.equal(art.body.pages[0].open,1); assert.equal(art.body.pages[0].excluded,3);
+    assert.match(art.body.items[0].sourceUrl,/\?it_id=1&ca_id=20$/);
+    assert.equal(art.body.items[1].sourceStatus,'unknown');
+    assert.equal(art.body.items[2].sourceStatus,'unknown');
+    const mgood = await h.request('POST','/api/data-core/competition-sources/mgood/preview',users.admin);
+    assert.equal(mgood.body.pages.length,2); assert.equal(mgood.body.pages[0].open,0);
+    assert.equal(mgood.body.pages[1].open,1); assert.equal(mgood.body.pages[1].upcoming,1);
+    assert.equal(mgood.body.pages[1].excluded,2);
+    failOther = true;
+    const partial = await h.request('POST','/api/data-core/competition-sources/mgood/preview',users.admin);
+    assert.equal(partial.response.status,200); assert.equal(partial.body.pages[0].ok,true); assert.equal(partial.body.pages[1].ok,false);
+    const records = await h.request('GET','/api/data-core/competitions',users.admin);
+    assert.equal(records.body.competitions.length,0);
+  } finally { globalThis.fetch=originalFetch; await h.mf.dispose(); }
 });
