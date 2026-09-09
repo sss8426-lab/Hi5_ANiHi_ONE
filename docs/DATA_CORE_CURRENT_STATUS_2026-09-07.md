@@ -632,3 +632,14 @@ Issue #21에서는 PR #20 병합 이후 운영 리소스를 실제로 확인하�
 10. 기능은 branch → CI → PR → main 순서로 반영한다.
 11. 학생관리 자체가 최종 목적이 아니다.
 12. 최종 목표는 축적된 데이터로 교육·입시·마케팅·운영의 미래 방향을 분석하는 것이다.
+
+## 20. Issue #43 PWA cache acceptance fix (2026-09-09)
+
+Production acceptance found an installed guardian PWA serving an obsolete shell
+without the report-confirmation script, while the network HTML was current.
+The narrowly scoped fix uses a versioned FAMILY-only shell cache, online
+revalidation, current-cache offline fallback, and precaches the confirmation
+script. Private APIs remain network-only; no DB/R2 or subscription changes.
+See `docs/KKUMEUM_FAMILY_SHELL_CACHE.md` for the contract and synthetic tests.
+Deployment and remaining guardian/device acceptance must be verified separately
+in Issue #43; this source note does not claim production completion.
