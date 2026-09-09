@@ -34,7 +34,6 @@ const state = {
   competitionFiles: [],
   selectedCompetitionId: null,
   competitionSourcePreviews: {},
-  competitionNewsOpen: true,
   awardFolders: [],
   awardFiles: [],
   selectedAwardFolderId: null,
@@ -165,6 +164,8 @@ function updateSidebar() {
 function switchView(view, options = {}) {
   state.currentView = view;
   state.currentMode = modeForView(view);
+  document.body.classList.toggle('counseling-header', state.currentMode === 'counseling');
+  if (view !== 'competitions') clearAwardImages();
   document.querySelectorAll('.view').forEach((section) => section.classList.remove('active'));
   $(`view-${view}`)?.classList.add('active');
   $('pageTitle').textContent = titleForView(view);
@@ -586,13 +587,6 @@ function renderCompetitionSourcePreviews() {
   });
 }
 
-function setCompetitionNewsOpen(open) {
-  state.competitionNewsOpen = open;
-  $('competitionWorkspace').classList.toggle('news-closed', !open);
-  $('competitionNewsPanel').classList.toggle('hidden', !open);
-  $('showCompetitionNewsBtn').classList.toggle('hidden', open);
-}
-
 async function previewCompetitionSource(source) {
   if (!state.context?.authenticated) {
     toast('로그인 후 외부 대회 소식을 확인할 수 있습니다.', 'error');
@@ -766,9 +760,61 @@ function renderAwardFolders() {
   $('openAwardFolderBtn').disabled = !canWrite();
 }
 
+const awardSelected = new Set();
+const awardImages = new AwardImageCache();
+let awardImageObserver;
+let awardDeletePending = null;
+let awardDeleteBusy = false;
+function clearAwardImages() {
+  awardImageObserver?.disconnect();
+  awardImages.clear();
+  $('awardLightbox')?.close();
+}
+function updateAwardSelection() {
+  $('awardSelectionBar').classList.toggle('hidden', !awardSelected.size);
+  $('awardSelectionCount').textContent = `선택 ${awardSelected.size}개`;
+  $('deleteSelectedAwardsBtn').disabled = awardDeleteBusy || !canWrite();
+}
+function canDeleteAward(file) {
+  return canWrite() && (isSuperAdmin() || file.ownerUserId === state.context?.user?.internalUserId);
+}
+function requestAwardDelete() {
+  const folder = selectedAwardFolder();
+  if (!folder || awardDeleteBusy || !awardSelected.size) return;
+  awardDeletePending = { folderId: folder.id, ids: [...awardSelected] };
+  $('awardDeleteSummary').textContent = `${folder.title} · 선택 ${awardSelected.size}개`;
+  $('awardDeleteDialog').showModal();
+}
+async function deleteSelectedAwards() {
+  const pending = awardDeletePending;
+  if (awardDeleteBusy || !pending || pending.folderId !== state.selectedAwardFolderId) return;
+  awardDeleteBusy = true;
+  $('confirmAwardDeleteBtn').disabled = true;
+  let deleted = 0;
+  try {
+    for (const id of pending.ids) {
+      const file = state.awardFiles.find((item) => item.id === id && item.recordId === pending.folderId);
+      if (!file || !canDeleteAward(file)) throw new Error('선택한 파일의 권한을 확인해 주세요.');
+      await api(`/api/data-core/files/${encodeURIComponent(id)}?awardFolderId=${encodeURIComponent(pending.folderId)}`, { method: 'DELETE' });
+      awardImages.remove(id);
+      awardSelected.delete(id);
+      deleted += 1;
+    }
+    toast(`${deleted}개 수상작을 휴지통으로 이동했습니다.`);
+  } catch (error) { toast(`${deleted}개 이동 완료. ${error.message}`, 'error'); }
+  finally {
+    awardDeleteBusy = false;
+    awardDeletePending = null;
+    $('confirmAwardDeleteBtn').disabled = false;
+    $('awardDeleteDialog').close();
+    if (pending.folderId === state.selectedAwardFolderId) await loadAwardFiles();
+  }
+}
 function renderAwardLibraryFiles() {
   const root = $('awardLibraryFiles');
   if (!root) return;
+  updateAwardSelection();
+  awardImageObserver?.disconnect();
   root.setAttribute('aria-busy', String(awardFilesLoading));
   if (!selectedAwardFolder()) {
     root.innerHTML = '<div class="empty-state compact">수상작 폴더를 선택하세요.</div>';
@@ -781,20 +827,55 @@ function renderAwardLibraryFiles() {
   root.innerHTML = state.awardFiles.length ? state.awardFiles.map((file) => {
     const url = fileUrl(file);
     const image = String(file.mimeType || '').startsWith('image/');
-    return `<a class="award-library-file" href="${url}" ${image ? `data-award-image="${h(file.id)}" aria-haspopup="dialog"` : 'target="_blank" rel="noopener"'}>
-      ${image ? `<img src="${url}" alt="${h(file.fileName || '수상작')}" loading="lazy" decoding="async">` : '<span class="award-file-icon">파일</span>'}
+    return `<div class="award-library-item">${canDeleteAward(file) ? `<label class="award-select"><input type="checkbox" data-award-select="${h(file.id)}" aria-label="${h(file.fileName || '수상작')} 선택" ${awardSelected.has(file.id) ? 'checked' : ''}></label>` : ''}<a class="award-library-file" href="${url}" ${image ? `data-award-image="${h(file.id)}" aria-haspopup="dialog"` : 'target="_blank" rel="noopener"'}>
+      ${image ? `<img data-award-thumbnail="${h(file.id)}" alt="${h(file.fileName || '수상작')}" decoding="async">` : '<span class="award-file-icon">파일</span>'}
       <strong>${h(file.fileName || '수상작 파일')}</strong>
-    </a>`;
+    </a></div>`;
   }).join('') : '<div class="empty-state compact">이 폴더에 연결된 수상작이 없습니다.</div>';
+  root.querySelectorAll('[data-award-select]').forEach((checkbox) => {
+    checkbox.onchange = () => {
+      if (checkbox.checked) awardSelected.add(checkbox.dataset.awardSelect);
+      else awardSelected.delete(checkbox.dataset.awardSelect);
+      updateAwardSelection();
+    };
+  });
+  const folderId = state.selectedAwardFolderId;
+  const loadThumbnail = async (img) => {
+    try {
+      const url = await awardImages.get(img.dataset.awardThumbnail);
+      if (folderId === state.selectedAwardFolderId && img.isConnected) img.src = url;
+    } catch { if (img.isConnected) img.alt = '이미지를 다시 눌러 확인하세요'; }
+  };
+  if (typeof IntersectionObserver !== 'undefined') {
+    awardImageObserver = new IntersectionObserver((entries) => entries.forEach((entry) => {
+      if (!entry.isIntersecting) return;
+      awardImageObserver.unobserve(entry.target);
+      loadThumbnail(entry.target);
+    }), { rootMargin: '160px' });
+  }
+  root.querySelectorAll('[data-award-thumbnail]').forEach((img) => {
+    if (awardImageObserver) awardImageObserver.observe(img);
+    else loadThumbnail(img);
+  });
   root.querySelectorAll('[data-award-image]').forEach((link) => {
-    link.onclick = (event) => {
+    link.onclick = async (event) => {
       event.preventDefault();
       const file = state.awardFiles.find((item) => String(item.id) === link.dataset.awardImage);
       if (!file || file.recordId !== state.selectedAwardFolderId) return;
-      $('awardLightboxImage').src = fileUrl(file);
+      const image = $('awardLightboxImage');
+      image.removeAttribute('src');
+      image.dataset.fileId = file.id;
+      const cached = awardImages.peek(file.id);
+      if (cached) image.src = cached;
       $('awardLightboxImage').alt = file.fileName || '수상작';
       $('awardLightboxCaption').textContent = file.fileName || '수상작';
       $('awardLightbox').showModal();
+      try {
+        const url = cached || await awardImages.get(file.id);
+        if ($('awardLightbox').open && image.dataset.fileId === file.id && file.recordId === state.selectedAwardFolderId) image.src = url;
+      } catch (error) {
+        if ($('awardLightbox').open && image.dataset.fileId === file.id) $('awardLightboxCaption').textContent = error.message;
+      }
     };
   });
 }
@@ -819,6 +900,8 @@ async function loadAwardFolders() {
 }
 
 async function loadAwardFiles() {
+  clearAwardImages();
+  awardSelected.clear();
   const request = ++awardFilesRequest;
   const folder = selectedAwardFolder();
   state.awardFiles = [];
@@ -1336,7 +1419,7 @@ function bindEvents() {
     $('awardLightboxImage').alt = '';
     $('awardLightboxCaption').textContent = '';
   });
-  ['awardFolderModal', 'awardLightbox'].forEach((id) => {
+  ['awardFolderModal', 'awardLightbox', 'awardDeleteDialog'].forEach((id) => {
     $(id).addEventListener('click', (event) => {
       if (event.target !== $(id)) return;
       const rect = $(id).getBoundingClientRect();
@@ -1352,8 +1435,14 @@ function bindEvents() {
     await previewCompetitionSource('artmd');
     await previewCompetitionSource('mgood');
   };
-  $('hideCompetitionNewsBtn').onclick = () => setCompetitionNewsOpen(false);
-  $('showCompetitionNewsBtn').onclick = () => setCompetitionNewsOpen(true);
+  $('deleteSelectedAwardsBtn').onclick = requestAwardDelete;
+  $('cancelAwardDeleteBtn').onclick = () => $('awardDeleteDialog').close();
+  $('confirmAwardDeleteBtn').onclick = deleteSelectedAwards;
+  window.addEventListener('pagehide', clearAwardImages);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') clearAwardImages();
+    else if (state.currentView === 'competitions') loadAwardFiles();
+  });
   $('membershipForm').onsubmit = grantMembership;
   $('refreshMembershipsBtn').onclick = loadMemberships;
   document.querySelectorAll('[data-calendar-prev]').forEach((button) => {
@@ -1386,6 +1475,7 @@ function bindEvents() {
     $('memberCampus').disabled = $('memberRole').value === 'SUPER_ADMIN';
   };
   $('logoutBtn').onclick = async () => {
+    clearAwardImages();
     try {
       const response = await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
       if (!response.ok) throw new Error('로그아웃에 실패했습니다.');

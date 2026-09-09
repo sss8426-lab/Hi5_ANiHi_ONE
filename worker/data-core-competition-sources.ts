@@ -1,3 +1,4 @@
+import { parseDocument, DomUtils } from 'htmlparser2';
 import {
   DataCoreAccessContext,
   DataCoreAccessError,
@@ -31,6 +32,7 @@ type NormalizedCompetition = {
   sourceUrl: string;
   sourceName: string;
   source: CompetitionSource;
+  sourcePage: string;
   sourceStatus: LiveSourceStatus;
   sourceStatusLabel: string;
   externalSourceId: string | null;
@@ -52,7 +54,7 @@ const SOURCE_CONFIG: Record<CompetitionSource, CompetitionSourceConfig> = {
   mgood: {
     name: "엠굿",
     urls: [
-      "https://www.mgood.co.kr/contest/21001_contest_list.php",
+      "https://www.mgood.co.kr/contest/21001_contest_list.php?state=main",
       "https://www.mgood.co.kr/contest/21001_contest_list.php?state=other",
     ],
   },
@@ -76,17 +78,6 @@ type SourceField = (typeof SOURCE_FIELDS)[number];
 
 function text(value: unknown, max = 240) {
   return String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
-}
-
-function stripHtml(value: string) {
-  return text(
-    value
-      .replace(/<[^>]*>/g, " ")
-      .replace(/&nbsp;/gi, " ")
-      .replace(/&amp;/gi, "&")
-      .replace(/&#39;/gi, "'")
-      .replace(/&quot;/gi, '"'),
-  );
 }
 
 function sourceFrom(value: string): CompetitionSource {
@@ -152,8 +143,8 @@ function datesFrom(value: string, fetchedAt: string) {
 
 function sourceStatusFrom(value: string): { status: LiveSourceStatus; label: string } {
   const normalized = text(value, 500);
-  if (/접수\s*중/i.test(normalized)) return { status: "open", label: "접수중" };
-  if (/접수\s*(?:전|예정)/i.test(normalized) || /(^|\s)예정(\s|$)/.test(normalized)) {
+  if (normalized === '접수중') return { status: "open", label: "접수중" };
+  if (normalized === '예정') {
     return { status: "upcoming", label: "예정" };
   }
   return { status: "unknown", label: "상태 확인 필요" };
@@ -173,16 +164,6 @@ function externalIdFrom(url: string) {
   }
 }
 
-function tableCellsAround(html: string, index: number) {
-  const start = html.lastIndexOf("<tr", index);
-  const end = html.indexOf("</tr>", index);
-  if (start < 0 || end < 0 || end - start > 8_000) return [];
-  const row = html.slice(start, end + 5);
-  return Array.from(row.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/gi))
-    .map((match) => stripHtml(match[1]))
-    .filter(Boolean);
-}
-
 /** Extract only concise facts and links; source HTML is deliberately never retained. */
 export function normalizeCompetitionSourceHtml(
   sourceValue: string,
@@ -193,29 +174,39 @@ export function normalizeCompetitionSourceHtml(
   const source = sourceFrom(sourceValue);
   const config = SOURCE_CONFIG[source];
   const sourceBaseUrl = baseUrl || config.urls[0];
-  const anchors = Array.from(html.matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi));
+  const document = parseDocument(html);
+  // Comments, scripts and neighboring rows cannot supply a contest's status.
+  const rows = DomUtils.findAll((node) => node.name === 'tr'
+    || (node.name === 'li' && (node.attribs.class || '').split(/\s+/).includes('list-item')), document.children);
   const seen = new Set<string>();
   const items: NormalizedCompetition[] = [];
 
-  for (const match of anchors) {
-    const sourceUrl = absoluteUrl(match[1], sourceBaseUrl);
-    const title = stripHtml(match[2]);
+  for (const row of rows) {
+    const field = (className: string) => DomUtils.findOne((node) => (node.attribs.class || '').split(/\s+/).includes(className), row.children);
+    const cells = DomUtils.getElementsByTagName('td', row);
+    const anchor = DomUtils.getElementsByTagName('a', row).find((node) => {
+      const url = absoluteUrl(node.attribs.href || '', sourceBaseUrl);
+      if (!url) return false;
+      const parsed = new URL(url);
+      return parsed.origin === new URL(sourceBaseUrl).origin && (source === 'artmd'
+        ? /\/(?:item|view)\.php$/.test(parsed.pathname) && Boolean(externalIdFrom(url))
+        : /\/(?:21002_contest_view|view)\.php$/.test(parsed.pathname) && Boolean(externalIdFrom(url)));
+    });
+    if (!anchor) continue;
+    const sourceUrl = absoluteUrl(anchor.attribs.href, sourceBaseUrl);
+    const title = text(DomUtils.innerText(anchor));
     if (!sourceUrl || title.length < 4 || title.length > 240) continue;
     if (!/(contest|competition|공모전|대회|실기|미술|디자인|입시)/i.test(`${title} ${sourceUrl}`)) continue;
     const key = `${sourceUrl}|${title}`;
     if (seen.has(key)) continue;
     seen.add(key);
 
-    const cells = tableCellsAround(html, match.index || 0);
-    const nearby = cells.length
-      ? cells.join(" ")
-      : stripHtml(html.slice(Math.max(0, (match.index || 0) - 500), (match.index || 0) + match[0].length + 500));
-    const sourceStatus = sourceStatusFrom(nearby);
-    const dates = datesFrom(nearby, fetchedAt);
-    const kindText = source === "artmd" ? (cells[1] || title) : (cells[0] || title);
-    const organizer = source === "artmd"
-      ? (cells.length >= 5 ? text(cells[4], 200) || null : null)
-      : (cells.length >= 3 ? text(cells[2], 200) || null : null);
+    const valueOf = (node: typeof row | null | undefined) => node ? text(DomUtils.innerText(node)) : '';
+    const statusNode = source === 'artmd' ? field('wr-wr_15') || cells[5] : field('dDay') || cells[4];
+    const sourceStatus = sourceStatusFrom(valueOf(statusNode));
+    const dates = datesFrom(valueOf(source === 'artmd' ? field('wr-date') || cells[3] : cells[3]), fetchedAt);
+    const kindText = valueOf(source === 'artmd' ? field('wr-cate') || cells[1] : cells[0]) || title;
+    const organizer = valueOf(source === 'artmd' ? field('wr-wr_4') || cells[4] : cells[2]) || null;
 
     items.push({
       title,
@@ -232,6 +223,7 @@ export function normalizeCompetitionSourceHtml(
       sourceUrl,
       sourceName: config.name,
       source,
+      sourcePage: sourceBaseUrl,
       sourceStatus: sourceStatus.status,
       sourceStatusLabel: sourceStatus.label,
       externalSourceId: externalIdFrom(sourceUrl),
@@ -252,7 +244,11 @@ async function fetchSourcePage(source: CompetitionSource, sourceUrl: string, fet
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const html = await response.text();
-    return normalizeCompetitionSourceHtml(source, html, fetchedAt, sourceUrl);
+    const items = normalizeCompetitionSourceHtml(source, html, fetchedAt, sourceUrl);
+    if (!items.length && !/등록된\s*(?:대회|게시물|자료|상품).*없|검색.*결과.*없/.test(DomUtils.innerText(parseDocument(html)))) {
+      throw new Error('목록 구조 확인 필요');
+    }
+    return { items, httpStatus: response.status };
   } finally {
     clearTimeout(timer);
   }
@@ -268,17 +264,31 @@ async function fetchSource(source: CompetitionSource) {
   const items: NormalizedCompetition[] = [];
   for (const result of results) {
     if (result.status !== "fulfilled") continue;
-    for (const item of result.value) {
-      const key = `${normalizedUrl(item.sourceUrl)}|${normalizedTitle(item.title)}`;
+    for (const item of result.value.items) {
+      const key = item.externalSourceId || `${normalizedUrl(item.sourceUrl)}|${normalizedTitle(item.title)}`;
       if (seen.has(key)) continue;
       seen.add(key);
       items.push(item);
     }
   }
-  if (!items.length) {
+  if (results.every((result) => result.status === 'rejected')) {
     throw new DataCoreAccessError(502, `${config.name} 연결을 확인해 주세요. 기존 대회 데이터는 변경되지 않았습니다.`);
   }
-  return items.slice(0, 120);
+  const today = new Date(Date.parse(fetchedAt) + 9 * 3600000).toISOString().slice(0, 10);
+  const pages = results.map((result, index) => {
+    if (result.status === 'rejected') return { url: config.urls[index], ok: false, error: result.reason instanceof Error ? result.reason.message : '연결 실패' };
+    const eligible = result.value.items.filter((item) => isLiveCompetition(item, today));
+    return { url: config.urls[index], ok: true, httpStatus: result.value.httpStatus,
+      parsed: result.value.items.length, open: eligible.filter((item) => item.sourceStatus === 'open').length,
+      upcoming: eligible.filter((item) => item.sourceStatus === 'upcoming').length,
+      excluded: result.value.items.length - eligible.length };
+  });
+  return { items: items.slice(0, 120), pages };
+}
+
+export function isLiveCompetition(item: NormalizedCompetition, today = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10)) {
+  return (item.sourceStatus === 'open' || (item.source === 'mgood' && item.sourceStatus === 'upcoming'))
+    && (!item.applicationEnd || item.applicationEnd >= today);
 }
 
 function hasCompetitionReadPermission(context: DataCoreAccessContext) {
@@ -401,6 +411,7 @@ function mergeSources(existing: CompetitionSourceProvenance[], next: Competition
     sourceUrl: next.sourceUrl,
     sourceName: "",
     source: next.source,
+    sourcePage: '',
     sourceStatus: "unknown",
     sourceStatusLabel: "상태 확인 필요",
     externalSourceId: next.externalSourceId || null,
@@ -449,11 +460,12 @@ function sourcePayload(item: NormalizedCompetition, existing?: Record<string, un
 export async function previewCompetitionSource(db: D1Database, context: DataCoreAccessContext, sourceValue: string) {
   hasCompetitionReadPermission(context);
   const source = sourceFrom(sourceValue);
-  const items = await fetchSource(source);
+  const { items, pages } = await fetchSource(source);
   const existing = await listCompetitions(db, context, new URL("https://data-core.invalid/api/data-core/competitions?limit=100")) as Record<string, unknown>[];
   return {
     source,
     sourceName: SOURCE_CONFIG[source].name,
+    pages,
     fetchedAt: new Date().toISOString(),
     items: items.map((item) => ({ ...item, importStatus: previewStatus(item, existing) })),
   };
@@ -464,7 +476,7 @@ export async function importCompetitionSource(request: Request, db: D1Database, 
   hasCompetitionPermission(context);
   if (!context.isSuperAdmin) throw new DataCoreAccessError(403, "외부 대회 소식 반영은 마스터 관리자만 할 수 있습니다.");
   const source = sourceFrom(sourceValue);
-  const items = await fetchSource(source);
+  const { items } = await fetchSource(source);
   const existing = await listCompetitions(db, context, new URL("https://data-core.invalid/api/data-core/competitions?limit=100")) as Record<string, unknown>[];
   const summary = { created: 0, updated: 0, unchanged: 0, ambiguous: 0 };
 

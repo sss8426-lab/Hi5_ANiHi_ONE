@@ -389,7 +389,11 @@ async function handleDataCoreApi(request: Request, env: Env) {
       return readDataCoreFile(env.DB, env.FILES, context, fileId);
     }
     if (request.method === "DELETE") {
-      return jsonResponse(await deleteDataCoreFile(env.DB, env.FILES, context, fileId));
+      if (url.searchParams.has('awardFolderId') && request.headers.get('origin') !== url.origin) {
+        throw new DataCoreAccessError(403, '동일 출처 요청만 허용됩니다.');
+      }
+      return jsonResponse(await deleteDataCoreFile(env.DB, env.FILES, context, fileId,
+        url.searchParams.has('awardFolderId') ? url.searchParams.get('awardFolderId') || '' : undefined));
     }
   }
 
