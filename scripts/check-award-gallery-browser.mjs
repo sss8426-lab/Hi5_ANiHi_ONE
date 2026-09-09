@@ -1,0 +1,121 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import {pathToFileURL} from 'node:url';
+
+const {chromium} = await import(process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : 'playwright');
+const base = process.env.ROADMAP_TEST_ORIGIN || 'http://localhost:3107';
+if (!/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(base)) throw new Error('Synthetic fixtures require localhost');
+const output = path.resolve('outputs/award-gallery-browser');
+await fs.mkdir(output, {recursive:true});
+const image = await fs.readFile('public/data-core/assets/mode-counseling.webp');
+const browser = await chromium.launch({headless:true,channel:process.env.ROADMAP_BROWSER_CHANNEL || 'chrome'});
+let checks=0;
+try {
+  const ctx = await browser.newContext();
+  const errors=[], writes=[];
+  let authenticated=true, slowA=false;
+  let folders=[
+    {id:'b',title:'합성 두 번째 폴더',campusId:null,createdAt:'2026-09-02'},
+    {id:'a',title:'합성 첫 번째 폴더',campusId:'synthetic-campus',createdAt:'2026-09-01'},
+  ];
+  const files = (id) => Array.from({length:8},(_,i)=>({id:`${id}-${i}`,recordId:id,mimeType:'image/webp',fileName:`합성 수상작 ${id}-${i}`,category:'competition-material'}));
+  await ctx.route('**/*', async route => {
+    const req=route.request(), url=new URL(req.url());
+    if (url.origin!==base) return route.abort();
+    const p=url.pathname;
+    if (!p.startsWith('/api/')) return route.continue();
+    if (req.method()!=='GET') writes.push({path:p,method:req.method(),body:req.postData()});
+    if (p==='/api/data-core/context') return route.fulfill({json:{authenticated,canWrite:authenticated,isSuperAdmin:authenticated,user:{name:'Synthetic admin'},memberships:[]}});
+    if (p==='/api/data-core/health') return route.fulfill({json:{ok:true,bindings:{database:true,files:true}}});
+    if (p==='/api/data-core/campuses') return route.fulfill({json:{campuses:[{id:'synthetic-campus',name:'합성 캠퍼스'}]}});
+    if (p==='/api/data-core/records' && req.method()==='POST') {
+      const body=req.postDataJSON(); const record={...body,id:'c',createdAt:'2026-09-03'};
+      folders.push(record);return route.fulfill({status:201,json:{record}});
+    }
+    if (p==='/api/data-core/records/c' && req.method()==='DELETE') {
+      folders=folders.filter(f=>f.id!=='c');return route.fulfill({json:{ok:true}});
+    }
+    if (p==='/api/data-core/records') return route.fulfill({json:{records:folders}});
+    if (p==='/api/data-core/files' && req.method()==='POST') return route.fulfill({status:201,json:{file:{id:'synthetic-upload'}}});
+    if (p==='/api/data-core/files') {
+      const id=url.searchParams.get('recordId');
+      if (id==='a' && slowA) await new Promise(r=>setTimeout(r,450));
+      return route.fulfill({json:{files:id ? [...files(id),...files('foreign')] : []}});
+    }
+    if (p.startsWith('/api/data-core/files/')) return route.fulfill({contentType:'image/webp',body:image});
+    if (p.includes('/competition-sources/')) return route.fulfill({json:{items:[
+      {title:'합성 접수중 대회',sourceStatus:'open',sourceUrl:'https://www.mgood.co.kr/synthetic',applicationEnd:'2026-09-20'},
+      {title:'합성 종료 대회',sourceStatus:'closed',sourceUrl:'https://www.mgood.co.kr/closed'},
+    ]}});
+    return route.fulfill({json:{competitions:[],events:[],files:[],records:[]}});
+  });
+  const page=await ctx.newPage();page.on('pageerror',e=>errors.push(e.message));
+  for (const [name,width,height,columns] of [['desktop',1440,1000,4],['wide',1920,1080,6],['tablet',820,1180,3],['mobile',390,844,2],['small-mobile',320,740,2]]) {
+    await page.setViewportSize({width,height});
+    await page.goto(`${base}/data-core/counseling/competitions`);
+    await page.locator('[data-award-image="a-0"]').waitFor();
+    assert.deepEqual(await page.locator('[data-award-folder-id]').evaluateAll(els=>els.map(e=>e.dataset.awardFolderId)),['a','b']);
+    assert.equal(await page.locator('.award-folder-list > button:first-child').getAttribute('id'),'openAwardFolderBtn');
+    assert.equal(await page.locator('[data-award-folder-id="a"]').getAttribute('aria-pressed'),'true');
+    assert.equal(await page.locator('#awardLibraryFiles a').count(),8);
+    assert.equal(await page.locator('#awardLibraryFiles').evaluate(e=>getComputedStyle(e).gridTemplateColumns.split(' ').length),columns);
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,`${name} overflow`);
+    await page.locator('#awardLibraryFiles img').evaluateAll(imgs=>Promise.all(imgs.map(img=>{img.loading='eager';return img.decode();})));
+    await page.screenshot({path:path.join(output,`${name}.png`),fullPage:true});checks+=6;
+    for (const close of ['button','escape','overlay']) {
+      await page.locator('[data-award-image="a-0"]').click();
+      await page.locator('#awardLightbox[open]').waitFor();
+      assert.equal(await page.locator('#awardLightboxImage').getAttribute('src'),'/api/data-core/files/a-0');
+      await page.locator('#awardLightboxImage').evaluate(img=>img.decode());
+      if(close==='button') await page.locator('#closeAwardLightboxBtn').click();
+      if(close==='escape') await page.keyboard.press('Escape');
+      if(close==='overlay') await page.mouse.click(2,2);
+      await page.locator('#awardLightbox[open]').waitFor({state:'hidden'});checks++;
+    }
+    await page.locator('[data-award-folder-id="b"]').click();
+    await page.locator('[data-award-image="b-0"]').waitFor();
+    assert.equal(await page.locator('[data-award-image^="a-"]').count(),0);checks++;
+  }
+  slowA=true;
+  await page.locator('[data-award-folder-id="a"]').click();
+  assert.equal(await page.locator('#awardLibraryFiles a').count(),0);
+  await page.locator('[data-award-folder-id="b"]').click();
+  await page.locator('[data-award-image="b-0"]').waitFor();
+  await page.waitForTimeout(600);
+  assert.equal(await page.locator('[data-award-image^="a-"]').count(),0);checks+=2;
+  await page.locator('#openAwardFolderBtn').click();
+  await page.locator('#awardFolderTitle').fill('자유 이름 <합성> & 2027');
+  await page.locator('#awardFolderForm button[type=submit]').click();
+  await page.locator('[data-award-folder-id="c"]').waitFor();
+  assert.equal(await page.locator('#selectedAwardFolderTitle').textContent(),'자유 이름 <합성> & 2027');
+  assert.equal(await page.locator('[data-award-folder-id="c"]').getAttribute('aria-pressed'),'true');checks+=2;
+  await page.locator('#openAwardUploadBtn').click();
+  assert.equal(await page.locator('#uploadRecordId').inputValue(),'c');
+  assert.equal(await page.locator('#uploadCampus').inputValue(),'');
+  assert.equal(await page.locator('#uploadCampus').isDisabled(),true);
+  assert.equal(await page.locator('#uploadCategory').isDisabled(),true);checks+=4;
+  await page.locator('#uploadFile').setInputFiles({name:'synthetic.webp',mimeType:'image/webp',buffer:image});
+  await page.locator('#uploadSubmitBtn').click();
+  await page.locator('#uploadModal').waitFor({state:'hidden'});
+  const upload=writes.find(w=>w.path==='/api/data-core/files');
+  assert.match(upload.body,/name="recordId"\r\n\r\nc\r\n/);
+  assert.match(upload.body,/competition-material/);checks+=2;
+  page.once('dialog',d=>d.accept());
+  await page.locator('#deleteAwardFolderBtn').click();
+  await page.locator('[data-award-folder-id="c"]').waitFor({state:'detached'});
+  assert.deepEqual(writes.filter(w=>w.method==='DELETE').map(w=>w.path),['/api/data-core/records/c']);checks++;
+  await page.getByRole('button',{name:'소식 가리기',exact:true}).click();
+  await page.getByRole('button',{name:'소식 보이기',exact:true}).click();
+  await page.getByRole('button',{name:'새로고침',exact:true}).click();
+  assert.equal(await page.getByText('합성 종료 대회',{exact:true}).count(),0);checks++;
+  await page.goto(`${base}/data-core/counseling`);
+  await page.goBack();await page.locator('[data-award-image="a-0"]').waitFor();
+  await page.reload();await page.locator('[data-award-image="a-0"]').waitFor();checks+=2;
+  authenticated=false;await page.reload();
+  await page.getByText('로그인이 필요합니다',{exact:true}).waitFor({state:'attached'});
+  assert.equal(await page.getByRole('link',{name:'DATA CORE 로그인 화면 열기'}).isVisible(),true);
+  assert.equal(await page.locator('#openAwardFolderBtn').isDisabled(),true);checks++;
+  assert.deepEqual(errors,[]);
+  console.log(JSON.stringify({passed:checks,pageErrors:0,syntheticOnly:true,screenshots:output}));
+} finally { await browser.close(); }
