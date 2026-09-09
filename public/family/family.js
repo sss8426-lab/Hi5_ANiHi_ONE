@@ -456,7 +456,7 @@ document.querySelectorAll('[data-go-tab]').forEach((button) => button.addEventLi
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/family/sw.js', { scope: '/family/' })
+    navigator.serviceWorker.register('/family/sw.js', { scope: '/family/', updateViaCache: 'none' })
       .then(() => { if (state.session) void loadPushStatus(); })
       .catch(() => {});
   });

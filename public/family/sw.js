@@ -1,10 +1,12 @@
-const CACHE_NAME = 'kkumeum-family-shell-v2';
+const CACHE_PREFIX = 'kkumeum-family-shell-';
+const CACHE_NAME = `${CACHE_PREFIX}v3`;
 const STATIC_SHELL = [
   '/family/',
   '/family/index.html',
   '/family/family.css',
   '/family/family-news.css',
   '/family/family.js',
+  '/family/family-growth-labels.js',
   '/family/family-news.js',
   '/family/manifest.webmanifest',
   '/family/icon.svg',
@@ -17,7 +19,7 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))),
+    caches.keys().then((keys) => Promise.all(keys.filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME).map((key) => caches.delete(key)))),
   );
   self.clients.claim();
 });
@@ -34,14 +36,24 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (!STATIC_SHELL.includes(url.pathname)) return;
-  event.respondWith(
-    caches.match(request).then((cached) => cached || fetch(request).then((response) => {
-      if (!response.ok || response.type !== 'basic') return response;
-      const copy = response.clone();
-      caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+  // Revalidate shell assets online so existing installs see newly deployed UI.
+  // Query values (including notice IDs) are never retained in cache keys.
+  const cacheKey = `${url.origin}${url.pathname}`;
+  event.respondWith((async () => {
+    try {
+      const response = await fetch(request, { cache: 'no-cache' });
+      if (response.ok && response.type === 'basic' && !response.redirected) {
+        const copy = response.clone();
+        event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.put(cacheKey, copy)).catch(() => {}));
+      }
       return response;
-    })),
-  );
+    } catch (error) {
+      const cache = await caches.open(CACHE_NAME);
+      const cached = await cache.match(cacheKey);
+      if (cached) return cached;
+      throw error;
+    }
+  })());
 });
 
 self.addEventListener('push', (event) => {
