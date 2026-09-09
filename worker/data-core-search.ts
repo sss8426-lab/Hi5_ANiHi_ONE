@@ -79,6 +79,7 @@ export async function setDataRecordContent(
 ) {
   requireWriteAccess(context);
   await ensureDataCoreMigrations(db);
+  await getDataRecord(db, context, recordId);
 
   const existing = await db
     .prepare(

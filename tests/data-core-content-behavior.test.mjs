@@ -3,6 +3,185 @@ import { readFile } from "node:fs/promises";
 import { extname, join } from "node:path";
 import test from "node:test";
 import { Miniflare } from "miniflare";
+import { encode, decode } from 'fast-png';
+
+const derivativePng = () => encode({ width: 2160, height: 2700, channels: 4, depth: 8, data: new Uint8Array(2160 * 2700 * 4).fill(180) });
+const tinyPng = () => encode({ width: 16, height: 20, channels: 4, depth: 8, data: new Uint8Array(16 * 20 * 4).fill(90) });
+function derivativeForm(source = 'file-shared', bytes = derivativePng()) {
+  const form = new FormData();
+  form.append('derivedFromFileId', source);
+  form.append('file', new File([bytes], 'synthetic.png', { type: 'image/png' }));
+  return form;
+}
+
+test('Instagram derivatives preserve originals, inherit authority, link drafts and soft-trash without deleting bytes', async () => {
+  const h = await createHarness();
+  try {
+    const key = 'data-core/test/file-shared.png';
+    await h.env.FILES.put(key, tinyPng());
+    await h.request('GET', '/api/data-core/content', users.a);
+    const before = await h.env.DB.prepare('SELECT * FROM file_objects WHERE id = ?').bind('file-shared').first();
+    const original = new Uint8Array(await (await h.env.FILES.get(key)).arrayBuffer());
+    const form = derivativeForm();
+    for (const [name, value] of Object.entries({ campusId: CAMPUS_B, ownerUserId: 'forged', sourceApp: 'blog', visibility: 'public', metadata: '{"derivedFromFileId":"forged"}' })) form.append(name, value);
+    const saved = await h.requestForm('/api/data-core/instagram/derivatives', users.b, form);
+    assert.equal(saved.response.status, 201, JSON.stringify(saved.body));
+    const file = saved.body.file;
+    assert.notEqual(file.id, 'file-shared');
+    assert.equal(file.sourceApp, 'instagram'); assert.equal(file.category, 'instagram-derived');
+    assert.equal(file.metadata.derivedFromFileId, 'file-shared');
+    assert.equal(file.metadata.derivativeFileId, file.id);
+    assert.equal(file.metadata.width, 2160); assert.equal(file.metadata.height, 2700);
+    assert.equal(file.metadata.aspectRatio, '4:5'); assert.equal(file.metadata.createdBy, 'instagram-editor');
+    assert.equal('r2Key' in file, false); assert.equal(file.downloadUrl, `/api/data-core/files/${file.id}`);
+    const row = await h.env.DB.prepare('SELECT * FROM file_objects WHERE id = ?').bind(file.id).first();
+    assert.equal(row.owner_user_id, before.owner_user_id); assert.equal(row.campus_id, before.campus_id);
+    assert.equal(row.visibility, before.visibility);
+    const actual = decode(new Uint8Array(await (await h.env.FILES.get(row.r2_key)).arrayBuffer()));
+    assert.equal(actual.width, 2160); assert.equal(actual.height, 2700);
+    assert.equal(actual.width / actual.height, 4 / 5);
+    const second = await h.requestForm('/api/data-core/instagram/derivatives', users.a, derivativeForm());
+    assert.equal(second.response.status, 201); assert.notEqual(second.body.file.id, file.id);
+    assert.deepEqual(await h.env.DB.prepare('SELECT * FROM file_objects WHERE id = ?').bind('file-shared').first(), before);
+    assert.deepEqual(new Uint8Array(await (await h.env.FILES.get(key)).arrayBuffer()), original);
+    const listing = await h.request('GET', '/api/data-core/files?category=instagram-derived', users.a);
+    assert.equal(listing.body.files.length, 2);
+    assert.equal(listing.body.files.find((item) => item.id === file.id).metadata.derivedFromFileId, 'file-shared');
+    assert.equal((await h.request('GET', file.downloadUrl, users.a)).response.status, 200);
+    assert.equal((await h.request('GET', `/api/files/${encodeURIComponent(row.r2_key)}`, users.a)).response.status, 404);
+    const draft = await h.createDraft(users.a, { sourceApp: 'instagram', campusId: CAMPUS_A, title: 'Synthetic derivative', relatedFileIds: ['file-shared'], derivedFileIds: [file.id] });
+    assert.deepEqual(draft.metadata.relatedFileIds, ['file-shared']); assert.deepEqual(draft.metadata.derivedFileIds, [file.id]);
+    const updated = await h.request('PATCH', `/api/data-core/content/${draft.id}`, users.a, { content: 'Synthetic edit' });
+    assert.deepEqual(updated.body.draft.metadata.derivedFileIds, [file.id]);
+    const blog = await h.createDraft(users.a, { sourceApp: 'blog', campusId: CAMPUS_A, title: 'Same original', relatedFileIds: ['file-shared'] });
+    assert.deepEqual(blog.metadata.relatedFileIds, ['file-shared']); assert.deepEqual(blog.metadata.derivedFileIds, []);
+    const badLink = await h.request('POST', '/api/data-core/content', users.a, { sourceApp: 'instagram', campusId: CAMPUS_A, title: 'Bad link', metadata: { derivedFileIds: ['file-shared'] } });
+    assert.equal(badLink.response.status, 400);
+    assert.equal((await h.request('DELETE', `/api/data-core/content/${draft.id}`, users.a)).response.status, 200);
+    assert.equal((await h.request('DELETE', file.downloadUrl, users.a)).response.status, 200);
+    assert.ok(await h.env.FILES.get(row.r2_key)); assert.ok(await h.env.FILES.get(key));
+  } finally { await h.mf.dispose(); }
+});
+
+test('Instagram derivative provenance rejects private, foreign campus, anonymous and cross-origin access', async () => {
+  const h = await createHarness();
+  try {
+    await h.env.FILES.put('data-core/test/file-shared.png', tinyPng());
+    for (const [source, user, headers, expected] of [
+      ['file-shared', null, {}, 401],
+      ['file-private-b', users.a, {}, 403],
+      ['file-other-campus', users.a, {}, 403],
+      ['file-shared', users.a, { origin: 'https://attacker.example' }, 403],
+      ['file-shared', users.a, { origin: '' }, 403],
+    ]) {
+      const result = await h.requestForm('/api/data-core/instagram/derivatives', user, derivativeForm(source), headers);
+      assert.equal(result.response.status, expected, JSON.stringify(result.body));
+    }
+    const saved = await h.requestForm('/api/data-core/instagram/derivatives', users.a, derivativeForm());
+    assert.equal(saved.response.status, 201, JSON.stringify(saved.body));
+    const file = saved.body.file;
+    assert.equal((await h.request('GET', file.downloadUrl)).response.status, 401);
+    await h.env.DB.prepare("UPDATE file_objects SET visibility = 'private' WHERE id = 'file-shared'").run();
+    assert.equal((await h.request('GET', file.downloadUrl, users.b)).response.status, 403);
+    const list = await h.request('GET', '/api/data-core/files?category=instagram-derived', users.b);
+    assert.deepEqual(list.body.files, []);
+    const link = await h.request('POST', '/api/data-core/content', users.b, { sourceApp: 'instagram', campusId: CAMPUS_A, title: 'Forbidden', derivedFileIds: [file.id] });
+    assert.equal(link.response.status, 403);
+    assert.equal((await h.request('GET', file.downloadUrl, users.a)).response.status, 200);
+    await h.env.DB.prepare("UPDATE file_objects SET campus_id = ? WHERE id = 'file-shared'").bind(CAMPUS_B).run();
+    assert.equal((await h.request('GET', file.downloadUrl, users.a)).response.status, 403);
+    await h.env.DB.prepare("UPDATE file_objects SET campus_id = ?, deleted_at = 'synthetic-deleted' WHERE id = 'file-shared'").bind(CAMPUS_A).run();
+    assert.equal((await h.request('GET', file.downloadUrl, users.admin)).response.status, 403);
+  } finally { await h.mf.dispose(); }
+});
+
+test('Instagram derivative rejects malformed images and non-images without new rows or objects', async () => {
+  const h = await createHarness();
+  try {
+    await h.env.FILES.put('data-core/test/file-shared.png', tinyPng());
+    await h.seedFile({ id: 'document', campusId: CAMPUS_A, ownerUserId: users.a.id, mimeType: 'application/pdf' });
+    const before = await h.env.DB.prepare('SELECT COUNT(*) AS n FROM file_objects').first();
+    const corrupt = derivativePng(); corrupt[corrupt.length - 1] ^= 1;
+    for (const [source, bytes, status] of [ ['document', derivativePng(), 415], ['file-shared', tinyPng(), 400], ['file-shared', corrupt, 400], ['file-shared', new Uint8Array([1, 2, 3]), 400], ['file-shared', new Uint8Array(8 * 1024 * 1024 + 1), 400] ]) {
+      const result = await h.requestForm('/api/data-core/instagram/derivatives', users.a, derivativeForm(source, bytes));
+      assert.equal(result.response.status, status, JSON.stringify(result.body));
+    }
+    assert.deepEqual(await h.env.DB.prepare('SELECT COUNT(*) AS n FROM file_objects').first(), before);
+    assert.equal((await h.env.FILES.list()).objects.length, 1);
+    assert.equal((await h.requestForm('/api/data-core/instagram/derivatives', users.a, derivativeForm('file-shared', new Uint8Array(9 * 1024 * 1024)))).response.status, 413);
+    const missing = await h.requestForm('/api/data-core/instagram/derivatives', users.b, derivativeForm('file-private-b'));
+    assert.equal(missing.response.status, 404);
+    for (const mime of ['image/jpeg', 'image/webp']) {
+      await h.env.DB.prepare("UPDATE file_objects SET mime_type = ? WHERE id = 'file-shared'").bind(mime).run();
+      assert.equal((await h.requestForm('/api/data-core/instagram/derivatives', users.a, derivativeForm())).response.status, 201);
+    }
+  } finally { await h.mf.dispose(); }
+});
+
+test('Instagram provenance cannot be forged or edited through generic record/file APIs', async () => {
+  const h = await createHarness();
+  try {
+    await h.env.FILES.put('data-core/test/file-shared.png', tinyPng());
+    const saved = await h.requestForm('/api/data-core/instagram/derivatives', users.a, derivativeForm());
+    assert.equal(saved.response.status, 201, JSON.stringify(saved.body));
+    const file = saved.body.file;
+    const row = await h.env.DB.prepare('SELECT data_record_id FROM file_objects WHERE id = ?').bind(file.id).first();
+    const recordPath = `/api/data-core/records/${encodeURIComponent(row.data_record_id)}`;
+    const original = await h.env.DB.prepare('SELECT * FROM data_records WHERE id = ?').bind(row.data_record_id).first();
+    assert.equal((await h.request('POST', '/api/data-core/records', users.admin, { recordType: 'instagram-derived-file', title: 'forged' })).response.status, 403);
+    const ordinary = await h.request('POST', '/api/data-core/records', users.admin, { recordType: 'ordinary', sourceApp: 'instagram', title: 'Synthetic ordinary' });
+    assert.equal(ordinary.response.status, 201);
+    assert.equal((await h.request('PATCH', `/api/data-core/records/${ordinary.body.record.id}`, users.admin, { recordType: ' instagram-derived-file ' })).response.status, 403);
+    assert.equal((await h.request('GET', recordPath, users.admin)).response.status, 403);
+    assert.equal((await h.request('PATCH', recordPath, users.admin, { metadata: { derivedFromFileId: 'forged' } })).response.status, 403);
+    assert.equal((await h.request('DELETE', recordPath, users.admin)).response.status, 403);
+    assert.equal((await h.request('PUT', `${recordPath}/content`, users.admin, { content: 'forged' })).response.status, 403);
+    for (const values of [{ category: 'instagram-derived' }, { category: 'instagram-source', recordId: row.data_record_id }]) {
+      const form = new FormData(); form.append('file', new File([tinyPng()], 'synthetic.png', { type: 'image/png' })); form.append('campusId', CAMPUS_A);
+      for (const [key, value] of Object.entries(values)) form.append(key, value);
+      assert.equal((await h.requestForm('/api/data-core/files', users.admin, form)).response.status, values.category === 'instagram-derived' ? 400 : 403);
+    }
+    assert.deepEqual(await h.env.DB.prepare('SELECT * FROM data_records WHERE id = ?').bind(row.data_record_id).first(), original);
+    assert.equal((await h.requestForm('/api/data-core/instagram/derivatives', users.a, derivativeForm(file.id))).response.status, 415);
+    await h.env.DB.prepare("UPDATE data_records SET metadata_json = '{}' WHERE id = ?").bind(row.data_record_id).run();
+    assert.equal((await h.request('GET', file.downloadUrl, users.admin)).response.status, 403);
+  } finally { await h.mf.dispose(); }
+});
+
+test('Instagram failed batches clean only new orphans and preserve committed bytes after transport failure', async () => {
+  const h = await createHarness();
+  try {
+    const db = h.env.DB, key = 'data-core/test/file-shared.png';
+    await h.env.FILES.put(key, tinyPng());
+    await h.request('GET', '/api/data-core/content', users.a);
+    const before = await db.prepare('SELECT * FROM file_objects WHERE id = ?').bind('file-shared').first();
+    for (const commitFirst of [false, true]) {
+      let derivativeBatch = false;
+      h.env.DB = new Proxy(db, {
+        get(target, name) {
+          if (name === 'prepare') return (sql) => {
+            if (sql.includes("'derive','file_object'")) derivativeBatch = true;
+            return target.prepare(sql);
+          };
+          if (name === 'batch') return async (statements) => {
+            if (!derivativeBatch) return target.batch(statements);
+            derivativeBatch = false;
+            if (commitFirst) await target.batch(statements);
+            throw new Error('Synthetic batch transport failure');
+          };
+          const value = target[name]; return typeof value === 'function' ? value.bind(target) : value;
+        },
+      });
+      const response = await h.requestForm('/api/data-core/instagram/derivatives', users.a, derivativeForm());
+      assert.equal(response.response.status, 500);
+      assert.equal((await h.env.FILES.list()).objects.length, commitFirst ? 2 : 1);
+    }
+    const created = await db.prepare("SELECT r2_key FROM file_objects WHERE category = 'instagram-derived'").all();
+    assert.equal(created.results.length, 1); assert.ok(await h.env.FILES.get(created.results[0].r2_key));
+    assert.deepEqual(await db.prepare('SELECT * FROM file_objects WHERE id = ?').bind('file-shared').first(), before);
+    assert.deepEqual(new Uint8Array(await (await h.env.FILES.get(key)).arrayBuffer()), tinyPng());
+  } finally { await h.mf.dispose(); }
+});
 
 const ORGANIZATION_ID = "org-hi5-anihi";
 const CAMPUS_A = "campus-anihi-admission";
@@ -72,6 +251,27 @@ async function createHarness() {
     ASSETS: createAssetsBinding(),
     DATA_CORE_SUPER_ADMIN_EMAILS: users.admin.email,
   };
+  // Miniflare proxies cannot receive Node's Headers instance across their RPC boundary.
+  const rawFiles = env.FILES;
+  env.FILES = new Proxy(rawFiles, {
+    get(target, name) {
+      if (name === 'get') return async (...args) => {
+        const object = await target.get(...args);
+        if (!object) return object;
+        return new Proxy(object, {
+          get(value, key) {
+            if (key === 'writeHttpMetadata') return (headers) => {
+              if (value.httpMetadata?.contentType) headers.set('content-type', value.httpMetadata.contentType);
+            };
+            const member = value[key];
+            return typeof member === 'function' ? member.bind(value) : member;
+          },
+        });
+      };
+      const member = target[name];
+      return typeof member === 'function' ? member.bind(target) : member;
+    },
+  });
 
   async function request(method, pathname, user, body, extraHeaders = {}) {
     const headers = new Headers(user ? authHeaders(user) : undefined);
@@ -95,6 +295,7 @@ async function createHarness() {
 
   async function requestForm(pathname, user, form, extraHeaders = {}) {
     const headers = new Headers(user ? authHeaders(user) : undefined);
+    if (pathname === '/api/data-core/instagram/derivatives') headers.set('origin', 'http://localhost');
     for (const [name, value] of Object.entries(extraHeaders)) headers.set(name, value);
     const response = await worker.fetch(
       new Request(`http://localhost${pathname}`, { method: "POST", headers, body: form }),

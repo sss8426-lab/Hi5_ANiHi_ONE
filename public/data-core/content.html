@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>블로그 자동화 · HI5·ANiHi DATA CORE</title>
   <link rel="stylesheet" href="/data-core/styles.css">
-  <link rel="stylesheet" href="/data-core/content.css">
+  <link rel="stylesheet" href="/data-core/content.css?v=20260909-derivative-v1">
   <link rel="stylesheet" href="/data-core/layout-theme.css?v=20260909-bright-layout">
 </head>
 <body class="data-core-layout">
@@ -148,6 +148,25 @@
                 <div id="selectedFiles" class="selected-file-list"></div>
               </div>
 
+              <section id="instagramDerivative" class="derivative-editor" hidden aria-label="인스타 이미지 편집">
+                <h3>인스타용 이미지</h3>
+                <label><span>원본 이미지</span><select id="derivativeSource"></select></label>
+                <button id="makeInstagramImage" class="secondary-btn" type="button" disabled>인스타용 이미지 만들기</button>
+                <div id="derivativePreview" hidden>
+                  <div class="derivative-media">
+                    <figure><figcaption>원본 이미지</figcaption><img id="derivativeOriginal" alt="선택한 원본 이미지"></figure>
+                    <figure><figcaption>인스타 미리보기 · 2160 × 2700px</figcaption><canvas id="instagramCanvas" width="2160" height="2700" aria-label="4:5 파생 이미지 미리보기"></canvas></figure>
+                  </div>
+                  <div class="derivative-position">
+                    <label><span>좌우 위치</span><input id="derivativeX" type="range" min="0" max="100" value="50"></label>
+                    <label><span>상하 위치</span><input id="derivativeY" type="range" min="0" max="100" value="50"></label>
+                  </div>
+                  <button id="saveDerivative" class="secondary-btn" type="button" disabled>파생 이미지 저장</button>
+                </div>
+                <p id="derivativeStatus" role="status"></p>
+              </section>
+              <div id="selectedDerivatives" class="selected-file-list" aria-label="연결된 인스타 파생 이미지"></div>
+
               <div class="form-actions">
                 <button class="danger-btn hidden" id="deleteDraftBtn" type="button">삭제</button>
                 <button class="primary-btn" id="saveDraftBtn" type="submit">초안 저장</button>
@@ -179,6 +198,7 @@
                   <option value="counseling-material">상담자료</option>
                   <option value="blog-source">블로그소스</option>
                   <option value="instagram-source">인스타소스</option>
+                  <option value="instagram-derived">인스타 파생 이미지</option>
                   <option value="promotion-material">홍보자료</option>
                 </select>
               </label>
@@ -218,7 +238,8 @@
   </div>
 
   <div class="toast hidden" id="toast"></div>
-  <script src="/data-core/content.js?v=20260908-work-v1"></script>
+  <script src="/data-core/instagram-derivative.js?v=20260909-derivative-v1"></script>
+  <script src="/data-core/content.js?v=20260909-derivative-v1"></script>
   <script src="/data-core/content-admin-nav.js?v=20260908-work-v1"></script>
 </body>
 </html>

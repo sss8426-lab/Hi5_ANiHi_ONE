@@ -13,6 +13,7 @@ import {
   requireCampusAccess,
   requireWriteAccess,
 } from "./data-core-access";
+import { canReadRegisteredFile, derivativeMetadata, DERIVATIVE_CATEGORY, DERIVATIVE_RECORD_TYPE } from './data-core-derivative-policy';
 
 const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024;
 const FILE_AREAS: DataCoreFileArea[] = [
@@ -92,16 +93,6 @@ function libraryFileProfile(category: string, campusId: string | null) {
   };
 }
 
-function canReadFileRow(context: DataCoreAccessContext, row: Record<string, unknown>) {
-  if (context.isSuperAdmin) return true;
-  if (!context.user || !context.memberships.length) return false;
-  if (row.visibility === "organization" || row.visibility === "public") return true;
-  if (row.visibility === "campus") {
-    return typeof row.campus_id === "string" && context.campusIds.includes(row.campus_id);
-  }
-  return context.user.internalUserId === row.owner_user_id;
-}
-
 function canMutateFileRow(context: DataCoreAccessContext, row: Record<string, unknown>) {
   if (context.isSuperAdmin) return true;
   return context.user?.internalUserId === row.owner_user_id;
@@ -145,13 +136,14 @@ async function assertRecordLinkAllowed(
   if (!recordId) return;
   const record = await db
     .prepare(
-      `SELECT id, campus_id, created_by_user_id
+      `SELECT id, campus_id, created_by_user_id, record_type
        FROM data_records
        WHERE id = ? AND organization_id = ? AND deleted_at IS NULL`,
     )
     .bind(recordId, DEFAULT_ORGANIZATION_ID)
-    .first<{ id: string; campus_id: string | null; created_by_user_id: string | null }>();
+    .first<{ id: string; campus_id: string | null; created_by_user_id: string | null; record_type:string }>();
   if (!record) throw new DataCoreAccessError(400, "연결할 DATA CORE 레코드를 찾을 수 없습니다.");
+  if (record.record_type === DERIVATIVE_RECORD_TYPE) throw new DataCoreAccessError(403, '파생 이미지 원본 관계는 직접 연결할 수 없습니다.');
   if (context.isSuperAdmin) return;
   if (record.created_by_user_id !== context.user?.internalUserId) {
     throw new DataCoreAccessError(403, "본인이 등록한 데이터에만 파일을 연결할 수 있습니다.");
@@ -247,6 +239,7 @@ export async function uploadDataCoreFile(
 
   const campusId = cleanText(form.get("campusId"), 120) || null;
   const category = cleanText(form.get("category") || form.get("purpose") || "general", 80) || "general";
+  if (category === DERIVATIVE_CATEGORY) throw new DataCoreAccessError(400, '파생 이미지 저장 기능을 사용하세요.');
   const recordId = cleanText(form.get("recordId"), 120) || null;
 
   await assertHqWorkspaceUpload(db, context, category, campusId, recordId);
@@ -389,9 +382,11 @@ export async function listDataCoreFiles(
     .bind(...bindings, limit)
     .all<Record<string, unknown>>();
 
-  return (result.results || [])
-    .filter((row) => canReadFileRow(context, row))
-    .map(fileRowToResponse);
+  const visible = [];
+  for (const row of result.results || []) {
+    if (await canReadRegisteredFile(db, context, row)) visible.push({ ...fileRowToResponse(row), metadata:await derivativeMetadata(db, row) });
+  }
+  return visible;
 }
 
 export async function listDeletedDataCoreFiles(
@@ -435,7 +430,13 @@ export async function listDeletedDataCoreFiles(
     .bind(...bindings, limit)
     .all<Record<string, unknown>>();
 
-  return (result.results || []).map(fileRowToResponse);
+  const visible = [];
+  for (const row of result.results || []) {
+    if (row.category !== DERIVATIVE_CATEGORY || await canReadRegisteredFile(db, context, row)) {
+      visible.push({...fileRowToResponse(row), metadata:await derivativeMetadata(db, row)});
+    }
+  }
+  return visible;
 }
 
 export async function readDataCoreFile(
@@ -453,7 +454,7 @@ export async function readDataCoreFile(
     .bind(fileId, DEFAULT_ORGANIZATION_ID)
     .first<Record<string, unknown>>();
   if (!row) throw new DataCoreAccessError(404, "파일을 찾을 수 없습니다.");
-  if (!canReadFileRow(context, row)) {
+  if (!await canReadRegisteredFile(db, context, row)) {
     throw new DataCoreAccessError(403, "이 파일을 볼 권한이 없습니다.");
   }
 

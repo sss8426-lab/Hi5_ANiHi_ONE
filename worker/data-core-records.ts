@@ -1,4 +1,5 @@
 import { DEFAULT_ORGANIZATION_ID, ensureDataCoreDatabase } from "./data-core";
+import { assertMutableRecordType, DERIVATIVE_RECORD_TYPE } from './data-core-derivative-policy';
 import {
   DataCoreAccessContext,
   DataCoreAccessError,
@@ -180,6 +181,7 @@ function hasMembership(context: DataCoreAccessContext) {
 }
 
 function canReadRow(context: DataCoreAccessContext, row: Record<string, unknown>) {
+  if (row.record_type === DERIVATIVE_RECORD_TYPE) return false;
   if (context.isSuperAdmin) return true;
   if (row.visibility === "public") return true;
   if (!hasMembership(context)) return false;
@@ -301,6 +303,7 @@ export async function createDataRecord(
 
   const title = cleanText(input.title, 240);
   const recordType = cleanText(input.recordType, 80);
+  assertMutableRecordType(recordType);
   const sourceApp = cleanText(input.sourceApp, 80);
   const campusId = cleanText(input.campusId, 120) || null;
   if (!title) throw new DataCoreAccessError(400, "title이 필요합니다.");
@@ -367,6 +370,8 @@ export async function updateDataRecord(
     .bind(recordId, DEFAULT_ORGANIZATION_ID)
     .first<Record<string, unknown>>();
   if (!existing) throw new DataCoreAccessError(404, "데이터를 찾을 수 없습니다.");
+  assertMutableRecordType(existing.record_type);
+  assertMutableRecordType(cleanText(input.recordType, 80));
   if (!canMutateRow(context, existing)) {
     throw new DataCoreAccessError(403, "본인이 등록한 데이터만 수정할 수 있습니다.");
   }
@@ -432,6 +437,7 @@ export async function deleteDataRecord(
     .bind(recordId, DEFAULT_ORGANIZATION_ID)
     .first<Record<string, unknown>>();
   if (!existing) throw new DataCoreAccessError(404, "데이터를 찾을 수 없습니다.");
+  assertMutableRecordType(existing.record_type);
   if (!canMutateRow(context, existing)) {
     throw new DataCoreAccessError(403, "본인이 등록한 데이터만 삭제할 수 있습니다.");
   }

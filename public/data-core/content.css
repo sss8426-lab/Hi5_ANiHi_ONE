@@ -1,4 +1,18 @@
 .content-workspace { display: block; }
+.derivative-editor { border-top: 1px solid var(--line); padding-top: 16px; display: grid; gap: 12px; min-width: 0; }
+.derivative-editor[hidden], #derivativePreview[hidden] { display: none; }
+.derivative-editor h3 { margin: 0; font-size: 16px; }
+.derivative-editor button { justify-self: start; max-width: 100%; white-space: normal; }
+.derivative-media { display: grid; grid-template-columns: minmax(72px, .4fr) minmax(0, 1fr); gap: 12px; margin: 14px 0; }
+.derivative-media figure { margin: 0; min-width: 0; }
+.derivative-media figcaption { font-size: 12px; color: var(--muted); margin-bottom: 8px; overflow-wrap: anywhere; }
+#derivativeOriginal { display: block; width: 100%; max-width: 110px; aspect-ratio: 1; object-fit: contain; background: #f1f5f9; }
+#instagramCanvas { display: block; width: 100%; max-width: 280px; height: auto; aspect-ratio: 4 / 5; background: #f1f5f9; border: 1px solid var(--line); border-radius: 6px; }
+.derivative-position { display: grid; gap: 12px; margin: 14px 0; }
+.derivative-position input { width: 100%; padding: 0; accent-color: var(--primary); }
+#derivativeStatus { margin: 0; font-size: 13px; overflow-wrap: anywhere; }
+.derived-selection img { width: 48px; height: 60px; object-fit: cover; border-radius: 4px; }
+.derived-selection > div, .selected-file > div, .file-pick-item > div { min-width: 0; overflow-wrap: anywhere; }
 .content-hero { align-items: center; }
 .source-tabs { display: inline-flex; gap: 6px; padding: 5px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
 .source-tab { border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-weight: 800; padding: 9px 13px; }

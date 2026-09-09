@@ -1,4 +1,5 @@
 import { DEFAULT_ORGANIZATION_ID } from "./data-core";
+import { canReadRegisteredFile, DERIVATIVE_CATEGORY } from './data-core-derivative-policy';
 import {
   DataCoreAccessContext,
   DataCoreAccessError,
@@ -33,6 +34,7 @@ export type ContentDraftInput = {
   contentPurpose?: string | null;
   tags?: string[];
   relatedFileIds?: string[];
+  derivedFileIds?: string[];
   metadata?: Record<string, unknown>;
 };
 
@@ -88,27 +90,18 @@ function parseMetadata(value: unknown): Record<string, unknown> {
   }
 }
 
-function canReadFileRow(context: DataCoreAccessContext, row: Record<string, unknown>) {
-  if (context.isSuperAdmin) return true;
-  if (!context.user || !context.memberships.length) return false;
-  if (row.visibility === "organization" || row.visibility === "public") return true;
-  if (row.visibility === "campus") {
-    return typeof row.campus_id === "string" && context.campusIds.includes(row.campus_id);
-  }
-  return context.user.internalUserId === row.owner_user_id;
-}
-
 async function assertFilesCanBeLinked(
   db: D1Database,
   context: DataCoreAccessContext,
   contentCampusId: string | null,
   fileIds: string[],
+  derivativesOnly = false,
 ) {
   if (!fileIds.length) return;
   const placeholders = fileIds.map(() => "?").join(", ");
   const result = await db
     .prepare(
-      `SELECT id, campus_id, owner_user_id, visibility, deleted_at
+      `SELECT id, campus_id, owner_user_id, visibility, deleted_at, category, data_record_id
        FROM file_objects
        WHERE organization_id = ? AND id IN (${placeholders})`,
     )
@@ -122,17 +115,18 @@ async function assertFilesCanBeLinked(
     if (!row || row.deleted_at) {
       throw new DataCoreAccessError(400, "연결할 DATA CORE 파일을 찾을 수 없습니다.");
     }
-    if (!canReadFileRow(context, row)) {
+    if (!await canReadRegisteredFile(db, context, row)) {
       throw new DataCoreAccessError(403, "볼 수 있는 DATA CORE 파일만 콘텐츠에 연결할 수 있습니다.");
     }
     const fileCampusId = typeof row.campus_id === "string" ? row.campus_id : null;
+    if (derivativesOnly && row.category !== DERIVATIVE_CATEGORY) throw new DataCoreAccessError(400, '파생 출력 파일을 선택하세요.');
     if (contentCampusId && fileCampusId && contentCampusId !== fileCampusId) {
       throw new DataCoreAccessError(400, "콘텐츠와 다른 캠퍼스의 파일은 연결할 수 없습니다.");
     }
   }
 }
 
-function buildMetadata(input: ContentDraftInput, sourceApp: ContentSourceApp, relatedFileIds: string[]) {
+function buildMetadata(input: ContentDraftInput, sourceApp: ContentSourceApp, relatedFileIds: string[], derivedFileIds: string[]) {
   const metadata = safeObject(input.metadata);
   metadata.contentPurpose = cleanText(
     input.contentPurpose ?? metadata.contentPurpose ?? "class-story",
@@ -144,6 +138,7 @@ function buildMetadata(input: ContentDraftInput, sourceApp: ContentSourceApp, re
     : metadata.publishedAt || null;
   metadata.channelPostId = cleanText(metadata.channelPostId, 160) || null;
   metadata.relatedFileIds = relatedFileIds;
+  metadata.derivedFileIds = derivedFileIds;
   if (sourceApp === "instagram") {
     metadata.imageSpec = {
       ...(safeObject(metadata.imageSpec)),
@@ -276,12 +271,14 @@ export async function createContentDraft(
   await ensureDataCoreMigrations(db);
   const sourceApp = normalizeSourceApp(input.sourceApp);
   const relatedFileIds = normalizeFileIds(input.relatedFileIds);
+  const derivedFileIds = normalizeFileIds(input.derivedFileIds ?? input.metadata?.derivedFileIds);
   const campusId = cleanText(input.campusId, 120) || null;
   if (!context.isSuperAdmin) requireCampusAccess(context, campusId);
   else if (campusId) requireCampusAccess(context, campusId);
   await assertFilesCanBeLinked(db, context, campusId, relatedFileIds);
+  await assertFilesCanBeLinked(db, context, campusId, derivedFileIds, true);
 
-  const metadata = buildMetadata(input, sourceApp, relatedFileIds);
+  const metadata = buildMetadata(input, sourceApp, relatedFileIds, derivedFileIds);
   const record = await createDataRecord(db, context, {
     campusId,
     recordType: recordTypeForSource(sourceApp),
@@ -351,6 +348,8 @@ export async function updateContentDraft(
     ? normalizeFileIds(existingMetadata.relatedFileIds)
     : normalizeFileIds(input.relatedFileIds);
   await assertFilesCanBeLinked(db, context, nextCampusId, relatedFileIds);
+  const derivedFileIds = normalizeFileIds(input.derivedFileIds ?? input.metadata?.derivedFileIds ?? existingMetadata.derivedFileIds);
+  await assertFilesCanBeLinked(db, context, nextCampusId, derivedFileIds, true);
 
   const metadata = buildMetadata(
     {
@@ -362,6 +361,7 @@ export async function updateContentDraft(
     },
     sourceApp,
     relatedFileIds,
+    derivedFileIds,
   );
   const record = await updateDataRecord(db, context, recordId, {
     campusId: nextCampusId,

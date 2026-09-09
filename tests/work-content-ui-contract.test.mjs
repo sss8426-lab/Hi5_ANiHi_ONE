@@ -15,7 +15,7 @@ test('work content sidebar stays work-only and hides admin links by default', ()
   assert.match(adminNavScript, /context\?\.authenticated && context\?\.isSuperAdmin/);
 });
 
-test('work content file picker uses the nine DATA CORE library categories', () => {
+test('work content file picker preserves nine library categories and adds derived output filtering', () => {
   const expected = [
     'class-photo',
     'student-artwork',
@@ -25,6 +25,7 @@ test('work content file picker uses the nine DATA CORE library categories', () =
     'counseling-material',
     'blog-source',
     'instagram-source',
+    'instagram-derived',
     'promotion-material',
   ];
   const select = contentHtml.match(/<select id="fileCategoryFilter">([\s\S]*?)<\/select>/)?.[1] || '';
