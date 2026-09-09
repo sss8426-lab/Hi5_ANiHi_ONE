@@ -20,7 +20,7 @@ test('news filters exact source/status and elapsed deadlines, dedupes IDs, then 
     item('expired','artmd','art','open','2000-01-01'),item('not-open','artmd','art','upcoming'),item('closed','mgood','main','unknown'),
     {...item('bad'),sourceUrl:'javascript:alert(1)'},
   ]);
-  assert.deepEqual(Array.from(rows,x=>x.externalSourceId),['open','early','late']);
+  assert.deepEqual(Array.from(rows,x=>x.externalSourceId),['open','early','late','not-open']);
   check.set(rows); assert.equal(check.deadlineItems('2099-01-01').length,2);
 });
 test('partial failure preserves only that page while successful empty removes stale news and duplicate clicks coalesce',async()=>{

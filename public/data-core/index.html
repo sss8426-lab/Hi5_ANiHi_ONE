@@ -4,8 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>HI5·ANiHi DATA CORE</title>
-  <link rel="stylesheet" href="/data-core/styles.css?v=20260909-gallery-ux">
+  <link rel="stylesheet" href="/data-core/styles.css?v=20260909-counseling">
   <link rel="stylesheet" href="/data-core/layout-theme.css?v=20260909-bright-layout">
+  <link rel="stylesheet" href="/data-core/counseling-refinements.css?v=20260909-1">
 </head>
 <body class="data-core-layout">
   <div class="app-shell">
@@ -144,21 +145,18 @@
           <h2>상담용</h2>
           <p>상담 중 바로 보여줄 수 있는 공개 정보와 입시 설계 흐름만 모았습니다.</p>
         </div>
-        <div class="menu-card-grid exact-three" aria-label="상담용 메뉴">
+        <div class="menu-card-grid exact-three counseling-image-cards" aria-label="상담용 메뉴">
           <button class="feature-card" data-view="competitions">
-            <span class="feature-icon">☆</span>
-            <strong>공모전·실기대회</strong>
-            <small>일정, 대상, 전공, 실기유형, 수상률</small>
+            <img src="/data-core/assets/counseling/competition-challenge.webp?v=20260909-1" alt="밝은 미술실에서 실기대회 작품을 준비하는 학생" width="1440" height="960" decoding="async">
+            <span class="counseling-card-copy"><strong>공모전·실기대회</strong><small>대회 소식과 역대 수상작을 한눈에 확인합니다.</small><span class="counseling-card-arrow" aria-hidden="true">→</span></span>
           </button>
           <a class="feature-card" href="/data-core/roadmap">
-            <span class="feature-icon">◇</span>
-            <strong>꿈·전공 로드맵</strong>
-            <small>꿈에서 전공과 필요한 실기역량까지</small>
+            <img src="/data-core/assets/mode-counseling.webp?v=20260908-mode-home" alt="여러 미래 진로와 전공을 바라보는 학생" width="1440" height="1080" decoding="async">
+            <span class="counseling-card-copy"><strong>꿈·전공 로드맵</strong><small>꿈에서 출발해 전공과 대학, 준비 과정을 찾아갑니다.</small><span class="counseling-card-arrow" aria-hidden="true">→</span></span>
           </a>
           <a class="feature-card" href="/">
-            <span class="feature-icon">◎</span>
-            <strong>대학합격 로드맵</strong>
-            <small>입시컨설팅 데이터와 지원 전략</small>
+            <img src="/data-core/assets/counseling/admission-roadmap.webp?v=20260909-1" alt="학생과 상담 선생님이 함께 대학 지원전략을 설계하는 모습" width="1440" height="960" decoding="async">
+            <span class="counseling-card-copy"><strong>대학합격 로드맵</strong><small>학생의 성적과 실기를 바탕으로 지원 전략을 설계합니다.</small><span class="counseling-card-arrow" aria-hidden="true">→</span></span>
           </a>
         </div>
         <section class="panel calendar-panel" data-calendar-home="counseling" aria-label="학원 공통 일정">
@@ -311,12 +309,13 @@
       </section>
 
       <section class="view" id="view-competitions">
-        <div class="hero-row">
-          <div>
+        <div class="competition-hero">
+          <img src="/data-core/assets/counseling/competition-challenge.webp?v=20260909-1" alt="실기대회 작품에 집중하는 학생" width="1440" height="960" decoding="async">
+          <div class="competition-hero-copy">
+            <p class="competition-eyebrow">HI5·ANiHi COUNSELING</p>
             <h2>공모전·실기대회</h2>
-            <p>수상작 원본은 DATA CORE에 한 번만 보관하고, 대회 소식과 함께 상담에 활용합니다.</p>
+            <p>실기대회와 공모전을 통해<br>합격으로 가는 경험을 쌓아갑니다.</p>
           </div>
-          <button class="primary-btn" id="openCompetitionBtn">+ 대회 등록</button>
         </div>
         <div class="competition-workspace" id="competitionWorkspace">
           <aside class="panel award-library">
@@ -340,17 +339,15 @@
             <div class="award-library-grid" id="awardLibraryFiles"></div>
           </aside>
           <section class="panel competition-news" id="competitionNewsPanel">
-            <div class="panel-head">
-              <div><h3>공모전 소식</h3></div>
+            <div class="competition-news-heading">
+              <img src="/data-core/assets/counseling/competition-challenge.webp?v=20260909-1" alt="" width="1440" height="960" loading="lazy">
+              <h3>공모전 소식</h3>
             </div>
             <div class="competition-source-actions">
               <button class="ghost-btn" id="refreshCompetitionSourcesBtn" type="button">전체 새로고침</button>
             </div>
             <div class="competition-source-status" id="competitionSourceStatus">출처를 선택해 공개 소식을 확인하세요.</div>
             <div class="competition-source-list" id="competitionSourceList"></div>
-            <div class="competition-core-head"><h4>DATA CORE 대회 목록</h4><span>기존 수동 입력 데이터</span></div>
-            <div class="competition-list" id="competitionList"></div>
-            <section class="competition-detail" id="competitionDetail"></section>
           </section>
         </div>
       </section>
@@ -486,8 +483,8 @@
 
   <dialog id="awardDeleteDialog" class="award-delete-dialog" aria-labelledby="awardDeleteTitle"><h3 id="awardDeleteTitle">선택한 수상작을 삭제할까요?</h3><p id="awardDeleteSummary"></p><p>휴지통으로 이동하며 원본은 보존됩니다.</p><div class="row-actions"><button class="ghost-btn" id="cancelAwardDeleteBtn" type="button">취소</button><button class="danger-btn" id="confirmAwardDeleteBtn" type="button">휴지통으로 이동</button></div></dialog>
   <div class="toast hidden" id="toast"></div>
-  <script src="/data-core/award-image-cache.js?v=20260909-gallery-ux"></script>
-  <script src="/data-core/app.js?v=20260909-gallery-ux"></script>
-  <script src="/data-core/mode-home-artwork.js?v=20260909-gallery-ux"></script>
+  <script src="/data-core/award-image-cache.js?v=20260909-counseling"></script>
+  <script src="/data-core/app.js?v=20260909-counseling"></script>
+  <script src="/data-core/mode-home-artwork.js?v=20260909-counseling"></script>
 </body>
 </html>

@@ -1,9 +1,10 @@
 import { careerStages, programView, filterPrograms, admissionTrend, safeUrl, searchCareers } from './roadmap-model.js?v=20260909-1';
 import { occupationImageConcepts } from './occupation-image-concepts.js?v=20260909-1';
+import { paginate } from './pagination.js?v=20260909-1';
 
 const content = window.HI5_ROADMAP_CONTENT || { careers: [], tracks: [], lessonAreas: [], sources: [] };
 const $ = (id) => document.getElementById(id);
-const state = { family: '', group: '', query: '', career: null, programs: [], controller: null, request: 0 };
+const state = { family: '', group: '', query: '', career: null, programs: [], page:1, visiblePrograms:[], controller: null, request: 0 };
 const familyNames = { story: '만화·애니메이션·게임', design: '디자인' };
 const h = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 const art = (career) => {
@@ -53,14 +54,26 @@ function renderEducation(career) {
 
 function renderUniversities() {
   const filters = { region: $('regionFilter').value, schoolType: $('schoolFilter').value, admission: $('admissionFilter').value, focus: $('focusFilter').value };
-  const rows = filterPrograms(state.programs, filters);
-  $('universityCount').textContent = state.programs.length ? `${rows.length}개 전형` : '';
+  const filtered = filterPrograms(state.programs, filters);
+  const pagination = paginate(filtered, state.page);
+  state.page = pagination.page;
+  const rows = state.visiblePrograms = pagination.rows;
+  $('universityCount').textContent = state.programs.length ? `${filtered.length}개 전형 · ${pagination.page} / ${pagination.totalPages} 페이지` : '';
+  renderUniversityPagination(pagination, filtered.length);
   $('universityFilters').hidden = !state.programs.length;
   if (!rows.length) {
     $('universityContent').innerHTML = `<p class="empty-state">${state.programs.length ? '선택한 조건에 해당하는 전형이 없습니다.' : '연결된 대학별 전형 정보가 아직 없습니다. 아래 대학·학과 예시부터 살펴보세요.'}</p>`;
     return;
   }
   $('universityContent').innerHTML = `<div class="university-grid">${rows.map((p) => `<article class="university-item"><h3>${h(p.university)}</h3><p class="department">${h(p.department)}</p><p class="program-meta">${h([p.region || '지역 확인 필요', p.schoolType || '학교 유형 확인 필요', p.admission || '모집 시기 확인 필요', p.year ? `${p.year}학년도` : '학년도 확인 필요'].join(' · '))}</p><div class="ratios"><span>성적 <strong>${p.grade === null ? '확인 필요' : `${p.grade}%`}</strong></span><span>실기 <strong>${p.skill === null ? '확인 필요' : `${p.skill}%`}</strong></span></div><p class="program-meta">실기: ${h(p.practical || '모집요강 확인 필요')}</p><p class="source-line">${p.source ? `<a href="${h(p.source)}" target="_blank" rel="noopener noreferrer">${p.verified ? '검수된 모집요강' : '등록 출처 확인'} ↗</a>` : '공식 출처 확인 필요'}<br>${p.verified ? `검수 완료 · ${h(p.verifiedAt)}${p.page ? ` · p.${h(p.page)}` : ' · 원문 페이지 확인 필요'}` : '추가 검수 필요 · 전형 비율 미공개'}</p></article>`).join('')}</div>`;
+}
+
+function renderUniversityPagination(pagination, count) {
+  let nav = $('universityPagination');
+  if (!nav) { nav = document.createElement('nav'); nav.id = 'universityPagination'; nav.className = 'university-pagination'; nav.setAttribute('aria-label','관련 대학 페이지'); $('universityContent').after(nav); }
+  nav.hidden = count <= 4;
+  nav.innerHTML = `<button type="button" data-page="${pagination.page-1}" aria-label="이전 페이지" ${pagination.page===1?'disabled':''}>‹</button>${pagination.buttons.map(n => n === null ? '<span aria-hidden="true">…</span>' : `<button type="button" data-page="${n}" aria-label="${n} 페이지" ${n===pagination.page?'aria-current="page"':''}>${n}</button>`).join('')}<button type="button" data-page="${pagination.page+1}" aria-label="다음 페이지" ${pagination.page===pagination.totalPages?'disabled':''}>›</button>`;
+  nav.querySelectorAll('[data-page]').forEach(button => { button.onclick = () => { state.page = Number(button.dataset.page); renderUniversities(); linkUniversitySources(); $('universityPagination').querySelector('[aria-current]')?.focus({preventScroll:true}); }; });
 }
 
 function renderTrend() {
@@ -73,6 +86,7 @@ function renderTrend() {
 }
 
 function setPrograms(programs) {
+  state.page = 1;
   state.programs = programs.map(programView);
   for (const [id, key] of [['regionFilter', 'region'], ['schoolFilter', 'schoolType']]) {
     $(id).innerHTML = '<option value="">전체</option>' + [...new Set(state.programs.map((p) => p[key]).filter(Boolean))].sort().map((v) => `<option value="${h(v)}">${h(v)}</option>`).join('');
@@ -85,7 +99,7 @@ function setPrograms(programs) {
 }
 
 function linkUniversitySources() {
-  const rows = filterPrograms(state.programs, {region:$('regionFilter').value,schoolType:$('schoolFilter').value,admission:$('admissionFilter').value,focus:$('focusFilter').value});
+  const rows = state.visiblePrograms;
   $('universityContent').querySelectorAll('.university-item').forEach((item,index) => {
     const row = rows[index];
     if (!row?.sourceUniversityId && !row?.guidelineId) return;
@@ -158,7 +172,7 @@ $('groupTabs').addEventListener('click', (event) => {
 });
 $('goalSearchForm').addEventListener('submit', (event) => { event.preventDefault(); state.query = $('goalSearchInput').value; renderCatalog(); });
 $('goalSearchInput').addEventListener('input', () => { state.query = $('goalSearchInput').value; renderCatalog(); });
-for (const id of ['regionFilter', 'schoolFilter', 'admissionFilter', 'focusFilter']) $(id).addEventListener('change', () => { renderUniversities(); linkUniversitySources(); });
+for (const id of ['regionFilter', 'schoolFilter', 'admissionFilter', 'focusFilter']) $(id).addEventListener('change', () => { state.page = 1; renderUniversities(); linkUniversitySources(); });
 document.querySelectorAll('.flow-strip a').forEach((link) => link.addEventListener('click', (event) => { event.preventDefault(); document.querySelector(link.getAttribute('href')).scrollIntoView(); }));
 $('printRoadmap').addEventListener('click', () => window.print());
 window.addEventListener('hashchange', route);

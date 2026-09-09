@@ -13,11 +13,11 @@ test('competition news UI is permanently visible and uses only refresh', () => {
 
 test('competition news auto-loads active source previews and renders source status', () => {
   assert.match(ui, /const SOURCES = \['mgood', 'artmd'\]/);
-  assert.match(ui, /item\.source === 'mgood' && item\.sourceStatus === 'upcoming'/);
+  assert.match(ui, /item\.sourceStatus === 'open' \|\| item\.sourceStatus === 'upcoming'/);
   assert.match(ui, /접수중/);
   assert.match(ui, /예정/);
   assert.match(ui, /setTimeout\(\(\) => refreshLiveNews\(false\), 700\)/);
-  assert.match(loader, /competition-live-enhancement\.js\?v=20260909-gallery-ux/);
+  assert.match(loader, /competition-live-enhancement\.js\?v=20260909-counseling/);
 });
 
 test('registration deadlines are projected into both shared calendars without DATA CORE writes', () => {

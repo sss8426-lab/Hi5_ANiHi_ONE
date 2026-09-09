@@ -1443,7 +1443,7 @@ function renderPage(page){
     if(page==='admin') renderAdmin();
     if(page==='awards') renderAwards();
     if(page==='settings') renderSettings();
-    if(page==='susi' || page==='jungsi') import('./guidelines.js?v=20260909-2').then(m=>m.renderGuidelines(page)).catch(()=>{ $(page).textContent='입시요강 화면을 불러오지 못했습니다. 새로고침해주세요.'; });
+    if(page==='susi' || page==='jungsi') import('./guidelines.js?v=20260909-counseling').then(m=>m.renderGuidelines(page)).catch(()=>{ $(page).textContent='입시요강 화면을 불러오지 못했습니다. 새로고침해주세요.'; });
   }catch(error){
     renderAppError(error, page);
   }

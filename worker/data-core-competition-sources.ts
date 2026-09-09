@@ -144,7 +144,7 @@ function datesFrom(value: string, fetchedAt: string) {
 function sourceStatusFrom(value: string): { status: LiveSourceStatus; label: string } {
   const normalized = text(value, 500);
   if (normalized === '접수중') return { status: "open", label: "접수중" };
-  if (normalized === '예정') {
+  if (normalized === '예정' || normalized === '접수전') {
     return { status: "upcoming", label: "예정" };
   }
   return { status: "unknown", label: "상태 확인 필요" };
@@ -287,7 +287,7 @@ async function fetchSource(source: CompetitionSource) {
 }
 
 export function isLiveCompetition(item: NormalizedCompetition, today = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10)) {
-  return (item.sourceStatus === 'open' || (item.source === 'mgood' && item.sourceStatus === 'upcoming'))
+  return (item.sourceStatus === 'open' || item.sourceStatus === 'upcoming')
     && (!item.applicationEnd || item.applicationEnd >= today);
 }
 

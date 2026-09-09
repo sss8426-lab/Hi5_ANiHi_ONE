@@ -1,4 +1,5 @@
 export const normalizeName = (value) => String(value ?? '').normalize('NFKC').toLowerCase().replace(/[\s·ㆍ/_-]+/g, '');
+import {detailColumns, projectPublicDetails, enrichPublicDetails} from './guideline-details.js';
 const text = (value, max = 240) => ['string', 'number'].includes(typeof value) ? String(value).trim().slice(0, max) : '';
 const number = (value, max = Infinity) => {
   if (!['string', 'number'].includes(typeof value) || String(value).trim() === '') return null;
@@ -136,6 +137,17 @@ export function decodePublicGuidelines(raw, season, provenance) {
       row[key] = text(raw.p[poolIndex], 1600) || null;
     }
     if (!/^20\d{2}$/.test(String(row.academicYear)) || !row.universityName || !row.department || !row.admissionType) throw new Error('Missing source identity');
+    row.publicDetails = {};
+    for (const [key, columns] of Object.entries(detailColumns)) {
+      const column = key === 'documents' ? columns[season === 'susi' ? 0 : 1] : columns[0];
+      if (season === 'susi' && ['subjectCount','secondLanguage'].includes(key)) continue;
+      const index = raw.c.indexOf(column);
+      if (index < 0) continue;
+      const poolIndex = cells[index];
+      if (!Number.isInteger(poolIndex) || poolIndex < 0 || poolIndex >= raw.p.length) throw new Error('Invalid public detail string pool');
+      const value = text(raw.p[poolIndex],1600);
+      if (value) row.publicDetails[key] = value;
+    }
     row.campus = universityIdentity(row.universityName).campus;
     row.quota = number(row.quota);
     row.competitionRate = number(String(row.competitionRate ?? '').replace(/\s*:\s*1$/, ''));
@@ -149,7 +161,8 @@ export function guidelineIdentity(row) {
 }
 export function preserveKnownValues(previous, next) {
   const merged = {...previous};
-  for (const [key,value] of Object.entries(next)) if (value !== null && value !== undefined && value !== '') merged[key] = value;
+  for (const [key,value] of Object.entries(next)) if (key !== 'publicDetails' && value !== null && value !== undefined && value !== '') merged[key] = value;
+  if (next.publicDetails) merged.publicDetails = enrichPublicDetails(previous,next.publicDetails).publicDetails || {};
   if (next.selectionFormula && next.selectionFormula !== previous.selectionFormula) Object.assign(merged,parseSimpleRatios(next.selectionFormula));
   if (next.mappingStatus && next.mappingStatus !== 'matched') merged.universityId = null;
   return merged;
@@ -159,6 +172,8 @@ export function projectGuideline(row) {
   const numbers = ['quota','competitionRate','gradeRatio','practicalRatio','csatRatio','documentRatio','interviewRatio'];
   for (const key of [...new Set([...Object.keys(publicColumns),...numbers]),'campus','admissionSeason','sourceName','sourceUpdatedAt','fetchedAt','universityId','mappingStatus']) result[key] = numbers.includes(key) ? number(row[key],key.includes('Ratio')?100:Infinity) : text(row[key],1600) || null;
   result.sourceUrl = https(row.sourceUrl);
+  result.publicDetails = projectPublicDetails(row.publicDetails);
+  result.detailsCheckedAt = text(row.detailsCheckedAt,40) || null;
   return result;
 }
 export function selectGuidelines(rows, filters = {}) {
