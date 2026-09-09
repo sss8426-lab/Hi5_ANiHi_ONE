@@ -109,6 +109,53 @@ async function addMembership(db, user, campusId, role) {
   ).run();
 }
 
+for (const failure of ['object-write', 'metadata-write']) {
+  test(`artwork ${failure} failure leaves no partial records and permits a clean retry`, async () => {
+    const { mf, env, request } = await makeHarness();
+    try {
+      const created = await request('/api/kkumeum/students', {
+        method: 'POST', body: { campusId: CAMPUS_A, name: 'Synthetic retry student' },
+      });
+      assert.equal(created.status, 201);
+      const studentId = created.body.student.id;
+      await request(`/api/kkumeum/artworks?campusId=${CAMPUS_A}&studentId=${studentId}`);
+      const files = env.FAMILY_FILES;
+      // Retain an unrelated object to prove cleanup is limited to this upload.
+      await files.put('synthetic-existing-object', 'preserve');
+      if (failure === 'object-write') {
+        env.FAMILY_FILES = new Proxy(files, {
+          get(target, key) {
+            if (key === 'put') return async () => { throw new Error('synthetic object failure'); };
+            const value = target[key];
+            return typeof value === 'function' ? value.bind(target) : value;
+          },
+        });
+      } else {
+        await env.FAMILY_DB.exec("CREATE TRIGGER synthetic_upload_failure BEFORE INSERT ON student_artworks BEGIN SELECT RAISE(ABORT, 'synthetic metadata failure'); END;");
+      }
+      const failed = await request('/api/kkumeum/artworks', {
+        method: 'POST', form: artworkForm({ campusId: CAMPUS_A, studentId }),
+      });
+      assert.equal(failed.status, 500);
+      assert.equal((await env.FAMILY_DB.prepare('SELECT COUNT(*) AS count FROM family_files').first()).count, 0);
+      assert.equal((await env.FAMILY_DB.prepare('SELECT COUNT(*) AS count FROM student_artworks').first()).count, 0);
+      assert.deepEqual((await files.list()).objects.map((object) => object.key), ['synthetic-existing-object']);
+      env.FAMILY_FILES = files;
+      if (failure === 'metadata-write') await env.FAMILY_DB.exec('DROP TRIGGER synthetic_upload_failure;');
+      const retried = await request('/api/kkumeum/artworks', {
+        method: 'POST', form: artworkForm({ campusId: CAMPUS_A, studentId }),
+      });
+      assert.equal(retried.status, 201);
+      const rows = await env.FAMILY_DB.prepare('SELECT a.student_id, f.r2_key FROM student_artworks a JOIN family_files f ON f.id = a.family_file_id').all();
+      assert.equal(rows.results.length, 1);
+      assert.equal(rows.results[0].student_id, studentId);
+      assert.ok(await files.head(rows.results[0].r2_key));
+      assert.equal(await (await files.get('synthetic-existing-object')).text(), 'preserve');
+      assert.equal((await files.list()).objects.length, 2);
+    } finally { await mf.dispose(); }
+  });
+}
+
 test('꿈이음 작품은 FAMILY_FILES에서만 저장·권한확인·휴지통·복원된다', async () => {
   const { mf, env, request } = await makeHarness();
   try {

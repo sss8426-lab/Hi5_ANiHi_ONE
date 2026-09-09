@@ -289,6 +289,118 @@ test('synthetic provider smoke signs and encrypts one generic delivery without a
   }
 });
 
+test('concurrent publish and later retries deliver a notice only once', async () => {
+  const h = await harness();
+  const originalFetch = globalThis.fetch;
+  let sends = 0;
+  globalThis.fetch = async () => { sends += 1; return new Response(null, { status: 201 }); };
+  try {
+    await seed(h);
+    await enableProvider(h);
+    await h.request('/api/family/push/subscribe', {
+      method: 'POST', cookie: `kkumeum_family_session=${TOKEN_A}`, origin: 'http://localhost',
+      body: await deliverableSubscription('https://synthetic.push.example/concurrent'),
+    });
+    const created = await h.request('/api/kkumeum/announcements', {
+      method: 'POST', admin: true, origin: 'http://localhost',
+      body: { campusId: 'campus-push', announcementType: 'child-message', title: 'Synthetic concurrency', body: 'Synthetic only', targets: [{ targetType: 'student', targetId: STUDENT_A }] },
+    });
+    const db = h.env.FAMILY_DB;
+    let arrived = 0;
+    let release;
+    const barrier = new Promise((resolve) => { release = resolve; });
+    // Both requests must read the draft before either conditional update runs.
+    h.env.FAMILY_DB = new Proxy(db, {
+      get(target, key) {
+        if (key === 'prepare') return (sql) => {
+          const statement = target.prepare(sql);
+          if (!sql.includes("UPDATE announcements SET status = 'published'")) return statement;
+          return { bind(...args) {
+            const bound = statement.bind(...args);
+            return { async run() {
+              arrived += 1;
+              if (arrived === 2) release();
+              await barrier;
+              return bound.run();
+            } };
+          } };
+        };
+        const value = target[key];
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    const path = `/api/kkumeum/announcements/${created.body.announcement.id}/publish`;
+    const publish = () => h.request(path, { method: 'POST', admin: true, origin: 'http://localhost' });
+    const results = await Promise.all([publish(), publish()]);
+    h.env.FAMILY_DB = db;
+    assert.deepEqual(results.map((r) => r.status).sort(), [200, 409]);
+    assert.equal((await publish()).status, 409);
+    assert.equal(sends, 1);
+    assert.equal((await db.prepare('SELECT COUNT(*) AS count FROM push_delivery_attempts').first()).count, 1);
+    assert.equal((await db.prepare("SELECT COUNT(*) AS count FROM family_audit_logs WHERE action = 'announcement.publish'").first()).count, 1);
+  } finally { globalThis.fetch = originalFetch; await h.mf.dispose(); }
+});
+
+for (const outcome of [404, 410, 503, 'network']) {
+  test(`push failure ${outcome} preserves publication, records a safe error, and never auto-retries`, async () => {
+    const h = await harness();
+    const originalFetch = globalThis.fetch;
+    let sends = 0;
+    globalThis.fetch = async () => {
+      sends += 1;
+      if (outcome === 'network') throw new Error('synthetic-private-provider-detail');
+      return new Response('synthetic-private-provider-detail', { status: outcome });
+    };
+    try {
+      await seed(h);
+      await enableProvider(h);
+      await h.request('/api/family/push/subscribe', {
+        method: 'POST', cookie: `kkumeum_family_session=${TOKEN_A}`, origin: 'http://localhost',
+        body: await deliverableSubscription('https://synthetic.push.example/failure'),
+      });
+      const created = await h.request('/api/kkumeum/announcements', {
+        method: 'POST', admin: true, origin: 'http://localhost',
+        body: { campusId: 'campus-push', announcementType: 'child-message', title: 'Synthetic failure', body: 'Synthetic only', targets: [{ targetType: 'student', targetId: STUDENT_A }] },
+      });
+      const path = `/api/kkumeum/announcements/${created.body.announcement.id}/publish`;
+      const published = await h.request(path, { method: 'POST', admin: true, origin: 'http://localhost' });
+      assert.equal(published.status, 200);
+      assert.equal(published.body.announcement.status, 'published');
+      assert.equal(published.body.push.failed, 1);
+      const gone = outcome === 404 || outcome === 410;
+      const errorCode = gone ? 'subscription_gone' : outcome === 'network' ? 'provider_error' : 'provider_rejected';
+      const attempt = await h.env.FAMILY_DB.prepare('SELECT status, error_code FROM push_delivery_attempts').first();
+      assert.deepEqual(attempt, { status: 'failed', error_code: errorCode });
+      const subscriptionRow = await h.env.FAMILY_DB.prepare('SELECT active, revoked_at FROM push_subscriptions').first();
+      assert.equal(subscriptionRow.active, gone ? 0 : 1);
+      assert.equal(Boolean(subscriptionRow.revoked_at), gone);
+      assert.equal((await h.request(path, { method: 'POST', admin: true, origin: 'http://localhost' })).status, 409);
+      assert.equal(sends, 1);
+      assert.doesNotMatch(JSON.stringify(published.body), /synthetic-private-provider-detail|synthetic\.push\.example/);
+    } finally { globalThis.fetch = originalFetch; await h.mf.dispose(); }
+  });
+}
+
+test('a guardian without a device subscription still receives the notice without any push attempt', async () => {
+  const h = await harness();
+  const originalFetch = globalThis.fetch;
+  let sends = 0;
+  globalThis.fetch = async () => { sends += 1; throw new Error('must not send'); };
+  try {
+    await seed(h);
+    await enableProvider(h);
+    const created = await h.request('/api/kkumeum/announcements', {
+      method: 'POST', admin: true, origin: 'http://localhost',
+      body: { campusId: 'campus-push', announcementType: 'child-message', title: 'Synthetic no device', body: 'Synthetic only', targets: [{ targetType: 'student', targetId: STUDENT_A }] },
+    });
+    const published = await h.request(`/api/kkumeum/announcements/${created.body.announcement.id}/publish`, { method: 'POST', admin: true, origin: 'http://localhost' });
+    assert.equal(published.status, 200);
+    assert.deepEqual(published.body.push, { sent: 0, failed: 0, code: null });
+    assert.equal(sends, 0);
+    assert.equal((await h.env.FAMILY_DB.prepare('SELECT COUNT(*) AS count FROM push_delivery_attempts').first()).count, 0);
+  } finally { globalThis.fetch = originalFetch; await h.mf.dispose(); }
+});
+
 test('guardian service worker keeps API network-only and displays only a generic notification payload', async () => {
   const source = await (await import('node:fs/promises')).readFile(new URL('../public/family/sw.js', import.meta.url), 'utf8');
   const familySource = await (await import('node:fs/promises')).readFile(new URL('../public/family/family.js', import.meta.url), 'utf8');

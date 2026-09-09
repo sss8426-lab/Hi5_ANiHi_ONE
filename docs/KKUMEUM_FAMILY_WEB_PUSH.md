@@ -31,3 +31,15 @@ The Worker validates the complete configuration before `configured=true`: the pu
 ## Schema
 
 `drizzle/0007_kkumeum_family_push.sql` and `drizzle/0008_kkumeum_push_key_id.sql` are schema-only and are for the isolated `FAMILY_DB` binding. The Worker also performs compatible lazy `CREATE TABLE IF NOT EXISTS` / additive-column setup the first time the Push API or delivery path is used, so deployment alone does not create guardian records or send notifications.
+
+## Delivery failure and retry policy
+
+- Only the request that atomically changes a notice from draft to published proceeds to Push. Concurrent publish requests and later publish retries return 409 and do not dispatch again.
+- A successful provider response means provider acceptance, not proof of an OS banner or a guardian read. Those require separate browser evidence.
+- No device subscription means zero Push attempts; the published notice remains available through the authenticated guardian feed.
+- Provider 404/410 records `subscription_gone` and revokes that subscription. A new browser opt-in is required before future notices can reach the device.
+- Other provider rejection records `provider_rejected`; network exceptions record `provider_error`. Neither exposes provider response bodies or subscription material.
+- There is no automatic retry or resend endpoint. Do not republish or create another real notice solely to test a delivery failure. A timeout may mean the provider accepted the message, so blind retries are unsafe.
+- Monthly report sending and artwork upload do not themselves send Push. The current delivery trigger is explicit notice publication.
+
+Issue #43 failure tests use isolated Miniflare databases/buckets and an intercepted synthetic provider, never production outages or real guardian endpoints. Artwork tests inject object-write and metadata-write failures, verify rollback/compensation leaves no partial upload, then verify a clean retry while retaining an unrelated object. The existing isolated restore drill verifies synthetic relation/file copying and rejects a production restore target; it is not proof of a full production backup restore.

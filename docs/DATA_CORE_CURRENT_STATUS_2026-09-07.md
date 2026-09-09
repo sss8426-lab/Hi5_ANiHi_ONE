@@ -643,3 +643,11 @@ script. Private APIs remain network-only; no DB/R2 or subscription changes.
 See `docs/KKUMEUM_FAMILY_SHELL_CACHE.md` for the contract and synthetic tests.
 Deployment and remaining guardian/device acceptance must be verified separately
 in Issue #43; this source note does not claim production completion.
+
+## 21. Issue #43 delivery resilience follow-up
+
+Synthetic concurrent publication reproduced two successful responses for one draft. The publish path now checks the conditional update result so only its winner can dispatch Push; no schema, binding, credentials, or production records change with this fix.
+
+Additional isolated behavior coverage: concurrent/repeated publish, expired subscription 404/410, provider rejection/network failure, no-device subscription, and artwork object/metadata failure followed by retry. Production acceptance remains separately tracked in Issue #43; local tests do not establish OS notification receipt or the outstanding authenticated negative-access check. Existing successful production upload, report read receipt, and provider delivery are not repeated.
+
+Local validation: npm ci, build (through npm test), TypeScript noEmit, all 37 public JavaScript syntax checks, 218/218 tests without skips, and Wrangler deploy dry-run passed. The full suite includes the isolated synthetic restore drill and production-target rejection guard. CI, Preview and production evidence are recorded separately on the PR/Issue after verification.

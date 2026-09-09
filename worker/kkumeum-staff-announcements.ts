@@ -405,10 +405,14 @@ export async function publishStaffAnnouncement(
     existing.targets,
   );
   const publishedAt = new Date().toISOString();
-  await familyDb.prepare(
+  const published = await familyDb.prepare(
     `UPDATE announcements SET status = 'published', published_at = ?, updated_at = ?
      WHERE id = ? AND status = 'draft'`,
   ).bind(publishedAt, publishedAt, announcementId).run();
+  // Only the request that changed the draft may dispatch the notification.
+  if (Number(published.meta?.changes || 0) !== 1) {
+    throw new DataCoreAccessError(409, "이미 발행되었거나 상태가 변경된 소식입니다.");
+  }
   await audit(familyDb, context, "announcement.publish", announcementId, existing.campus_id, {
     announcementType: existing.announcement_type,
     targetCount: existing.targets.length,
