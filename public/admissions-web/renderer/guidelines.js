@@ -1,3 +1,4 @@
+import {guidelineSections, projectPublicDetails} from '/data-core/guideline-details.js?v=20260909-1';
 import { careerMajorKeywords, mappingReasonLabels } from '/data-core/admissions-model.js?v=20260909-2';
 import { occupationImageConcepts } from '/data-core/occupation-image-concepts.js?v=20260909-1';
 
@@ -16,18 +17,22 @@ async function api(path,body,signal) {
 }
 const endpoint='/api/data-core/admissions/guidelines';
 const syncEndpoint='/api/data-core/admin/admissions/guidelines/sync';
-const fieldNames = {academicYear:'학년도',universityName:'대학',campus:'캠퍼스',region:'지역',department:'학과·모집단위',admissionType:'전형명',admissionCategory:'전형유형',admissionGroup:'모집군',quota:'모집인원',gradeRatio:'학생부 반영비율 (%)',practicalRatio:'실기 반영비율 (%)',csatRatio:'수능 반영비율 (%)',documentRatio:'서류 반영비율 (%)',interviewRatio:'면접 반영비율 (%)',selectionFormula:'전형요소 반영방법',practicalType:'실기과목·유형',eligibility:'지원자격',csatMinimum:'수능최저',competitionRate:'전년도 경쟁률',applicationPeriod:'원서접수기간',practicalExamDate:'실기·면접 시험일',resultDate:'합격자 발표',csatSubjects:'수능 응시영역',csatMetric:'수능 활용지표',koreanRatio:'국어 비율',koreanSubject:'국어 선택과목',englishMethod:'영어 반영',mathRatio:'수학 비율',mathSubject:'수학 선택과목',historyMethod:'한국사 반영',inquiryRatio:'탐구 비율',inquirySubject:'탐구 선택과목',inquiryCount:'탐구 과목 수',bonus:'선택과목·가산'};
 function detail(row) {
   document.querySelector('.guideline-dialog')?.remove();
   const dialog=document.createElement('dialog');dialog.className='guideline-dialog';
-  dialog.innerHTML=`<header><div><p class="guideline-note">${h(row.academicYear)}학년도 · ${h(names[row.admissionSeason])}</p><h2>${h(row.universityName)}</h2><p>${h(row.department)} · ${h(row.admissionType)}</p></div><button class="close" aria-label="상세 닫기">×</button></header><dl>${Object.entries(fieldNames).filter(([k])=>!['susi'].includes(row.admissionSeason)||!['admissionGroup','csatSubjects','csatMetric','koreanRatio','koreanSubject','englishMethod','mathRatio','mathSubject','historyMethod','inquiryRatio','inquirySubject','inquiryCount','bonus'].includes(k)).map(([key,label])=>`<dt>${label}</dt><dd>${h(row[key] ?? '공개 자료에서 확인 필요')}</dd>`).join('')}</dl><p class="guideline-note">출처: ${h(row.sourceName)}<br>원본 파일 갱신: ${h(date(row.sourceUpdatedAt))}<br>우리 데이터 동기화: ${h(date(row.fetchedAt))}<br>실제 지원 전 반드시 해당 대학의 공식 모집요강을 확인하세요.</p>`;
-  if(row.sourceUrl && /^https:\/\/grinalda\.net\/univ-info-(susi|jungsi)\/$/.test(row.sourceUrl)){const a=document.createElement('a');a.href=row.sourceUrl;a.target='_blank';a.rel='noopener noreferrer';a.textContent='공개 원문 보기 ↗';dialog.append(a);}
-  if(row.universityId){const a=document.createElement('a');a.href=`/#page=admin&university=${encodeURIComponent(row.universityId)}`;a.target='_top';a.textContent=' · 연결된 대학 데이터 보기';dialog.append(a);}
-  document.body.append(dialog);dialog.querySelector('.close').onclick=()=>dialog.close();dialog.addEventListener('close',()=>dialog.remove());dialog.showModal();
-  const review=document.createElement('p');review.className='guideline-note';review.dataset.mappingReview='';
-  review.textContent=`${mappingStatuses[row.mappingStatus] || '연결 확인 필요'} · ${mappingReasonLabels[row.mappingReason] || '검토 필요'}. 대학 연결은 공식 모집요강 검수와 별개입니다.`;
-  dialog.querySelector('header').after(review);
+  const facts={...projectPublicDetails(row.publicDetails),...row};
+  dialog.innerHTML=`<header><div><p class="guideline-note">${h(row.academicYear)}학년도 · ${h(names[row.admissionSeason])}</p><h2>${h(row.universityName)}</h2><p>${h(row.department)} · ${h(row.admissionType)}</p></div><button class="close" aria-label="상세 닫기">×</button></header><p class="guideline-note" data-mapping-review>${h(mappingStatuses[row.mappingStatus] || '연결 확인 필요')} · ${h(mappingReasonLabels[row.mappingReason] || '검토 필요')}. 대학 연결은 공식 모집요강 검수와 별개입니다.</p><div class="guideline-detail-sections">${guidelineSections.map(([title,fields])=>`<section><h3>${title}</h3><dl>${fields.map(([key,label])=>`<dt>${label}</dt><dd>${h(facts[key] ?? '공개 자료에서 확인 필요')}</dd>`).join('')}</dl></section>`).join('')}</div><footer><h3>출처</h3><p class="guideline-note">출처: ${h(row.sourceName || '그리날다')}<br>정보 확인일: ${h(date(row.detailsCheckedAt || row.fetchedAt))}<br>원본 파일 갱신: ${h(date(row.sourceUpdatedAt))}<br>DATA CORE 동기화일: ${h(date(row.fetchedAt))}</p><p class="guideline-warning">실제 지원 전 해당 대학의 공식 모집요강을 반드시 확인하세요.</p></footer>`;
+  if(row.sourceUrl && /^https:\/\/grinalda\.net\/univ-info-(susi|jungsi)\/$/.test(row.sourceUrl)){const a=document.createElement('a');a.href=row.sourceUrl;a.target='_blank';a.rel='noopener noreferrer';a.textContent='원문 보기 ↗';dialog.querySelector('footer').append(a);}
+  if(row.universityId){const a=document.createElement('a');a.href=`/#page=admin&university=${encodeURIComponent(row.universityId)}`;a.target='_top';a.textContent=' · 연결된 대학 데이터 보기';dialog.querySelector('footer').append(a);}
+  document.body.append(dialog);dialog.querySelector('.close').onclick=()=>dialog.close();dialog.addEventListener('close',()=>dialog.remove());
+  dialog.addEventListener('click',event=>{if(event.target===dialog){const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)dialog.close();}});
+  dialog.showModal();
 }
+const ratioSummary=(row,kind)=>{
+  const value=row[kind];
+  if(value!==null && value!==undefined)return h(value)+'%';
+  return h(row.selectionFormula || '공개 자료에서 확인 필요');
+};
 
 export async function renderGuidelines(season) {
   const root=document.getElementById(season); if(!root || root.classList.contains('hidden')) return;
@@ -62,8 +67,8 @@ export async function renderGuidelines(season) {
       currentRows=data.rows;for(const [key,values]of Object.entries(data.facets))options(key,values);
       if(deepLink && currentRows.some(r=>r.id===deepLink)){detail(currentRows.find(r=>r.id===deepLink));deepLink=null;delete filters.id;}
       root.querySelector('[data-sync]').hidden=!data.canSync;status.textContent=`검색 결과 ${data.total}개`;
-      root.querySelector('[data-results]').innerHTML=data.rows.length?`<div class="guideline-table"><table><thead><tr><th>학년도</th><th>대학·학과</th><th>전형</th><th>지역</th><th>모집인원</th><th>실기</th><th>학생부</th><th>전년도 경쟁률</th></tr></thead><tbody>${data.rows.map((r,i)=>`<tr><td>${h(r.academicYear)}</td><td><button data-detail="${i}">${h(r.universityName)}<br>${h(r.department)}</button></td><td>${h(r.admissionType)}${r.admissionGroup?` · ${h(r.admissionGroup)}군`:''}</td><td>${h(r.region || '확인 필요')}</td><td>${h(r.quota ?? '확인 필요')}</td><td>${r.practicalRatio===null?'상세 확인':`${h(r.practicalRatio)}%`}</td><td>${r.gradeRatio===null?'상세 확인':`${h(r.gradeRatio)}%`}</td><td>${h(r.competitionRate ?? '확인 필요')}</td></tr>`).join('')}</tbody></table></div><div class="guideline-pager"><button class="btn" data-prev ${data.page<=1?'disabled':''}>← 이전</button><span>${data.page} / ${Math.max(1,Math.ceil(data.total/40))}</span><button class="btn" data-next ${data.page*40>=data.total?'disabled':''}>다음 →</button></div>`:'<p class="guideline-empty">조건에 맞는 저장된 입시요강이 없습니다.</p>';
-      root.querySelectorAll('[data-detail]').forEach((b)=>b.onclick=()=>detail(currentRows[Number(b.dataset.detail)]));
+      root.querySelector('[data-results]').innerHTML=data.rows.length?`<div class="guideline-table"><table><thead><tr><th>학년도</th><th>대학·학과</th><th>전형</th><th>지역</th><th>모집인원</th><th>실기</th><th>학생부/수능</th><th>전년도 경쟁률</th><th>접수기간</th></tr></thead><tbody>${data.rows.map((r,i)=>`<tr data-row-detail="${i}" tabindex="0" aria-label="${h(r.universityName)} ${h(r.department)} 상세"><td>${h(r.academicYear)}</td><td><button data-detail="${i}">${h(r.universityName)}<br>${h(r.department)}</button></td><td>${h(r.admissionType)}${r.admissionGroup?` · ${h(r.admissionGroup)}군`:''}</td><td>${h(r.region || '확인 필요')}</td><td>${h(r.quota ?? '확인 필요')}</td><td>${h(r.practicalType || '')}<br>${ratioSummary(r,'practicalRatio')}</td><td>${ratioSummary(r,season==='jungsi'?'csatRatio':'gradeRatio')}</td><td>${h(r.competitionRate ?? '확인 필요')}</td><td>${h(r.applicationPeriod || '확인 필요')}</td></tr>`).join('')}</tbody></table></div><div class="guideline-pager"><button class="btn" data-prev ${data.page<=1?'disabled':''}>← 이전</button><span>${data.page} / ${Math.max(1,Math.ceil(data.total/40))}</span><button class="btn" data-next ${data.page*40>=data.total?'disabled':''}>다음 →</button></div>`:'<p class="guideline-empty">조건에 맞는 저장된 입시요강이 없습니다.</p>';
+      root.querySelectorAll('[data-row-detail]').forEach((row)=>{const open=()=>detail(currentRows[Number(row.dataset.rowDetail)]);row.onclick=open;row.onkeydown=e=>{if(e.target===row && ['Enter',' '].includes(e.key)){e.preventDefault();open();}};});
       const prev=root.querySelector('[data-prev]'),next=root.querySelector('[data-next]');if(prev)prev.onclick=()=>{filters.page=data.page-1;load();};if(next)next.onclick=()=>{filters.page=data.page+1;load();};
     }catch(error){if(id===requestId){status.textContent=error.name==='AbortError'?'조회 시간이 길어졌습니다. 다시 검색해주세요.':error.message;root.querySelector('[data-results]').replaceChildren();}}
     finally{clearTimeout(timeout);}

@@ -14,7 +14,7 @@
 
   function validLiveItem(item) {
     const today = new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10);
-    return item && (item.sourceStatus === 'open' || (item.source === 'mgood' && item.sourceStatus === 'upcoming'))
+    return item && (item.sourceStatus === 'open' || item.sourceStatus === 'upcoming')
       && (!item.applicationEnd || item.applicationEnd >= today);
   }
 
@@ -101,7 +101,7 @@
         <strong>${h(item.title)}</strong>
         <small>${h(item.organizer || item.hostSchool || '주최·주관 확인 필요')}</small>
         <span>${dates ? `접수 ${h(dates)}` : '접수기간 확인 필요'} · ${h(dday(item.applicationEnd))}</span>
-        <a class="ghost-btn" href="${h(item.sourceUrl)}" target="_blank" rel="noopener">원문 보기</a>
+        <a class="ghost-btn" href="${h(item.sourceUrl)}" target="_blank" rel="noopener">자세히 보기</a>
       </article>`;
     }).join('');
   }

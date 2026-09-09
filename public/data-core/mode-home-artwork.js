@@ -1,5 +1,5 @@
 (() => {
-  const COMPETITION_LIVE_SRC = '/data-core/competition-live-enhancement.js?v=20260909-gallery-ux';
+  const COMPETITION_LIVE_SRC = '/data-core/competition-live-enhancement.js?v=20260909-counseling';
 
   function modeHomeIsActive() {
     return document.getElementById('view-mode-home')?.classList.contains('active') || false;

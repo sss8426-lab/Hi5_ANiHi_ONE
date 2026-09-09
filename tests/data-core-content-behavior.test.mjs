@@ -1264,14 +1264,14 @@ test('live news isolates exact row status, ignores comments, reports three pages
     };
     const art = await h.request('POST','/api/data-core/competition-sources/artmd/preview',users.admin);
     assert.equal(art.response.status,200); assert.equal(art.body.items.length,4);
-    assert.equal(art.body.pages[0].open,1); assert.equal(art.body.pages[0].excluded,3);
+    assert.equal(art.body.pages[0].open,1); assert.equal(art.body.pages[0].excluded,2); assert.equal(art.body.pages[0].upcoming,1);
     assert.match(art.body.items[0].sourceUrl,/\?it_id=1&ca_id=20$/);
-    assert.equal(art.body.items[1].sourceStatus,'unknown');
+    assert.equal(art.body.items[1].sourceStatus,'upcoming');
     assert.equal(art.body.items[2].sourceStatus,'unknown');
     const mgood = await h.request('POST','/api/data-core/competition-sources/mgood/preview',users.admin);
     assert.equal(mgood.body.pages.length,2); assert.equal(mgood.body.pages[0].open,0);
-    assert.equal(mgood.body.pages[1].open,1); assert.equal(mgood.body.pages[1].upcoming,1);
-    assert.equal(mgood.body.pages[1].excluded,2);
+    assert.equal(mgood.body.pages[1].open,1); assert.equal(mgood.body.pages[1].upcoming,2);
+    assert.equal(mgood.body.pages[1].excluded,1);
     failOther = true;
     const partial = await h.request('POST','/api/data-core/competition-sources/mgood/preview',users.admin);
     assert.equal(partial.response.status,200); assert.equal(partial.body.pages[0].ok,true); assert.equal(partial.body.pages[1].ok,false);

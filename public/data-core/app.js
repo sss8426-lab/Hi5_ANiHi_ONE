@@ -227,7 +227,6 @@ function renderUser() {
     chip.querySelector('small').textContent = '업무용은 로그인 후 사용';
     chip.querySelector('.avatar').textContent = '?';
     $('openUploadBtn').classList.add('hidden');
-    $('openCompetitionBtn').classList.add('hidden');
     $('logoutBtn').classList.add('hidden');
     if (state.currentMode === 'work') showNotice('업무용 DATA CORE를 사용하려면 로그인해야 합니다.');
     else if (state.currentView === 'competitions') showNotice('공개 상담 화면은 열 수 있지만, 내부 대회 데이터 조회는 로그인 후 가능합니다.');
@@ -254,7 +253,6 @@ function renderUser() {
 
   $('adminNav').classList.toggle('hidden', !context.isSuperAdmin);
   $('openUploadBtn').classList.toggle('hidden', !context.canWrite);
-  $('openCompetitionBtn').classList.toggle('hidden', !context.canWrite);
   $('logoutBtn').classList.toggle('hidden', !context.user?.internalUserId?.startsWith('local:'));
   updateSidebar();
 }
@@ -623,6 +621,7 @@ async function importCompetitionSource(source) {
 }
 
 async function loadCompetitions() {
+  if (!$('competitionList')) return;
   if (!state.context?.authenticated) {
     $('competitionList').innerHTML = '<div class="empty-state">로그인 후 내부 공모전·실기대회 데이터를 조회할 수 있습니다.</div>';
     renderCompetitionDetail(null);
@@ -646,6 +645,7 @@ async function loadCompetitions() {
 
 function renderCompetitions() {
   const list = $('competitionList');
+  if (!list) return;
   const competitions = filteredCompetitions();
   if (!competitions.length) {
     list.innerHTML = '<div class="empty-state">조건에 맞는 공모전·실기대회가 없습니다.</div>';
@@ -1032,6 +1032,7 @@ function renderResults(results = []) {
 
 function renderCompetitionDetail(competition) {
   const detail = $('competitionDetail');
+  if (!detail) return;
   if (!competition) {
     detail.innerHTML = '<div class="empty-state">좌측에서 대회를 선택하세요.</div>';
     return;
@@ -1409,7 +1410,6 @@ function bindEvents() {
   $('fileCategoryFilter').onchange = () => { clearSelectedFolder(); loadFiles(); };
   $('openUploadBtn').onclick = () => openModal('uploadModal');
   $('uploadForm').onsubmit = uploadFile;
-  $('openCompetitionBtn').onclick = () => openModal('competitionModal');
   $('competitionForm').onsubmit = createCompetitionFromForm;
   $('awardFolderForm').onsubmit = createAwardFolder;
   $('openAwardFolderBtn').onclick = () => openModal('awardFolderModal');

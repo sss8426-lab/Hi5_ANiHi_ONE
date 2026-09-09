@@ -7,7 +7,10 @@ test('all DATA CORE staff shells load the shared versioned visual layer after th
     const html=fs.readFileSync(`public/data-core/${file}.html`,'utf8');
     assert.match(html,/<body class="data-core-layout">/);
     const styles=[...html.matchAll(/<link[^>]+rel="stylesheet"[^>]*>/g)].map(match=>match[0]);
-    assert.match(styles.at(-1),/layout-theme\.css\?v=20260909-bright-layout/);
+    const sharedIndex=styles.findIndex(style=>/layout-theme\.css\?v=20260909-bright-layout/.test(style));
+    assert.ok(sharedIndex>0);
+    if(file==='index')assert.match(styles.at(-1),/counseling-refinements\.css\?v=/);
+    else assert.equal(sharedIndex,styles.length-1);
     assert.equal(styles.filter(style=>style.includes('layout-theme.css')).length,1);
   }
 });

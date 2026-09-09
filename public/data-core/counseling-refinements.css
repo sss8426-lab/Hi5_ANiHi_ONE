@@ -1,0 +1,23 @@
+.counseling-image-cards{align-items:stretch;gap:24px}
+.counseling-image-cards .feature-card{display:flex;flex-direction:column;padding:0;min-width:0;overflow:hidden;border:1px solid #e0e8ef;border-radius:20px;background:#fff;box-shadow:0 8px 24px #283f5610;transition:transform .18s ease,box-shadow .18s ease;text-align:left}
+.counseling-image-cards .feature-card:hover{transform:translateY(-3px);box-shadow:0 12px 28px #283f561c}
+.counseling-image-cards .feature-card>img{display:block;width:100%;height:auto;aspect-ratio:3/2;object-fit:cover}
+.counseling-card-copy{position:relative;display:flex;flex:1;flex-direction:column;gap:10px;padding:23px 22px 64px;width:100%;box-sizing:border-box}
+.counseling-card-copy strong{font-size:21px;color:#233e49;overflow-wrap:anywhere}
+.counseling-card-copy small{font-size:14px;line-height:1.7;color:#61747d}
+.counseling-card-arrow{position:absolute;right:20px;bottom:18px;display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:#edf6f3;color:#28786b;font-size:22px}
+.competition-hero{position:relative;isolation:isolate;min-height:300px;margin:0 0 28px;overflow:hidden;background:#f3f9fc}
+.competition-hero>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 45%;z-index:-2}
+.competition-hero::after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,#f8fbffef 0%,#f8fbffd9 30%,#f8fbff00 65%)}
+.competition-hero-copy{padding:42px 36px;max-width:480px}
+.competition-hero .competition-eyebrow{font-size:12px;font-weight:750;color:#337666;letter-spacing:0}
+.competition-hero h2{font-size:34px;color:#223f4b;margin:20px 0 18px;line-height:1.25;overflow-wrap:anywhere}
+.competition-hero p{font-size:16px;line-height:1.8;color:#435e68;margin:0}
+#competitionWorkspace{align-items:start}
+#competitionNewsPanel{min-height:0;height:auto}
+.competition-news-heading{position:relative;isolation:isolate;overflow:hidden;min-height:144px;margin:0 0 18px;background:#eef8f7}
+.competition-news-heading img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:70% 42%;z-index:-1}
+.competition-news-heading h3{position:absolute;left:16px;bottom:12px;margin:0;padding:8px 14px;background:#ffffffed;color:#234b48;font-size:22px;border-radius:6px}
+@media(min-width:761px) and (max-width:1100px){.counseling-image-cards.exact-three{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){.counseling-image-cards.exact-three{grid-template-columns:minmax(0,1fr);gap:18px}.competition-hero{min-height:310px}.competition-hero-copy{padding:24px 20px;max-width:300px}.competition-hero h2{font-size:27px}.competition-hero p{font-size:14px}.competition-hero>img{object-position:65% center}.competition-hero::after{background:linear-gradient(90deg,#f8fbffe8,#f8fbff96 55%,#f8fbff00)}.counseling-card-copy{padding:20px 18px 60px}}
+@media(prefers-reduced-motion:reduce){.counseling-image-cards .feature-card{transition:none}.counseling-image-cards .feature-card:hover{transform:none}}
