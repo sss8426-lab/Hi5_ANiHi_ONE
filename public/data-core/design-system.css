@@ -1,0 +1,165 @@
+/* Presentation only. Repeated scope specificity wins over legacy mode/sidebar variants. */
+body:is(.data-core-layout, .roadmap-page, .admissions-counseling) {
+  --bg: var(--core-bg); --surface: var(--core-surface); --surface-soft: var(--core-surface-soft);
+  --text: var(--core-ink); --muted: var(--core-ink-secondary); --line: var(--core-line);
+  --primary: var(--core-brand); --primary-dark: var(--core-brand-deep); --primary-soft: var(--core-brand-soft);
+  --blue: var(--core-brand); --navy: var(--core-brand-deep); --shadow: var(--core-shadow-sm);
+  margin: 0; background: var(--core-bg); color: var(--core-ink); font-family: var(--core-font); font-size: 14px; line-height: 1.65;
+}
+:is(.data-core-layout, .roadmap-page, .admissions-counseling) *, :is(.data-core-layout, .roadmap-page, .admissions-counseling) *::before { box-sizing: border-box; letter-spacing: 0; }
+:is(.data-core-layout, .roadmap-page, .admissions-counseling) :is([hidden], .hidden) { display: none !important; }
+:is(.data-core-layout, .roadmap-page, .admissions-counseling) :is(button, input, select, textarea) { font-family: inherit; max-width: 100%; }
+:is(.data-core-layout, .roadmap-page, .admissions-counseling) :is(a, button, input, select, textarea, summary):focus-visible { outline: 2px solid var(--core-brand); outline-offset: 3px; }
+:is(.data-core-layout, .roadmap-page, .admissions-counseling) :is(h1, h2, h3, p, label) { overflow-wrap: anywhere; }
+body.data-core-layout.data-core-layout :is(.app-shell, .kk-shell), body.admissions-counseling .app { grid-template-columns: 232px minmax(0, 1fr); }
+body.data-core-layout.data-core-layout :is(.sidebar, .kk-sidebar), body.admissions-counseling .sidebar {
+  display: flex; flex-direction: column; position: sticky; top: 0; height: 100dvh; min-height: 0; overflow-y: auto;
+  width: auto; padding: 22px 14px; background: var(--core-surface); background-image: none;
+  border: 0; border-right: 1px solid var(--core-line); box-shadow: none; color: var(--core-ink-secondary);
+}
+body.data-core-layout.data-core-layout :is(.sidebar .brand, .kk-brand), body.admissions-counseling .core-brand {
+  display: flex; align-items: center; justify-content: flex-start; gap: 10px; background: none; border: 0; border-radius: 0;
+  padding: 0 6px 22px; margin: 0; min-height: 66px; color: var(--core-ink); text-decoration: none;
+}
+body.data-core-layout.data-core-layout .sidebar .brand > div, body.data-core-layout.data-core-layout .kk-brand > span:last-child { display: block; }
+body.data-core-layout.data-core-layout :is(.brand-mark, .kk-brand-mark), .roadmap-page .brand-mark, .admissions-counseling .core-brand > span {
+  display: grid; place-items: center; width: 36px; height: 36px; flex: 0 0 36px; border: 1px solid var(--core-line-strong);
+  border-radius: 4px; background: white; color: var(--core-brand); font-size: 19px; font-weight: 700; box-shadow: none;
+}
+body.data-core-layout.data-core-layout :is(.sidebar .brand strong, .kk-brand strong), .admissions-counseling .core-brand strong { color: var(--core-ink); font-size: 14px; font-weight: 650; }
+body.data-core-layout.data-core-layout :is(.sidebar .brand small, .kk-brand small), .admissions-counseling .core-brand small { display: block; color: var(--core-ink-secondary); font-size: 10px; }
+body.data-core-layout.data-core-layout :is(.sidebar .nav, .kk-nav), body.admissions-counseling #nav { display: block; padding: 0; background: none; border-radius: 0; overflow: visible; }
+body.data-core-layout.data-core-layout .sidebar .nav-group { display: block; }
+body.data-core-layout.data-core-layout .nav-admin { margin-top: 18px; padding: 16px 0 0; border: 0; border-top: 1px solid var(--core-line); }
+body.data-core-layout.data-core-layout :is(.nav-item, .kk-nav a, .kk-nav button), body.admissions-counseling #nav button {
+  display: flex; align-items: center; justify-content: flex-start; width: 100%; min-height: 42px; height: auto;
+  gap: 10px; padding: 10px 12px; margin: 2px 0; border: 0; border-radius: 4px; background: transparent;
+  color: var(--core-ink-secondary); font-size: 13px; font-weight: 500; text-align: left; text-decoration: none; white-space: normal;
+}
+body.data-core-layout.data-core-layout .nav-item span:last-child { display: inline; }
+body.data-core-layout.data-core-layout :is(.nav-item:hover, .kk-nav a:hover), body.admissions-counseling #nav button:hover { background: var(--core-surface-soft); color: var(--core-ink); }
+body.data-core-layout.data-core-layout :is(.nav-item.active, .kk-nav .active), body.admissions-counseling #nav button.active {
+  background: var(--core-brand-soft); color: var(--core-brand-deep); box-shadow: inset 2px 0 var(--core-brand); font-weight: 650;
+}
+.core-icon { width: 18px; height: 18px; flex: 0 0 18px; vertical-align: middle; stroke-width: 1.7; }
+body.data-core-layout.data-core-layout :is(.nav-icon, .kk-nav a > span:first-child) { display: inline-flex; width: 18px; align-items: center; justify-content: center; }
+body.data-core-layout.data-core-layout :is(.sidebar-bottom, .kk-sidebar-bottom) { display: block; padding: 22px 4px 0; margin: auto 0 0; background: none; border-radius: 0; }
+body.data-core-layout.data-core-layout .connection-card { background: var(--core-surface-soft); border: 1px solid var(--core-line); border-radius: 6px; padding: 10px; }
+body.data-core-layout.data-core-layout .connection-card :is(strong, small), body.data-core-layout.data-core-layout .back-link { color: var(--core-ink-secondary); }
+body.data-core-layout.data-core-layout .sidebar .back-link { display: block; padding: 10px 0; background: none; font-size: 12px; }
+body.admissions-counseling .sidebar .brand { background: none; padding: 8px 6px 16px; margin: 0; font-size: 15px; }
+body.admissions-counseling .sidebar > a:last-child { background: var(--core-surface-soft) !important; color: var(--core-brand-deep) !important; border-radius: 6px !important; font-weight: 500 !important; }
+body.data-core-layout.data-core-layout :is(.main, .kk-main), body.admissions-counseling .main { min-width: 0; width: 100%; max-width: 1680px; background: var(--core-bg); padding-inline: 32px; }
+body.data-core-layout.data-core-layout :is(.topbar, .kk-topbar) { display: flex; align-items: center; min-height: 96px; gap: 16px; border-bottom: 1px solid var(--core-line); padding-block: 20px; }
+body.data-core-layout.data-core-layout :is(.topbar, .kk-topbar) > div:first-child { margin-right: auto; min-width: 0; }
+body.data-core-layout.data-core-layout :is(.topbar h1, .kk-topbar h1, .ops-header h1, .accounts-header h1, .shell > .hero h1) { font-size: 30px; font-weight: 650; line-height: 1.3; color: var(--core-ink); margin: 0; }
+body.data-core-layout.data-core-layout :is(.ops-header, .accounts-header, .shell > .hero), body.data-core-layout.data-core-layout :is(.ops-header > div, .accounts-header > div, .shell > .hero > div) { background: none; }
+:is(.data-core-layout, .roadmap-page) :is(.eyebrow, .kk-eyebrow, .competition-eyebrow) { font-size: 11px; font-weight: 600; color: var(--core-ink-secondary); }
+body.data-core-layout.data-core-layout :is(.user-chip, .kk-user) { margin-left: auto; min-width: 0; max-width: 250px; border: 0; padding: 0; background: transparent; gap: 9px; }
+body.data-core-layout.data-core-layout :is(.avatar, .kk-user > span) { display: grid; place-items: center; width: 34px; height: 34px; flex: 0 0 34px; border-radius: 50%; font-size: 13px; background: var(--core-brand-soft); color: var(--core-brand-deep); }
+body.data-core-layout.data-core-layout :is(.user-chip, .kk-user) strong { font-size: 13px; font-weight: 600; color: var(--core-ink); }
+body.data-core-layout.data-core-layout :is(.user-chip, .kk-user) small { font-size: 11px; color: var(--core-ink-secondary); }
+body.data-core-layout.data-core-layout #logoutBtn { min-height: 32px; padding: 6px 10px; flex: 0 0 auto; font-size: 12px; }
+:is(.data-core-layout, .roadmap-page, .admissions-counseling) :is(.primary-btn, .secondary-btn, .ghost-btn, .danger-btn, .primary-button, .secondary-button, .btn, button.primary, button.secondary, button.ghost) {
+  min-height: 40px; height: auto; padding: 9px 15px; border-radius: var(--core-radius-md); box-shadow: none; font-size: 13px; font-weight: 600; line-height: 1.4; transition: background-color .15s, border-color .15s;
+}
+:is(.data-core-layout, .roadmap-page, .admissions-counseling) :is(.primary-btn, .primary-button, button.primary, .btn.primary, .kk-upload) { background: var(--core-brand); color: #fff; border: 1px solid var(--core-brand); }
+:is(.data-core-layout, .roadmap-page, .admissions-counseling) :is(.primary-btn:hover, .primary-button:hover, button.primary:hover, .btn.primary:hover) { background: var(--core-brand-deep); }
+:is(.data-core-layout, .roadmap-page, .admissions-counseling) :is(.secondary-btn, .secondary-button, button.secondary, .btn) { background: white; color: var(--core-ink); border: 1px solid var(--core-line-strong); }
+:is(.data-core-layout, .roadmap-page, .admissions-counseling) :is(.ghost-btn, button.ghost) { background: transparent; color: var(--core-ink-secondary); border: 1px solid var(--core-line); }
+:is(.data-core-layout, .roadmap-page, .admissions-counseling) :is(.danger-btn, button.danger, .btn.danger) { background: white; color: var(--core-danger); border: 1px solid #d9aaaa; }
+:is(.data-core-layout, .roadmap-page, .admissions-counseling) :is(.danger-btn:hover, button.danger:hover, .btn.danger:hover) { background: var(--core-danger); color: white; }
+:is(.data-core-layout, .roadmap-page, .admissions-counseling) button:disabled { opacity: .55; cursor: not-allowed; }
+:is(.data-core-layout, .roadmap-page, .admissions-counseling) :is(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=color]), select) { min-height: 40px; padding: 9px 12px; border: 1px solid var(--core-line-strong); border-radius: 8px; background: white; color: var(--core-ink); font-size: 14px; }
+:is(.data-core-layout, .roadmap-page, .admissions-counseling) textarea { padding: 12px; border: 1px solid var(--core-line-strong); border-radius: 8px; background: white; color: var(--core-ink); font-size: 14px; }
+:is(.data-core-layout, .roadmap-page, .admissions-counseling) input:is([type=checkbox], [type=radio]) { accent-color: var(--core-brand); }
+body.data-core-layout.data-core-layout :is(.feature-card, .stat-card, .draft-card, .selected-file, .file-pick-item, .search-card), .roadmap-page :is(.family-card, .dream-card, .university-item), .admissions-counseling .card { border: 1px solid var(--core-line); border-radius: 8px; box-shadow: none; background: white; }
+body.data-core-layout.data-core-layout :is(.feature-card:hover, .mode-card:hover), .roadmap-page :is(.family-card:hover, .dream-card:hover) { transform: none; border-color: var(--core-line-strong); box-shadow: var(--core-shadow-sm); }
+body.data-core-layout.data-core-layout .feature-icon { width: 32px; height: 32px; background: var(--core-surface-soft) !important; color: var(--core-brand) !important; }
+body.data-core-layout.data-core-layout .feature-card > strong, body.data-core-layout.data-core-layout .counseling-card-copy strong { color: var(--core-ink); font-size: 18px; font-weight: 650; }
+body.data-core-layout.data-core-layout .counseling-card-copy { padding: 20px 20px 58px; }
+body.data-core-layout.data-core-layout :is(.feature-card small, .counseling-card-copy small) { color: var(--core-ink-secondary); font-size: 13px; }
+body.data-core-layout.data-core-layout :is(.section-head h2, .panel-head h2, .panel-head h3, .calendar-head h3), .roadmap-page h2 { color: var(--core-ink); font-size: 23px; font-weight: 650; }
+body.data-core-layout.data-core-layout :is(.filters, .kk-toolbar, .summary-grid article, .kk-status-grid article, .kk-notice) { background: var(--core-surface-soft); border-color: var(--core-line); box-shadow: none; }
+body.data-core-layout.data-core-layout :is(.panel, .kk-panel, .ops-panel, .calendar-panel, .folder-panel) { background: transparent; border-radius: 0; box-shadow: none; }
+body.data-core-layout.data-core-layout :is(.empty-state, .kk-empty), .admissions-counseling .guideline-empty { min-height: 0; padding: 20px 12px; font-size: 13px; color: var(--core-ink-secondary); }
+:is(.data-core-layout, .admissions-counseling) table { font-size: 13px; background: white; }
+:is(.data-core-layout, .admissions-counseling) table th { background: var(--core-surface-soft); color: var(--core-ink-secondary); font-weight: 600; }
+:is(.data-core-layout, .admissions-counseling) table :is(th, td) { border-color: var(--core-line); }
+:is(.data-core-layout, .admissions-counseling) table tbody tr:hover { background: #f5f8f6; }
+:is(.data-core-layout, .admissions-counseling) :is(.badge, .status-badge) { border-radius: 4px; font-size: 11px; font-weight: 500; }
+body.data-core-layout.data-core-layout .calendar-day { border-color: var(--core-line); background: white; }
+body.data-core-layout.data-core-layout .calendar-day.selected { outline: 1px solid var(--core-brand); outline-offset: -1px; background: var(--core-brand-soft); }
+body.data-core-layout.data-core-layout .instagram-spec { background: var(--core-blue-soft); color: var(--core-blue); border-color: var(--core-line); border-radius: 6px; }
+body.data-core-layout.data-core-layout .calendar-day.today { box-shadow: inset 0 0 0 1px var(--core-brand); background: #f7faf8; }
+body.data-core-layout.data-core-layout :is(.calendar-event, .calendar-event-chip) { font-size: 11px; border-radius: 3px; }
+body.data-core-layout.data-core-layout :is(.folder-chip, .award-folder-tab) { border-radius: 6px; font-size: 12px; box-shadow: none; }
+body.data-core-layout.data-core-layout :is(.folder-chip.active, .award-folder-tab.active) { background: var(--core-brand-soft); color: var(--core-brand-deep); border-color: var(--core-line-strong); }
+body.data-core-layout.data-core-layout :is(.award-file-name, .award-image-name) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.data-core-layout.data-core-layout.mode-home-artwork-active .mode-card { border-radius: var(--core-radius-lg); box-shadow: none; }
+body.data-core-layout.data-core-layout.mode-home-artwork-active .mode-card:hover img { transform: none; }
+body.data-core-layout.data-core-layout.mode-home-artwork-active .mode-overlay { background: white; }
+body.data-core-layout.data-core-layout.mode-home-artwork-active .mode-overlay strong { color: var(--core-ink); font-size: 28px; }
+body.data-core-layout.data-core-layout.mode-home-artwork-active .mode-overlay small { color: var(--core-ink-secondary); }
+body.data-core-layout.data-core-layout.mode-home-artwork-active .mode-artwork-arrow { background: var(--core-brand-soft); color: var(--core-brand-deep); }
+body.data-core-layout.data-core-layout .competition-hero { background: var(--core-surface-soft); }
+body.data-core-layout.data-core-layout .competition-hero::after { background: linear-gradient(90deg,#f6f7f5f5,#f6f7f5df 30%,#f6f7f500 70%); }
+body.data-core-layout.data-core-layout .competition-hero :is(h2, p), .admissions-counseling .admissions-masthead :is(h1, p), .roadmap-page .hero :is(h1, p) { color: var(--core-ink); }
+body.data-core-layout.data-core-layout .competition-news-heading { background: white; }
+.roadmap-page .roadmap-header { border-bottom: 1px solid var(--core-line); min-height: 84px; }
+.roadmap-page .hero:before, .admissions-counseling .admissions-masthead:before { background: linear-gradient(90deg,#f6f7f5f5,#f6f7f5d9 32%,#f6f7f500 78%); }
+.roadmap-page .hero h1 { font-size: 42px; font-weight: 650; }
+.roadmap-page .hero-inner > p:not(.eyebrow) { font-size: 16px; }
+.roadmap-page .family-art img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.roadmap-page .family-art { display: block; }
+.roadmap-page .family-copy h3 { color: var(--core-ink); font-size: 22px; }
+.roadmap-page :is(.family-copy p, .family-copy small, .dream-copy small, .dream-summary) { color: var(--core-ink-secondary); }
+.roadmap-page .dream-card { display: flex; flex-direction: column; }
+.roadmap-page .dream-copy { flex: 1; min-height: 145px; }
+.roadmap-page .dream-copy strong { color: var(--core-ink); font-size: 18px; font-weight: 650; }
+.roadmap-page .dream-summary { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 13px; }
+.roadmap-page :is(.flow-strip, .skill-list span, .major-item) { background: var(--core-surface-soft); border-color: var(--core-line); color: var(--core-ink-secondary); }
+.admissions-counseling :is(.score-hero, .guideline-status) { background: var(--core-surface-soft); }
+.admissions-counseling .admissions-masthead img { object-position: 60% 15%; }
+.admissions-counseling .btn.primary { background: var(--core-brand); color: white; border-color: var(--core-brand); }
+:is(.data-core-layout, .admissions-counseling) dialog { max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); overflow: auto; border-radius: 8px; }
+.core-menu-toggle { display: none; align-items: center; gap: 8px; min-height: 40px; border: 1px solid var(--core-line-strong); border-radius: 6px; background: white; color: var(--core-ink); padding: 8px 12px; font: 600 13px var(--core-font); cursor: pointer; }
+dialog.core-nav-dialog { position: fixed; inset: 0 auto 0 0; margin: 0; padding: 0; width: min(300px, calc(100vw - 32px)); max-width: none; height: 100dvh; max-height: 100dvh; border: 0; border-radius: 0; background: white; color: var(--core-ink); }
+.core-nav-dialog::backdrop { background: rgb(23 33 30 / 35%); }
+.core-nav-close { display: flex; align-items: center; justify-content: flex-end; padding: 10px 12px 0; }
+.core-nav-close button { display: grid; place-items: center; width: 36px; height: 36px; background: white; border: 1px solid var(--core-line); border-radius: 6px; cursor: pointer; color: var(--core-ink); }
+body:is(.data-core-layout, .admissions-counseling) .core-nav-dialog :is(.sidebar, .kk-sidebar) { position: static; height: calc(100dvh - 48px); border: 0; width: 100%; overflow-y: auto; }
+@media (max-width: 1100px) {
+  body.data-core-layout.data-core-layout :is(.app-shell, .kk-shell), body.admissions-counseling .app { grid-template-columns: minmax(0, 1fr); }
+  .core-menu-toggle { display: inline-flex; margin: 12px 24px 0; }
+  body.data-core-layout.data-core-layout :is(.main, .kk-main), body.admissions-counseling .main { padding-inline: 24px; }
+  body.data-core-layout.data-core-layout .sidebar .nav-group { display: block; }
+  body.data-core-layout.data-core-layout .nav-admin { border-left: 0; }
+  body.data-core-layout.data-core-layout :is(.sidebar-bottom, .kk-sidebar-bottom) { display: block; }
+  body.admissions-counseling .core-brand { display: flex; }
+  body.admissions-counseling .admission-subnav { display: block; margin: 6px 0 6px 12px; width: auto; }
+}
+@media (max-width: 680px) {
+  body.data-core-layout.data-core-layout :is(.main, .kk-main), body.admissions-counseling .main { padding-inline: 16px; }
+  .core-menu-toggle { margin-left: 16px; }
+  body.data-core-layout.data-core-layout :is(.topbar, .kk-topbar) { flex-wrap: wrap; min-height: 84px; gap: 10px; padding-block: 16px; }
+  body.data-core-layout.data-core-layout :is(.topbar, .kk-topbar) > div:first-child { flex: 1 1 100%; }
+  body.data-core-layout.data-core-layout :is(.topbar h1, .kk-topbar h1, .ops-header h1, .accounts-header h1, .shell > .hero h1) { font-size: 26px; }
+  body.data-core-layout.data-core-layout :is(.user-chip, .kk-user) { margin-left: 0; margin-right: auto; max-width: calc(100% - 85px); }
+  body.data-core-layout.data-core-layout .user-chip > div:last-child { display: block; min-width: 0; }
+  body.data-core-layout.data-core-layout :is(.user-chip, .kk-user) small { display: none; }
+  body.data-core-layout.data-core-layout .user-chip .avatar { display: grid; }
+  body.data-core-layout.data-core-layout .competition-hero-copy { padding: 24px 20px; max-width: 280px; }
+  .roadmap-page .hero h1 { font-size: 32px; }
+  .roadmap-page .hero-inner { padding: 48px 20px; }
+  .roadmap-page .family-copy h3 { font-size: 21px; }
+  .roadmap-page .dream-copy { padding: 12px; min-height: 140px; }
+  .roadmap-page .dream-copy strong { font-size: 16px; }
+  .roadmap-page .content-shell { padding-inline: 16px; }
+  .roadmap-page .roadmap-header { flex-wrap: wrap; }
+  .roadmap-page .roadmap-header nav a:last-child { display: inline; }
+  .roadmap-page .roadmap-header nav { flex-wrap: wrap; }
+  body.data-core-layout.data-core-layout .content-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) { :is(.data-core-layout, .roadmap-page, .admissions-counseling) * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+@media print { .core-menu-toggle, .core-nav-dialog { display: none !important; } }

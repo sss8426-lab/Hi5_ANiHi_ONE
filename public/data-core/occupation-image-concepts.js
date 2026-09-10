@@ -39,5 +39,5 @@ export const occupationImageConcepts = [
   occupationId, title, category, action, tools: tools.split(', '), visualFocus, environment,
   concept: `${action}. ${visualFocus}.`,
   avoid: ['다른 직업 이미지 재사용', '직업명 텍스트', '워터마크', '로고', '도구 없는 인물 초상'],
-  asset: `/data-core/assets/roadmap/jobs/${slug}.webp`, version: '20260909-1',
+  asset: `/data-core/assets/roadmap/jobs/${slug}.webp`, version: '20260910-photo-v2',
 }));
