@@ -1,5 +1,5 @@
 import { careerStages, programView, filterPrograms, admissionTrend, safeUrl, searchCareers } from './roadmap-model.js?v=20260909-1';
-import { occupationImageConcepts } from './occupation-image-concepts.js?v=20260909-1';
+import { occupationImageConcepts } from './occupation-image-concepts.js?v=20260910-photo-v2';
 import { paginate } from './pagination.js?v=20260909-1';
 
 const content = window.HI5_ROADMAP_CONTENT || { careers: [], tracks: [], lessonAreas: [], sources: [] };

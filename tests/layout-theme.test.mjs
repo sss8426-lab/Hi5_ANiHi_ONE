@@ -9,8 +9,9 @@ test('signed-in DATA CORE staff shells load the shared versioned visual layer af
     const styles=[...html.matchAll(/<link[^>]+rel="stylesheet"[^>]*>/g)].map(match=>match[0]);
     const sharedIndex=styles.findIndex(style=>/layout-theme\.css\?v=20260909-bright-layout/.test(style));
     assert.ok(sharedIndex>0);
-    if(file==='index')assert.match(styles.at(-1),/counseling-refinements\.css\?v=/);
-    else assert.equal(sharedIndex,styles.length-1);
+    assert.match(styles.at(-1),/design-system\.css\?v=/);
+    assert.match(styles.at(-2),/design-tokens\.css\?v=/);
+    if(file==='index')assert.ok(styles.some(style=>/counseling-refinements\.css\?v=/.test(style)));
     assert.equal(styles.filter(style=>style.includes('layout-theme.css')).length,1);
   }
 });

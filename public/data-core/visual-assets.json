@@ -1,0 +1,415 @@
+{
+  "schemaVersion": 1,
+  "assets": [
+    {
+      "key": "roadmap-hero",
+      "title": "꿈·전공 로드맵",
+      "asset": "/data-core/assets/counseling/dream-roadmap-photo-v1.webp",
+      "version": "20260910-photo-v2",
+      "width": 1440,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "competition",
+      "title": "공모전·실기대회",
+      "asset": "/data-core/assets/counseling/competition-challenge.webp",
+      "version": "20260910-photo-v2",
+      "width": 1440,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "admissions",
+      "title": "대학합격 로드맵",
+      "asset": "/data-core/assets/counseling/admission-roadmap.webp",
+      "version": "20260910-photo-v2",
+      "width": 1440,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "family-story",
+      "title": "만화·애니메이션·게임",
+      "asset": "/data-core/assets/roadmap/family-story-photo-v1.webp",
+      "version": "20260910-photo-v2",
+      "width": 1440,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "family-design",
+      "title": "디자인",
+      "asset": "/data-core/assets/roadmap/family-design-photo-v1.webp",
+      "version": "20260910-photo-v2",
+      "width": 1440,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "competition-news",
+      "title": "공모전 소식",
+      "asset": "/data-core/assets/counseling/competition-news-photo-v1.webp",
+      "version": "20260910-photo-v2",
+      "width": 1440,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D001",
+      "title": "웹툰 작가",
+      "asset": "/data-core/assets/roadmap/jobs/webtoon-artist.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D002",
+      "title": "출판만화가",
+      "asset": "/data-core/assets/roadmap/jobs/print-comic-artist.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D003",
+      "title": "웹툰 PD",
+      "asset": "/data-core/assets/roadmap/jobs/webtoon-pd.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D004",
+      "title": "스토리·콘티 작가",
+      "asset": "/data-core/assets/roadmap/jobs/story-writer.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D005",
+      "title": "2D 애니메이터",
+      "asset": "/data-core/assets/roadmap/jobs/2d-animator.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D006",
+      "title": "3D 애니메이터",
+      "asset": "/data-core/assets/roadmap/jobs/3d-animator.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D007",
+      "title": "애니메이션 감독·연출가",
+      "asset": "/data-core/assets/roadmap/jobs/animation-director.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D008",
+      "title": "스토리보드 아티스트",
+      "asset": "/data-core/assets/roadmap/jobs/storyboard-artist.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D009",
+      "title": "게임 원화가",
+      "asset": "/data-core/assets/roadmap/jobs/game-concept-artist.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D010",
+      "title": "캐릭터 컨셉 아티스트",
+      "asset": "/data-core/assets/roadmap/jobs/character-concept-artist.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D011",
+      "title": "배경 컨셉 아티스트",
+      "asset": "/data-core/assets/roadmap/jobs/environment-concept-artist.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D012",
+      "title": "게임 UI 디자이너",
+      "asset": "/data-core/assets/roadmap/jobs/game-ui-designer.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D013",
+      "title": "일러스트레이터",
+      "asset": "/data-core/assets/roadmap/jobs/illustrator.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D014",
+      "title": "캐릭터 디자이너",
+      "asset": "/data-core/assets/roadmap/jobs/character-designer.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D015",
+      "title": "이모티콘 작가",
+      "asset": "/data-core/assets/roadmap/jobs/emoticon-artist.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D016",
+      "title": "그림책 작가",
+      "asset": "/data-core/assets/roadmap/jobs/picturebook-author.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D017",
+      "title": "시각 디자이너",
+      "asset": "/data-core/assets/roadmap/jobs/visual-designer.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D018",
+      "title": "브랜드 디자이너",
+      "asset": "/data-core/assets/roadmap/jobs/brand-designer.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D019",
+      "title": "편집 디자이너",
+      "asset": "/data-core/assets/roadmap/jobs/editorial-designer.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D020",
+      "title": "패키지 디자이너",
+      "asset": "/data-core/assets/roadmap/jobs/package-designer.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D021",
+      "title": "광고·콘텐츠 디자이너",
+      "asset": "/data-core/assets/roadmap/jobs/advertising-designer.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D022",
+      "title": "UI/UX 디자이너",
+      "asset": "/data-core/assets/roadmap/jobs/ux-ui-designer.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D023",
+      "title": "모션그래픽 디자이너",
+      "asset": "/data-core/assets/roadmap/jobs/motion-graphics-designer.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D024",
+      "title": "영상 디자이너",
+      "asset": "/data-core/assets/roadmap/jobs/video-designer.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D025",
+      "title": "산업·제품 디자이너",
+      "asset": "/data-core/assets/roadmap/jobs/industrial-product-designer.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D026",
+      "title": "자동차·모빌리티 디자이너",
+      "asset": "/data-core/assets/roadmap/jobs/mobility-designer.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D027",
+      "title": "공간·실내 디자이너",
+      "asset": "/data-core/assets/roadmap/jobs/interior-designer.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D028",
+      "title": "전시·VMD 디자이너",
+      "asset": "/data-core/assets/roadmap/jobs/exhibition-vmd-designer.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D029",
+      "title": "무대미술 디자이너",
+      "asset": "/data-core/assets/roadmap/jobs/stage-designer.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D030",
+      "title": "패션 디자이너",
+      "asset": "/data-core/assets/roadmap/jobs/fashion-designer.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D031",
+      "title": "텍스타일 디자이너",
+      "asset": "/data-core/assets/roadmap/jobs/textile-designer.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D032",
+      "title": "금속·주얼리 디자이너",
+      "asset": "/data-core/assets/roadmap/jobs/jewelry-designer.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D033",
+      "title": "도자·세라믹 디자이너",
+      "asset": "/data-core/assets/roadmap/jobs/ceramic-designer.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D034",
+      "title": "가구·리빙 디자이너",
+      "asset": "/data-core/assets/roadmap/jobs/furniture-designer.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "D035",
+      "title": "AI·융합 콘텐츠 디자이너",
+      "asset": "/data-core/assets/roadmap/jobs/ai-convergence-designer.webp",
+      "version": "20260910-photo-v2",
+      "width": 720,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    }
+  ]
+}

@@ -35,12 +35,13 @@ The original data and API response contracts are unchanged.
 
 ## Design and navigation
 
-Main counseling artwork is reused in the full-width hero. The generated
-`roadmap-careers-v1.png` atlas contains 12 profession-family scenes, mapped to 35 careers.
-Generation used the built-in image tool: bright daylight anime/editorial art matching
-the counseling asset; 4-by-3 grid of webtoon, animation, game art, illustration, graphic
-design, UI/UX, product/mobility, interior/exhibition, fashion/textile, craft, motion/film,
-and interactive design scenes; no labels or logos.
+The full-width hero and two family cards use approved bright photorealistic scenes.
+Each of the 35 occupations has its own optimized WebP and job-specific tools/action,
+mapped by `occupation-image-concepts.js`. `visual-assets.json` records the shared
+page and occupation asset metadata. The old atlas is not used by these cards.
+All people in these generated scenes are fictional. The images are visual examples,
+not evidence of actual students, staff, campuses, admissions or professional outcomes.
+The common token/presentation layer is isolated from the existing content and routing.
 
 Hash links preserve family and career selection for refresh, sharing and browser history.
 Educational assets contain only the public summaries. The production page's existing
