@@ -6,8 +6,8 @@ const app = fs.readFileSync('public/data-core/app.js', 'utf8');
 const styles = fs.readFileSync('public/data-core/styles.css', 'utf8');
 
 for (const [mode, href, asset] of [
-  ['counseling', '/data-core/counseling', 'mode-counseling.webp'],
-  ['work', '/data-core/work', 'mode-work.webp'],
+  ['counseling', '/data-core/counseling', 'mode-counseling-photo-v1.webp'],
+  ['work', '/data-core/work', 'mode-work-photo-v1.webp'],
 ]) {
   const card = new RegExp(`<a class="mode-card ${mode}" href="${href}" data-mode-card="${mode}">[\\s\\S]*?${asset}`, 'u');
   assert.match(html, card, `${mode} card keeps a real navigation link and its approved image asset`);
