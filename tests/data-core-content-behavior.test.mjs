@@ -1213,7 +1213,7 @@ test("competition source failures and ambiguous matches never replace existing D
   }
 });
 
-test('award uploads use folder names and scoped permanent deletion removes only unreferenced authorized files', async () => {
+test('award uploads preserve original names and scoped permanent deletion removes only unreferenced authorized files', async () => {
   const h = await createHarness();
   try {
     const create = (title) => h.request('POST', '/api/data-core/records', users.a, {
@@ -1222,7 +1222,7 @@ test('award uploads use folder names and scoped permanent deletion removes only 
     const folder = (await create('합성 / 폴더')).body.record;
     const other = (await create('다른 합성 폴더')).body.record;
     const originals = [];
-    for (const name of ['one.PNG', 'two.png', 'three.webp']) {
+    for (const name of ['합성 작품 (최종).PNG', '합성 작품 (최종).PNG', 'three.webp']) {
       const form = new FormData();
       form.append('file', new File([tinyPng()], name, {type:'image/png'}));
       form.append('recordId',folder.id); form.append('category','competition-material'); form.append('campusId',CAMPUS_A);
@@ -1230,11 +1230,18 @@ test('award uploads use folder names and scoped permanent deletion removes only 
       const saved = await h.requestForm('/api/data-core/files', users.a, form);
       assert.equal(saved.response.status,201,JSON.stringify(saved.body));
       const row = await h.env.DB.prepare('SELECT * FROM file_objects WHERE id=?').bind(saved.body.file.id).first();
-      assert.equal(row.original_file_name, '합성 _ 폴더' + name.slice(name.lastIndexOf('.')));
+      assert.equal(row.original_file_name, name);
+      assert.equal(saved.body.file.fileName, name);
       assert.equal(row.owner_user_id,'oai:user-a'); assert.equal(row.data_record_id,folder.id);
       originals.push(row);
     }
     assert.equal(new Set(originals.map(row=>row.r2_key)).size,3);
+    assert.equal(new Set(originals.map(row=>row.id)).size,3);
+    const listed = await h.request('GET',`/api/data-core/files?recordId=${folder.id}`,users.a);
+    for (const row of originals) {
+      assert.equal(listed.body.files.find(file=>file.id===row.id)?.fileName,row.original_file_name);
+      assert.deepEqual(new Uint8Array(await (await h.env.FILES.get(row.r2_key)).arrayBuffer()),tinyPng());
+    }
     const path = `/api/data-core/files/${originals[0].id}?awardFolderId=${folder.id}`;
     assert.equal((await h.request('DELETE',path,users.b)).response.status,403);
     assert.equal((await h.request('DELETE',path,users.a)).response.status,403);

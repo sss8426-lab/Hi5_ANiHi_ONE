@@ -210,7 +210,7 @@ audit_logs
 ## 수상작 세부 UX 및 실제 소식 파싱 (2026-09-09)
 
 - 상담 모드에서만 사용자 이름/역할을 로그아웃 바로 왼쪽에 둔다. 모바일에서도 역할을 숨기지 않는다.
-- 새 수상작 파일은 서버에서 연결 폴더의 제목과 원래 확장자로 이름을 정한다. 경로/제어 문자는 치환한다. 기존 파일명은 변경하지 않으며 R2 key는 UUID로 구분한다.
+- 새 수상작 파일은 업로드한 원래 파일명을 그대로 유지한다. 폴더명으로 바꾸지 않으며 이미 저장된 파일명도 변경하지 않는다. R2 key에만 안전한 이름 치환과 UUID를 적용하여 같은 이름의 파일도 별도로 보존한다.
 - 갤러리 선택 삭제: `DELETE /api/data-core/files/:id?awardFolderId=:folderId`. 동일 Origin, 파일 소유자, 실제 폴더 연결, 폴더 종류, 캠퍼스 권한을 서버에서 검사한 뒤 기존 soft-trash를 호출한다. R2 원본은 보존하고 운영관리의 기존 복원 API를 사용한다.
 - 페이지 전용 이미지 캐시는 인증된 file API의 blob만 메모리에 보관한다. 썸네일/Lightbox 요청을 합치며 24개/128MiB/5분 상한, 다운로드 동시 3개 제한을 둔다. 폴더 전환, 화면 이탈, 로그아웃, 페이지 숨김 시 요청 취소와 object URL 해제를 수행한다. Service Worker/영구 브라우저 저장소/R2 공개 URL을 사용하지 않는다.
 - 기존 실측 desktop 구성은 수상작 유동폭 + 소식 340px이다. 이 구성을 유지하며 760px 이하에서는 수상작 다음 소식을 배치한다.
@@ -223,7 +223,7 @@ audit_logs
 
 ## Upload progress and award deletion (2026-09-10)
 
-- Existing multipart upload API, authoritative folder filename, campus/owner rules and FILES binding are retained. `upload-queue.js` uses at most three XHRs and real multipart upload-byte events. Selection bytes exclude multipart overhead; transfer totals include it. 100% requires every server success response, not merely finishing the request body.
+- Existing multipart upload API, original uploaded filename, campus/owner rules and FILES binding are retained. The server uses the multipart File name, not a client filename override or folder title. `upload-queue.js` uses at most three XHRs and real multipart upload-byte events. Selection bytes exclude multipart overhead; transfer totals include it. 100% requires every server success response, not merely finishing the request body.
 - Selection shows a count/size summary with an optional collapsed list. Failed requests can be retried without repeating successful requests. Cancelling aborts active XHRs and stops waiting items; confirmed successes are never rolled back. An already accepted server request may finish despite a client abort. Gallery refresh remains authoritative; transport errors advise checking the gallery before retrying.
 - Upload destination is a frozen folder/campus/category snapshot. D1 inserts require the linked record still to be active. New-upload metadata failures compensate only the new row/object, never an existing file.
 - `DELETE /api/data-core/files/:id?awardFolderId=:folderId` now invokes the existing purge function directly for valid competition-material files in competition-award-folder records. Same-origin and server SUPER_ADMIN checks are mandatory. Generic file DELETE without this parameter still uses soft-trash. No permission expansion.
