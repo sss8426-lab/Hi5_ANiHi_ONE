@@ -87,6 +87,7 @@ try {
   loginStatus = 200;
   await page.getByRole('button', {name:'로그인',exact:true}).click();
   await page.waitForURL('**/data-core/work/library');
+  await page.getByRole('heading', {name:'Synthetic destination'}).waitFor();
   check(true, 'successful login keeps next destination');
 
   session = {authenticated: true, mustChangePassword: true};
@@ -108,6 +109,7 @@ try {
   await page.locator('#confirmPassword').fill('synthetic-only-next');
   await page.getByRole('button',{name:'변경 후 시작하기'}).click();
   await page.waitForURL('**/data-core/work');
+  await page.getByRole('heading', {name:'Synthetic destination'}).waitFor();
   check(true, 'password change redirects after success');
 
   session = {authenticated:false};
