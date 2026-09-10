@@ -8,6 +8,7 @@ import { paginate } from './pagination.js?v=20260909-1';
 const content = window.HI5_ROADMAP_CONTENT || { careers: [], tracks: [], lessonAreas: [], sources: [] };
 const $ = (id) => document.getElementById(id);
 const state = { family: '', group: '', query: '', career: null, programs: [], page:1, visiblePrograms:[], pagination:null,total:0,trend:undefined,controller: null, request: 0 };
+let guidelineController, guidelineRequest = 0;
 const familyNames = { story: '만화·애니메이션·게임', design: '디자인' };
 const h = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 const art = (career) => {
@@ -61,6 +62,7 @@ function renderEducation(career) {
 }
 
 function renderUniversities() {
+  cancelGuideline();
   const filters = { region: $('regionFilter').value, schoolType: $('schoolFilter').value, admission: $('admissionFilter').value, focus: $('focusFilter').value };
   const filtered = filterPrograms(state.programs, filters);
   const pagination = state.pagination ? {...state.pagination,rows:state.programs} : paginate(filtered, state.page);
@@ -124,9 +126,39 @@ function linkUniversitySources() {
     const link = document.createElement('button');link.type='button';
     link.className = 'university-source-link';
     link.textContent = '입시요강 보기';
-    link.onclick=async()=>{link.disabled=true;try{const result=await api(`/api/data-core/admissions/guidelines?id=${encodeURIComponent(row.guidelineId)}`);if(result.rows?.[0])showGuideline(result.rows[0],{counseling:true});else notice('저장된 입시요강을 찾을 수 없습니다.');}catch{notice('입시요강을 불러오지 못했습니다. 다시 시도해주세요.');}finally{link.disabled=false;}};
+    link.onclick=()=>openGuideline(row,link);
     item.append(link);
   });
+}
+
+function cancelGuideline() {
+  guidelineRequest++;
+  guidelineController?.abort();
+  guidelineController = null;
+  document.querySelector('.guideline-dialog')?.close();
+}
+
+async function openGuideline(row, button) {
+  cancelGuideline();
+  const request = guidelineRequest;
+  const controller = guidelineController = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 45000);
+  button.disabled = true;
+  try {
+    const result = await api(`/api/data-core/admissions/guidelines?id=${encodeURIComponent(row.guidelineId)}`, controller.signal);
+    if (request !== guidelineRequest || controller.signal.aborted) return;
+    if (result.rows?.[0]?.id === row.guidelineId) {
+      notice('');
+      showGuideline(result.rows[0], { counseling: true });
+    } else notice('저장된 입시요강을 찾을 수 없습니다.');
+  } catch (error) {
+    if (request !== guidelineRequest) return;
+    notice(error.name === 'AbortError' ? '입시요강 조회 시간이 길어졌습니다. 다시 눌러주세요.' : '입시요강을 불러오지 못했습니다. 다시 시도해주세요.');
+  } finally {
+    clearTimeout(timeout);
+    if (guidelineController === controller) guidelineController = null;
+    button.disabled = false;
+  }
 }
 
 async function api(url, signal) {
@@ -136,6 +168,7 @@ async function api(url, signal) {
 }
 
 async function loadConnectedPrograms(career) {
+  cancelGuideline();
   const requestId = ++state.request;
   state.controller?.abort();
   const controller = new AbortController();
@@ -157,6 +190,7 @@ async function loadConnectedPrograms(career) {
 }
 
 function route() {
+  cancelGuideline();
   const params = new URLSearchParams(location.hash.slice(1));
   const family = params.get('family');
   const career = content.careers.find((c) => c.id === params.get('career'));

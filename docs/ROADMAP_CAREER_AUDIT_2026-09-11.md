@@ -155,7 +155,7 @@ contact sheet는 ignored outputs에만 보관한다.
 
 - 로컬: npm ci/build/typecheck, public JS 46개 구문 검사, 전체 behavior 270개, 기존 roadmap browser 103개 및 connected browser 85개 통과. Wrangler dry-run 통과.
 - 신규 전수 browser: 35직업 × 5화면 175회 통과, 페이지 오류/누락 이미지/API mutation 0. 흐름 스크롤의 화면 위치까지 추가 검증한다.
-- Preview 및 production은 아직 미확정. 최종 증거와 Worker 버전은 PR 검증 기록에 남긴다.
+- 최초 감사 배포: [PR #182 최종 증거](https://github.com/sss8426-lab/Hi5_ANiHi_ONE/pull/182#issuecomment-5622116305). Preview 175회, 운영 HTTP/asset 48개와 로그인 브라우저 35직업 요강 열기 통과. 최초 운영 Worker는 `235b4925-7fc1-4e6f-8cf6-97193bc8734a`이며 후속 배포의 현재 버전은 해당 PR에서 확인한다.
 - `scripts/check-career-audit-browser.mjs`: 35직업 × 1920/1440/820/390/320. 모든 API는 합성 응답으로 차단한다.
 - 카드 클릭·상세·전공·4개 paging·요강·성적/실기·성장단계·수업·이미지·뒤로/앞으로·새로고침·deep link·overflow 확인.
 - 이전 이름 검색, 연결 0건, 비로그인, 이미지/페이지 오류, mutation 요청 0건도 확인한다.

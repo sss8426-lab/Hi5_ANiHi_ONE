@@ -62,6 +62,10 @@ Educational assets contain only the public summaries. The production page's exis
 staff authentication guard is unchanged; the renderer also handles missing/expired API
 authentication. Authenticated results are never persisted in local/session storage.
 Requests are aborted on navigation and stale responses cannot replace a newer career.
+Guideline detail requests also use cancellation plus generation checks: only the last
+selected guideline may open, its returned ID must match the requested ID, and a career,
+program page or filter change closes/cancels the old dialog. A 45-second timeout releases
+the button for retry; obsolete request errors never overwrite the current notice.
 Print produces the chosen counseling guide. The consultation action returns to the existing
 counseling home; no fake trial-booking endpoint or personal data form is introduced.
 
