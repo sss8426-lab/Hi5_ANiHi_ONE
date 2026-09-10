@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-test('all DATA CORE staff shells load the shared versioned visual layer after their existing styles',()=>{
-  for(const file of ['index','content','accounts','operations','readiness','login','work/kkumeum']) {
+test('signed-in DATA CORE staff shells load the shared versioned visual layer after their existing styles',()=>{
+  for(const file of ['index','content','accounts','operations','readiness','work/kkumeum']) {
     const html=fs.readFileSync(`public/data-core/${file}.html`,'utf8');
     assert.match(html,/<body class="data-core-layout">/);
     const styles=[...html.matchAll(/<link[^>]+rel="stylesheet"[^>]*>/g)].map(match=>match[0]);
@@ -13,6 +13,13 @@ test('all DATA CORE staff shells load the shared versioned visual layer after th
     else assert.equal(sharedIndex,styles.length-1);
     assert.equal(styles.filter(style=>style.includes('layout-theme.css')).length,1);
   }
+});
+
+test('public login uses its isolated editorial layer without changing the staff theme',()=>{
+  const html=fs.readFileSync('public/data-core/login.html','utf8');
+  assert.match(html,/<body class="login-page">/);
+  assert.match(html,/login\.css\?v=20260910-editorial-v1/);
+  assert.doesNotMatch(html,/layout-theme\.css/);
 });
 
 test('shared visuals retain hidden state, main artwork isolation and existing mode destinations',()=>{

@@ -4,16 +4,20 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>DATA CORE 로그인</title>
-  <link rel="stylesheet" href="/data-core/login.css">
-  <link rel="stylesheet" href="/data-core/layout-theme.css?v=20260909-bright-layout">
+  <meta name="theme-color" content="#f8faf9">
+  <link rel="preload" as="image" href="/data-core/assets/login-highfive-v1.webp">
+  <link rel="stylesheet" href="/data-core/login.css?v=20260910-editorial-v1">
 </head>
-<body class="data-core-layout">
+<body class="login-page">
   <main class="login-shell">
-    <section class="login-panel" aria-labelledby="loginTitle">
-      <div class="brand"><span>H5</span><div><strong>HI5·ANiHi</strong><small>DATA CORE</small></div></div>
+    <img class="login-hero" src="/data-core/assets/login-highfive-v1.webp" width="1536" height="1024" fetchpriority="high" alt="교복을 입은 두 학생이 밝은 하늘 아래 뛰어오르며 하이파이브하는 모습">
+    <header class="login-brand">
+      <a href="/data-core" aria-label="HI5·ANiHi DATA CORE 홈"><strong>HI5·ANiHi</strong><span>DATA CORE</span></a>
+    </header>
+    <h1 class="visually-hidden">너와 나의 합격의 순간<br>하이파이브</h1>
+    <section class="login-panel" aria-label="DATA CORE 계정 로그인">
       <div id="loginFormWrap">
-        <p class="eyebrow">업무용 자료 보호</p>
-        <h1 id="loginTitle">로그인</h1>
+        <h2 id="loginTitle">로그인</h2>
         <form id="loginForm">
           <label>로그인 ID<input id="loginId" name="loginId" autocomplete="username" required></label>
           <label>비밀번호<input id="password" name="password" type="password" autocomplete="current-password" required></label>
@@ -23,7 +27,7 @@
       </div>
       <div id="passwordFormWrap" class="hidden">
         <p class="eyebrow">첫 로그인</p>
-        <h1>비밀번호 변경</h1>
+        <h2>비밀번호 변경</h2>
         <form id="passwordForm">
           <label>현재 비밀번호<input id="currentPassword" type="password" autocomplete="current-password" required></label>
           <label>새 비밀번호<input id="nextPassword" type="password" autocomplete="new-password" minlength="12" required></label>

@@ -1,21 +1,109 @@
-:root { font-family: Inter, Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #101828; background: #eef3f9; }
+:root {
+  font-family: Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #193d38;
+  background: #f8faf9;
+  color-scheme: light;
+  letter-spacing: 0;
+  --entry-ink: #193d38;
+  --entry-paper: #f8faf9;
+  --entry-line: #aabbb6;
+}
 * { box-sizing: border-box; }
-body { margin: 0; min-height: 100vh; }
-.login-shell { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
-.login-panel { width: min(100%, 430px); background: #fff; border: 1px solid #dfe6ef; border-radius: 8px; padding: 38px; box-shadow: 0 18px 46px rgba(15, 23, 42, .11); }
-.brand { display: flex; align-items: center; gap: 11px; margin-bottom: 38px; }
-.brand > span { width: 39px; height: 39px; display: grid; place-items: center; border-radius: 8px; background: #2563eb; color: #fff; font-weight: 800; }
-.brand strong, .brand small { display: block; }
-.brand strong { font-size: 14px; }
-.brand small, .eyebrow, .back { font-size: 11px; color: #667085; }
-.eyebrow { margin: 0 0 6px; color: #2563eb; font-weight: 700; letter-spacing: .06em; }
-h1 { font-size: 25px; margin: 0 0 24px; letter-spacing: 0; }
-form { display: grid; gap: 16px; }
-label { display: grid; gap: 7px; font-size: 13px; font-weight: 700; }
-input { min-height: 44px; border: 1px solid #cfd8e5; border-radius: 6px; padding: 10px 12px; font: inherit; }
-input:focus { outline: 2px solid #93c5fd; border-color: #2563eb; }
-button { min-height: 44px; border: 0; border-radius: 6px; background: #2563eb; color: #fff; font-weight: 700; cursor: pointer; }
+body { margin: 0; min-width: 280px; }
+a { color: inherit; }
+.login-shell {
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  min-height: 100svh;
+  display: grid;
+  justify-items: end;
+  align-content: end;
+  padding: 24px;
+}
+.login-hero {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: right top;
+}
+.login-brand { position: absolute; top: 28px; left: 32px; }
+.login-brand a { display: grid; gap: 4px; text-decoration: none; }
+.login-brand strong { font-size: 20px; font-weight: 650; }
+.login-brand span { font-size: 10px; font-weight: 600; }
+.login-panel {
+  width: 320px;
+  max-width: 100%;
+  padding: 20px;
+  background: rgb(255 255 255 / 94%);
+  border: 1px solid rgb(255 255 255 / 75%);
+  border-radius: 4px;
+}
+h2 { font-size: 19px; line-height: 1.4; font-weight: 600; margin: 0 0 14px; }
+.eyebrow { margin: 0 0 5px; font-size: 11px; color: #4c655e; }
+form { display: grid; gap: 10px; }
+label { display: grid; gap: 5px; font-size: 12px; line-height: 1.5; font-weight: 500; }
+input {
+  min-width: 0;
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--entry-line);
+  border-radius: 2px;
+  padding: 8px 10px;
+  background: #fff;
+  color: var(--entry-ink);
+  font: inherit;
+  font-size: 16px;
+}
+input:focus-visible, a:focus-visible, button:focus-visible {
+  outline: 2px solid #296557;
+  outline-offset: 3px;
+}
+button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 2px;
+  padding: 10px 14px;
+  background: var(--entry-ink);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+button:hover { background: #28564b; }
 button:disabled { opacity: .65; cursor: wait; }
-.message { min-height: 18px; margin: -4px 0 0; color: #b42318; font-size: 12px; line-height: 1.45; }
-.back { display: block; margin-top: 28px; text-align: center; text-decoration: none; }
+.message { min-height: 18px; margin: 0; color: #a02c25; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.message:empty { display: none; }
+.back { display: block; width: fit-content; margin: 14px auto 0; padding: 4px 0; font-size: 11px; line-height: 1.5; color: #4c655e; text-underline-offset: 4px; }
 .hidden { display: none; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+/* Give the taller first-login form room without covering the approved headline. */
+.login-shell:has(.message:not(:empty)) { min-height: max(100svh, 860px); }
+.login-shell:has(#passwordFormWrap:not(.hidden)) { min-height: max(100svh, 960px); }
+/* Preserve the whole approved composition when a full-bleed crop would lose text. */
+@media (max-width: 1100px), (max-aspect-ratio: 4/3), (max-height: 650px) {
+  .login-shell, .login-shell:has(.message:not(:empty)), .login-shell:has(#passwordFormWrap:not(.hidden)) {
+    min-height: 100svh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 0 max(24px, env(safe-area-inset-bottom));
+  }
+  .login-hero { position: relative; inset: auto; z-index: 0; width: 100%; height: auto; object-fit: contain; }
+  .login-brand { z-index: 1; top: 20px; left: 24px; }
+  .login-panel { width: 390px; max-width: calc(100% - 40px); margin: 24px auto 0; padding: 24px; background: transparent; border: 0; border-radius: 0; }
+}
+@media (max-width: 540px) {
+  .login-brand { top: 14px; left: 16px; }
+  .login-brand strong { font-size: 15px; }
+  .login-brand span { font-size: 8px; }
+  .login-panel { margin-top: 14px; padding: 16px 8px; }
+}
+@media (forced-colors: active) {
+  .login-panel { background: Canvas; border: 1px solid CanvasText; }
+  .visually-hidden { position: static; width: auto; height: auto; clip-path: none; white-space: normal; font-size: 22px; margin: 24px; }
+}
