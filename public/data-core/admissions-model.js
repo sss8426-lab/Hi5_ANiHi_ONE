@@ -1,5 +1,6 @@
 export const normalizeName = (value) => String(value ?? '').normalize('NFKC').toLowerCase().replace(/[\s·ㆍ/_-]+/g, '');
 import {detailColumns, projectPublicDetails, enrichPublicDetails} from './guideline-details.js';
+import {selectionRatios} from './selection-ratios.js';
 const text = (value, max = 240) => ['string', 'number'].includes(typeof value) ? String(value).trim().slice(0, max) : '';
 const number = (value, max = Infinity) => {
   if (!['string', 'number'].includes(typeof value) || String(value).trim() === '') return null;
@@ -104,23 +105,8 @@ export const publicColumns = {
 };
 
 export function parseSimpleRatios(formula) {
-  const result = { gradeRatio:null, practicalRatio:null, csatRatio:null, documentRatio:null, interviewRatio:null };
-  const s = text(formula, 1000);
-  // Staged, point-based and conditional formulas remain verbatim facts, never guessed percentages.
-  if (/단계|차|배수|점|이상|이하|중|또는|\//.test(s)) return result;
-  const patterns = {gradeRatio:'학생부(?:교과)?|교과',practicalRatio:'실기',csatRatio:'수능',documentRatio:'서류',interviewRatio:'면접'};
-  const fragments = s.split(/[+＋,\n]/).map((v) => v.trim()).filter(Boolean);
-  if (!fragments.length) return result;
-  for (const f of fragments) {
-    let matched = false;
-    for (const [key, pattern] of Object.entries(patterns)) {
-      const match = f.match(new RegExp(`^(?:${pattern})\\s*:?\\s*(\\d+(?:\\.\\d+)?)\\s*%?$`));
-      if (match && result[key] === null) { result[key] = number(match[1],100); matched = result[key] !== null; break; }
-    }
-    if (!matched) return { gradeRatio:null, practicalRatio:null, csatRatio:null, documentRatio:null, interviewRatio:null };
-  }
-  if (Object.values(result).reduce((sum,v) => sum + (v || 0),0) !== 100) return {gradeRatio:null,practicalRatio:null,csatRatio:null,documentRatio:null,interviewRatio:null};
-  return result;
+  const parsed=selectionRatios(formula);
+  return Object.fromEntries(['gradeRatio','practicalRatio','csatRatio','documentRatio','interviewRatio'].map(k=>[k,parsed[k]]));
 }
 
 export function decodePublicGuidelines(raw, season, provenance) {
@@ -174,6 +160,7 @@ export function projectGuideline(row) {
   result.sourceUrl = https(row.sourceUrl);
   result.publicDetails = projectPublicDetails(row.publicDetails);
   result.detailsCheckedAt = text(row.detailsCheckedAt,40) || null;
+  if(result.selectionFormula)Object.assign(result,selectionRatios(result.selectionFormula));
   return result;
 }
 export function selectGuidelines(rows, filters = {}) {

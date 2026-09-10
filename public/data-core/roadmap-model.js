@@ -1,3 +1,4 @@
+import {selectionRatios} from './selection-ratios.js';
 export function normalize(value) {
   return String(value || '').toLowerCase().replace(/[·ㆍ/\s_-]+/g, '');
 }
@@ -41,13 +42,17 @@ export function programView(program) {
   const date = new Date(verifiedAt);
   const validDate = /^\d{4}-\d{2}-\d{2}(T|$)/.test(verifiedAt) && Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === verifiedAt.slice(0, 10);
   const verified = Boolean(year && source && reviewed && validDate);
-  const grade = verified ? percent(m.gradeRatio) : null;
-  const skill = verified ? percent(m.skillRatio) : null;
+  const publicFacts=Boolean(m.guidelineId && m.verificationStatus==='public-source-unverified' && /^https:\/\/grinalda\.net\/univ-info-(susi|jungsi)\/$/.test(source));
+  const ratios=selectionRatios(m.selectionFormula);
+  const grade = publicFacts ? ratios.academicRatio : verified ? percent(m.gradeRatio) : null;
+  const skill = publicFacts ? ratios.practicalRatio : verified ? percent(m.skillRatio) : null;
   const validPair = grade !== null && skill !== null && grade + skill <= 100;
   return {
     id: String(program.id || ''), university: String(m.universityName || m.schoolName || '대학 확인 필요'),
     department: String(m.major || program.name || '학과 확인 필요'), region: String(m.region || m.area || m.location || ''),
-    schoolType: String(m.schoolType || m.degreeType || ''), admission: String(m.admission || ''), practical: verified ? String(m.practicalType || '') : '',
+    schoolType: String(m.schoolType || m.degreeType || ''), admission: String(m.admission || ''), practical: verified || publicFacts ? String(m.practicalType || '') : '',
+    publicFacts, other:publicFacts?ratios.otherRatio:null,ratioStatus:ratios.ratioStatus,selectionFormula:publicFacts?String(m.selectionFormula||''):'',
+    quota:publicFacts?m.quota??null:null,competitionRate:publicFacts?m.competitionRate??null:null,
     source, year, verified, verifiedAt: verified ? verifiedAt.slice(0, 10) : '', page: verified ? String(m.sourcePage || m.documentPage || '') : '',
     grade: validPair ? grade : null, skill: validPair ? skill : null,
     sourceUniversityId: String(m.sourceUniversityId || ''), campus: String(m.campus || ''),
@@ -56,9 +61,13 @@ export function programView(program) {
 }
 export function filterPrograms(programs, filters) {
   return programs.filter((p) => (!filters.region || p.region === filters.region) &&
+    (!filters.season || p.admissionSeason === filters.season) &&
     (!filters.schoolType || p.schoolType === filters.schoolType) &&
     (!filters.admission || p.admission.includes(filters.admission)) &&
     (!filters.focus || (filters.focus === 'verified' && p.verified) ||
+      (filters.focus === 'staged' && p.ratioStatus==='staged') ||
+      (filters.focus === 'practical100' && p.skill===100) ||
+      (filters.focus === 'nonpractical' && p.skill===0) ||
       (filters.focus === 'practical' && p.skill !== null && p.grade !== null && p.skill > p.grade) ||
       (filters.focus === 'academic' && p.grade !== null && p.skill !== null && p.grade > p.skill) ||
       (filters.focus === 'portfolio' && p.verified && /포트폴리오/.test(p.practical))));

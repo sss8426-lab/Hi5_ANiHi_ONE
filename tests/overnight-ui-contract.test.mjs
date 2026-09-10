@@ -33,7 +33,7 @@ test('dream-major roadmap uses the source-backed career catalog and safe admissi
   assert.match(html, /roadmap-content\.js/);
   assert.match(html, /#family=story/);
   assert.match(html, /#family=design/);
-  for (const fallback of ['확인 필요', '공식 출처 확인 필요', '추가 검수 필요']) {
+  for (const fallback of ['확인 필요', '공식 모집요강 확인 필요', '최종 지원 전 공식 모집요강 확인']) {
     assert.match(js, new RegExp(fallback));
   }
   for (const group of ['웹툰·만화', '애니메이션', '게임', '일러스트·캐릭터', '디자인']) {

@@ -18,6 +18,7 @@ import {
 } from "./data-core-admin";
 import { listAuditLogs } from "./data-core-audit";
 import { createInstagramDerivative } from './data-core-derivatives';
+import { handleAdmissionsArtworks } from './admissions-artworks';
 import {
   deleteDataCoreFile,
   listDataCoreFiles,
@@ -233,7 +234,7 @@ async function handleFile(request: Request, env: Env) {
   const url = new URL(request.url);
   const encodedKey = url.pathname.replace(/^\/api\/files\//, "");
   const key = decodeURIComponent(encodedKey);
-  if (key.startsWith("data-core/")) return new Response("Not found", { status: 404 });
+  if (key.startsWith("data-core/") || key.startsWith("artworks/")) return new Response("Not found", { status: 404 });
   const object = await env.FILES.get(key);
   if (!object) return new Response("Not found", { status: 404 });
   const headers = new Headers();
@@ -432,6 +433,8 @@ async function handleDataCoreApi(request: Request, env: Env) {
 
 async function handleApi(request: Request, env: Env) {
   const url = new URL(request.url);
+  const artworkResponse = await handleAdmissionsArtworks(request, env);
+  if (artworkResponse) return artworkResponse;
 
   if (url.pathname.startsWith("/api/data-core/")) {
     try {

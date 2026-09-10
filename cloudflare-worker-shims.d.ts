@@ -19,6 +19,7 @@ interface D1Database {
 }
 
 interface R2ObjectBody {
+  httpMetadata?: R2PutOptions['httpMetadata'];
   body: ReadableStream;
   httpEtag: string;
   writeHttpMetadata(headers: Headers): void;
@@ -50,6 +51,7 @@ interface R2Objects {
 }
 
 interface R2Bucket {
+  head(key: string): Promise<R2Object | null>;
   put(key: string, value: unknown, options?: R2PutOptions): Promise<unknown>;
   get(key: string): Promise<R2ObjectBody | null>;
   list(options?: { cursor?: string }): Promise<R2Objects>;

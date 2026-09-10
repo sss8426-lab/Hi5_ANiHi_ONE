@@ -712,12 +712,17 @@
 }
 
 .artwork-viewer img {
+  width: auto;
+  height: auto;
   background: #f4f7fb;
   border-radius: 10px;
   max-height: calc(94vh - 88px);
   max-width: calc(94vw - 28px);
   object-fit: contain;
 }
+.student-thumb-button{padding:0;border:0;background:transparent;cursor:pointer}
+.artwork-missing{display:grid;place-items:center;min-height:48px;color:#64736e;font-size:12px;background:#f3f6f5}
+.artwork-missing[hidden],img[data-student-artwork][hidden]{display:none!important}
 
 .case-artwork-empty {
   align-items: center;
