@@ -193,6 +193,9 @@ test('D1/R2 behavior: authenticated university-only read and admin preview/apply
     const degraded=await call('/api/data-core/admissions/guidelines?season=susi');assert.equal(degraded.status,200);const degradedBody=await degraded.text();assert.doesNotMatch(degradedBody,/PRIVATE_/);assert.equal(JSON.parse(degradedBody).rows[0].mappingReason,'source-unavailable');
     await files.put('state/admissions-data.json',originalJson);
     const connected=await (await call(url)).json();assert.equal(connected.programs.length,3);
+    const paged=await(await call(url+'&page=999')).json();assert.equal(paged.pagination.page,1);assert.equal(paged.pagination.total,3);assert.ok(paged.programs.length<=4);
+    const seasonal=await(await call(url+'&page=1&season=susi')).json();assert.equal(seasonal.programs.length,1);assert.equal(seasonal.programs[0].metadata.selectionFormula,'학생부 30 + 실기 70');
+    const impossible=await(await call(url+'&page=1&region=unknown')).json();assert.equal(impossible.pagination.total,0);assert.deepEqual(impossible.programs,[]);
     empty=true;preview=await (await call(sync,{body:{mode:'preview'}})).json();await call(sync,{body:{mode:'apply',token:preview.token,offset:0}});
     assert.equal((await (await call('/api/data-core/admissions/guidelines?season=susi')).json()).rows[0].quota,12);
     const before=await db.prepare("SELECT id,metadata_json FROM data_records WHERE source_app='admissions' ORDER BY id").all();

@@ -149,7 +149,7 @@ function caseGradeTable(caseItem){
   return `<div class="case-detail-panel"><h3>학년·학기별 성적</h3>${gradeSummaryValuesMarkup(overallAverage,bestScore)}<table class="grade-term-table"><thead><tr><th>학년</th><th>학기</th><th>국어</th><th>영어</th><th>수학</th><th>사탐</th><th>과탐</th><th>학기 평균</th></tr></thead><tbody>${rows.map(row=>`<tr><td>${h(row.gradeYear)}</td><td>${h(row.semester)}</td><td>${h(row.korean || '-')}</td><td>${h(row.english || '-')}</td><td>${h(row.math || '-')}</td><td>${h(row.social || '-')}</td><td>${h(row.science || '-')}</td><td><b>${formatGrade(rowAvg(row))}</b></td></tr>`).join('')}</tbody></table></div>`;
 }
 function caseArtworkPanel(caseItem){
-  const artworks = studentArtworks(caseItem);
+  const artworks = studentArtworks(caseItem, false);
   const imagePath = caseItem?.artworkImage || caseItem?.artwork || caseItem?.image;
   if(artworks.length) return `<div class="case-detail-panel"><h3>그림 확인</h3><div class="student-gallery">${artworkGalleryMarkup(artworks)}</div></div>`;
   return `<div class="case-detail-panel"><h3>그림 확인</h3>${imagePath?`<button class="case-artwork-open" type="button" data-open-artwork="${h(imagePath)}" data-open-artwork-name="사례 그림"><img class="case-artwork-large" src="${h(imgSrc(imagePath))}" alt="사례 그림"></button>`:`<div class="case-artwork-empty"><b>등록된 그림 이미지가 없습니다.</b><span>추후 사례 데이터에 그림 파일을 연결하면 이곳에 표시됩니다.</span></div>`}</div>`;
@@ -209,15 +209,27 @@ function termRows(){
     { gradeKey: 'grade3', gradeLabel: '3학년', semesterKey: 'semester2', semesterLabel: '2학기' }
   ];
 }
-function studentArtworks(student){
+function studentArtworks(student, resolveStudent = true){
   const source = Array.isArray(student?.artworks) ? student.artworks : [];
   const normalized = source
-    .map(item => typeof item === 'string' ? { path: item } : item)
-    .filter(item => item && item.path);
-  if(student?.artworkImage && !normalized.some(item => item.path === student.artworkImage)){
-    normalized.unshift({ path: student.artworkImage, name: '대표 그림' });
+    .map((item,index) => ({...(typeof item === 'string' ? {path:item} : item), _slot:String(index)}))
+    .filter(item => item && (item.path||item.filePath||item.imageUrl||item.url||item.downloadUrl||item.dataCoreFileId));
+  for(const field of ['artworkImage','artwork','image'])if(typeof student?.[field]==='string'&&!normalized.some(item=>item.path===student[field])){
+    normalized.unshift({path:student[field],name:'대표 그림',_slot:field});
   }
-  return normalized;
+  return normalized.map(item=>{
+    const path=item.path||item.filePath||item.imageUrl||item.url||item.downloadUrl||'';
+    const url=item.dataCoreFileId?`/api/data-core/files/${encodeURIComponent(item.dataCoreFileId)}`
+      : /^(https?:\/\/|data:image\/|blob:|\/api\/data-core\/files\/)/i.test(path)?path
+      : location.protocol==='file:'||!resolveStudent?imgSrc(path)
+      : student.id!==undefined?`/api/admissions/students/${encodeURIComponent(student.id)}/artworks/${item._slot}`:'';
+    const result={...item,path};delete result._slot;
+    Object.defineProperty(result,'displayUrl',{value:url,enumerable:false});
+    return result;
+  });
+}
+function studentArtworkImage(url,classes='',alt='학생 그림'){
+  return url?`<img class="${h(classes)}" src="${h(url)}" alt="${h(alt)}" loading="lazy" decoding="async" width="160" height="160" data-student-artwork><span class="artwork-missing" hidden>그림 없음</span>`:'<span class="artwork-missing">그림 없음</span>';
 }
 function termScoreValue(student, row, subjectKey){
   return student?.termGrades?.[row.gradeKey]?.[row.semesterKey]?.[subjectKey] ?? '';
@@ -547,8 +559,8 @@ function bindDetailedTranscriptEditor(){
 function artworkGalleryMarkup(artworks, mode='view'){
   if(!artworks.length) return `<div class="artwork-empty">등록된 그림 이미지가 없습니다.</div>`;
   return artworks.map((artwork, index)=>`<figure class="student-artwork-card">
-    <button class="artwork-open-btn" type="button" data-open-artwork="${h(artwork.path)}" data-open-artwork-name="${h(artwork.name || `그림 ${index + 1}`)}">
-      <img src="${h(imgSrc(artwork.path))}" alt="학생 그림 ${index + 1}">
+    <button class="artwork-open-btn" type="button" data-open-artwork="${h(artwork.displayUrl || '')}" data-open-artwork-name="${h(artwork.name || `그림 ${index + 1}`)}">
+      ${studentArtworkImage(artwork.displayUrl)}
     </button>
     <figcaption>${h(artwork.name || `그림 ${index + 1}`)}</figcaption>
     ${mode === 'edit' ? `<button class="btn mini danger" type="button" data-remove-artwork="${index}">삭제</button>` : ''}
@@ -559,11 +571,12 @@ function artworkViewerMarkup(){
   return `<div class="artwork-viewer-backdrop" data-close-artwork-viewer>
     <div class="artwork-viewer" role="dialog" aria-modal="true" aria-label="그림 크게 보기">
       <div class="artwork-viewer-head"><b>${h(state.artworkViewer.name || '그림')}</b><button class="btn mini" type="button" data-close-artwork-viewer>닫기</button></div>
-      <img src="${h(imgSrc(state.artworkViewer.path))}" alt="${h(state.artworkViewer.name || '확대 그림')}">
+      ${studentArtworkImage(imgSrc(state.artworkViewer.path),'',state.artworkViewer.name || '확대 그림')}
     </div>
   </div>`;
 }
 function bindArtworkViewer(){
+  document.querySelectorAll('[data-student-artwork]').forEach(img=>{const fail=()=>{img.hidden=true;if(img.nextElementSibling)img.nextElementSibling.hidden=false;};img.onerror=fail;if(img.complete&&!img.naturalWidth)fail();});
   document.querySelectorAll('[data-open-artwork]').forEach(btn=>btn.onclick=()=>{state.artworkViewer={path:btn.dataset.openArtwork,name:btn.dataset.openArtworkName || '그림'}; renderPage(activePageId());});
   document.querySelectorAll('[data-close-artwork-viewer]').forEach(target=>target.onclick=(event)=>{if(event.target.hasAttribute('data-close-artwork-viewer')){state.artworkViewer=null; renderPage(activePageId());}});
 }
@@ -1443,7 +1456,7 @@ function renderPage(page){
     if(page==='admin') renderAdmin();
     if(page==='awards') renderAwards();
     if(page==='settings') renderSettings();
-    if(page==='susi' || page==='jungsi') import('./guidelines.js?v=20260910-recovery').then(m=>m.renderGuidelines(page)).catch(()=>{ $(page).textContent='입시요강 화면을 불러오지 못했습니다. 새로고침해주세요.'; });
+    if(page==='susi' || page==='jungsi') import('./guidelines.js?v=20260910-connected').then(m=>m.renderGuidelines(page)).catch(()=>{ $(page).textContent='입시요강 화면을 불러오지 못했습니다. 새로고침해주세요.'; });
   }catch(error){
     renderAppError(error, page);
   }
@@ -1619,7 +1632,7 @@ function renderStudents(){
       ? `<span class="student-status-chip">${h(s.enrollmentStatus || '재원중')}</span><span class="student-prep-text">${h(s.preparationStage || '관리중')}</span>`
       : admissionSummaryMarkup(s);
     const artworkCell = firstArtwork
-      ? `<div class="thumb-wrap"><img class="student-thumb" src="${h(imgSrc(firstArtwork.path))}" alt="학생 그림"><span>${artworks.length}장</span></div>`
+      ? `<button type="button" class="thumb-wrap artwork-open-btn" data-open-artwork="${h(firstArtwork.displayUrl || '')}" data-open-artwork-name="학생 그림">${studentArtworkImage(firstArtwork.displayUrl,'student-thumb')}<span>${artworks.length}장</span></button>`
       : '<div class="student-thumb empty">없음</div>';
     const convertButton = isCurrentStudent(s)
       ? `<button class="btn mini" data-convert-student="${s.id}">결과 데이터로 전환</button>`

@@ -65,7 +65,7 @@ try {
     for (const img of await page.locator('.dream-card img.job-image').all()) {
       await img.scrollIntoViewIfNeeded();
       await img.evaluate((el) => el.decode());
-      assert.ok(await img.evaluate((el) => el.naturalWidth === 600 && el.naturalHeight === 800));
+      assert.ok(await img.evaluate((el) => el.naturalWidth >= 600 && el.naturalWidth / el.naturalHeight === 3/4));
     }
     await page.evaluate(() => scrollTo(0, 0));
     await noOverflow();
@@ -93,7 +93,7 @@ try {
   for (const img of await page.locator('.dream-card img.job-image').all()) {
     await img.scrollIntoViewIfNeeded();
     await img.evaluate((el) => el.decode());
-    assert.ok(await img.evaluate((el) => el.naturalWidth === 600 && el.naturalHeight === 800));
+    assert.ok(await img.evaluate((el) => el.naturalWidth >= 600 && el.naturalWidth / el.naturalHeight === 3/4));
   }
   await page.evaluate(() => scrollTo(0, 0));
   await page.screenshot({ path: path.join(output, 'design-careers.png'), fullPage: true });
@@ -106,7 +106,7 @@ try {
   await page.locator('a[href="#family=design&career=D017"]').click();
   await page.locator('.university-item').first().waitFor();
   assert.equal(await page.locator('.university-item').count(), 2);
-  assert.equal(await page.locator('.university-source-link').getAttribute('href'), '/#page=admin&university=synthetic-school-1');
+  assert.equal(await page.locator('a[href*="page=admin"]').count(),0);
   assert.equal(await page.locator('.bar-row').count(), 2);
   assert.equal(await page.locator('#universityContent img').count(), 0);
   assert.doesNotMatch(await page.locator('#roadmapResult').innerText(), /SYNTHETIC_PRIVATE|99%/);

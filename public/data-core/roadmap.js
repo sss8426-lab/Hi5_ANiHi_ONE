@@ -1,10 +1,13 @@
-import { careerStages, programView, filterPrograms, admissionTrend, safeUrl, searchCareers } from './roadmap-model.js?v=20260909-1';
+import { careerStages, programView, filterPrograms, admissionTrend, safeUrl, searchCareers } from './roadmap-model.js?v=20260910-connected';
+import {detail as showGuideline} from '/admissions-web/renderer/guidelines.js?v=20260910-connected';
+import {resolveUniversityLogo} from './university-logos.js?v=20260910-1';
+import {foundationImages} from './foundation-images.js?v=20260910-1';
 import { occupationImageConcepts } from './occupation-image-concepts.js?v=20260910-photo-v2';
 import { paginate } from './pagination.js?v=20260909-1';
 
 const content = window.HI5_ROADMAP_CONTENT || { careers: [], tracks: [], lessonAreas: [], sources: [] };
 const $ = (id) => document.getElementById(id);
-const state = { family: '', group: '', query: '', career: null, programs: [], page:1, visiblePrograms:[], controller: null, request: 0 };
+const state = { family: '', group: '', query: '', career: null, programs: [], page:1, visiblePrograms:[], pagination:null,total:0,trend:undefined,controller: null, request: 0 };
 const familyNames = { story: '만화·애니메이션·게임', design: '디자인' };
 const h = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 const art = (career) => {
@@ -50,23 +53,32 @@ function renderEducation(career) {
     ['대학입시', career.preparation, '목표 대학의 최종 모집요강에 맞춰 준비'],
   ];
   $('preparationGrid').innerHTML = preparation.map(([name, description, note]) => `<article class="preparation-item"><h3>${h(name)}</h3><p>${h(description)}</p><small>${h(note)}</small></article>`).join('');
-  $('lessonAreas').innerHTML = content.lessonAreas.filter((l) => l['단계'].startsWith('1 ')).map((l) => `<div class="lesson-row"><strong>${h(l['수업영역'])}</strong><span>${h(l['교육목표'])}<br>${h(l['권장 순서'])}</span></div>`).join('');
+  $('lessonAreas').innerHTML = content.lessonAreas.filter((l) => l['단계'].startsWith('1 ')).map((l) => {
+    const image=foundationImages[l['수업영역']];
+    return `<article class="foundation-item">${image?`<img src="/data-core/assets/foundation/${image.asset}-v1.webp" alt="${h(image.alt)}" width="900" height="600" loading="lazy" decoding="async">`:''}<div class="foundation-copy"><h4>${h(l['수업영역'])}</h4><p><strong>${h(l['교육목표'])}</strong></p><p>${h(image?.detail||'')}</p><p>${h(l['권장 순서'])}</p><small>${h(image?.points||'')}</small></div></article>`;
+  }).join('');
 }
 
 function renderUniversities() {
   const filters = { region: $('regionFilter').value, schoolType: $('schoolFilter').value, admission: $('admissionFilter').value, focus: $('focusFilter').value };
   const filtered = filterPrograms(state.programs, filters);
-  const pagination = paginate(filtered, state.page);
+  const pagination = state.pagination ? {...state.pagination,rows:state.programs} : paginate(filtered, state.page);
   state.page = pagination.page;
   const rows = state.visiblePrograms = pagination.rows;
-  $('universityCount').textContent = state.programs.length ? `${filtered.length}개 전형 · ${pagination.page} / ${pagination.totalPages} 페이지` : '';
-  renderUniversityPagination(pagination, filtered.length);
-  $('universityFilters').hidden = !state.programs.length;
+  const count=state.pagination?.total??filtered.length;
+  $('universityCount').textContent = `${count}개 전형 · ${pagination.page} / ${pagination.totalPages} 페이지`;
+  renderUniversityPagination(pagination, count);
+  $('universityFilters').hidden = !(state.total||state.programs.length);
   if (!rows.length) {
-    $('universityContent').innerHTML = `<p class="empty-state">${state.programs.length ? '선택한 조건에 해당하는 전형이 없습니다.' : '연결된 대학별 전형 정보가 아직 없습니다. 아래 대학·학과 예시부터 살펴보세요.'}</p>`;
+    $('universityContent').innerHTML = `<p class="empty-state">${state.total||state.programs.length ? '선택한 조건에 해당하는 전형이 없습니다.' : '연결된 대학별 전형 정보가 아직 없습니다. 아래 대학·학과 예시부터 살펴보세요.'}</p>`;
     return;
   }
-  $('universityContent').innerHTML = `<div class="university-grid">${rows.map((p) => `<article class="university-item"><h3>${h(p.university)}</h3><p class="department">${h(p.department)}</p><p class="program-meta">${h([p.region || '지역 확인 필요', p.schoolType || '학교 유형 확인 필요', p.admission || '모집 시기 확인 필요', p.year ? `${p.year}학년도` : '학년도 확인 필요'].join(' · '))}</p><div class="ratios"><span>성적 <strong>${p.grade === null ? '확인 필요' : `${p.grade}%`}</strong></span><span>실기 <strong>${p.skill === null ? '확인 필요' : `${p.skill}%`}</strong></span></div><p class="program-meta">실기: ${h(p.practical || '모집요강 확인 필요')}</p><p class="source-line">${p.source ? `<a href="${h(p.source)}" target="_blank" rel="noopener noreferrer">${p.verified ? '검수된 모집요강' : '등록 출처 확인'} ↗</a>` : '공식 출처 확인 필요'}<br>${p.verified ? `검수 완료 · ${h(p.verifiedAt)}${p.page ? ` · p.${h(p.page)}` : ' · 원문 페이지 확인 필요'}` : '추가 검수 필요 · 전형 비율 미공개'}</p></article>`).join('')}</div>`;
+  $('universityContent').innerHTML = `<div class="university-grid">${rows.map((p) => {
+    const logo=resolveUniversityLogo(p.university,p.campus);
+    const ratio=value=>value===null?'확인 필요':`${value}%`;
+    return `<article class="university-item"><header class="university-title"><h3>${h(p.university)}</h3>${logo?`<img class="university-logo" src="${h(logo.src)}" alt="${h(logo.alt)}" title="${h(logo.title)}" width="100" height="40" loading="lazy" decoding="async">`:''}</header><p class="department">${h(p.department)}</p><p class="program-meta">${h([p.region,p.campus,p.schoolType,p.admission,p.year?`${p.year}학년도`:'학년도 확인 필요'].filter(Boolean).join(' · '))}</p><div class="ratios"><span>성적 <strong>${ratio(p.grade)}</strong></span><span>실기 <strong>${ratio(p.skill)}</strong></span>${p.other!==null?`<span>기타 <strong>${ratio(p.other)}</strong></span>`:''}</div>${p.ratioStatus==='staged'?'<p class="program-stage">단계별 전형 · 입시요강 확인</p>':''}${p.selectionFormula?`<p class="program-formula">${h(p.selectionFormula)}</p>`:''}<p class="program-meta">실기: ${h(p.practical || '모집요강 확인 필요')}</p>${p.publicFacts?`<p class="program-meta">모집 ${h(p.quota??'확인 필요')}명 · 전년도 경쟁률 ${h(p.competitionRate??'확인 필요')}</p>`:''}<p class="source-line">${p.verified?`공식 검수 완료 · ${h(p.verifiedAt)}`:p.publicFacts?'공개 입시정보 · 최종 지원 전 공식 모집요강 확인':'공식 모집요강 확인 필요'}</p></article>`;
+  }).join('')}</div>`;
+  $('universityContent').querySelectorAll('.university-logo').forEach(img=>{img.onerror=()=>{img.hidden=true;};});
 }
 
 function renderUniversityPagination(pagination, count) {
@@ -74,11 +86,11 @@ function renderUniversityPagination(pagination, count) {
   if (!nav) { nav = document.createElement('nav'); nav.id = 'universityPagination'; nav.className = 'university-pagination'; nav.setAttribute('aria-label','관련 대학 페이지'); $('universityContent').after(nav); }
   nav.hidden = count <= 4;
   nav.innerHTML = `<button type="button" data-page="${pagination.page-1}" aria-label="이전 페이지" ${pagination.page===1?'disabled':''}>‹</button>${pagination.buttons.map(n => n === null ? '<span aria-hidden="true">…</span>' : `<button type="button" data-page="${n}" aria-label="${n} 페이지" ${n===pagination.page?'aria-current="page"':''}>${n}</button>`).join('')}<button type="button" data-page="${pagination.page+1}" aria-label="다음 페이지" ${pagination.page===pagination.totalPages?'disabled':''}>›</button>`;
-  nav.querySelectorAll('[data-page]').forEach(button => { button.onclick = () => { state.page = Number(button.dataset.page); renderUniversities(); linkUniversitySources(); $('universityPagination').querySelector('[aria-current]')?.focus({preventScroll:true}); }; });
+  nav.querySelectorAll('[data-page]').forEach(button => { button.onclick = () => { state.page = Number(button.dataset.page); if(state.pagination){loadConnectedPrograms(state.career);return;} renderUniversities(); linkUniversitySources(); $('universityPagination').querySelector('[aria-current]')?.focus({preventScroll:true}); }; });
 }
 
 function renderTrend() {
-  const trend = admissionTrend(state.programs);
+  const trend = state.trend===undefined?admissionTrend(state.programs):state.trend;
   if (!trend) {
     $('trendContent').innerHTML = '<p class="empty-state">비교할 수 있는 검수된 전형 비율이 아직 충분하지 않습니다.</p><p class="trend-note">성적·실기 중요도를 임의의 비율로 정하지 않습니다. 같은 전공이라도 대학과 전형에 따라 준비 비중이 달라요.</p>';
     return;
@@ -86,14 +98,15 @@ function renderTrend() {
   $('trendContent').innerHTML = `<p>${h(trend.year)}학년도 · 연결된 검수 전형 ${trend.count}건의 평균</p><div class="trend-bars">${[['성적 반영', trend.grade], ['실기 반영', trend.skill]].map(([label, value]) => `<div class="bar-row"><span>${label}</span><div class="bar-track" role="meter" aria-label="${label}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${value.toFixed(1)}"><span style="width:${value.toFixed(1)}%"></span></div><strong>${value.toFixed(1)}%</strong></div>`).join('')}</div><p class="trend-note">전체 전공의 평균 중요도나 합격 가능성이 아닙니다. 위에 연결된 일부 전형만의 단순 평균이며, 면접·서류 등 다른 요소가 있을 수 있습니다. 실제 지원은 개별 대학의 최신 모집요강을 기준으로 해요.</p>`;
 }
 
-function setPrograms(programs) {
-  state.page = 1;
+function setPrograms(programs,response={}) {
+  state.pagination=response.pagination||null;state.total=response.total||programs.length;state.trend=response.trend;
+  state.page = response.pagination?.page||1;
   state.programs = programs.map(programView);
   for (const [id, key] of [['regionFilter', 'region'], ['schoolFilter', 'schoolType']]) {
-    $(id).innerHTML = '<option value="">전체</option>' + [...new Set(state.programs.map((p) => p[key]).filter(Boolean))].sort().map((v) => `<option value="${h(v)}">${h(v)}</option>`).join('');
+    const selected=$(id).value;
+    $(id).innerHTML = '<option value="">전체</option>' + (response.facets?.[key]||[...new Set(state.programs.map((p) => p[key]).filter(Boolean))].sort()).map((v) => `<option value="${h(v)}">${h(v)}</option>`).join('');
+    $(id).value=selected;
   }
-  $('admissionFilter').value = '';
-  $('focusFilter').value = '';
   renderUniversities();
   linkUniversitySources();
   renderTrend();
@@ -103,11 +116,11 @@ function linkUniversitySources() {
   const rows = state.visiblePrograms;
   $('universityContent').querySelectorAll('.university-item').forEach((item,index) => {
     const row = rows[index];
-    if (!row?.sourceUniversityId && !row?.guidelineId) return;
-    const link = document.createElement('a');
-    link.href = row.guidelineId ? `/#page=${row.admissionSeason}&guideline=${encodeURIComponent(row.guidelineId)}` : `/#page=admin&university=${encodeURIComponent(row.sourceUniversityId)}`;
+    if (!row?.guidelineId) return;
+    const link = document.createElement('button');link.type='button';
     link.className = 'university-source-link';
-    link.textContent = row.guidelineId ? '저장된 입시요강 상세 보기 ↗' : '대학 데이터 관리에서 보기 ↗';
+    link.textContent = '입시요강 보기';
+    link.onclick=async()=>{link.disabled=true;try{const result=await api(`/api/data-core/admissions/guidelines?id=${encodeURIComponent(row.guidelineId)}`);if(result.rows?.[0])showGuideline(result.rows[0],{counseling:true});else notice('저장된 입시요강을 찾을 수 없습니다.');}catch{notice('입시요강을 불러오지 못했습니다. 다시 시도해주세요.');}finally{link.disabled=false;}};
     item.append(link);
   });
 }
@@ -127,9 +140,10 @@ async function loadConnectedPrograms(career) {
   const timeout = setTimeout(() => controller.abort(), 45000);
   notice('대학별 전형 정보를 확인하고 있습니다.');
   try {
-    const response = await api(`/api/data-core/roadmap/programs?careerId=${encodeURIComponent(career.id)}`, controller.signal);
+    const params=new URLSearchParams({careerId:career.id,page:String(state.page),region:$('regionFilter').value,schoolType:$('schoolFilter').value,admission:$('admissionFilter').value,focus:$('focusFilter').value});
+    const response = await api(`/api/data-core/roadmap/programs?${params}`, controller.signal);
     if (requestId !== state.request) return;
-    setPrograms(response.programs || []);
+    setPrograms(response.programs || [],response);
     notice('');
   } catch (error) {
     if (requestId !== state.request) return;
@@ -154,6 +168,7 @@ function route() {
   $('roadmapResult').hidden = !career;
   document.querySelectorAll('details').forEach((el) => { el.open = false; });
   if (career) {
+    for(const id of ['regionFilter','schoolFilter','admissionFilter','focusFilter'])$(id).value='';
     renderEducation(career);
     setPrograms([]);
     $('resultGoal').focus({ preventScroll: true });
@@ -173,7 +188,7 @@ $('groupTabs').addEventListener('click', (event) => {
 });
 $('goalSearchForm').addEventListener('submit', (event) => { event.preventDefault(); state.query = $('goalSearchInput').value; renderCatalog(); });
 $('goalSearchInput').addEventListener('input', () => { state.query = $('goalSearchInput').value; renderCatalog(); });
-for (const id of ['regionFilter', 'schoolFilter', 'admissionFilter', 'focusFilter']) $(id).addEventListener('change', () => { state.page = 1; renderUniversities(); linkUniversitySources(); });
+for (const id of ['regionFilter', 'schoolFilter', 'admissionFilter', 'focusFilter']) $(id).addEventListener('change', () => { state.page = 1; if(state.pagination){loadConnectedPrograms(state.career);return;}renderUniversities(); linkUniversitySources(); });
 document.querySelectorAll('.flow-strip a').forEach((link) => link.addEventListener('click', (event) => { event.preventDefault(); document.querySelector(link.getAttribute('href')).scrollIntoView(); }));
 $('printRoadmap').addEventListener('click', () => window.print());
 window.addEventListener('hashchange', route);

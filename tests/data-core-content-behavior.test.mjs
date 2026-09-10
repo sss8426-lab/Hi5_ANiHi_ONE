@@ -6,6 +6,47 @@ import { Miniflare } from "miniflare";
 import { encode, decode } from 'fast-png';
 
 const derivativePng = () => encode({ width: 2160, height: 2700, channels: 4, depth: 8, data: new Uint8Array(2160 * 2700 * 4).fill(180) });
+test('legacy student artwork read-through restores exact stored originals with campus auth and no writes',async()=>{
+  const h=await createHarness();
+  try{
+    const state={students:[{id:'synthetic-student',campusId:CAMPUS_A,artworks:[{path:'/api/files/student-artwork%2Fmissing.jpg',fileName:'synthetic-original-folder/original.png'}]}],universities:[{id:'untouched'}]};
+    const save=()=>h.env.FILES.put('state/admissions-data.json',JSON.stringify(state));
+    await save();await h.env.FILES.put('artworks/original.png',tinyPng(),{httpMetadata:{contentType:'image/png'}});
+    const before=await(await h.env.FILES.get('state/admissions-data.json')).text();
+    const path='/api/admissions/students/synthetic-student/artworks/0';
+    assert.equal((await h.request('GET',path)).response.status,401);
+    const read=await h.request('GET',path,users.a);
+    assert.equal(read.response.status,200,JSON.stringify(read.body));
+    assert.equal(read.response.headers.get('content-type'),'image/png');
+    assert.match(read.response.headers.get('cache-control'),/private/);
+    const etag=read.response.headers.get('etag');
+    assert.equal((await h.request('GET',path,users.a,undefined,{'if-none-match':etag})).response.status,304);
+    assert.equal((await h.request('HEAD',path,users.a)).response.status,200);
+    assert.equal((await h.request('POST',path,users.a)).response.status,405);
+    assert.equal((await h.request('GET','/api/files/artworks%2Foriginal.png',users.admin)).response.status,404);
+    assert.equal((await h.request('GET',path+'?key=artworks/another.png',users.a)).response.status,200,'client key ignored');
+    state.students[0].campusId=CAMPUS_B;await save();
+    assert.equal((await h.request('GET',path,users.a,undefined,{'if-none-match':etag})).response.status,403);
+    assert.equal((await h.request('GET',path,users.admin)).response.status,200);
+    delete state.students[0].campusId;await save();
+    assert.equal((await h.request('GET',path,users.a)).response.status,403);
+    state.students[0].campusId=CAMPUS_A;
+    for(const value of ['../original.png','artworks/../original.png','https://example.test/original.png','%252e%252e%252foriginal.png','state/admissions-data.json','unrelated/original.png']){
+      state.students[0].artworks=[{path:value}];await save();
+      assert.equal((await h.request('GET',path,users.a)).response.status,404,value);
+    }
+    for(const value of ['C:\\synthetic\\artworks\\original.png','/synthetic/artworks/original.png','original.png']){
+      state.students[0].artworks=[{path:value}];await save();assert.equal((await h.request('GET',path,users.a)).response.status,200);
+    }
+    await h.env.FILES.put('artworks/other.png',tinyPng());
+    state.students[0].artworks=[{path:'original.png',name:'other.png'}];await save();
+    assert.equal((await h.request('GET',path,users.a)).response.status,404,'ambiguous stored references fail closed');
+    assert.equal((await h.request('GET','/api/admissions/students/unknown/artworks/0',users.admin)).response.status,404);
+    await h.env.FILES.put('state/admissions-data.json',before);
+    assert.equal(await(await h.env.FILES.get('state/admissions-data.json')).text(),before);
+    assert.deepEqual(new Uint8Array(await(await h.env.FILES.get('artworks/original.png')).arrayBuffer()),tinyPng());
+  }finally{await h.mf.dispose();}
+});
 const tinyPng = () => encode({ width: 16, height: 20, channels: 4, depth: 8, data: new Uint8Array(16 * 20 * 4).fill(90) });
 function derivativeForm(source = 'file-shared', bytes = derivativePng()) {
   const form = new FormData();

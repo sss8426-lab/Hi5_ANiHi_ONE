@@ -2,6 +2,8 @@ import { DEFAULT_ORGANIZATION_ID } from './data-core';
 import { createHash } from 'node:crypto';
 import { DataCoreAccessError, requireAuthenticatedAccess, resolveDataCoreAccess } from './data-core-access';
 import { readAdmissionsState } from './data-core-admissions-knowledge-sync';
+import {programView,filterPrograms,admissionTrend} from '../public/data-core/roadmap-model.js';
+import {paginate} from '../public/data-core/pagination.js';
 import { careerMajorKeywords, decodePublicGuidelines, explainUniversityMatch, guidelineIdentity, indexUniversities, matchUniversity, matchesCareer, preserveKnownValues, projectUniversity, projectGuideline, selectGuidelines } from '../public/data-core/admissions-model.js';
 
 interface Env { DB?: D1Database; FILES?: R2Bucket; DATA_CORE_SUPER_ADMIN_EMAILS?: string }
@@ -191,7 +193,16 @@ export async function handleAdmissionsCatalog(request: Request, env: Env): Promi
       rows.push({id:saved.id,name:r.department,metadata:{universityName:r.universityName,major:r.department,campus:r.campus,region:r.region,
         year:r.academicYear,admission:`${r.admissionSeason==='susi'?'수시':'정시'} · ${r.admissionType}`,practicalType:r.practicalType,
         gradeRatio:r.gradeRatio,skillRatio:r.practicalRatio,sourceUrl:r.sourceUrl,sourceName:r.sourceName,
+        selectionFormula:r.selectionFormula,quota:r.quota,competitionRate:r.competitionRate,
         verificationStatus:'public-source-unverified',guidelineId:saved.id,admissionSeason:r.admissionSeason}});
+    }
+    if(url.searchParams.has('page')){
+      const views=rows.map(programView);
+      const filtered=filterPrograms(views,Object.fromEntries(url.searchParams));
+      const paging=paginate(filtered,Number(url.searchParams.get('page')));
+      const byId=new Map(rows.map(r=>[r.id,r]));
+      return privateJson({programs:paging.rows.map((r:Row)=>byId.get(r.id)),pagination:{page:paging.page,totalPages:paging.totalPages,buttons:paging.buttons,total:filtered.length},
+        total:rows.length,facets:{region:[...new Set(views.map(r=>r.region).filter(Boolean))].sort(),schoolType:[...new Set(views.map(r=>r.schoolType).filter(Boolean))].sort()},trend:admissionTrend(views),readOnly:true});
     }
     return privateJson({programs:rows,source:'admissions-universities',matchBasis:'department-name',readOnly:true});
   } catch (error) {
