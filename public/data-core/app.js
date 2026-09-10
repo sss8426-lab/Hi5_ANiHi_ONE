@@ -470,13 +470,21 @@ async function deleteFile(fileId) {
 
 function openModal(id) {
   if ($(id) instanceof HTMLDialogElement) return $(id).showModal();
+  if (id === 'uploadModal' && !uploadQueue?.running) {
+    $('uploadFile').value = '';
+    state.droppedFiles = [];
+    updateUploadFiles();
+  }
   $(id)?.classList.remove('hidden');
 }
 
 function closeModal(id) {
   if ($(id) instanceof HTMLDialogElement) return $(id).close();
   if (id === 'uploadModal') {
-    if ($('uploadSubmitBtn').disabled) return;
+    if (uploadQueue?.running) {
+      if (confirm('업로드가 진행 중입니다. 취소하시겠습니까?')) uploadQueue.cancel();
+      return;
+    }
     $('uploadRecordId').value = '';
     $('uploadCampus').disabled = false;
     $('uploadCategory').disabled = false;
@@ -485,46 +493,73 @@ function closeModal(id) {
   $(id)?.classList.add('hidden');
 }
 
+let uploadQueue = null;
+function selectedUploadFiles() {
+  return state.droppedFiles.length ? state.droppedFiles : Array.from($('uploadFile').files || []);
+}
+function updateUploadFiles() {
+  const files = selectedUploadFiles();
+  uploadQueue = null;
+  $('uploadSubmitBtn').disabled = false;
+  $('uploadProgress').classList.add('hidden');
+  $('retryUploadsBtn').classList.add('hidden');
+  $('selectedFileName').textContent = files.length ? `${files.length}개 파일 선택 · 총 ${formatBytes(files.reduce((n,f)=>n+f.size,0))}` : '최대 100MB';
+  $('selectedUploadDetails').classList.toggle('hidden', !files.length);
+  $('selectedUploadSummary').textContent = `선택 파일 ${files.length}개 보기`;
+  $('selectedUploadList').innerHTML = files.map(f=>`<li>${h(f.name)}</li>`).join('');
+}
+function renderUploadProgress(progress) {
+  $('uploadProgress').classList.remove('hidden');
+  $('uploadProgressTitle').textContent = progress.running ? '수상작 업로드 중' : progress.cancelled ? '업로드 취소됨' : progress.failed ? '일부 파일 업로드 실패' : '업로드 완료';
+  $('uploadProgressBar').value = progress.percent;
+  $('uploadProgressPercent').textContent = `${progress.percent}%`;
+  $('uploadProgressCount').textContent = `${progress.success} / ${progress.count} 완료 · 성공 ${progress.success}개 · 실패 ${progress.failed}개`;
+  $('uploadProgressCurrent').textContent = progress.current ? `현재: ${progress.current}` : '';
+  $('uploadProgressBytes').textContent = `전송 ${formatBytes(progress.loaded)} / ${formatBytes(progress.total)}`;
+  $('retryUploadsBtn').classList.toggle('hidden', progress.running || !progress.failed || progress.cancelled);
+}
 async function uploadFile(event) {
   event.preventDefault();
-  const input = $('uploadFile');
-  const files = state.droppedFiles.length ? state.droppedFiles : Array.from(input.files || []);
+  if (uploadQueue?.running) return;
+  const files = selectedUploadFiles();
   if (!files.length) return toast('업로드할 파일을 선택하세요.', 'error');
-
-  const button = $('uploadSubmitBtn');
-  button.disabled = true;
-  button.textContent = '업로드 중...';
   const target = {
     campusId: $('uploadCampus').value || '',
     category: $('uploadCategory').value,
     recordId: $('uploadRecordId').value || '',
+    sourceApp: 'data-core-library', ownerId: 'shared', year: String(new Date().getFullYear()),
   };
+  uploadQueue = new DataCoreUploadQueue(files, target, renderUploadProgress);
+  await runUploadQueue();
+}
+async function runUploadQueue(retry = false) {
+  const queue = uploadQueue;
+  if (!queue || queue.running) return;
+  const button = $('uploadSubmitBtn');
+  button.disabled = true;
+  $('uploadFile').disabled = true;
+  $('uploadCampus').disabled = true;
+  $('uploadCategory').disabled = true;
   try {
-    for (const file of files) {
-      const form = new FormData();
-      form.append('file', file);
-      form.append('campusId', target.campusId);
-      form.append('category', target.category);
-      form.append('sourceApp', 'data-core-library');
-      form.append('recordId', target.recordId);
-      form.append('ownerId', 'shared');
-      form.append('year', String(new Date().getFullYear()));
-      await api('/api/data-core/files', { method: 'POST', body: form });
-    }
-    toast(files.length === 1 ? 'DATA CORE에 파일을 저장했습니다.' : `${files.length}개 파일을 DATA CORE에 저장했습니다.`);
-    button.disabled = false;
-    closeModal('uploadModal');
-    event.target.reset();
-    state.droppedFiles = [];
-    $('uploadRecordId').value = '';
-    $('uploadTargetNotice').classList.add('hidden');
-    $('selectedFileName').textContent = '최대 100MB';
+    await queue.run(retry);
+    const result = queue.snapshot();
+    toast(`${result.success}개 완료 · ${result.failed}개 실패${result.cancelled ? ' · 나머지 취소' : ''}`);
     await loadFiles();
-    await loadAwardFiles();
+    if (queue.target.recordId === state.selectedAwardFolderId) await loadAwardFiles();
+    if (result.success === result.count) {
+      button.disabled = false;
+      closeModal('uploadModal');
+      $('uploadForm').reset();
+      state.droppedFiles = [];
+      updateUploadFiles();
+    }
   } catch (error) {
     toast(error.message, 'error');
   } finally {
-    button.disabled = false;
+    button.disabled = uploadQueue === queue;
+    $('uploadFile').disabled = false;
+    $('uploadCampus').disabled = Boolean($('uploadRecordId').value);
+    $('uploadCategory').disabled = Boolean($('uploadRecordId').value);
     button.textContent = '중앙 저장소에 업로드';
   }
 }
@@ -740,7 +775,7 @@ function renderAwardFolders() {
   if (!list) return;
   const folder = selectedAwardFolder();
   list.innerHTML = state.awardFolders.length
-    ? state.awardFolders.map((item) => `<button type="button" class="award-folder-tab ${item.id === state.selectedAwardFolderId ? 'active' : ''}" aria-pressed="${item.id === state.selectedAwardFolderId}" data-award-folder-id="${h(item.id)}">
+    ? state.awardFolders.map((item) => `<button type="button" title="${h(item.title)}" class="award-folder-tab ${item.id === state.selectedAwardFolderId ? 'active' : ''}" aria-pressed="${item.id === state.selectedAwardFolderId}" data-award-folder-id="${h(item.id)}">
         <strong>${h(item.title)}</strong><small>${h(item.campusName || '조직 공통')}</small>
       </button>`).join('')
     : '<div class="empty-state compact">등록된 수상작 폴더가 없습니다.</div>';
@@ -753,11 +788,31 @@ function renderAwardFolders() {
   });
   $('selectedAwardFolderTitle').textContent = folder?.title || '수상작 폴더를 선택하세요';
   $('selectedAwardFolderMeta').textContent = folder
-    ? `${folder.campusName || '조직 공통'} · 폴더를 지워도 원본 파일은 보존됩니다.`
-    : '폴더를 지워도 원본 파일은 보존됩니다.';
+    ? `${folder.campusName || '조직 공통'} · 빈 폴더만 삭제할 수 있습니다.`
+    : '빈 폴더만 삭제할 수 있습니다.';
   $('openAwardUploadBtn').disabled = !folder || !canWrite();
   $('deleteAwardFolderBtn').disabled = !folder || !canWrite();
   $('openAwardFolderBtn').disabled = !canWrite();
+  list.querySelector?.('.active')?.scrollIntoView({block:'nearest',inline:'nearest',behavior:'instant'});
+  updateAwardFolderArrows();
+}
+
+function updateAwardFolderArrows() {
+  const track = $('awardFolderTrack');
+  if (!track) return;
+  $('awardFolderPrev').disabled = track.scrollLeft <= 1;
+  $('awardFolderNext').disabled = track.scrollLeft + track.clientWidth >= track.scrollWidth - 1;
+}
+function moveAwardFolder(direction) {
+  const track = $('awardFolderTrack');
+  const bounds = track.getBoundingClientRect();
+  const items = [...track.querySelectorAll('button')];
+  const target = direction > 0 ? items.find(item=>item.getBoundingClientRect().right > bounds.right + 1)
+    : items.reverse().find(item=>item.getBoundingClientRect().left < bounds.left - 1);
+  if (target) {
+    const rect = target.getBoundingClientRect();
+    track.scrollBy({left: direction > 0 ? rect.right - bounds.right : rect.left - bounds.left, behavior:'smooth'});
+  }
 }
 
 const awardSelected = new Set();
@@ -776,7 +831,7 @@ function updateAwardSelection() {
   $('deleteSelectedAwardsBtn').disabled = awardDeleteBusy || !canWrite();
 }
 function canDeleteAward(file) {
-  return canWrite() && (isSuperAdmin() || file.ownerUserId === state.context?.user?.internalUserId);
+  return canWrite() && isSuperAdmin();
 }
 function requestAwardDelete() {
   const folder = selectedAwardFolder();
@@ -784,6 +839,7 @@ function requestAwardDelete() {
   awardDeletePending = { folderId: folder.id, ids: [...awardSelected] };
   $('awardDeleteSummary').textContent = `${folder.title} · 선택 ${awardSelected.size}개`;
   $('awardDeleteDialog').showModal();
+  $('cancelAwardDeleteBtn').focus?.();
 }
 async function deleteSelectedAwards() {
   const pending = awardDeletePending;
@@ -800,8 +856,8 @@ async function deleteSelectedAwards() {
       awardSelected.delete(id);
       deleted += 1;
     }
-    toast(`${deleted}개 수상작을 휴지통으로 이동했습니다.`);
-  } catch (error) { toast(`${deleted}개 이동 완료. ${error.message}`, 'error'); }
+    toast(`${deleted}개 수상작을 완전히 삭제했습니다.`);
+  } catch (error) { toast(`${deleted}개 삭제 완료. ${error.message}`, 'error'); }
   finally {
     awardDeleteBusy = false;
     awardDeletePending = null;
@@ -957,11 +1013,13 @@ async function createAwardFolder(event) {
 
 async function deleteAwardFolder() {
   const folder = selectedAwardFolder();
-  if (!folder || !confirm(`'${folder.title}' 폴더만 삭제할까요? 연결된 원본 파일은 DATA CORE에 보존됩니다.`)) return;
+  if (!folder) return;
+  if (state.awardFiles.length) return toast('폴더 안에 수상작이 있습니다. 먼저 수상작을 삭제하세요.', 'error');
+  if (!confirm(`'${folder.title}' 빈 폴더를 삭제할까요?`)) return;
   try {
     await api(`/api/data-core/records/${encodeURIComponent(folder.id)}`, { method: 'DELETE' });
     state.selectedAwardFolderId = null;
-    toast('수상작 폴더를 삭제했습니다. 원본 파일은 보존됩니다.');
+    toast('빈 수상작 폴더를 삭제했습니다.');
     await loadAwardFolders();
   } catch (error) {
     toast(error.message, 'error');
@@ -1410,6 +1468,15 @@ function bindEvents() {
   $('fileCategoryFilter').onchange = () => { clearSelectedFolder(); loadFiles(); };
   $('openUploadBtn').onclick = () => openModal('uploadModal');
   $('uploadForm').onsubmit = uploadFile;
+  $('retryUploadsBtn').onclick = () => runUploadQueue(true);
+  $('awardFolderPrev').onclick = () => moveAwardFolder(-1);
+  $('awardFolderNext').onclick = () => moveAwardFolder(1);
+  $('awardFolderTrack').addEventListener('scroll', updateAwardFolderArrows, {passive:true});
+  window.addEventListener('resize', updateAwardFolderArrows);
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && !$('uploadModal').classList.contains('hidden')) closeModal('uploadModal');
+    if (event.key === 'Enter' && $('awardDeleteDialog').open && document.activeElement === $('confirmAwardDeleteBtn')) event.preventDefault();
+  });
   $('competitionForm').onsubmit = createCompetitionFromForm;
   $('awardFolderForm').onsubmit = createAwardFolder;
   $('openAwardFolderBtn').onclick = () => openModal('awardFolderModal');
@@ -1496,10 +1563,7 @@ function bindEvents() {
 
   $('uploadFile').onchange = () => {
     state.droppedFiles = [];
-    const files = Array.from($('uploadFile').files || []);
-    $('selectedFileName').textContent = files.length
-      ? files.map((file) => `${file.name} · ${formatBytes(file.size)}`).join(' / ')
-      : '최대 100MB';
+    updateUploadFiles();
   };
   const drop = $('fileDrop');
   ['dragenter', 'dragover'].forEach((name) => drop.addEventListener(name, (event) => {
@@ -1511,10 +1575,11 @@ function bindEvents() {
     drop.classList.remove('dragging');
   }));
   drop.addEventListener('drop', (event) => {
+    if (uploadQueue?.running) return;
     const files = Array.from(event.dataTransfer?.files || []);
     if (!files.length) return;
     state.droppedFiles = files;
-    $('selectedFileName').textContent = files.map((file) => `${file.name} · ${formatBytes(file.size)}`).join(' / ');
+    updateUploadFiles();
   });
 
   window.addEventListener('popstate', () => switchView(initialViewFromPath(), { push: false }));

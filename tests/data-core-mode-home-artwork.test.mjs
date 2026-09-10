@@ -16,7 +16,7 @@ assert.match(enhancement, /login-chip-action/);
 assert.match(nav, /mode-home-artwork\.js/);
 assert.match(html, /mode-counseling-photo-v1\.webp/);
 assert.match(html, /mode-work-photo-v1\.webp/);
-assert.match(html, /styles\.css\?v=20260910-mode-photos-v1/);
+assert.match(html, /styles\.css\?v=20260910-awards/);
 assert.match(html, /mode-grid photographic-modes/);
 assert.equal((html.match(/mode-counseling-photo-v1\.webp/g) || []).length, 1);
 assert.match(html, /dream-roadmap-photo-v1\.webp/);
