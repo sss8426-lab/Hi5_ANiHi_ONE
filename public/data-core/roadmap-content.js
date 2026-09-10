@@ -1,5 +1,5 @@
 window.HI5_ROADMAP_CONTENT = {
-  "version": "2026-09-08-v1",
+  "version": "2026-09-11-practical-v1",
   "sourceDate": "2026-09-03",
   "careers": [
     {
@@ -8,7 +8,7 @@ window.HI5_ROADMAP_CONTENT = {
       "family": "story",
       "name": "웹툰 작가",
       "aliases": [],
-      "summary": "이야기와 그림을 세로 화면에 펼치는 사람",
+      "summary": "세로로 읽는 웹툰의 이야기와 그림을 그리는 사람",
       "majors": [
         "웹툰콘텐츠",
         "만화애니메이션",
@@ -28,19 +28,15 @@ window.HI5_ROADMAP_CONTENT = {
         "색채"
       ],
       "specialization": [
-        "캐릭터",
-        "콘티",
-        "칸만화",
-        "세로웹툰"
+        "캐릭터·표정",
+        "포즈·컷 구성"
       ],
       "advanced": [
-        "캐릭터",
-        "콘티",
-        "칸만화",
-        "세로웹툰"
+        "콘티·장면 연출",
+        "칸만화에서 세로 웹툰으로 구성"
       ],
       "preparation": "칸만화·상황표현·포트폴리오·면접 중 대학별 확인",
-      "outcome": "단편 웹툰 1화·캐릭터시트",
+      "outcome": "단편 웹툰 1화·캐릭터 시트",
       "universityExamples": [
         "청강문화산업대 만화콘텐츠스쿨",
         "세종대 만화애니메이션텍전공",
@@ -50,7 +46,9 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T01",
-      "art": 0
+      "art": 0,
+      "completionFocus": "세로 스크롤의 흐름과 컷별 가독성",
+      "distinction": "출판만화의 종이 페이지 대신 세로 화면에서 읽는 컷과 여백을 설계해요."
     },
     {
       "id": "D002",
@@ -60,7 +58,7 @@ window.HI5_ROADMAP_CONTENT = {
       "aliases": [
         "만화가"
       ],
-      "summary": "페이지 속 장면을 연결해 이야기를 전하는 사람",
+      "summary": "종이책의 페이지와 칸을 구성해 만화 원고를 그리는 사람",
       "majors": [
         "만화콘텐츠",
         "만화애니메이션"
@@ -78,19 +76,15 @@ window.HI5_ROADMAP_CONTENT = {
         "배경"
       ],
       "specialization": [
-        "페이지 구성",
-        "콘티",
-        "펜화",
-        "원고"
+        "페이지·칸 구성",
+        "펜화·먹선"
       ],
       "advanced": [
-        "페이지 구성",
-        "콘티",
-        "펜화",
-        "원고"
+        "페이지를 넘기는 콘티",
+        "흑백 원고 완성"
       ],
       "preparation": "칸만화·상황표현·포트폴리오",
-      "outcome": "단편 출판만화",
+      "outcome": "단편 출판만화 원고",
       "universityExamples": [
         "청강문화산업대 만화콘텐츠스쿨",
         "세종대 만화애니메이션텍전공",
@@ -100,7 +94,9 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T01",
-      "art": 0
+      "art": 0,
+      "completionFocus": "페이지 연결과 펜선·명암의 완성도",
+      "distinction": "웹툰의 세로 스크롤과 달리 펼침면과 페이지를 넘기는 흐름을 다뤄요."
     },
     {
       "id": "D003",
@@ -108,7 +104,7 @@ window.HI5_ROADMAP_CONTENT = {
       "family": "story",
       "name": "웹툰 PD",
       "aliases": [],
-      "summary": "작가와 함께 작품의 시작과 연재를 만드는 사람",
+      "summary": "작가와 콘티를 검토하고 웹툰의 기획과 연재 방향을 잡는 사람",
       "majors": [
         "웹툰콘텐츠",
         "문화콘텐츠",
@@ -125,17 +121,15 @@ window.HI5_ROADMAP_CONTENT = {
         "디자인기초"
       ],
       "specialization": [
-        "스토리분석",
-        "콘티피드백",
-        "편집기획"
+        "스토리·콘티 읽기",
+        "컷 구성과 시각 표현 이해"
       ],
       "advanced": [
-        "스토리분석",
-        "콘티피드백",
-        "편집기획"
+        "작품 분석",
+        "그림과 콘티에 근거한 피드백"
       ],
       "preparation": "면접·서류·포트폴리오 및 대학별 실기",
-      "outcome": "작품 기획서·연재계획서",
+      "outcome": "작품 분석·콘티 피드백을 담은 기획 포트폴리오",
       "universityExamples": [
         "청강문화산업대 만화콘텐츠스쿨",
         "상명대 디지털만화영상전공",
@@ -145,7 +139,9 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T02",
-      "art": 0
+      "art": 0,
+      "completionFocus": "그림의 의도를 설명하고 기획과 시각 자료를 연결하는 힘",
+      "distinction": "스토리·콘티 작가가 직접 장면을 만드는 역할이라면, PD는 작품을 읽고 수정 방향을 함께 정해요."
     },
     {
       "id": "D004",
@@ -156,7 +152,7 @@ window.HI5_ROADMAP_CONTENT = {
         "스토리 작가",
         "콘티·연출가"
       ],
-      "summary": "인물과 사건을 이야기와 콘티로 만드는 사람",
+      "summary": "이야기를 만들고 장면 순서와 구도를 콘티로 그리는 사람",
       "majors": [
         "만화콘텐츠",
         "스토리텔링",
@@ -173,16 +169,12 @@ window.HI5_ROADMAP_CONTENT = {
         "인체·배경 이해"
       ],
       "specialization": [
-        "로그라인",
-        "시놉시스",
-        "콘티",
-        "연출"
+        "인물·사건 설정",
+        "로그라인·시놉시스"
       ],
       "advanced": [
-        "로그라인",
-        "시놉시스",
-        "콘티",
-        "연출"
+        "장면 순서 설계",
+        "이야기를 콘티와 연출로 표현"
       ],
       "preparation": "칸만화·상황표현·포트폴리오·면접",
       "outcome": "단편 시나리오·콘티북",
@@ -195,7 +187,9 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T02",
-      "art": 0
+      "art": 0,
+      "completionFocus": "이야기와 그림이 일치하는 장면 전달력",
+      "distinction": "웹툰 PD의 검토·피드백보다 직접 쓰고 그리는 이야기와 장면 설계에 집중해요."
     },
     {
       "id": "D005",
@@ -206,7 +200,7 @@ window.HI5_ROADMAP_CONTENT = {
         "애니메이터",
         "캐릭터 애니메이터"
       ],
-      "summary": "그림에 움직임과 생명력을 불어넣는 사람",
+      "summary": "연속된 그림과 키프레임으로 캐릭터의 움직임을 만드는 사람",
       "majors": [
         "애니메이션",
         "영상애니메이션",
@@ -225,19 +219,15 @@ window.HI5_ROADMAP_CONTENT = {
         "색채"
       ],
       "specialization": [
-        "원화·동화",
-        "레이아웃",
-        "액팅",
-        "단편"
+        "동작 관찰·원화",
+        "연속 포즈·동화"
       ],
       "advanced": [
-        "원화·동화",
         "레이아웃",
-        "액팅",
-        "단편"
+        "감정이 보이는 액팅·단편 장면"
       ],
       "preparation": "상황표현·이미지보드·포트폴리오",
-      "outcome": "워크사이클·액팅 영상",
+      "outcome": "2D 걷기 동작·액팅 영상",
       "universityExamples": [
         "청강문화산업대 애니메이션스쿨",
         "홍익대 영상·애니메이션학부",
@@ -247,7 +237,9 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T03",
-      "art": 1
+      "art": 1,
+      "completionFocus": "프레임 사이의 동작 연결과 포즈의 가독성",
+      "distinction": "3D 모델의 관절을 조정하는 대신 연속된 그림으로 동작을 표현해요."
     },
     {
       "id": "D006",
@@ -255,7 +247,7 @@ window.HI5_ROADMAP_CONTENT = {
       "family": "story",
       "name": "3D 애니메이터",
       "aliases": [],
-      "summary": "입체 캐릭터의 움직임과 연기를 만드는 사람",
+      "summary": "입체 캐릭터의 관절과 포즈를 조정해 움직임과 연기를 만드는 사람",
       "majors": [
         "애니메이션",
         "3DCG",
@@ -274,19 +266,15 @@ window.HI5_ROADMAP_CONTENT = {
         "빛"
       ],
       "specialization": [
-        "모델링 이해",
-        "리깅 이해",
-        "액팅",
-        "렌더"
+        "입체 인체·포즈",
+        "모델링·관절 구조 이해"
       ],
       "advanced": [
-        "모델링 이해",
-        "리깅 이해",
-        "액팅",
-        "렌더"
+        "리깅과 동작 이해",
+        "3D 액팅·빛과 렌더 표현"
       ],
       "preparation": "상황표현·이미지보드·포트폴리오",
-      "outcome": "3D 액팅 쇼릴",
+      "outcome": "3D 포즈 연구·액팅 영상",
       "universityExamples": [
         "청강문화산업대 애니메이션스쿨·융합콘텐츠스쿨",
         "홍익대 영상·애니메이션학부",
@@ -296,7 +284,9 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T04",
-      "art": 1
+      "art": 1,
+      "completionFocus": "입체 포즈의 균형과 움직임의 설득력",
+      "distinction": "2D의 프레임별 작화와 달리 입체 모델의 관절·공간·동작을 다뤄요."
     },
     {
       "id": "D007",
@@ -306,7 +296,7 @@ window.HI5_ROADMAP_CONTENT = {
       "aliases": [
         "애니메이터·애니메이션 감독"
       ],
-      "summary": "장면과 팀을 연결해 하나의 작품을 만드는 사람",
+      "summary": "애니메이션의 이야기·장면·색감을 검토해 전체 연출을 정하는 사람",
       "majors": [
         "애니메이션",
         "영상",
@@ -325,19 +315,15 @@ window.HI5_ROADMAP_CONTENT = {
         "인체"
       ],
       "specialization": [
-        "스토리",
-        "스토리보드",
-        "애니매틱",
-        "연출"
+        "스토리·장면 구도",
+        "스토리보드 읽기와 구성"
       ],
       "advanced": [
-        "스토리",
-        "스토리보드",
         "애니매틱",
-        "연출"
+        "장면 연결·색감·연출 검토"
       ],
       "preparation": "이미지보드·상황표현·포트폴리오·면접",
-      "outcome": "애니매틱·연출노트",
+      "outcome": "애니매틱·장면 연출노트",
       "universityExamples": [
         "청강문화산업대 애니메이션스쿨",
         "홍익대 영상·애니메이션학부",
@@ -347,7 +333,9 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T02",
-      "art": 1
+      "art": 1,
+      "completionFocus": "장면들이 같은 이야기와 연출 의도를 전달하는지 검토하는 힘",
+      "distinction": "스토리보드가 컷별 촬영 설계라면 감독·연출은 작품 전체의 장면과 표현 방향을 조율해요."
     },
     {
       "id": "D008",
@@ -355,7 +343,7 @@ window.HI5_ROADMAP_CONTENT = {
       "family": "story",
       "name": "스토리보드 아티스트",
       "aliases": [],
-      "summary": "카메라와 컷으로 이야기의 흐름을 그리는 사람",
+      "summary": "카메라 구도와 컷 순서를 그려 영상의 장면을 미리 설계하는 사람",
       "majors": [
         "애니메이션",
         "영상디자인",
@@ -373,19 +361,15 @@ window.HI5_ROADMAP_CONTENT = {
         "구도"
       ],
       "specialization": [
-        "썸네일",
-        "쇼트설계",
-        "스토리보드",
-        "애니매틱"
+        "썸네일 구도",
+        "쇼트·카메라 방향"
       ],
       "advanced": [
-        "썸네일",
-        "쇼트설계",
-        "스토리보드",
-        "애니매틱"
+        "시퀀스 스토리보드",
+        "컷 연결·애니매틱"
       ],
       "preparation": "이미지보드·상황표현·포트폴리오",
-      "outcome": "시퀀스 스토리보드",
+      "outcome": "시퀀스 스토리보드·애니매틱",
       "universityExamples": [
         "청강문화산업대 애니메이션스쿨",
         "국민대 영상디자인학과",
@@ -395,7 +379,9 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T02",
-      "art": 1
+      "art": 1,
+      "completionFocus": "컷마다 명확한 시점과 자연스러운 장면 연결",
+      "distinction": "전체 작품을 조율하는 감독과 달리 카메라·쇼트·동선을 컷 단위로 구체화해요."
     },
     {
       "id": "D009",
@@ -406,7 +392,7 @@ window.HI5_ROADMAP_CONTENT = {
         "게임원화가",
         "게임그래픽디자이너"
       ],
-      "summary": "상상 속 게임 세계를 눈앞에 그려내는 사람",
+      "summary": "게임 캐릭터와 세계관을 완성도 높은 한 장의 원화로 그리는 사람",
       "majors": [
         "게임그래픽",
         "게임콘텐츠",
@@ -424,19 +410,15 @@ window.HI5_ROADMAP_CONTENT = {
         "재질"
       ],
       "specialization": [
-        "컨셉발상",
-        "실루엣",
-        "디자인",
-        "렌더"
+        "캐릭터 구조·의상",
+        "무기·재질·빛"
       ],
       "advanced": [
-        "컨셉발상",
-        "실루엣",
-        "디자인",
-        "렌더"
+        "세계관에 맞는 장면 연출",
+        "캐릭터·게임 일러스트 완성"
       ],
       "preparation": "게임상황표현·게임포스터·포트폴리오",
-      "outcome": "캐릭터·배경 컨셉시트",
+      "outcome": "완성 게임 캐릭터 원화·게임 일러스트",
       "universityExamples": [
         "청강문화산업대 게임콘텐츠스쿨",
         "홍익대 게임학부 게임그래픽디자인전공",
@@ -446,18 +428,21 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T05",
-      "art": 2
+      "art": 2,
+      "completionFocus": "주제 해석과 빛·재질·화면의 완성도",
+      "distinction": "이 상담 분류에서는 원화의 완성 표현에 집중해요. 형태·복장 시안은 캐릭터 컨셉, 공간 설계는 배경 컨셉에서 살펴봐요."
     },
     {
       "id": "D010",
       "group": "게임",
       "family": "story",
-      "name": "캐릭터 컨셉 아티스트",
+      "name": "캐릭터 컨셉 디자이너",
       "aliases": [
         "캐릭터원화가",
-        "게임 캐릭터 디자이너"
+        "게임 캐릭터 디자이너",
+        "캐릭터 컨셉 아티스트"
       ],
-      "summary": "세계관에 어울리는 캐릭터를 탄생시키는 사람",
+      "summary": "캐릭터의 형태·복장·설정을 여러 시안과 설정화로 설계하는 사람",
       "majors": [
         "게임그래픽",
         "일러스트레이션",
@@ -477,19 +462,15 @@ window.HI5_ROADMAP_CONTENT = {
         "색채"
       ],
       "specialization": [
-        "실루엣",
-        "턴어라운드",
-        "표정",
-        "키아트"
+        "실루엣·비례",
+        "의상·표정 시안"
       ],
       "advanced": [
-        "실루엣",
         "턴어라운드",
-        "표정",
-        "키아트"
+        "세계관에 맞는 캐릭터 설정"
       ],
       "preparation": "게임포스터·상황표현·포트폴리오",
-      "outcome": "캐릭터 바이블",
+      "outcome": "캐릭터 설정화·턴어라운드",
       "universityExamples": [
         "청강문화산업대 게임콘텐츠스쿨",
         "홍익대 게임그래픽디자인전공",
@@ -499,17 +480,20 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T05",
-      "art": 2
+      "art": 2,
+      "completionFocus": "앞·옆·뒤 시점과 설정이 일관된 캐릭터 디자인",
+      "distinction": "완성 게임 일러스트보다 형태와 복장의 대안을 비교하고 제작용 설정을 정리하는 데 집중해요."
     },
     {
       "id": "D011",
       "group": "게임",
       "family": "story",
-      "name": "배경 컨셉 아티스트",
+      "name": "배경·환경 컨셉 디자이너",
       "aliases": [
-        "배경원화가"
+        "배경원화가",
+        "배경 컨셉 아티스트"
       ],
-      "summary": "게임 속 여행하고 싶은 공간을 그리는 사람",
+      "summary": "게임과 애니메이션의 세계관·환경·공간을 그림으로 설계하는 사람",
       "majors": [
         "게임그래픽",
         "공간디자인",
@@ -528,19 +512,15 @@ window.HI5_ROADMAP_CONTENT = {
         "빛·색"
       ],
       "specialization": [
-        "썸네일",
-        "공간설계",
-        "무드",
-        "키아트"
+        "공간 썸네일",
+        "투시와 빛의 분위기"
       ],
       "advanced": [
-        "썸네일",
-        "공간설계",
-        "무드",
-        "키아트"
+        "세계관 공간 설계",
+        "환경 키아트"
       ],
       "preparation": "게임상황표현·이미지보드·포트폴리오",
-      "outcome": "환경 컨셉아트 세트",
+      "outcome": "환경 컨셉아트·공간 설계 시트",
       "universityExamples": [
         "청강문화산업대 게임콘텐츠스쿨",
         "홍익대 게임그래픽디자인전공",
@@ -550,7 +530,9 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T05",
-      "art": 2
+      "art": 2,
+      "completionFocus": "공간의 깊이와 빛·크기 관계가 설득력 있는 환경 표현",
+      "distinction": "캐릭터가 아니라 인물이 살아가는 도시·자연·건축과 공간을 설계해요."
     },
     {
       "id": "D012",
@@ -558,11 +540,11 @@ window.HI5_ROADMAP_CONTENT = {
       "family": "story",
       "name": "게임 UI 디자이너",
       "aliases": [],
-      "summary": "플레이하기 편한 게임 화면을 만드는 사람",
+      "summary": "게임의 체력바·메뉴·아이템 화면을 보기 쉽고 쓰기 편하게 만드는 사람",
       "majors": [
-        "UI/UX",
         "시각디자인",
-        "게임그래픽"
+        "게임그래픽",
+        "디지털미디어디자인"
       ],
       "skills": [
         "정보구조",
@@ -577,19 +559,15 @@ window.HI5_ROADMAP_CONTENT = {
         "레이아웃"
       ],
       "specialization": [
-        "UX리서치",
-        "와이어프레임",
-        "UI",
-        "프로토타입"
+        "정보 순서·레이아웃",
+        "아이콘·타이포"
       ],
       "advanced": [
-        "UX리서치",
-        "와이어프레임",
-        "UI",
-        "프로토타입"
+        "HUD·인벤토리 화면",
+        "게임 UI 프로토타입"
       ],
       "preparation": "기초디자인·포트폴리오·면접",
-      "outcome": "게임 HUD·메뉴 프로토타입",
+      "outcome": "게임 HUD·메뉴·인벤토리 프로토타입",
       "universityExamples": [
         "홍익대 시각디자인전공",
         "국민대 시각디자인학과·AI디자인학과",
@@ -599,7 +577,9 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T06",
-      "art": 5
+      "art": 5,
+      "completionFocus": "플레이 중 필요한 정보의 우선순위와 화면 가독성",
+      "distinction": "일반 앱·웹 UI/UX와 달리 플레이 상황과 게임 조작에 맞는 정보를 설계해요."
     },
     {
       "id": "D013",
@@ -607,7 +587,7 @@ window.HI5_ROADMAP_CONTENT = {
       "family": "story",
       "name": "일러스트레이터",
       "aliases": [],
-      "summary": "한 장의 그림으로 이야기를 전하는 사람",
+      "summary": "책·포스터·콘텐츠에 쓰이는 한 장의 완성된 그림을 그리는 사람",
       "majors": [
         "일러스트레이션",
         "시각디자인",
@@ -626,19 +606,15 @@ window.HI5_ROADMAP_CONTENT = {
         "색채"
       ],
       "specialization": [
-        "콘셉트",
-        "스타일탐색",
-        "편집응용",
-        "시리즈"
+        "주제·콘셉트",
+        "표현 스타일 탐색"
       ],
       "advanced": [
-        "콘셉트",
-        "스타일탐색",
-        "편집응용",
-        "시리즈"
+        "한 장의 일러스트 완성",
+        "편집 응용·연작"
       ],
       "preparation": "기초디자인·상황표현·포트폴리오",
-      "outcome": "테마 일러스트 시리즈",
+      "outcome": "완성 일러스트·주제별 연작",
       "universityExamples": [
         "홍익대 시각디자인전공",
         "국민대 시각디자인학과",
@@ -648,7 +624,9 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T07",
-      "art": 3
+      "art": 3,
+      "completionFocus": "한 장의 그림에서 주제와 시선이 명확히 전달되는 완성도",
+      "distinction": "캐릭터의 설정 체계보다 그림 한 장의 주제와 표현에 집중해요."
     },
     {
       "id": "D014",
@@ -656,7 +634,7 @@ window.HI5_ROADMAP_CONTENT = {
       "family": "story",
       "name": "캐릭터 디자이너",
       "aliases": [],
-      "summary": "형태와 표정에 특별한 성격을 담는 사람",
+      "summary": "성격이 느껴지는 캐릭터의 표정·옷·동작과 응용 디자인을 만드는 사람",
       "majors": [
         "캐릭터디자인",
         "애니메이션",
@@ -675,19 +653,15 @@ window.HI5_ROADMAP_CONTENT = {
         "소품"
       ],
       "specialization": [
-        "캐릭터기획",
-        "시트",
-        "표정·동작",
-        "굿즈"
+        "캐릭터 성격·형태",
+        "표정·동작"
       ],
       "advanced": [
-        "캐릭터기획",
-        "시트",
-        "표정·동작",
-        "굿즈"
+        "캐릭터 시트",
+        "소품·굿즈 응용"
       ],
       "preparation": "상황표현·기초디자인·포트폴리오",
-      "outcome": "캐릭터 IP 가이드",
+      "outcome": "캐릭터 설정·표정·동작·응용 시트",
       "universityExamples": [
         "청강문화산업대 융합콘텐츠스쿨",
         "세종대 만화애니메이션텍전공",
@@ -697,7 +671,9 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T07",
-      "art": 3
+      "art": 3,
+      "completionFocus": "표정과 응용 모습이 달라도 같은 캐릭터로 읽히는 일관성",
+      "distinction": "게임 제작용 컨셉이나 채팅용 이모티콘에 한정하지 않고 캐릭터와 다양한 응용을 설계해요."
     },
     {
       "id": "D015",
@@ -705,7 +681,7 @@ window.HI5_ROADMAP_CONTENT = {
       "family": "story",
       "name": "이모티콘 작가",
       "aliases": [],
-      "summary": "작은 캐릭터로 일상의 감정을 전하는 사람",
+      "summary": "채팅에서 쓰는 작은 캐릭터의 감정과 동작 세트를 만드는 사람",
       "majors": [
         "캐릭터디자인",
         "디지털콘텐츠",
@@ -724,19 +700,15 @@ window.HI5_ROADMAP_CONTENT = {
         "색채"
       ],
       "specialization": [
-        "캐릭터성격",
-        "감정세트",
-        "모션",
-        "출시기획"
+        "감정·표정 구분",
+        "작은 크기의 동작 표현"
       ],
       "advanced": [
-        "캐릭터성격",
-        "감정세트",
-        "모션",
-        "출시기획"
+        "감정 세트 구성",
+        "정지형·모션 이모티콘"
       ],
       "preparation": "포트폴리오·면접·대학별 실기",
-      "outcome": "정지형·모션 이모티콘 세트",
+      "outcome": "감정·동작별 이모티콘 세트",
       "universityExamples": [
         "청강문화산업대 만화콘텐츠스쿨·융합콘텐츠스쿨",
         "상명대 디지털만화영상전공",
@@ -746,7 +718,9 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T07",
-      "art": 3
+      "art": 3,
+      "completionFocus": "작은 화면에서도 서로 다른 감정이 분명히 보이는 표현",
+      "distinction": "캐릭터 전체 설정이나 한 장의 일러스트보다 채팅 상황별 짧은 감정 전달이 중요해요."
     },
     {
       "id": "D016",
@@ -754,7 +728,7 @@ window.HI5_ROADMAP_CONTENT = {
       "family": "story",
       "name": "그림책 작가",
       "aliases": [],
-      "summary": "글과 그림을 엮어 한 권의 세상을 만드는 사람",
+      "summary": "여러 페이지의 글과 그림을 연결해 한 권의 그림책을 만드는 사람",
       "majors": [
         "일러스트레이션",
         "시각디자인",
@@ -773,19 +747,15 @@ window.HI5_ROADMAP_CONTENT = {
         "재료실험"
       ],
       "specialization": [
-        "스토리",
-        "더미북",
-        "장면제작",
-        "편집"
+        "이야기·장면 구상",
+        "페이지 순서·더미북"
       ],
       "advanced": [
-        "스토리",
-        "더미북",
-        "장면제작",
-        "편집"
+        "장면 그림 제작",
+        "글과 그림의 편집"
       ],
       "preparation": "기초디자인·포트폴리오·면접",
-      "outcome": "완성 더미북",
+      "outcome": "여러 페이지로 구성한 그림책 더미북",
       "universityExamples": [
         "홍익대 시각디자인전공",
         "국민대 시각디자인학과",
@@ -795,7 +765,9 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T07",
-      "art": 3
+      "art": 3,
+      "completionFocus": "페이지를 넘길 때 이어지는 이야기와 그림의 흐름",
+      "distinction": "일러스트 한 장과 달리 여러 페이지의 글·그림·장면 전환을 함께 설계해요."
     },
     {
       "id": "D017",
@@ -803,7 +775,7 @@ window.HI5_ROADMAP_CONTENT = {
       "family": "design",
       "name": "시각 디자이너",
       "aliases": [],
-      "summary": "글자와 이미지로 메시지를 전하는 사람",
+      "summary": "포스터·안내물처럼 정보를 글자와 이미지로 보기 좋게 전달하는 사람",
       "majors": [
         "시각디자인",
         "커뮤니케이션디자인"
@@ -821,19 +793,15 @@ window.HI5_ROADMAP_CONTENT = {
         "타이포"
       ],
       "specialization": [
-        "편집",
-        "브랜드",
-        "디지털",
-        "캠페인"
+        "타이포·레이아웃",
+        "시각 정보의 우선순위"
       ],
       "advanced": [
-        "편집",
-        "브랜드",
-        "디지털",
-        "캠페인"
+        "포스터·안내물 제작",
+        "여러 매체의 그래픽 시스템"
       ],
       "preparation": "기초디자인·기초조형·포트폴리오",
-      "outcome": "통합 시각디자인 프로젝트",
+      "outcome": "포스터·정보 안내물·그래픽 시스템",
       "universityExamples": [
         "홍익대 디자인학부 시각디자인전공",
         "국민대 시각디자인학과",
@@ -843,7 +811,9 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T08",
-      "art": 4
+      "art": 4,
+      "completionFocus": "정보의 우선순위와 글자·이미지의 명확한 전달",
+      "distinction": "시각디자인은 넓은 분야예요. 이 카드에서는 정보 전달과 그래픽 구성의 공통 기초를 중심으로 봐요."
     },
     {
       "id": "D018",
@@ -851,7 +821,7 @@ window.HI5_ROADMAP_CONTENT = {
       "family": "design",
       "name": "브랜드 디자이너",
       "aliases": [],
-      "summary": "브랜드만의 표정과 목소리를 만드는 사람",
+      "summary": "로고·색·글자와 응용 디자인으로 브랜드의 일관된 모습을 만드는 사람",
       "majors": [
         "시각디자인",
         "브랜드디자인",
@@ -871,19 +841,15 @@ window.HI5_ROADMAP_CONTENT = {
         "레이아웃"
       ],
       "specialization": [
-        "리서치",
-        "포지셔닝",
-        "아이덴티티",
-        "응용"
+        "브랜드 조사·핵심 개념",
+        "로고·색·타이포"
       ],
       "advanced": [
-        "리서치",
-        "포지셔닝",
-        "아이덴티티",
-        "응용"
+        "아이덴티티 체계",
+        "여러 매체에 적용한 브랜드 디자인"
       ],
       "preparation": "기초디자인·포트폴리오·면접",
-      "outcome": "브랜드 가이드라인",
+      "outcome": "브랜드 아이덴티티·가이드라인",
       "universityExamples": [
         "홍익대 시각디자인전공",
         "국민대 시각디자인학과",
@@ -893,7 +859,9 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T08",
-      "art": 4
+      "art": 4,
+      "completionFocus": "로고·색·타이포와 응용 매체의 일관성",
+      "distinction": "포스터 한 장보다 여러 접점에서 같은 브랜드로 인식되는 시각 체계를 설계해요."
     },
     {
       "id": "D019",
@@ -901,7 +869,7 @@ window.HI5_ROADMAP_CONTENT = {
       "family": "design",
       "name": "편집 디자이너",
       "aliases": [],
-      "summary": "읽기 좋은 책과 잡지의 흐름을 만드는 사람",
+      "summary": "책·잡지·리플릿의 글과 사진을 읽기 좋은 페이지로 편집하는 사람",
       "majors": [
         "시각디자인",
         "커뮤니케이션디자인"
@@ -919,19 +887,15 @@ window.HI5_ROADMAP_CONTENT = {
         "색채"
       ],
       "specialization": [
-        "그리드",
-        "책·잡지",
-        "정보편집",
-        "출판"
+        "그리드·타이포",
+        "페이지 정보 배치"
       ],
       "advanced": [
-        "그리드",
-        "책·잡지",
-        "정보편집",
-        "출판"
+        "책·잡지 레이아웃",
+        "페이지 연결·출판 편집"
       ],
       "preparation": "기초디자인·포트폴리오",
-      "outcome": "책·매거진 디자인",
+      "outcome": "책·잡지·리플릿 레이아웃",
       "universityExamples": [
         "홍익대 시각디자인전공",
         "국민대 시각디자인학과",
@@ -941,7 +905,9 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T09",
-      "art": 4
+      "art": 4,
+      "completionFocus": "본문의 읽기 흐름과 페이지 전체의 질서",
+      "distinction": "브랜드 체계나 광고 메시지보다 긴 글과 이미지가 이어지는 읽기 경험을 다뤄요."
     },
     {
       "id": "D020",
@@ -949,7 +915,7 @@ window.HI5_ROADMAP_CONTENT = {
       "family": "design",
       "name": "패키지 디자이너",
       "aliases": [],
-      "summary": "제품을 담는 구조와 첫인상을 만드는 사람",
+      "summary": "제품을 담는 상자의 구조와 포장 그래픽을 함께 설계하는 사람",
       "majors": [
         "시각디자인",
         "산업디자인",
@@ -969,19 +935,15 @@ window.HI5_ROADMAP_CONTENT = {
         "재질"
       ],
       "specialization": [
-        "브랜드",
-        "다이라인",
-        "구조",
-        "목업"
+        "입체 구조·전개도",
+        "브랜드·포장 그래픽"
       ],
       "advanced": [
-        "브랜드",
-        "다이라인",
-        "구조",
-        "목업"
+        "구조와 그래픽 결합",
+        "실물 목업 제작"
       ],
       "preparation": "기초디자인·기초조형·포트폴리오",
-      "outcome": "패키지 시스템·실물 목업",
+      "outcome": "패키지 전개도·시제품",
       "universityExamples": [
         "홍익대 시각·산업디자인전공",
         "국민대 시각·공업디자인학과",
@@ -991,7 +953,9 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T09",
-      "art": 4
+      "art": 4,
+      "completionFocus": "전개도와 입체 목업의 연결 및 정보 배치",
+      "distinction": "평면 그래픽과 달리 접고 조립했을 때의 구조·재료·제품 보호까지 함께 생각해요."
     },
     {
       "id": "D021",
@@ -999,7 +963,7 @@ window.HI5_ROADMAP_CONTENT = {
       "family": "design",
       "name": "광고·콘텐츠 디자이너",
       "aliases": [],
-      "summary": "기억에 남는 아이디어와 캠페인을 만드는 사람",
+      "summary": "광고 포스터와 온라인 콘텐츠로 캠페인의 메시지를 전달하는 사람",
       "majors": [
         "시각디자인",
         "광고홍보",
@@ -1018,19 +982,15 @@ window.HI5_ROADMAP_CONTENT = {
         "레이아웃"
       ],
       "specialization": [
-        "콘셉트",
-        "키비주얼",
-        "매체변형",
-        "캠페인"
+        "메시지·콘셉트 발상",
+        "키비주얼"
       ],
       "advanced": [
-        "콘셉트",
-        "키비주얼",
-        "매체변형",
-        "캠페인"
+        "매체별 화면 변형",
+        "광고 캠페인 구성"
       ],
       "preparation": "기초디자인·포트폴리오·면접",
-      "outcome": "통합 광고 캠페인",
+      "outcome": "광고 키비주얼·매체별 캠페인 시안",
       "universityExamples": [
         "홍익대 시각디자인전공·광고홍보학부",
         "국민대 시각디자인학과",
@@ -1040,7 +1000,9 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T10",
-      "art": 4
+      "art": 4,
+      "completionFocus": "서로 다른 매체에서도 명확한 캠페인 메시지",
+      "distinction": "브랜드의 장기적인 체계보다 특정 캠페인과 전달 목적에 맞는 메시지 표현에 집중해요."
     },
     {
       "id": "D022",
@@ -1050,7 +1012,7 @@ window.HI5_ROADMAP_CONTENT = {
       "aliases": [
         "UI·UX 디자이너"
       ],
-      "summary": "쓰는 사람을 이해하고 편한 경험을 만드는 사람",
+      "summary": "앱과 웹의 화면·이동 순서를 설계해 사용하기 편하게 만드는 사람",
       "majors": [
         "시각디자인",
         "디지털미디어디자인",
@@ -1069,21 +1031,15 @@ window.HI5_ROADMAP_CONTENT = {
         "정보디자인"
       ],
       "specialization": [
-        "리서치",
-        "IA",
-        "와이어프레임",
-        "UI",
-        "테스트"
+        "사용자·정보 구조 이해",
+        "와이어프레임"
       ],
       "advanced": [
-        "리서치",
-        "IA",
-        "와이어프레임",
-        "UI",
-        "테스트"
+        "앱·웹 화면 디자인",
+        "프로토타입·사용 흐름 검토"
       ],
       "preparation": "기초디자인·포트폴리오·면접",
-      "outcome": "앱·웹 프로토타입",
+      "outcome": "앱·웹 화면과 클릭 가능한 프로토타입",
       "universityExamples": [
         "국민대 시각디자인학과·AI디자인학과",
         "세종대 디자인이노베이션전공",
@@ -1093,7 +1049,9 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T11",
-      "art": 5
+      "art": 5,
+      "completionFocus": "화면 사이의 이동과 정보·버튼의 가독성",
+      "distinction": "게임 UI와 달리 일상적인 앱·웹 서비스의 정보 탐색과 사용 흐름을 중심으로 봐요."
     },
     {
       "id": "D023",
@@ -1103,7 +1061,7 @@ window.HI5_ROADMAP_CONTENT = {
       "aliases": [
         "영상·모션그래픽 디자이너"
       ],
-      "summary": "그래픽에 움직임과 리듬을 더하는 사람",
+      "summary": "글자·도형·이미지에 움직임을 더해 타이틀과 브랜드 영상을 만드는 사람",
       "majors": [
         "영상디자인",
         "시각디자인",
@@ -1122,19 +1080,15 @@ window.HI5_ROADMAP_CONTENT = {
         "시간표현"
       ],
       "specialization": [
-        "스토리보드",
-        "2D모션",
-        "3D기초",
-        "타이틀"
+        "시간 흐름·스토리보드",
+        "2D 그래픽 모션"
       ],
       "advanced": [
-        "스토리보드",
-        "2D모션",
-        "3D기초",
-        "타이틀"
+        "3D 기초와 그래픽 조합",
+        "타이틀·브랜드 모션"
       ],
       "preparation": "이미지보드·기초디자인·포트폴리오",
-      "outcome": "브랜드 모션·타이틀 영상",
+      "outcome": "움직이는 타이틀·브랜드 모션 영상",
       "universityExamples": [
         "국민대 영상디자인학과",
         "홍익대 영상·애니메이션학부·시각디자인전공",
@@ -1144,7 +1098,9 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T12",
-      "art": 10
+      "art": 10,
+      "completionFocus": "그래픽의 가독성과 움직임의 리듬",
+      "distinction": "촬영 중심의 영상과 달리 글자·도형·그래픽 요소의 움직임으로 메시지를 전해요."
     },
     {
       "id": "D024",
@@ -1152,7 +1108,7 @@ window.HI5_ROADMAP_CONTENT = {
       "family": "design",
       "name": "영상 디자이너",
       "aliases": [],
-      "summary": "카메라와 편집으로 장면의 감정을 전하는 사람",
+      "summary": "촬영한 장면과 편집·빛·소리의 흐름으로 영상을 만드는 사람",
       "majors": [
         "영상디자인",
         "영상애니메이션",
@@ -1172,19 +1128,15 @@ window.HI5_ROADMAP_CONTENT = {
         "시간"
       ],
       "specialization": [
-        "촬영",
-        "편집",
-        "모션",
-        "VFX기초"
+        "촬영 구도·빛",
+        "장면 편집"
       ],
       "advanced": [
-        "촬영",
-        "편집",
-        "모션",
-        "VFX기초"
+        "장면 흐름·모션 결합",
+        "영상과 시각효과 기초"
       ],
       "preparation": "이미지보드·포트폴리오·면접",
-      "outcome": "단편 영상·쇼릴",
+      "outcome": "촬영·편집한 단편 영상",
       "universityExamples": [
         "국민대 영상디자인학과",
         "홍익대 영상·애니메이션학부",
@@ -1194,7 +1146,9 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T12",
-      "art": 10
+      "art": 10,
+      "completionFocus": "컷 연결과 빛·색이 일관된 영상 구성",
+      "distinction": "모션그래픽의 도형·글자 중심 표현과 달리 실제 촬영 장면의 구성과 편집을 중심으로 봐요."
     },
     {
       "id": "D025",
@@ -1202,7 +1156,7 @@ window.HI5_ROADMAP_CONTENT = {
       "family": "design",
       "name": "산업·제품 디자이너",
       "aliases": [],
-      "summary": "생활 속 제품의 모양과 쓰임을 설계하는 사람",
+      "summary": "생활 속 제품의 모양과 쓰임을 스케치와 모형으로 설계하는 사람",
       "majors": [
         "산업디자인",
         "공업디자인",
@@ -1222,21 +1176,15 @@ window.HI5_ROADMAP_CONTENT = {
         "재료"
       ],
       "specialization": [
-        "리서치",
-        "아이디어",
-        "스케치",
-        "모형",
-        "렌더"
+        "사용자·제품 관찰",
+        "아이디어 스케치"
       ],
       "advanced": [
-        "리서치",
-        "아이디어",
-        "스케치",
-        "모형",
-        "렌더"
+        "제품 구조·모형",
+        "재질 표현·렌더"
       ],
       "preparation": "기초디자인·기초조형·포트폴리오",
-      "outcome": "제품 모형·프로세스북",
+      "outcome": "제품 디자인 스케치·프로토타입",
       "universityExamples": [
         "홍익대 산업디자인전공",
         "국민대 공업디자인학과",
@@ -1246,7 +1194,9 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T13",
-      "art": 6
+      "art": 6,
+      "completionFocus": "사용 목적과 형태·구조가 연결되는 입체 표현",
+      "distinction": "평면 그래픽보다 사람이 사용하는 제품의 입체 형태와 기능을 함께 다뤄요."
     },
     {
       "id": "D026",
@@ -1254,7 +1204,7 @@ window.HI5_ROADMAP_CONTENT = {
       "family": "design",
       "name": "자동차·모빌리티 디자이너",
       "aliases": [],
-      "summary": "새로운 이동 경험과 자동차를 설계하는 사람",
+      "summary": "자동차와 이동수단의 외관·실내를 스케치와 입체 모형으로 설계하는 사람",
       "majors": [
         "자동차운송디자인",
         "산업디자인"
@@ -1272,19 +1222,15 @@ window.HI5_ROADMAP_CONTENT = {
         "빛"
       ],
       "specialization": [
-        "패키지 이해",
-        "외장·내장",
-        "렌더",
-        "모형"
+        "차량 비례·공간 이해",
+        "외장·내장 스케치"
       ],
       "advanced": [
-        "패키지 이해",
-        "외장·내장",
-        "렌더",
-        "모형"
+        "곡면·재질 렌더",
+        "모빌리티 모형"
       ],
       "preparation": "기초조형·기초디자인·포트폴리오",
-      "outcome": "모빌리티 컨셉 프로젝트",
+      "outcome": "이동수단 외장·내장 시안과 축소 모형",
       "universityExamples": [
         "국민대 자동차·운송디자인학과",
         "홍익대 산업디자인전공",
@@ -1294,7 +1240,9 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T14",
-      "art": 6
+      "art": 6,
+      "completionFocus": "이동수단의 비례·곡면과 사용자 공간 표현",
+      "distinction": "일반 제품과 달리 이동수단의 비례·외장·내장과 탑승 공간을 중심으로 봐요."
     },
     {
       "id": "D027",
@@ -1302,7 +1250,7 @@ window.HI5_ROADMAP_CONTENT = {
       "family": "design",
       "name": "공간·실내 디자이너",
       "aliases": [],
-      "summary": "사람이 머무는 공간과 동선을 설계하는 사람",
+      "summary": "사람이 머무는 실내의 배치·동선·재료를 도면과 모형으로 설계하는 사람",
       "majors": [
         "공간디자인",
         "실내건축",
@@ -1322,19 +1270,15 @@ window.HI5_ROADMAP_CONTENT = {
         "재료"
       ],
       "specialization": [
-        "사용자분석",
-        "평면",
-        "3D공간",
-        "모형"
+        "사용자·동선",
+        "평면 배치"
       ],
       "advanced": [
-        "사용자분석",
-        "평면",
-        "3D공간",
-        "모형"
+        "3D 공간·재료 표현",
+        "공간 모형"
       ],
       "preparation": "기초디자인·기초조형·포트폴리오",
-      "outcome": "공간 설계 보드·모형",
+      "outcome": "실내 평면·투시도·공간 모형",
       "universityExamples": [
         "국민대 공간디자인학과",
         "홍익대 실내건축학전공",
@@ -1344,15 +1288,19 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T15",
-      "art": 7
+      "art": 7,
+      "completionFocus": "평면과 투시도가 일치하는 공간·동선 표현",
+      "distinction": "이야기를 위한 무대나 상품 전시보다 일상 공간의 사용성과 머무는 경험을 다뤄요."
     },
     {
       "id": "D028",
       "group": "디자인",
       "family": "design",
-      "name": "전시·VMD 디자이너",
-      "aliases": [],
-      "summary": "전시와 매장의 이야기를 공간에 담는 사람",
+      "name": "전시·매장 연출 디자이너",
+      "aliases": [
+        "전시·VMD 디자이너"
+      ],
+      "summary": "전시장과 매장의 진열·조명·동선으로 공간의 이야기를 만드는 사람",
       "majors": [
         "전시디자인",
         "공간디자인",
@@ -1372,19 +1320,15 @@ window.HI5_ROADMAP_CONTENT = {
         "구도"
       ],
       "specialization": [
-        "브랜드분석",
-        "공간콘셉트",
-        "집기",
-        "연출"
+        "브랜드·전시 주제 분석",
+        "공간 콘셉트·집기"
       ],
       "advanced": [
-        "브랜드분석",
-        "공간콘셉트",
-        "집기",
-        "연출"
+        "진열·동선 설계",
+        "전시·매장 공간 연출"
       ],
       "preparation": "기초디자인·포트폴리오·면접",
-      "outcome": "팝업스토어·전시 설계",
+      "outcome": "전시·팝업스토어 배치안과 모형",
       "universityExamples": [
         "한성대 ICT디자인학부",
         "국민대 공간디자인학과",
@@ -1394,7 +1338,9 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T16",
-      "art": 7
+      "art": 7,
+      "completionFocus": "관람 동선과 진열·조명의 관계를 보여주는 공간 표현",
+      "distinction": "VMD는 매장의 시각적 연출을 뜻해요. 일반 실내 설계와 달리 전시 주제·상품의 전달에 집중해요."
     },
     {
       "id": "D029",
@@ -1402,7 +1348,7 @@ window.HI5_ROADMAP_CONTENT = {
       "family": "design",
       "name": "무대미술 디자이너",
       "aliases": [],
-      "summary": "무대 위 이야기를 공간으로 만드는 사람",
+      "summary": "공연의 대본과 장면에 맞춰 무대 세트와 공간을 만드는 사람",
       "majors": [
         "무대미술",
         "공간디자인",
@@ -1422,19 +1368,15 @@ window.HI5_ROADMAP_CONTENT = {
         "재료"
       ],
       "specialization": [
-        "대본분석",
-        "무대스케치",
-        "모형",
-        "제작계획"
+        "대본·장면 분석",
+        "무대 스케치"
       ],
       "advanced": [
-        "대본분석",
-        "무대스케치",
-        "모형",
-        "제작계획"
+        "무대 모형",
+        "장면 전환·제작 계획"
       ],
       "preparation": "상황표현·포트폴리오·면접",
-      "outcome": "무대 디자인 모형",
+      "outcome": "무대 세트 스케치·축소 모형",
       "universityExamples": [
         "상명대 무대미술전공",
         "국민대 공간디자인학과",
@@ -1444,7 +1386,9 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T16",
-      "art": 7
+      "art": 7,
+      "completionFocus": "공연 장면과 인물 동선이 드러나는 무대 공간",
+      "distinction": "매장이나 실내 공간과 달리 대본·배우·장면 전환을 위한 무대 공간을 설계해요."
     },
     {
       "id": "D030",
@@ -1452,7 +1396,7 @@ window.HI5_ROADMAP_CONTENT = {
       "family": "design",
       "name": "패션 디자이너",
       "aliases": [],
-      "summary": "소재와 실루엣으로 입는 문화를 만드는 사람",
+      "summary": "옷의 실루엣·색·소재를 정해 의상과 컬렉션을 디자인하는 사람",
       "majors": [
         "의상디자인",
         "패션디자인",
@@ -1472,19 +1416,15 @@ window.HI5_ROADMAP_CONTENT = {
         "재질"
       ],
       "specialization": [
-        "리서치",
-        "패션드로잉",
-        "패턴기초",
-        "컬렉션"
+        "패션 드로잉",
+        "소재·의상 아이디어"
       ],
       "advanced": [
-        "리서치",
-        "패션드로잉",
-        "패턴기초",
-        "컬렉션"
+        "패턴 기초 이해",
+        "컬렉션 구성"
       ],
       "preparation": "기초디자인·인체표현·포트폴리오",
-      "outcome": "미니 컬렉션·룩북",
+      "outcome": "의상 디자인·미니 컬렉션·룩북",
       "universityExamples": [
         "홍익대 섬유미술·패션디자인과",
         "국민대 의상디자인학과",
@@ -1494,15 +1434,19 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T17",
-      "art": 8
+      "art": 8,
+      "completionFocus": "인체와 의상 실루엣·소재 표현의 조화",
+      "distinction": "직물의 패턴 자체보다 입었을 때의 옷 형태와 의상 구성을 중심으로 봐요."
     },
     {
       "id": "D031",
       "group": "디자인",
       "family": "design",
-      "name": "텍스타일 디자이너",
-      "aliases": [],
-      "summary": "색과 패턴으로 소재에 개성을 더하는 사람",
+      "name": "텍스타일·패턴 디자이너",
+      "aliases": [
+        "텍스타일 디자이너"
+      ],
+      "summary": "옷과 생활용 직물에 쓰이는 무늬·색·반복 패턴을 만드는 사람",
       "majors": [
         "텍스타일디자인",
         "섬유미술",
@@ -1522,19 +1466,15 @@ window.HI5_ROADMAP_CONTENT = {
         "패턴"
       ],
       "specialization": [
-        "모티프",
-        "리핏",
-        "소재적용",
-        "컬렉션"
+        "자연물·모티프",
+        "반복 패턴·색 조합"
       ],
       "advanced": [
-        "모티프",
-        "리핏",
-        "소재적용",
-        "컬렉션"
+        "직물·소재 적용",
+        "패턴 컬렉션"
       ],
       "preparation": "기초디자인·포트폴리오",
-      "outcome": "텍스타일 패턴 컬렉션",
+      "outcome": "직물 반복 패턴·소재별 샘플",
       "universityExamples": [
         "홍익대 섬유미술·패션디자인과",
         "상명대 텍스타일디자인전공",
@@ -1544,7 +1484,9 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T18",
-      "art": 8
+      "art": 8,
+      "completionFocus": "무늬의 반복 연결과 색·소재의 조화",
+      "distinction": "패션의 의상 형태와 달리 직물 표면에 들어가는 무늬·색·질감을 설계해요."
     },
     {
       "id": "D032",
@@ -1552,7 +1494,7 @@ window.HI5_ROADMAP_CONTENT = {
       "family": "design",
       "name": "금속·주얼리 디자이너",
       "aliases": [],
-      "summary": "금속과 보석으로 작은 조형을 만드는 사람",
+      "summary": "금속과 보석의 형태·구조를 설계해 주얼리와 작은 오브제를 만드는 사람",
       "majors": [
         "금속조형디자인",
         "금속공예",
@@ -1571,19 +1513,15 @@ window.HI5_ROADMAP_CONTENT = {
         "관찰"
       ],
       "specialization": [
-        "재료실험",
-        "구조",
-        "세공",
-        "제품군"
+        "금속 재료·구조 관찰",
+        "입체 형태 실험"
       ],
       "advanced": [
-        "재료실험",
-        "구조",
-        "세공",
-        "제품군"
+        "세공 표현 이해",
+        "주얼리·오브제 제품군"
       ],
       "preparation": "기초조형·포트폴리오",
-      "outcome": "주얼리·오브제 컬렉션",
+      "outcome": "주얼리 디자인·금속 오브제 모형",
       "universityExamples": [
         "홍익대 금속조형디자인과",
         "국민대 금속공예학과",
@@ -1593,7 +1531,9 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T19",
-      "art": 9
+      "art": 9,
+      "completionFocus": "작은 입체의 구조와 금속 재질을 표현하는 정밀함",
+      "distinction": "도자의 흙 성형과 달리 금속의 결합 구조와 작은 조형의 정밀함을 중심으로 봐요."
     },
     {
       "id": "D033",
@@ -1601,7 +1541,7 @@ window.HI5_ROADMAP_CONTENT = {
       "family": "design",
       "name": "도자·세라믹 디자이너",
       "aliases": [],
-      "summary": "흙과 유약으로 쓰임 있는 형태를 만드는 사람",
+      "summary": "흙의 형태와 표면·유약을 연구해 그릇과 도자 작품을 만드는 사람",
       "majors": [
         "도예",
         "유리",
@@ -1622,19 +1562,15 @@ window.HI5_ROADMAP_CONTENT = {
         "색채"
       ],
       "specialization": [
-        "성형",
-        "표면",
-        "유약",
-        "제품·작품"
+        "입체 성형",
+        "표면·재료 실험"
       ],
       "advanced": [
-        "성형",
-        "표면",
-        "유약",
-        "제품·작품"
+        "색·유약 표현 이해",
+        "도자 제품·조형 구성"
       ],
       "preparation": "기초조형·포트폴리오",
-      "outcome": "도자 제품·조형 컬렉션",
+      "outcome": "도자 제품·조형 작품",
       "universityExamples": [
         "홍익대 도예·유리과",
         "국민대 도자공예학과",
@@ -1644,7 +1580,9 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T20",
-      "art": 9
+      "art": 9,
+      "completionFocus": "흙의 형태·두께와 표면 표현의 균형",
+      "distinction": "금속이나 제품 설계와 달리 흙의 성형과 표면·유약의 표현을 함께 다뤄요."
     },
     {
       "id": "D034",
@@ -1652,7 +1590,7 @@ window.HI5_ROADMAP_CONTENT = {
       "family": "design",
       "name": "가구·리빙 디자이너",
       "aliases": [],
-      "summary": "가구와 생활용품으로 일상을 바꾸는 사람",
+      "summary": "가구와 생활용품의 크기·구조·재료를 정해 모형으로 설계하는 사람",
       "majors": [
         "목조형가구",
         "리빙디자인",
@@ -1672,19 +1610,15 @@ window.HI5_ROADMAP_CONTENT = {
         "구조"
       ],
       "specialization": [
-        "사용자분석",
-        "스케치",
-        "도면",
-        "모형"
+        "사용자·크기 관찰",
+        "가구 스케치·도면"
       ],
       "advanced": [
-        "사용자분석",
-        "스케치",
-        "도면",
-        "모형"
+        "재료·결합 구조",
+        "가구·리빙 모형"
       ],
       "preparation": "기초조형·기초디자인·포트폴리오",
-      "outcome": "가구 모형·리빙제품",
+      "outcome": "가구 도면·축소 모형·리빙제품 시안",
       "universityExamples": [
         "홍익대 목조형가구학과",
         "건국대 리빙디자인학과",
@@ -1694,7 +1628,9 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T21",
-      "art": 6
+      "art": 6,
+      "completionFocus": "크기·결합 구조와 사용 목적이 일치하는 모형 표현",
+      "distinction": "일반 제품 안에서도 가구의 크기·결합과 생활 공간의 쓰임에 집중해요."
     },
     {
       "id": "D035",
@@ -1702,7 +1638,7 @@ window.HI5_ROADMAP_CONTENT = {
       "family": "design",
       "name": "AI·융합 콘텐츠 디자이너",
       "aliases": [],
-      "summary": "디자인과 기술을 연결해 새로운 경험을 만드는 사람",
+      "summary": "AI 시안과 인터랙션을 비교·편집해 새로운 시각 콘텐츠를 만드는 사람",
       "majors": [
         "AI디자인",
         "융합콘텐츠",
@@ -1721,19 +1657,15 @@ window.HI5_ROADMAP_CONTENT = {
         "디지털기초"
       ],
       "specialization": [
-        "문제정의",
-        "AI활용",
-        "인터랙션",
-        "융합프로젝트"
+        "문제·시각 주제 설정",
+        "디지털 표현·시안 비교"
       ],
       "advanced": [
-        "문제정의",
-        "AI활용",
-        "인터랙션",
-        "융합프로젝트"
+        "AI 시안 선택·수정",
+        "인터랙션을 연결한 시각 프로젝트"
       ],
       "preparation": "기초조형·포트폴리오·면접",
-      "outcome": "AI 기반 콘텐츠 프로토타입",
+      "outcome": "AI 활용 과정을 설명하는 시각 콘텐츠 프로토타입",
       "universityExamples": [
         "국민대 AI디자인학과",
         "청강문화산업대 융합콘텐츠스쿨",
@@ -1743,14 +1675,16 @@ window.HI5_ROADMAP_CONTENT = {
       "sourceDate": "2026-09-03",
       "verificationStatus": "reference-only",
       "trackId": "T22",
-      "art": 11
+      "art": 11,
+      "completionFocus": "시안의 선택·수정 이유와 시각 결과물을 설명하는 힘",
+      "distinction": "자동 생성 결과만 내는 과정이 아니에요. 조형·색채·이야기를 바탕으로 시안을 판단하고 표현을 다듬어요."
     }
   ],
   "tracks": [
     {
       "id": "T01",
       "name": "웹툰·만화",
-      "structure": "1년차 공통기초→2년차 전공핵심→3년차 프로젝트·입시",
+      "structure": "기초 표현력→전공 기초→전공 심화→입시 실기 적용→실전 완성도",
       "foundation": [
         "선·도형·비례",
         "관찰드로잉·측정",
@@ -1769,7 +1703,7 @@ window.HI5_ROADMAP_CONTENT = {
     {
       "id": "T02",
       "name": "스토리·콘티",
-      "structure": "1년차 공통기초→2년차 전공핵심→3년차 프로젝트·입시",
+      "structure": "기초 표현력→전공 기초→전공 심화→입시 실기 적용→실전 완성도",
       "foundation": [
         "선·도형·비례",
         "관찰드로잉·측정",
@@ -1788,7 +1722,7 @@ window.HI5_ROADMAP_CONTENT = {
     {
       "id": "T03",
       "name": "2D 애니메이션",
-      "structure": "1년차 공통기초→2년차 전공핵심→3년차 프로젝트·입시",
+      "structure": "기초 표현력→전공 기초→전공 심화→입시 실기 적용→실전 완성도",
       "foundation": [
         "선·도형·비례",
         "관찰드로잉·측정",
@@ -1807,7 +1741,7 @@ window.HI5_ROADMAP_CONTENT = {
     {
       "id": "T04",
       "name": "3D·VFX 애니메이션",
-      "structure": "1년차 공통기초→2년차 전공핵심→3년차 프로젝트·입시",
+      "structure": "기초 표현력→전공 기초→전공 심화→입시 실기 적용→실전 완성도",
       "foundation": [
         "선·도형·비례",
         "관찰드로잉·측정",
@@ -1826,7 +1760,7 @@ window.HI5_ROADMAP_CONTENT = {
     {
       "id": "T05",
       "name": "게임 원화",
-      "structure": "1년차 공통기초→2년차 전공핵심→3년차 프로젝트·입시",
+      "structure": "기초 표현력→전공 기초→전공 심화→입시 실기 적용→실전 완성도",
       "foundation": [
         "선·도형·비례",
         "관찰드로잉·측정",
@@ -1845,7 +1779,7 @@ window.HI5_ROADMAP_CONTENT = {
     {
       "id": "T06",
       "name": "게임 UI·UX",
-      "structure": "1년차 공통기초→2년차 전공핵심→3년차 프로젝트·입시",
+      "structure": "기초 표현력→전공 기초→전공 심화→입시 실기 적용→실전 완성도",
       "foundation": [
         "선·도형·비례",
         "관찰드로잉·측정",
@@ -1864,7 +1798,7 @@ window.HI5_ROADMAP_CONTENT = {
     {
       "id": "T07",
       "name": "일러스트·캐릭터",
-      "structure": "1년차 공통기초→2년차 전공핵심→3년차 프로젝트·입시",
+      "structure": "기초 표현력→전공 기초→전공 심화→입시 실기 적용→실전 완성도",
       "foundation": [
         "선·도형·비례",
         "관찰드로잉·측정",
@@ -1883,7 +1817,7 @@ window.HI5_ROADMAP_CONTENT = {
     {
       "id": "T08",
       "name": "시각·브랜드 디자인",
-      "structure": "1년차 공통기초→2년차 전공핵심→3년차 프로젝트·입시",
+      "structure": "기초 표현력→전공 기초→전공 심화→입시 실기 적용→실전 완성도",
       "foundation": [
         "선·도형·비례",
         "관찰드로잉·측정",
@@ -1902,7 +1836,7 @@ window.HI5_ROADMAP_CONTENT = {
     {
       "id": "T09",
       "name": "편집·패키지 디자인",
-      "structure": "1년차 공통기초→2년차 전공핵심→3년차 프로젝트·입시",
+      "structure": "기초 표현력→전공 기초→전공 심화→입시 실기 적용→실전 완성도",
       "foundation": [
         "선·도형·비례",
         "관찰드로잉·측정",
@@ -1921,7 +1855,7 @@ window.HI5_ROADMAP_CONTENT = {
     {
       "id": "T10",
       "name": "광고·콘텐츠 디자인",
-      "structure": "1년차 공통기초→2년차 전공핵심→3년차 프로젝트·입시",
+      "structure": "기초 표현력→전공 기초→전공 심화→입시 실기 적용→실전 완성도",
       "foundation": [
         "선·도형·비례",
         "관찰드로잉·측정",
@@ -1940,7 +1874,7 @@ window.HI5_ROADMAP_CONTENT = {
     {
       "id": "T11",
       "name": "UI·UX 디자인",
-      "structure": "1년차 공통기초→2년차 전공핵심→3년차 프로젝트·입시",
+      "structure": "기초 표현력→전공 기초→전공 심화→입시 실기 적용→실전 완성도",
       "foundation": [
         "선·도형·비례",
         "관찰드로잉·측정",
@@ -1959,7 +1893,7 @@ window.HI5_ROADMAP_CONTENT = {
     {
       "id": "T12",
       "name": "모션·영상 디자인",
-      "structure": "1년차 공통기초→2년차 전공핵심→3년차 프로젝트·입시",
+      "structure": "기초 표현력→전공 기초→전공 심화→입시 실기 적용→실전 완성도",
       "foundation": [
         "선·도형·비례",
         "관찰드로잉·측정",
@@ -1978,7 +1912,7 @@ window.HI5_ROADMAP_CONTENT = {
     {
       "id": "T13",
       "name": "산업·제품 디자인",
-      "structure": "1년차 공통기초→2년차 전공핵심→3년차 프로젝트·입시",
+      "structure": "기초 표현력→전공 기초→전공 심화→입시 실기 적용→실전 완성도",
       "foundation": [
         "선·도형·비례",
         "관찰드로잉·측정",
@@ -1997,7 +1931,7 @@ window.HI5_ROADMAP_CONTENT = {
     {
       "id": "T14",
       "name": "자동차·모빌리티 디자인",
-      "structure": "1년차 공통기초→2년차 전공핵심→3년차 프로젝트·입시",
+      "structure": "기초 표현력→전공 기초→전공 심화→입시 실기 적용→실전 완성도",
       "foundation": [
         "선·도형·비례",
         "관찰드로잉·측정",
@@ -2016,7 +1950,7 @@ window.HI5_ROADMAP_CONTENT = {
     {
       "id": "T15",
       "name": "공간·실내 디자인",
-      "structure": "1년차 공통기초→2년차 전공핵심→3년차 프로젝트·입시",
+      "structure": "기초 표현력→전공 기초→전공 심화→입시 실기 적용→실전 완성도",
       "foundation": [
         "선·도형·비례",
         "관찰드로잉·측정",
@@ -2035,7 +1969,7 @@ window.HI5_ROADMAP_CONTENT = {
     {
       "id": "T16",
       "name": "전시·VMD·무대미술",
-      "structure": "1년차 공통기초→2년차 전공핵심→3년차 프로젝트·입시",
+      "structure": "기초 표현력→전공 기초→전공 심화→입시 실기 적용→실전 완성도",
       "foundation": [
         "선·도형·비례",
         "관찰드로잉·측정",
@@ -2054,7 +1988,7 @@ window.HI5_ROADMAP_CONTENT = {
     {
       "id": "T17",
       "name": "패션 디자인",
-      "structure": "1년차 공통기초→2년차 전공핵심→3년차 프로젝트·입시",
+      "structure": "기초 표현력→전공 기초→전공 심화→입시 실기 적용→실전 완성도",
       "foundation": [
         "선·도형·비례",
         "관찰드로잉·측정",
@@ -2073,7 +2007,7 @@ window.HI5_ROADMAP_CONTENT = {
     {
       "id": "T18",
       "name": "텍스타일 디자인",
-      "structure": "1년차 공통기초→2년차 전공핵심→3년차 프로젝트·입시",
+      "structure": "기초 표현력→전공 기초→전공 심화→입시 실기 적용→실전 완성도",
       "foundation": [
         "선·도형·비례",
         "관찰드로잉·측정",
@@ -2092,7 +2026,7 @@ window.HI5_ROADMAP_CONTENT = {
     {
       "id": "T19",
       "name": "금속·주얼리 디자인",
-      "structure": "1년차 공통기초→2년차 전공핵심→3년차 프로젝트·입시",
+      "structure": "기초 표현력→전공 기초→전공 심화→입시 실기 적용→실전 완성도",
       "foundation": [
         "선·도형·비례",
         "관찰드로잉·측정",
@@ -2111,7 +2045,7 @@ window.HI5_ROADMAP_CONTENT = {
     {
       "id": "T20",
       "name": "도자·세라믹 디자인",
-      "structure": "1년차 공통기초→2년차 전공핵심→3년차 프로젝트·입시",
+      "structure": "기초 표현력→전공 기초→전공 심화→입시 실기 적용→실전 완성도",
       "foundation": [
         "선·도형·비례",
         "관찰드로잉·측정",
@@ -2130,7 +2064,7 @@ window.HI5_ROADMAP_CONTENT = {
     {
       "id": "T21",
       "name": "가구·리빙 디자인",
-      "structure": "1년차 공통기초→2년차 전공핵심→3년차 프로젝트·입시",
+      "structure": "기초 표현력→전공 기초→전공 심화→입시 실기 적용→실전 완성도",
       "foundation": [
         "선·도형·비례",
         "관찰드로잉·측정",
@@ -2149,7 +2083,7 @@ window.HI5_ROADMAP_CONTENT = {
     {
       "id": "T22",
       "name": "AI·융합 콘텐츠 디자인",
-      "structure": "1년차 공통기초→2년차 전공핵심→3년차 프로젝트·입시",
+      "structure": "기초 표현력→전공 기초→전공 심화→입시 실기 적용→실전 완성도",
       "foundation": [
         "선·도형·비례",
         "관찰드로잉·측정",

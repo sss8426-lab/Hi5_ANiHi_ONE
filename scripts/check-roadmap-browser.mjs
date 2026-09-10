@@ -74,7 +74,7 @@ try {
     await page.getByRole('link', { name: '교직원 로그인', exact: true }).waitFor();
     assert.equal(await page.locator('#resultGoal').textContent(), '웹툰 작가');
     assert.ok((await page.locator('#careerOutcome').textContent()).includes('단편 웹툰'));
-    assert.equal(await page.locator('.timeline li').count(), 6);
+    assert.equal(await page.locator('.timeline li').count(), 5);
     assert.equal(await page.locator('.preparation-item').count(), 4);
     assert.equal(await page.locator('.bar-row').count(), 0);
     await noOverflow();

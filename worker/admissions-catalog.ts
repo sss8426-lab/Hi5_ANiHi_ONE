@@ -197,6 +197,8 @@ export async function handleAdmissionsCatalog(request: Request, env: Env): Promi
         verificationStatus:'public-source-unverified',guidelineId:saved.id,admissionSeason:r.admissionSeason}});
     }
     if(url.searchParams.has('page')){
+      // Saved guidelines are readable now; this ordering does not link them to legacy university rows.
+      rows.sort((a,b)=>Number(Boolean(b.metadata?.guidelineId))-Number(Boolean(a.metadata?.guidelineId)));
       const views=rows.map(programView);
       const filtered=filterPrograms(views,Object.fromEntries(url.searchParams));
       const paging=paginate(filtered,Number(url.searchParams.get('page')));

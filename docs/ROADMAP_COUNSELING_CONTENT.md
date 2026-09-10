@@ -4,7 +4,15 @@
 
 The existing `/data-core/roadmap` uses the supplied 2026-09-03 confirmed screen structure:
 two families, 35 career cards, related majors, university information, verified admissions
-ratios, a six-stage career path, and four public preparation stages.
+ratios, five skill-growth stages under `실기향상 로드맵`, and four public lesson groups.
+
+The 2026-09-11 career audit supersedes the original time-based progression. Stages are
+기초 표현력 / 전공 기초 / 전공 심화 / 입시 실기 적용 / 실전 완성도, not school years,
+employment milestones or a promised completion period. All 35 summaries, distinct
+outcomes, neighboring-role explanations and final skill checks are reviewed in
+`scripts/roadmap-career-review.json`. The workbook importer reapplies that allowlisted
+editorial layer so regeneration preserves it and keeps former names in aliases.
+See `ROADMAP_CAREER_AUDIT_2026-09-11.md` for the complete review and limitations.
 
 The spreadsheet export contains 22 track summaries and the 20 common lesson areas.
 The 792 monthly plans, weekly assignments, rubrics and progression scores remain in
@@ -23,12 +31,18 @@ The UI does not implement student assessment or personal placement from the earl
 - University examples from the workbook are explicitly reference-only, not verified admissions.
 - No database migration, production sync, binding modification, or original record overwrite.
 
-Existing DATA CORE authenticated graph APIs remain the source of connected university
-programs. Career matching is exact, including explicit aliases; related major matching
-is exact. No admissions student records are requested.
+The authenticated DATA CORE admissions catalog supplies connected university programs.
+Department-name associations are explicit keywords, not exact curriculum equivalence.
+Game arts no longer suggest explicitly named game engineering/software degrees unless
+the name also identifies an arts track. Broad/mixed names still need curriculum review.
+No canonical university mapping is changed or forced. Paginated results put readable
+saved guidelines before legacy reference rows; neither source is overwritten.
+The API does not expose admissions student records.
 
-Ratios require a year, HTTPS source, explicit approved/verified status and valid review
-date. Invalid or missing numbers never become zero. Displayed averages use the latest
+Legacy verified ratios require a year, HTTPS source, approved status and valid review
+date. Stored public guidelines also display strict parsed ratios, with an explicit
+unverified-public-source warning. Incomplete/staged formulas remain unknown.
+Invalid or missing numbers never become zero. Displayed averages use the latest
 available year, unique program/method rows, and explicitly identify their limited sample.
 They are not presented as a whole-major average, ranking, or admission probability.
 The original data and API response contracts are unchanged.

@@ -2,6 +2,13 @@
 
 기준일: 2026-09-07
 
+## 2026-09-11 직업 상담 내용 감사
+
+D001~D035를 보존하며 직업별 설명·결과물·차이와 다섯 단계의 `실기향상 로드맵`을 정리했다.
+네 직업의 쉬운 표시명은 이전 이름을 alias로 유지한다. 대학·입시 데이터는 읽기 전용으로 점검하며
+review mapping을 강제 연결하지 않는다. 상세 결과와 남은 한계는 `ROADMAP_CAREER_AUDIT_2026-09-11.md` 참조.
+배포 성공 여부와 production 버전은 해당 PR의 최종 증거로 별도 확인한다.
+
 ## 2026-09-09 Issue #18 derivative implementation
 
 Instagram now has a deterministic Canvas 4:5 editor, 2160 x 2700 PNG save to the existing FILES, immutable original-file provenance in existing DATA CORE JSON metadata, and draft `derivedFileIds`. Source permissions are inherited and rechecked on output reads. No AI generation, external posting, new DB, schema/binding changes, or real-data migration is included. Existing Phase A/other Phase B production acceptance is not rerun. Production acceptance for these two new items must be recorded separately in Issue #18 after CI, Preview, production deploy and synthetic-only smoke; implementation alone is not production proof.
