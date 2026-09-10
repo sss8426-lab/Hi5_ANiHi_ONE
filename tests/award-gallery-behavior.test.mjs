@@ -92,6 +92,41 @@ test('folder deletion calls only the record endpoint, never the file or R2 delet
   assert.deepEqual(calls.filter(([,method])=>method==='DELETE'), [['/api/data-core/records/synthetic','DELETE']]);
 });
 
+test('select all toggles only current-folder files without writes and clears stale selection', async () => {
+  const h = harness(), calls = [];
+  h.context.api = async (...args) => { calls.push(args); return {files:[]}; };
+  h.run("state.awardFolders=[{id:'a'},{id:'b'}];state.selectedAwardFolderId='a';state.awardFiles=[{id:'a1',recordId:'a'},{id:'a2',recordId:'a'},{id:'b1',recordId:'b'}];awardSelected.add('stale');updateAwardSelection()");
+  assert.equal(h.run('awardSelected.size'),0);
+  assert.equal(h.element('selectAllAwardsBtn').disabled,false);
+  assert.equal(h.element('deleteSelectedAwardsBtn').disabled,true);
+  h.run('toggleAllAwards()');
+  assert.equal(h.run('JSON.stringify([...awardSelected])'),'["a1","a2"]');
+  assert.equal(h.element('selectAllAwardsBtn').textContent,'전체해제');
+  assert.equal(h.element('awardSelectionCount').textContent,'선택 2개');
+  h.run("awardSelected.delete('a1');updateAwardSelection()");
+  assert.equal(h.element('selectAllAwardsBtn').textContent,'전체선택');
+  h.run('toggleAllAwards();toggleAllAwards()');
+  assert.equal(h.run('awardSelected.size'),0);
+  assert.equal(h.element('deleteSelectedAwardsBtn').disabled,true);
+  assert.deepEqual(calls,[]);
+  h.run("toggleAllAwards();state.selectedAwardFolderId='b'");
+  await h.run('loadAwardFiles()');
+  assert.equal(h.run('awardSelected.size'),0);
+  assert.equal(h.element('selectAllAwardsBtn').disabled,true);
+  assert.ok(calls.every(([,options])=>!options?.method || options.method==='GET'));
+});
+
+test('select all respects read-only, non-master, missing folder, loading and deletion states', () => {
+  for (const condition of ['state.context.canWrite=false','state.context.isSuperAdmin=false',"state.selectedAwardFolderId=null",'awardFilesLoading=true','awardDeleteBusy=true']) {
+    const h=harness();
+    h.run("state.awardFolders=[{id:'a'}];state.selectedAwardFolderId='a';state.awardFiles=[{id:'a1',recordId:'a'}]");
+    h.run(condition+';updateAwardSelection();toggleAllAwards()');
+    assert.equal(h.run('awardSelected.size'),0,condition);
+    assert.equal(h.element('selectAllAwardsBtn').disabled,true,condition);
+    assert.equal(h.element('deleteSelectedAwardsBtn').disabled,true,condition);
+  }
+});
+
 test('selection deletion snapshots folder, checks ownership, preserves unselected files and handles partial failure', async () => {
   const h = harness(), calls = [];
   h.context.api = async (url, options) => {

@@ -826,9 +826,31 @@ function clearAwardImages() {
   $('awardLightbox')?.close();
 }
 function updateAwardSelection() {
-  $('awardSelectionBar').classList.toggle('hidden', !awardSelected.size);
+  const selectable = selectableAwardFiles();
+  const ids = new Set(selectable.map(file => file.id));
+  for (const id of awardSelected) if (!ids.has(id)) awardSelected.delete(id);
+  const allSelected = selectable.length > 0 && selectable.every(file => awardSelected.has(file.id));
+  $('awardSelectionBar').classList.toggle('hidden', !selectable.length);
   $('awardSelectionCount').textContent = `선택 ${awardSelected.size}개`;
-  $('deleteSelectedAwardsBtn').disabled = awardDeleteBusy || !canWrite();
+  $('selectAllAwardsBtn').textContent = allSelected ? '전체해제' : '전체선택';
+  $('selectAllAwardsBtn').disabled = awardDeleteBusy || awardFilesLoading || !selectable.length;
+  $('deleteSelectedAwardsBtn').disabled = awardDeleteBusy || awardFilesLoading || !awardSelected.size;
+  $('awardLibraryFiles').querySelectorAll('[data-award-select]').forEach(checkbox => {
+    checkbox.checked = awardSelected.has(checkbox.dataset.awardSelect);
+    checkbox.disabled = awardDeleteBusy || awardFilesLoading || !ids.has(checkbox.dataset.awardSelect);
+  });
+}
+function selectableAwardFiles() {
+  const folder = selectedAwardFolder();
+  return folder ? state.awardFiles.filter(file => file.recordId === folder.id && canDeleteAward(file)) : [];
+}
+function toggleAllAwards() {
+  if (awardDeleteBusy || awardFilesLoading) return;
+  const selectable = selectableAwardFiles();
+  const allSelected = selectable.length > 0 && selectable.every(file => awardSelected.has(file.id));
+  awardSelected.clear();
+  if (!allSelected) for (const file of selectable) awardSelected.add(file.id);
+  updateAwardSelection();
 }
 function canDeleteAward(file) {
   return canWrite() && isSuperAdmin();
@@ -845,6 +867,7 @@ async function deleteSelectedAwards() {
   const pending = awardDeletePending;
   if (awardDeleteBusy || !pending || pending.folderId !== state.selectedAwardFolderId) return;
   awardDeleteBusy = true;
+  updateAwardSelection();
   $('confirmAwardDeleteBtn').disabled = true;
   let deleted = 0;
   try {
@@ -1503,6 +1526,7 @@ function bindEvents() {
     await previewCompetitionSource('mgood');
   };
   $('deleteSelectedAwardsBtn').onclick = requestAwardDelete;
+  $('selectAllAwardsBtn').onclick = toggleAllAwards;
   $('cancelAwardDeleteBtn').onclick = () => $('awardDeleteDialog').close();
   $('confirmAwardDeleteBtn').onclick = deleteSelectedAwards;
   window.addEventListener('pagehide', clearAwardImages);
