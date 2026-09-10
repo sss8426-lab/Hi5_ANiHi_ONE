@@ -40,3 +40,9 @@ The supplied archive has 49 images. Exact matching finds 21 logo assets used by 
 Local browser checks: 85 connected-flow checks (including artwork fallback/lightbox), 103 roadmap checks, 113 admissions checks. Desktop, tablet, 390px and 320px mobile checked; 49 logo assets and six foundation photographs decode successfully. All 265 behavior tests pass; build, TypeScript and all 46 public browser JavaScript syntax checks pass. Wrangler dry-run preserves existing bindings.
 
 Production sync must use a new preview and its existing token/100-item batches, preserving higher-priority, deleted and concurrently changed records. Production completion/version is recorded in the PR after the deployment and read-only smoke succeed, not inferred from local tests.
+
+## Production Follow-up
+
+PR #180 passed CI and immutable Preview, then deployed as Worker `95c91a95-b616-4d05-bce4-3f00c647d126`. The fresh public sync applied 2,643 susi and 1,183 jungsi guideline records; no new or held records. Mapping review remains separate (271 susi, 892 jungsi) and is not forced. All 3,826 stored selection formulas equal their anonymous-public source. Numeric single-stage ratios: 2,818; staged/unresolved: 1,008. Protected state and legacy artwork object hashes remain unchanged.
+
+Production thumbnail smoke revealed that empty representative-image strings could precede real artwork entries. Ignore blank representatives and deduplicate all existing path aliases, retaining the richer array entry and its original slot. Read-only replay of the exact browser selector plus server resolver yields 100 matching student thumbnails, 58 genuinely empty students, zero missing and zero ambiguous thumbnails. Existing student JSON remains byte-equivalent. The regression suite now contains 266 passing tests. This follow-up requires its own CI/Preview and production smoke before completion.

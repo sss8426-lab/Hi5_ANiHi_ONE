@@ -20,6 +20,27 @@ test('case images retain their existing path instead of entering the student-onl
   assert.equal(JSON.stringify(context.studentArtworks(record,false)),JSON.stringify(record.artworks));
 });
 
+test('legacy representative image aliases keep the richer artwork entry and its original array slot',()=>{
+  const source=fs.readFileSync('public/admissions-web/renderer/app.js','utf8');
+  const code=source.slice(source.indexOf('function studentArtworks('),source.indexOf('function studentArtworkImage('));
+  const context=vm.createContext({location:{protocol:'https:'},imgSrc:value=>value});
+  vm.runInContext(code,context);
+  for(const field of ['path','filePath','imageUrl','url','downloadUrl']){
+    const record={id:'synthetic',artworkImage:'/api/files/stale.png',artworks:[{[field]:'/api/files/stale.png',fileName:'original.png'}]};
+    const before=JSON.stringify(record),images=context.studentArtworks(record);
+    assert.equal(images.length,1,field);
+    assert.equal(images[0].displayUrl,'/api/admissions/students/synthetic/artworks/0');
+    assert.equal(images[0].fileName,'original.png');
+    assert.equal(JSON.stringify(record),before);
+  }
+  for(const value of ['', '   ']){
+    assert.equal(context.studentArtworks({id:'synthetic',artworkImage:value}).length,0);
+    const images=context.studentArtworks({id:'synthetic',artworkImage:value,artworks:[{path:'/api/files/stale.png',fileName:'original.png'}]});
+    assert.equal(images.length,1);
+    assert.equal(images[0].displayUrl,'/api/admissions/students/synthetic/artworks/0');
+  }
+});
+
 test('complete percentages preserve zeros, sum school record and CSAT, and keep non-academic factors separate',()=>{
   for(const [formula,academic,practical,other] of [['학생부20/실기80',20,80,0],['학생부 20 + 수능 30 + 실기 40 + 면접 10',50,40,10],['실기100',0,100,0],['학생부100',100,0,0],['수능100',100,0,0],['실기80/서류10/출결10',0,80,20],['수능33.3+학생부33.3+실기33.4',66.6,33.4,0]]){
     const r=selectionRatios(formula);assert.equal(r.ratioStatus,'simple',formula);assert.equal(r.academicRatio,academic);assert.equal(r.practicalRatio,practical);assert.equal(r.otherRatio,other);
