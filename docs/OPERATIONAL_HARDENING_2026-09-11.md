@@ -41,6 +41,15 @@ is synthetic and read-only; production URLs are rejected by the runner.
 No forced override, framework beta upgrade or migration-tool downgrade was used.
 The lockfile retains Windows/Linux/macOS optional binaries for CI and local development.
 
+Cloudflare uses pnpm 10.11.1 with a frozen `pnpm-lock.yaml`, while local/GitHub CI use npm.
+The first Preview stopped before build because the pnpm importer still referenced the old
+direct versions (`ERR_PNPM_OUTDATED_LOCKFILE`). Update the named dependencies with
+`pnpm@10.11.1 update --lockfile-only --ignore-scripts`, retaining the newer existing pnpm
+transitive versions rather than importing older npm resolutions. The nested js-yaml update
+also uses `--depth 10`. GitHub CI now validates the deployment lock using
+`pnpm install --lockfile-only --frozen-lockfile --ignore-scripts`. Do not disable frozen
+installation or delete the deployment lockfile. Both dependency graphs require audit.
+
 Primary security references:
 
 - [Vite Windows filesystem denial bypass, patched in 8.0.16](https://github.com/vitejs/vite/security/advisories/GHSA-fx2h-pf6j-xcff).
@@ -49,6 +58,11 @@ Primary security references:
 `npm audit` snapshot: **23 -> 12** affected dependency entries; high **16 -> 8**,
 moderate **6 -> 4**, low **1 -> 0**, critical **0**. Counts include transitive dependants,
 not 12 independently reachable production exploits. They can change with new advisories.
+
+The separate pnpm audit snapshot is **28 -> 20 advisory entries**: high **16 -> 9**,
+moderate **9 -> 8**, low **3 -> 3**, critical **0**. Its advisory counting and resolved graph
+differ from npm, so these totals must not be combined or described as the same metric.
+Remaining pnpm advisory modules are esbuild, ws, undici, sharp and image-size.
 
 ### Remaining work, not hidden
 
