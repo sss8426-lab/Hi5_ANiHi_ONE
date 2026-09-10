@@ -118,7 +118,31 @@ try {
  await page.locator('#uploadSubmitBtn').click();await page.locator('#retryUploadsBtn:not(.hidden)').waitFor();assert.equal(files.length,9);
   await page.screenshot({path:`${out}/retry.png`});
  await page.locator('#retryUploadsBtn').click();await page.locator('#uploadModal').waitFor({state:'hidden'});assert.equal(files.length,10);checks+=2;
- for(const checkbox of await page.locator('[data-award-select]').all())await checkbox.check();
+ await page.locator('#selectAllAwardsBtn').waitFor();
+ assert.equal(await page.locator('#deleteSelectedAwardsBtn').isDisabled(),true);
+ await page.locator('#selectAllAwardsBtn').click();
+ assert.equal(await page.locator('[data-award-select]:checked').count(),10);
+ assert.equal(await page.locator('#selectAllAwardsBtn').innerText(),'전체해제');
+ await page.locator('[data-award-select]').first().uncheck();
+ assert.equal(await page.locator('#selectAllAwardsBtn').innerText(),'전체선택');
+ await page.locator('#selectAllAwardsBtn').click();
+ assert.equal(await page.locator('[data-award-select]:checked').count(),10);
+ await page.locator('#selectAllAwardsBtn').click();
+ assert.equal(await page.locator('[data-award-select]:checked').count(),0);
+ assert.equal(files.length,10);
+ for(const width of [1920,820,390,320]){
+  await page.setViewportSize({width,height:1000});
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
+  await page.screenshot({path:`${out}/select-all-${width}.png`});
+ }
+ await page.locator('#selectAllAwardsBtn').click();
+ await page.locator('[data-award-folder-id="synthetic-1"]').click();
+ await page.locator('#awardLibraryFiles .empty-state').waitFor();
+ assert.equal(await page.locator('#awardSelectionBar').isVisible(),false);
+ await page.locator('[data-award-folder-id="synthetic-0"]').click();
+ await page.locator('[data-award-select]').first().waitFor();
+ assert.equal(await page.locator('[data-award-select]:checked').count(),0);
+ await page.locator('#selectAllAwardsBtn').click();checks+=15;
  await page.locator('#deleteSelectedAwardsBtn').click();assert.equal(await page.evaluate(()=>document.activeElement.id),'cancelAwardDeleteBtn');
  await page.keyboard.press('Enter');assert.equal(files.length,10);
  await page.locator('#deleteSelectedAwardsBtn').click();await page.locator('#confirmAwardDeleteBtn').click();await page.locator('#awardDeleteDialog').waitFor({state:'hidden'});assert.equal(files.length,0);checks+=3;
