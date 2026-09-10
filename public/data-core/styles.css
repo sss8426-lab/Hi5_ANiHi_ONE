@@ -490,6 +490,28 @@ body.mode-home-artwork-active .mode-card:focus-visible .mode-artwork-arrow {
   background: #2563eb;
 }
 
+/* Keep the approved group photographs intact instead of stretching to viewport height. */
+body.mode-home-artwork-active .photographic-modes { align-content: start; }
+body.mode-home-artwork-active .photographic-modes .mode-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+body.mode-home-artwork-active .photographic-modes .mode-card img {
+  position: relative;
+  inset: auto;
+  display: block;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  flex-shrink: 0;
+}
+body.mode-home-artwork-active .photographic-modes .mode-overlay {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  flex: 1;
+}
+
 @media (min-width: 681px) and (max-width: 980px) {
   body.mode-home-artwork-active .app-shell { grid-template-columns: 210px minmax(0, 1fr); }
   body.mode-home-artwork-active .sidebar { padding: 20px 14px; }
