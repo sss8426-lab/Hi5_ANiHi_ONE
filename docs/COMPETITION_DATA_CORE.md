@@ -195,6 +195,8 @@ audit_logs
 
 ## 수상작 폴더 갤러리 (2026-09-09)
 
+> 아래 과거 삭제 정책은 2026-09-10 정책으로 대체되었다. 수상작 화면의 파일 삭제는 마스터 전용 영구삭제이며, 비어 있지 않은 폴더 삭제는 차단한다.
+
 - 기존 `competition-award-folder` record와 `competition-material` 파일 연결을 그대로 사용한다. 스키마/바인딩 변경은 없다.
 - `+ 새 폴더`는 맨 왼쪽에 두고 폴더명/캠퍼스는 모달에서 입력한다. 폴더는 생성순으로 표시한다.
 - 선택 폴더만 표시하며, 이전 요청의 지연 응답/오류와 다른 recordId의 파일은 갤러리에 반영하지 않는다.
@@ -218,3 +220,15 @@ audit_logs
 - UI는 출처별 external ID로 중복 제거 후 마감일, 접수중 우선, 제목순으로 정렬한다. 성공한 빈 목록은 오래된 항목을 제거하고 실패한 페이지의 마지막 정상 자료는 오류 표시와 함께 유지한다. 달력은 동일 필터 결과를 투영할 뿐 DB 일정을 생성하지 않는다.
 - 실제 공개 목록/상세 링크 검증: `node --use-system-ca scripts/check-competition-live-sources.mjs`. DATA CORE D1/R2는 일회성 로컬 fixture만 사용한다. TLS 검증을 비활성화하지 않는다.
 - 2026-09-09 소스 실측: Art&Design 24개 중 접수중 2/제외 22, Mgood main 20개 중 접수중 0/예정 0, other 20개 중 접수중 2/예정 1. 세 목록과 노출되는 다섯 상세 링크 HTTP 200. 이 수치는 조회 시점 기준이다.
+
+## Upload progress and award deletion (2026-09-10)
+
+- Existing multipart upload API, authoritative folder filename, campus/owner rules and FILES binding are retained. `upload-queue.js` uses at most three XHRs and real multipart upload-byte events. Selection bytes exclude multipart overhead; transfer totals include it. 100% requires every server success response, not merely finishing the request body.
+- Selection shows a count/size summary with an optional collapsed list. Failed requests can be retried without repeating successful requests. Cancelling aborts active XHRs and stops waiting items; confirmed successes are never rolled back. An already accepted server request may finish despite a client abort. Gallery refresh remains authoritative; transport errors advise checking the gallery before retrying.
+- Upload destination is a frozen folder/campus/category snapshot. D1 inserts require the linked record still to be active. New-upload metadata failures compensate only the new row/object, never an existing file.
+- `DELETE /api/data-core/files/:id?awardFolderId=:folderId` now invokes the existing purge function directly for valid competition-material files in competition-award-folder records. Same-origin and server SUPER_ADMIN checks are mandatory. Generic file DELETE without this parameter still uses soft-trash. No permission expansion.
+- Permanent deletion checks live and trashed DATA CORE content/derivative metadata, knowledge metadata, legacy app_state and the active legacy admissions state object's references. Legacy JSON is scanned as a bounded stream without logging records. A referenced file returns 409; no cascading detach or delete occurs.
+- Purge writes a start audit, claims a per-file tombstone, rechecks references, deletes R2, then batches completion audit and row removal. R2/DB failures restore the retained R2 body by streaming and restore the previous row status. A concurrent purge/restore is rejected. If compensation itself fails or execution is interrupted, the tombstone and start audit remain for operator reconciliation; D1/R2 are not a distributed transaction. Audit records intentionally remain.
+- Folder DELETE checks all attached files, including trash, and uses an atomic conditional update. Only empty folders can be soft-deleted; no folder operation deletes R2 contents.
+- Folder track never wraps, supports touch scroll, truncates long labels without changing data, and moves to the next offscreen item's actual bounds. Selected/new folders are exposed automatically. Arrows are 32px with endpoint disabled states.
+- Synthetic verification: `tests/upload-queue.test.mjs`, updated D1/R2 behavior tests including failure compensation, and `scripts/check-award-transfer-browser.mjs` (1/10/30 uploads and six viewport widths). Preview mode intercepts every API and uses Preview static assets only; it is not production-write evidence. Production synthetic evidence is recorded on the release PR separately.

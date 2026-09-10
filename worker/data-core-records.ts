@@ -441,12 +441,18 @@ export async function deleteDataRecord(
   if (!canMutateRow(context, existing)) {
     throw new DataCoreAccessError(403, "본인이 등록한 데이터만 삭제할 수 있습니다.");
   }
+  if (existing.record_type === 'competition-award-folder') {
+    const linked = await db.prepare('SELECT id FROM file_objects WHERE data_record_id = ? LIMIT 1').bind(recordId).first();
+    if (linked) throw new DataCoreAccessError(409, '폴더 안에 수상작이 있습니다. 먼저 수상작을 삭제하세요.');
+  }
 
   const now = new Date().toISOString();
-  await db
-    .prepare("UPDATE data_records SET status = 'deleted', deleted_at = ?, updated_at = ? WHERE id = ?")
-    .bind(now, now, recordId)
+  const result = await db
+    .prepare(`UPDATE data_records SET status = 'deleted', deleted_at = ?, updated_at = ? WHERE id = ?
+      AND (record_type <> 'competition-award-folder' OR NOT EXISTS (SELECT 1 FROM file_objects WHERE data_record_id = ?))`)
+    .bind(now, now, recordId, recordId)
     .run();
+  if (Number(result.meta?.changes) !== 1) throw new DataCoreAccessError(409, '폴더 안에 수상작이 있습니다. 먼저 수상작을 삭제하세요.');
   await audit(
     db,
     context,

@@ -209,13 +209,14 @@ async function initializeSchema(db: D1Database): Promise<void> {
 
 export async function recordFileObject(db: D1Database, input: FileObjectInput): Promise<void> {
   await ensureDataCoreDatabase(db);
-  await db
+  const result = await db
     .prepare(
       `INSERT INTO file_objects (
         id, organization_id, campus_id, data_record_id, owner_user_id,
         area, category, source_app, r2_key, original_file_name, mime_type,
         size_bytes, visibility, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        WHERE ? IS NULL OR EXISTS (SELECT 1 FROM data_records WHERE id = ? AND deleted_at IS NULL)`,
     )
     .bind(
       input.id,
@@ -232,8 +233,11 @@ export async function recordFileObject(db: D1Database, input: FileObjectInput): 
       input.sizeBytes || 0,
       input.visibility,
       input.createdAt,
+      input.dataRecordId || null,
+      input.dataRecordId || null,
     )
     .run();
+  if (Number(result.meta?.changes) !== 1) throw new Error('연결 폴더 상태가 변경되어 파일을 저장하지 않았습니다.');
 }
 
 export async function dataCoreHealth(db?: D1Database, files?: R2Bucket) {
