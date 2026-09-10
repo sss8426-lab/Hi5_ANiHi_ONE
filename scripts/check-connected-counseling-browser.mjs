@@ -42,7 +42,7 @@ try{
   }
   await page.setViewportSize({width:1440,height:1000});
   const pixel=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a7l0AAAAASUVORK5CYII=','base64');
-  await ctx.route('**/api/data',route=>route.fulfill({json:{students:[{id:'synthetic-student',studentType:'result',name:'합성 확인 학생',grade:'고2',artworks:[{path:'/api/files/student-artwork%2Fmissing.png',fileName:'original.png',name:'합성 그림'}]}],universities:[],cases:[],awardFolders:[],settings:{}}}));
+  await ctx.route('**/api/data',route=>route.fulfill({json:{students:[{id:'synthetic-student',studentType:'result',name:'합성 확인 학생',grade:'고2',artworkImage:'',image:'/api/files/student-artwork%2Fmissing.png',artworks:[{url:'/api/files/student-artwork%2Fmissing.png',fileName:'original.png',name:'합성 그림'}]}],universities:[],cases:[],awardFolders:[],settings:{}}}));
   await ctx.route('**/api/admissions/students/synthetic-student/artworks/0',route=>route.fulfill({contentType:'image/png',body:pixel}));
   await page.goto(base+'/admissions-web/renderer/index.html#page=students');
   const thumbnail=page.locator('img.student-thumb');

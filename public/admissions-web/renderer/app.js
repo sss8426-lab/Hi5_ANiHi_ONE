@@ -214,7 +214,7 @@ function studentArtworks(student, resolveStudent = true){
   const normalized = source
     .map((item,index) => ({...(typeof item === 'string' ? {path:item} : item), _slot:String(index)}))
     .filter(item => item && (item.path||item.filePath||item.imageUrl||item.url||item.downloadUrl||item.dataCoreFileId));
-  for(const field of ['artworkImage','artwork','image'])if(typeof student?.[field]==='string'&&!normalized.some(item=>item.path===student[field])){
+  for(const field of ['artworkImage','artwork','image'])if(typeof student?.[field]==='string'&&student[field].trim()&&!normalized.some(item=>[item.path,item.filePath,item.imageUrl,item.url,item.downloadUrl].includes(student[field]))){
     normalized.unshift({path:student[field],name:'대표 그림',_slot:field});
   }
   return normalized.map(item=>{
