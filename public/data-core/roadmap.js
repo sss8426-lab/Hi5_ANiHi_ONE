@@ -1,4 +1,4 @@
-import { careerStages, programView, filterPrograms, admissionTrend, safeUrl, searchCareers } from './roadmap-model.js?v=20260910-connected';
+import { careerStages, programView, filterPrograms, admissionTrend, safeUrl, searchCareers } from './roadmap-model.js?v=20260911-practical';
 import {detail as showGuideline} from '/admissions-web/renderer/guidelines.js?v=20260910-connected';
 import {resolveUniversityLogo} from './university-logos.js?v=20260910-1';
 import {foundationImages} from './foundation-images.js?v=20260910-1';
@@ -36,6 +36,7 @@ function renderEducation(career) {
   $('resultGroup').textContent = `${familyNames[career.family]} / ${career.group}`;
   $('resultGoal').textContent = career.name;
   $('resultGoalSummary').textContent = career.summary;
+  $('careerDistinction').textContent = career.distinction || '';
   $('resultPortrait').innerHTML = art(career);
   $('changeGoalBtn').href = `#family=${career.family}`;
   $('majorGrid').innerHTML = career.majors.map((major) => `<span class="major-item">${h(major)}</span>`).join('');
@@ -45,10 +46,10 @@ function renderEducation(career) {
   $('referenceSources').innerHTML = content.sources.filter((s) => ['커리어넷', '대입정보포털 어디가', '전문대학포털'].includes(s.name) && safeUrl(s.url)).map((source) => `<a href="${h(safeUrl(source.url))}" target="_blank" rel="noopener noreferrer">${h(source.name)} ↗</a>`).join('');
   const steps = careerStages(career);
   $('curriculumTimeline').innerHTML = steps.map(([name, summary]) => `<li><h3>${h(name)}</h3><p>${h(summary)}</p></li>`).join('');
-  $('trackDescription').textContent = `${track?.name || career.name} · 미술 기초부터 전공 프로젝트와 입시까지 연결하는 학원 교육 가이드`;
+  $('trackDescription').textContent = `${track?.name || career.name} · 현재 작품에서 보완할 표현력과 목표 전형을 선생님과 함께 확인해요.`;
   const preparation = [
     ['미술 기초', career.foundation.join(' → '), '관찰하고 표현하는 힘'],
-    ['전공 기초', (track?.focus || career.specialization).join(' · '), '나의 전공 언어 익히기'],
+    ['전공 기초', career.specialization.join(' · '), '나의 전공 언어 익히기'],
     ['전공 심화', career.advanced.join(' → '), `대표 결과물: ${career.outcome}`],
     ['대학입시', career.preparation, '목표 대학의 최종 모집요강에 맞춰 준비'],
   ];
@@ -70,7 +71,7 @@ function renderUniversities() {
   renderUniversityPagination(pagination, count);
   $('universityFilters').hidden = !(state.total||state.programs.length);
   if (!rows.length) {
-    $('universityContent').innerHTML = `<p class="empty-state">${state.total||state.programs.length ? '선택한 조건에 해당하는 전형이 없습니다.' : '연결된 대학별 전형 정보가 아직 없습니다. 아래 대학·학과 예시부터 살펴보세요.'}</p>`;
+    $('universityContent').innerHTML = `<p class="empty-state">${state.total||state.programs.length ? '선택한 조건에 해당하는 전형이 없습니다.' : '연결 대학 검수 필요 · 확인된 대학별 전형 정보가 아직 없습니다. 참고 예시는 최신 공식 안내를 확인해주세요.'}</p>`;
     return;
   }
   $('universityContent').innerHTML = `<div class="university-grid">${rows.map((p) => {
@@ -116,7 +117,10 @@ function linkUniversitySources() {
   const rows = state.visiblePrograms;
   $('universityContent').querySelectorAll('.university-item').forEach((item,index) => {
     const row = rows[index];
-    if (!row?.guidelineId) return;
+    if (!row?.guidelineId) {
+      if(row?.verified && row.source){const link=document.createElement('a');link.className='university-source-link';link.href=row.source;link.target='_blank';link.rel='noopener noreferrer';link.textContent='공식 모집요강';item.append(link);}
+      return;
+    }
     const link = document.createElement('button');link.type='button';
     link.className = 'university-source-link';
     link.textContent = '입시요강 보기';

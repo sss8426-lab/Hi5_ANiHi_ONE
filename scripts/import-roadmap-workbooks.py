@@ -7,6 +7,22 @@ from pathlib import Path
 import openpyxl
 
 
+def apply_career_review(data):
+    review = json.loads(Path(__file__).with_name('roadmap-career-review.json').read_text(encoding='utf-8'))
+    assert set(review['careers']) == {c['id'] for c in data['careers']}
+    allowed = {'name', 'summary', 'majors', 'specialization', 'advanced', 'outcome', 'completionFocus', 'distinction'}
+    for career in data['careers']:
+        changes = review['careers'][career['id']]
+        assert set(changes) <= allowed
+        if changes.get('name', career['name']) != career['name']:
+            career['aliases'] = list(dict.fromkeys([*career['aliases'], career['name']]))
+        career.update(changes)
+    for track in data['tracks']:
+        track['structure'] = '기초 표현력→전공 기초→전공 심화→입시 실기 적용→실전 완성도'
+    data['version'] = review['version']
+    return data
+
+
 def rows(workbook, sheet):
     values = iter(workbook[sheet].values)
     headers = next(values)
@@ -55,7 +71,7 @@ def export(source, destination):
             'sources': [{'name': row['출처'], 'url': row['URL'], 'purpose': row['활용 정보']} for row in rows(careers_book, '출처·검수')],
             'provenance': [{'file': p.name, 'sha256': hashlib.sha256(p.read_bytes()).hexdigest()} for p in [career_path, curriculum_path]],
             'internalSummary': {'trackCount': len(tracks), 'monthlyPlanCount': len(months), 'monthlyPlansPublished': False}}
-    destination.write_text('window.HI5_ROADMAP_CONTENT = ' + json.dumps(data, ensure_ascii=False, indent=2) + ';\n', encoding='utf-8')
+    destination.write_text('window.HI5_ROADMAP_CONTENT = ' + json.dumps(apply_career_review(data), ensure_ascii=False, indent=2) + ';\n', encoding='utf-8')
     print(json.dumps({'careers': len(public_careers), 'tracks': len(public_tracks), 'internalMonthlyPlans': len(months), 'publicMonthlyPlans': 0}))
 
 

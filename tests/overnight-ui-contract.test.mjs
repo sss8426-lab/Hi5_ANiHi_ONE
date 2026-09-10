@@ -50,13 +50,13 @@ test('dream-major roadmap uses the source-backed career catalog and safe admissi
   assert.match(js, /programView/);
 });
 
-test('public counseling roadmap keeps six-stage preparation flow', async () => {
+test('public counseling roadmap follows five practical growth stages', async () => {
   const context = { window: {} };
   vm.runInNewContext(await read('public/data-core/roadmap-content.js'), context);
   for (const career of context.window.HI5_ROADMAP_CONTENT.careers) {
     const steps = careerStages(career);
-    assert.deepEqual(steps.map(([name]) => name), ['미술 기초', '전공 기초', '전공 심화', '대학입시', '대학 전공교육', '취업·창작·데뷔']);
+    assert.deepEqual(steps.map(([name]) => name), ['기초 표현력', '전공 기초', '전공 심화', '입시 실기 적용', '실전 완성도']);
     assert.ok(steps[0][1].includes(career.foundation[0]));
-    assert.ok(steps[5][1].includes(career.outcome));
+    assert.ok(steps[4][1].includes(career.outcome));
   }
 });

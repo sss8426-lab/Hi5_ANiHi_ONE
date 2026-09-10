@@ -13,12 +13,11 @@ export function matchServerGoal(career, goals) {
 }
 export function careerStages(career) {
   return [
-    ['미술 기초', career.foundation.join(' → ')],
-    ['전공 기초', career.specialization.slice(0, 2).join(' → ')],
+    ['기초 표현력', career.foundation.join(' → ')],
+    ['전공 기초', career.specialization.join(' → ')],
     ['전공 심화', career.advanced.join(' → ')],
-    ['대학입시', career.preparation],
-    ['대학 전공교육', `${career.majors.slice(0, 2).join('·')} 등 관련 전공에서 이론과 제작, 협업 경험을 넓혀요. 대학별 교육과정은 학과 홈페이지에서 확인해요.`],
-    ['취업·창작·데뷔', `${career.outcome}을 나만의 포트폴리오로 발전시키고, 창작과 진로를 준비해요.`],
+    ['입시 실기 적용', `${career.preparation}. 지원 전형의 최종 모집요강에 있는 과제·제출 조건에 맞춰 준비해요.`],
+    ['실전 완성도', `${career.completionFocus || career.outcome}. ${career.outcome}을 점검하며 주제 해석·시간 배분·작품 설명을 다듬어요.`],
   ];
 }
 export function safeUrl(value) {

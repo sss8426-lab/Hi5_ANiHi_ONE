@@ -23,7 +23,12 @@ export const careerMajorKeywords = {
   D032:['금속','주얼리','쥬얼리','보석'], D033:['도예','도자','세라믹','유리'], D034:['목조형','가구','리빙디자인','산업디자인'], D035:['ai디자인','융합콘텐츠','디자인이노베이션'],
 };
 export function matchesCareer(department, careerId) {
-  return (careerMajorKeywords[careerId] || []).some((term) => normalizeName(department).includes(normalizeName(term)));
+  const name = normalizeName(department);
+  // Narrow only explicit technical game degrees; mixed arts/technical names still need review.
+  if (['D009','D010','D011','D012'].includes(careerId) &&
+      /게임(?:소프트웨어|공학)|컴퓨터공학/.test(name) &&
+      !/그래픽|디자인|게임아트|애니메이션|만화/.test(name)) return false;
+  return (careerMajorKeywords[careerId] || []).some((term) => name.includes(normalizeName(term)));
 }
 
 export function universityIdentity(name, campus = '') {
