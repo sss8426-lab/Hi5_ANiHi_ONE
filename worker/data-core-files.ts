@@ -158,12 +158,6 @@ async function assertRecordLinkAllowed(
   return record;
 }
 
-export function awardUploadName(folderTitle: string, originalName: string) {
-  const title = folderTitle.replace(/[\\/:*?"<>|\u0000-\u001f\u007f]/g, '_').trim().replace(/[. ]+$/, '').slice(0, 140) || '수상작';
-  const extension = originalName.match(/\.[a-zA-Z0-9]{1,12}$/)?.[0] || '';
-  return title + extension;
-}
-
 async function assertHqWorkspaceUpload(
   db: D1Database,
   context: DataCoreAccessContext,
@@ -272,9 +266,8 @@ export async function uploadDataCoreFile(
   const { area, visibility, sourceApp } = profile;
   const year = cleanText(form.get("year"), 8).replace(/[^0-9]/g, "");
   const ownerRef = cleanText(form.get("ownerId"), 120) || "shared";
-  const linkedRecord = await assertRecordLinkAllowed(db, context, recordId, campusId);
-  const fileName = category === 'competition-material' && linkedRecord?.record_type === 'competition-award-folder'
-    && linkedRecord.source_app === 'competition' ? awardUploadName(linkedRecord.title, file.name) : file.name;
+  await assertRecordLinkAllowed(db, context, recordId, campusId);
+  const fileName = file.name;
 
   const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();
