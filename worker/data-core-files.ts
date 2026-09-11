@@ -15,6 +15,8 @@ import {
 } from "./data-core-access";
 import { canReadRegisteredFile, derivativeMetadata, DERIVATIVE_CATEGORY, DERIVATIVE_RECORD_TYPE } from './data-core-derivative-policy';
 import { libraryUploadTarget, libraryCanDelete, LIBRARY_FOLDER, LIBRARY_SOURCE } from './data-core-library-policy';
+import { privateImageResponse } from './private-image-response';
+import { THUMBNAIL_CATEGORY, THUMBNAIL_RECORD_TYPE, thumbnailSource } from './data-core-derivative-policy';
 
 const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024;
 const FILE_AREAS: DataCoreFileArea[] = [
@@ -144,7 +146,7 @@ async function assertRecordLinkAllowed(
     .bind(recordId, DEFAULT_ORGANIZATION_ID)
     .first<{ id: string; campus_id: string | null; created_by_user_id: string | null; record_type: string; source_app: string; title: string }>();
   if (!record) throw new DataCoreAccessError(400, "연결할 DATA CORE 레코드를 찾을 수 없습니다.");
-  if (record.record_type === DERIVATIVE_RECORD_TYPE) throw new DataCoreAccessError(403, '파생 이미지 원본 관계는 직접 연결할 수 없습니다.');
+  if ([DERIVATIVE_RECORD_TYPE,THUMBNAIL_RECORD_TYPE].includes(record.record_type)) throw new DataCoreAccessError(403, '파생 이미지 원본 관계는 직접 연결할 수 없습니다.');
   if (record.record_type === 'competition-award-folder' && record.campus_id) requireCampusAccess(context, record.campus_id);
   if (record.record_type === 'competition-award-folder' && record.campus_id !== campusId) {
     throw new DataCoreAccessError(400, '파일과 수상작 폴더의 캠퍼스가 다릅니다.');
@@ -245,7 +247,7 @@ export async function uploadDataCoreFile(
 
   const campusId = cleanText(form.get("campusId"), 120) || null;
   const category = cleanText(form.get("category") || form.get("purpose") || "general", 80) || "general";
-  if (category === DERIVATIVE_CATEGORY) throw new DataCoreAccessError(400, '파생 이미지 저장 기능을 사용하세요.');
+  if ([DERIVATIVE_CATEGORY,THUMBNAIL_CATEGORY].includes(category)) throw new DataCoreAccessError(400, '파생 이미지 저장 기능을 사용하세요.');
   const recordId = cleanText(form.get("recordId"), 120) || null;
   const libraryFolder = await libraryUploadTarget(db, context, recordId);
   if (libraryFolder && (libraryFolder.campusId !== campusId || libraryFolder.category !== category)) {
@@ -369,7 +371,7 @@ export async function listDataCoreFiles(
   const q = cleanText(url.searchParams.get("q"), 120);
   const limit = Math.min(Math.max(Number(url.searchParams.get("limit")) || 50, 1), 100);
 
-  const conditions = ["fo.organization_id = ?", "fo.deleted_at IS NULL"];
+  const conditions = ["fo.organization_id = ?", "fo.deleted_at IS NULL", "fo.category <> 'image-thumbnail'"];
   const bindings: unknown[] = [DEFAULT_ORGANIZATION_ID];
   if (campusId) {
     conditions.push("fo.campus_id = ?");
@@ -456,7 +458,7 @@ export async function listDeletedDataCoreFiles(
 
   const visible = [];
   for (const row of result.results || []) {
-    if (row.category !== DERIVATIVE_CATEGORY || await canReadRegisteredFile(db, context, row)) {
+    if (![DERIVATIVE_CATEGORY,THUMBNAIL_CATEGORY].includes(String(row.category)) || await canReadRegisteredFile(db, context, row)) {
       visible.push({...fileRowToResponse(row), metadata:await derivativeMetadata(db, row)});
     }
   }
@@ -468,6 +470,7 @@ export async function readDataCoreFile(
   files: R2Bucket,
   context: DataCoreAccessContext,
   fileId: string,
+  request?: Request,
 ) {
   requireAuthenticatedAccess(context);
   const row = await db
@@ -482,6 +485,10 @@ export async function readDataCoreFile(
     throw new DataCoreAccessError(403, "이 파일을 볼 권한이 없습니다.");
   }
 
+  if (row.category === THUMBNAIL_CATEGORY) {
+    const source = await thumbnailSource(db,row);
+    if (!source || !await files.head(String(source.r2_key))) throw new DataCoreAccessError(404,"원본 파일을 찾을 수 없습니다.");
+  }
   const object = await files.get(String(row.r2_key));
   if (!object) throw new DataCoreAccessError(404, "R2 원본 파일을 찾을 수 없습니다.");
   const headers = new Headers();
@@ -492,7 +499,7 @@ export async function readDataCoreFile(
     "content-disposition",
     `inline; filename*=UTF-8''${encodeURIComponent(String(row.original_file_name || "file"))}`,
   );
-  return new Response(object.body, { headers });
+  return privateImageResponse(request, object, headers, String(row.mime_type));
 }
 
 /**

@@ -6,9 +6,10 @@ import { DataCoreAccessContext, DataCoreAccessError, requireCampusAccess, requir
 import { canReadRegisteredFile, DERIVATIVE_CATEGORY, DERIVATIVE_RECORD_TYPE } from './data-core-derivative-policy';
 
 const MAX_BYTES = 8 * 1024 * 1024;
-async function boundedForm(request: Request) {
-  const limit = MAX_BYTES + 65536;
-  if (Number(request.headers.get('content-length')) > limit) throw new DataCoreAccessError(413, '파생 이미지는 8MB 이하여야 합니다.');
+export async function boundedDerivativeForm(request: Request, maxBytes = MAX_BYTES) {
+  const limit = maxBytes + 65536;
+  const message = maxBytes === MAX_BYTES ? '파생 이미지는 8MB 이하여야 합니다.' : '썸네일은 256KB 이하여야 합니다.';
+  if (Number(request.headers.get('content-length')) > limit) throw new DataCoreAccessError(413, message);
   if (!request.body) throw new DataCoreAccessError(400, '파생 이미지 파일이 필요합니다.');
   const reader = request.body.getReader(), chunks: Uint8Array[] = [];
   let length = 0;
@@ -17,7 +18,7 @@ async function boundedForm(request: Request) {
       const { value, done } = await reader.read();
       if (done) break;
       length += value.byteLength;
-      if (length > limit) { await reader.cancel(); throw new DataCoreAccessError(413, '파생 이미지는 8MB 이하여야 합니다.'); }
+      if (length > limit) { await reader.cancel(); throw new DataCoreAccessError(413, message); }
       chunks.push(value);
     }
   } finally { reader.releaseLock(); }
@@ -63,7 +64,7 @@ export async function createInstagramDerivative(request: Request, db: D1Database
     throw new DataCoreAccessError(403, '같은 사이트에서만 파생 이미지를 저장할 수 있습니다.');
   }
   await ensureDataCoreMigrations(db);
-  const form = await boundedForm(request);
+  const form = await boundedDerivativeForm(request);
   const sourceId = String(form.get('derivedFromFileId') || '');
   if (!sourceId || sourceId.length > 120) throw new DataCoreAccessError(400, '원본 파일을 선택하세요.');
   const source = await db.prepare(`SELECT * FROM file_objects WHERE id = ? AND organization_id = ? AND deleted_at IS NULL`)
@@ -74,7 +75,7 @@ export async function createInstagramDerivative(request: Request, db: D1Database
   if (source.category === DERIVATIVE_CATEGORY || !['image/jpeg', 'image/png', 'image/webp'].includes(String(source.mime_type))) {
     throw new DataCoreAccessError(415, 'JPEG, PNG, WebP 원본 이미지를 선택하세요.');
   }
-  const sourceObject = await files.get(String(source.r2_key));
+  const sourceObject = await files.head(String(source.r2_key));
   if (!sourceObject) throw new DataCoreAccessError(404, '원본 이미지가 없습니다.');
   const file = form.get('file');
   if (!(file instanceof File) || file.type !== 'image/png' || !file.size || file.size > MAX_BYTES) {
@@ -82,30 +83,41 @@ export async function createInstagramDerivative(request: Request, db: D1Database
   }
   const bytes = new Uint8Array(await file.arrayBuffer());
   validateOutput(bytes);
+  return persistImageDerivative(db, files, context, source, bytes, {
+    category: DERIVATIVE_CATEGORY, recordType: DERIVATIVE_RECORD_TYPE, sourceApp: 'instagram', mime: 'image/png', extension: 'png',
+    metadata: { derivativeType:'instagram-4x5', width:2160, height:2700, aspectRatio:'4:5', createdBy:'instagram-editor' },
+  }, current => canReadRegisteredFile(db, context, current));
+}
+
+export async function persistImageDerivative(db: D1Database, files: R2Bucket, context: DataCoreAccessContext,
+  source: Record<string, any>, bytes: Uint8Array,
+  output: { category:string; recordType:string; sourceApp:string; mime:string; extension:string; metadata:Record<string,unknown> },
+  canStillRead: (current:Record<string,any>) => Promise<boolean>) {
+  const sourceId = source.id;
   const id = crypto.randomUUID(), recordId = `file-derivative:${id}`, now = new Date().toISOString();
-  const metadata = { schemaVersion:1, derivedFromFileId:sourceId, derivativeFileId:id, derivativeType:'instagram-4x5',
-    width:2160, height:2700, aspectRatio:'4:5', createdBy:'instagram-editor' };
-  const key = `data-core/documents-private/${DEFAULT_ORGANIZATION_ID}/instagram-derived/${id}.png`;
-  const name = `instagram-${id}.png`;
+  const metadata = { ...output.metadata, schemaVersion:1, derivedFromFileId:sourceId, derivativeFileId:id };
+  const key = `data-core/documents-private/${DEFAULT_ORGANIZATION_ID}/${output.category}/${id}.${output.extension}`;
+  const name = `${output.sourceApp}-${id}.${output.extension}`;
   // The object key is new; only these new rows may be compensated on a failed write.
-  await files.put(key, bytes, { httpMetadata:{contentType:'image/png'} });
+  await files.put(key, bytes, { httpMetadata:{contentType:output.mime} });
   try {
     const current = await db.prepare(`SELECT * FROM file_objects WHERE id=? AND organization_id=? AND deleted_at IS NULL`)
       .bind(sourceId, DEFAULT_ORGANIZATION_ID).first<Record<string, unknown>>();
     if (!current || current.campus_id !== source.campus_id || current.owner_user_id !== source.owner_user_id
-      || current.visibility !== source.visibility || !await canReadRegisteredFile(db, context, current)) {
+      || current.visibility !== source.visibility || current.data_record_id !== source.data_record_id
+      || current.category !== source.category || current.r2_key !== source.r2_key || !await canStillRead(current)) {
       throw new DataCoreAccessError(409, '원본 권한이 변경되었습니다. 원본을 다시 선택하세요.');
     }
     await db.batch([
       db.prepare(`INSERT INTO data_records (id,organization_id,campus_id,created_by_user_id,record_type,source_app,title,visibility,status,metadata_json,created_at,updated_at)
-        VALUES (?,?,?,?,?,'instagram',?,'private','active',?,?,?)`).bind(recordId,DEFAULT_ORGANIZATION_ID,source.campus_id,
-          context.user.internalUserId,DERIVATIVE_RECORD_TYPE,name,JSON.stringify(metadata),now,now),
+        VALUES (?,?,?,?,?,?,?,'private','active',?,?,?)`).bind(recordId,DEFAULT_ORGANIZATION_ID,source.campus_id,
+          context.user!.internalUserId,output.recordType,output.sourceApp,name,JSON.stringify(metadata),now,now),
       db.prepare(`INSERT INTO file_objects (id,organization_id,campus_id,data_record_id,owner_user_id,area,category,source_app,r2_key,original_file_name,mime_type,size_bytes,visibility,created_at)
-        VALUES (?,?,?,?,?,'documents-private',?,'instagram',?,?,'image/png',?,?,?)`).bind(id,DEFAULT_ORGANIZATION_ID,source.campus_id,
-          recordId,source.owner_user_id,DERIVATIVE_CATEGORY,key,name,bytes.length,source.visibility,now),
+        VALUES (?,?,?,?,?,'documents-private',?,?,?,?,?,?,?,?)`).bind(id,DEFAULT_ORGANIZATION_ID,source.campus_id,
+          recordId,source.owner_user_id,output.category,output.sourceApp,key,name,output.mime,bytes.length,source.visibility,now),
       db.prepare(`INSERT INTO audit_logs (id,organization_id,campus_id,actor_user_id,action,resource_type,resource_id,metadata_json,created_at)
         VALUES (?,?,?,?,'derive','file_object',?,?,?)`).bind(crypto.randomUUID(),DEFAULT_ORGANIZATION_ID,source.campus_id,
-          context.user.internalUserId,id,JSON.stringify({derivedFromFileId:sourceId}),now),
+          context.user!.internalUserId,id,JSON.stringify({derivedFromFileId:sourceId}),now),
     ]);
   } catch (error) {
     // A transport failure may follow a committed batch. Never remove a committed object's bytes.
@@ -113,6 +125,6 @@ export async function createInstagramDerivative(request: Request, db: D1Database
     if (!committed) await files.delete(key);
     throw error;
   }
-  return {id,campusId:source.campus_id,sourceApp:'instagram',category:DERIVATIVE_CATEGORY,fileName:name,mimeType:'image/png',
+  return {id,campusId:source.campus_id,sourceApp:output.sourceApp,category:output.category,fileName:name,mimeType:output.mime,
     sizeBytes:bytes.length,visibility:source.visibility,metadata,downloadUrl:`/api/data-core/files/${id}`,createdAt:now};
 }

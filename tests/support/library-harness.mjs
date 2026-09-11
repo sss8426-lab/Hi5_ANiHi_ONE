@@ -17,8 +17,19 @@ export async function libraryHarness() {
   const env = { DB: await mf.getD1Database('DB'), FILES: await mf.getR2Bucket('FILES'),
     FAMILY_DB: await mf.getD1Database('FAMILY_DB'), FAMILY_FILES: await mf.getR2Bucket('FAMILY_FILES'),
     DATA_CORE_SUPER_ADMIN_EMAILS: users.admin.email };
-  async function raw(method, path, user = users.admin, body, origin = 'http://localhost') {
-    const headers = new Headers();
+  // The Node/workerd RPC bridge cannot pass a Node Headers instance to R2's native method.
+  env.FILES = new Proxy(env.FILES, { get(target,name) {
+    if(name==='get')return async(...args)=>{
+      const object=await target.get(...args);if(!object)return object;
+      return new Proxy(object,{get(value,key){
+        if(key==='writeHttpMetadata')return headers=>{if(value.httpMetadata?.contentType)headers.set('content-type',value.httpMetadata.contentType);};
+        const member=value[key];return typeof member==='function'?member.bind(value):member;
+      }});
+    };
+    const member=target[name];return typeof member==='function'?member.bind(target):member;
+  }});
+  async function raw(method, path, user = users.admin, body, origin = 'http://localhost', extraHeaders = {}) {
+    const headers = new Headers(extraHeaders);
     if (user) {
       headers.set('oai-authenticated-user-id', user.id); headers.set('oai-authenticated-user-email', user.email);
       headers.set('oai-authenticated-user-full-name', 'Synthetic Library');

@@ -7,7 +7,46 @@
   const icon = name => `<svg class="lb-icon" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#${name}"></use></svg>`;
   const href = id => `/data-core/work/library${id === 'root' ? '' : `?folder=${encodeURIComponent(id)}`}`;
   const state = { folder: null, folders: [], files: [], breadcrumbs: [], controller: null, generation: 0, queue: null, pending: null };
-  const sheet = document.createElement('link'); sheet.rel = 'stylesheet'; sheet.href = '/data-core/work/library-browser.css?v=20260911-root-controls'; document.head.append(sheet);
+  const sheet = document.createElement('link'); sheet.rel = 'stylesheet'; sheet.href = '/data-core/work/library-browser.css?v=20260911-thumbnails'; document.head.append(sheet);
+  let imageCache=null, observer=null, imageGeneration=0;
+  function clearImages() {
+    imageGeneration++;
+    observer?.disconnect(); observer=null; imageCache?.clear();
+    for(const img of host.querySelectorAll('.lb-thumbnail img')){img.removeAttribute('src');img.hidden=true;img.parentElement.classList.remove('lb-image-ready');}
+  }
+  async function showImage(img,generation) {
+    const source=img.dataset.thumbnail || img.dataset.original;
+    for(const path of [...new Set([source,img.dataset.original])]) {
+      try {
+        const url=await imageCache.get(path);
+        if(generation!==imageGeneration||!img.isConnected)return;
+        // A display:none lazy image never starts decoding. Keep its reserved box visible but transparent until ready.
+        img.hidden=false;img.src=url;await img.decode();
+        if(generation!==imageGeneration||!img.isConnected)return;
+        img.hidden=false;img.parentElement.classList.add('lb-image-ready');return;
+      } catch(e) {img.hidden=true;if(e.name==='AbortError'||[401,403].includes(e.status)||generation!==imageGeneration)return;}
+    }
+    img.removeAttribute('src');img.hidden=true;img.parentElement.classList.add('lb-image-fallback');
+  }
+  function observeImages() {
+    imageCache=new DataCorePrivateImageCache({onUnauthorized:clearImages});
+    const generation=imageGeneration;
+    if('IntersectionObserver' in window){
+      observer=new IntersectionObserver(entries=>{for(const entry of entries)if(entry.isIntersecting){observer?.unobserve(entry.target);void showImage(entry.target.querySelector('img'),generation);}},{rootMargin:'400px'});
+      for(const node of host.querySelectorAll('.lb-thumbnail'))observer.observe(node);
+    } else loadNearbyImages();
+  }
+  function loadNearbyImages() {
+    if('IntersectionObserver' in window)return;
+    for(const img of host.querySelectorAll('.lb-thumbnail img:not([data-started])')){
+      const rect=img.parentElement.getBoundingClientRect();
+      if(rect.top<innerHeight+400&&rect.bottom>-400){img.dataset.started='true';void showImage(img,imageGeneration);}
+    }
+  }
+  window.addEventListener('scroll',loadNearbyImages,{passive:true});
+  window.addEventListener('pagehide',clearImages);
+  window.addEventListener('pageshow',e=>{if(e.persisted)void load();});
+  document.addEventListener('click',e=>{if(e.target.closest('#logoutBtn'))clearImages();},true);
   host.innerHTML = `<nav id="libraryBreadcrumb" aria-label="자료보관함 경로"></nav>
     <header class="lb-heading"><div><h2 id="libraryTitle" tabindex="-1">자료보관함</h2><small id="libraryPermission"></small></div>
     <div class="lb-toolbar"><a id="libraryUp" class="lb-button" hidden>${icon('ArrowLeft')}상위 폴더</a>
@@ -31,7 +70,7 @@
   async function api(url, options = {}) {
     const response = await fetch(url, { cache: 'no-store', ...options });
     const body = await response.json();
-    if (!response.ok) { const e = new Error(body.error || '요청에 실패했습니다.'); e.status = response.status; throw e; }
+    if (!response.ok) { if([401,403].includes(response.status))clearImages(); const e = new Error(body.error || '요청에 실패했습니다.'); e.status = response.status; throw e; }
     return body;
   }
   function presentation(folder) {
@@ -64,14 +103,18 @@
   function renderFiles(files) {
     $('libraryFiles').innerHTML = files.length ? `<ul class="lb-file-list">${files.map(f => {
       const preview = /^(image\/(jpeg|png|webp|gif|avif)|application\/pdf|text\/plain)$/.test(f.mimeType);
-      return `<li class="lb-file" data-library-file="${h(f.id)}"><div class="lb-file-main">${icon(String(f.mimeType).startsWith('image/')?'Image':'BookOpen')}
+      const image = /^image\/(jpeg|png|webp|gif|avif)$/.test(f.mimeType);
+      const visual = image ? `<a class="lb-thumbnail" href="${h(f.previewUrl)}" target="_blank" rel="noopener" aria-label="${h(f.fileName)} 미리보기">${icon('Image')}<img hidden data-original="${h(f.previewUrl)}" data-thumbnail="${h(f.thumbnailUrl||'')}" alt="" width="112" height="84" loading="lazy" decoding="async"></a>` : icon('BookOpen');
+      return `<li class="lb-file" data-library-file="${h(f.id)}"><div class="lb-file-main">${visual}
         <div><strong>${h(f.fileName)}</strong><small>${h(f.mimeType)} · ${h(size(f.sizeBytes))} · ${h(new Date(f.createdAt).toLocaleDateString('ko-KR'))}</small>
         <small>${h(state.breadcrumbs.find(b=>b.id.startsWith('campus:'))?.title || '본원·조직 공통')} · ${h(f.ownerName || '')}</small></div></div>
         <div class="lb-file-actions">${preview ? `<a class="lb-button" href="${h(f.previewUrl)}" target="_blank" rel="noopener">미리보기</a>` : ''}
         <a class="lb-button" href="${h(f.downloadUrl)}" download>다운로드</a>${f.canDelete ? `<button class="lb-button lb-danger" data-lb-delete="${h(f.id)}">삭제</button>` : ''}</div></li>`;
     }).join('')}</ul>` : '';
+    observeImages();
   }
   async function load(focus = false) {
+    clearImages();
     if (!/\/data-core\/work\/library\/?$/.test(location.pathname)) return;
     const generation = ++state.generation, current = locationState();
     state.controller?.abort(); state.controller = new AbortController();
@@ -154,7 +197,7 @@
   $('libraryUpload').onclick=()=>{if(state.folder?.canWrite&&!state.queue?.running)$('libraryFileInput').click();};
   $('libraryFileInput').onchange=async()=>{
     const files=[...$('libraryFileInput').files]; if(!files.length||!state.folder?.canWrite)return;
-    state.queue=new DataCoreUploadQueue(files,{recordId:state.folder.id,libraryScoped:true},progress); $('libraryProgressDialog').showModal();
+    state.queue=new DataCoreUploadQueue(files,{recordId:state.folder.id,libraryScoped:true},progress,DataCoreLibraryThumbnail.send); $('libraryProgressDialog').showModal();
     await run(); $('libraryFileInput').value='';
   };
   $('libraryCancelUpload').onclick=()=>state.queue?.cancel(); $('libraryRetry').onclick=()=>run(true);

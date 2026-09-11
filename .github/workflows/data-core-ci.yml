@@ -43,6 +43,9 @@ jobs:
           node --check public/family/family.js
           node --check public/data-core/app.js
           node --check public/data-core/upload-queue.js
+          node --check public/data-core/private-image-cache.js
+          node --check public/data-core/library-thumbnail.js
+          node --check public/data-core/work/hq-library.js
           node --check public/data-core/content.js
           node --check public/data-core/instagram-derivative.js
           node --check public/data-core/operations.js

@@ -136,6 +136,7 @@ export async function searchDataCore(
   const conditions = [
     "dr.organization_id = ?",
     "dr.deleted_at IS NULL",
+    "dr.record_type <> 'image-thumbnail'",
     `(dr.title LIKE ?
       OR dr.summary LIKE ?
       OR dr.content_text LIKE ?

@@ -471,12 +471,12 @@
       const selectedSrc = imageSrcForViewer(selected.url);
       root.innerHTML = `<div class="viewer"><aside class="thumbs">${currentImages.map((image) => `
         <button class="thumb ${image.id === selected.id ? 'active' : ''}" data-id="${String(image.id)}">
-          ${imageSrcForViewer(image.url) ? `<img src="${escapeAttr(imageSrcForViewer(image.url))}" alt="">` : '<div class="missing">이전 필요</div>'}
+          ${imageSrcForViewer(image.url) ? `<img src="${escapeAttr(imageSrcForViewer(image.url))}" alt="" loading="lazy" decoding="async">` : '<div class="missing">이전 필요</div>'}
           <span>${escapeHtml(image.fileName)}</span>
         </button>`).join('')}</aside>
         <section class="stage">
           <div class="bar"><div class="title">${escapeHtml(selected.fileName)}</div><button class="delete" id="deleteImageBtn" type="button">이미지 삭제</button></div>
-          <div class="image-wrap">${selectedSrc ? `<img src="${escapeAttr(selectedSrc)}" alt="">` : '<div class="missing">이 이미지는 아직 기존 PC 경로로 연결되어 있습니다.<br>설정 / 백업에서 기존 그림 폴더를 선택해 웹 저장소로 이전해주세요.</div>'}</div>
+          <div class="image-wrap">${selectedSrc ? `<img src="${escapeAttr(selectedSrc)}" alt="" decoding="async">` : '<div class="missing">이 이미지는 아직 기존 PC 경로로 연결되어 있습니다.<br>설정 / 백업에서 기존 그림 폴더를 선택해 웹 저장소로 이전해주세요.</div>'}</div>
         </section></div>`;
       viewer.document.querySelectorAll('.thumb').forEach((button) => {
         button.onclick = () => {

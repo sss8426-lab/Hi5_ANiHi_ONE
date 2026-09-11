@@ -1,5 +1,5 @@
 import { DEFAULT_ORGANIZATION_ID, ensureDataCoreDatabase } from "./data-core";
-import { assertMutableRecordType, DERIVATIVE_RECORD_TYPE } from './data-core-derivative-policy';
+import { assertMutableRecordType, DERIVATIVE_RECORD_TYPE, THUMBNAIL_RECORD_TYPE } from './data-core-derivative-policy';
 import { LIBRARY_FOLDER, HQ_FOLDER } from './data-core-library-policy';
 import {
   DataCoreAccessContext,
@@ -183,7 +183,7 @@ function hasMembership(context: DataCoreAccessContext) {
 
 function canReadRow(context: DataCoreAccessContext, row: Record<string, unknown>) {
   if (row.record_type === LIBRARY_FOLDER) return false;
-  if (row.record_type === DERIVATIVE_RECORD_TYPE) return false;
+  if ([DERIVATIVE_RECORD_TYPE,THUMBNAIL_RECORD_TYPE].includes(String(row.record_type))) return false;
   if (context.isSuperAdmin) return true;
   if (row.visibility === "public") return true;
   if (!hasMembership(context)) return false;

@@ -175,7 +175,7 @@ function renderSelectedFiles() {
   derivativeEditor?.update(rows, state.sourceApp === 'instagram');
   $('selectedDerivatives').innerHTML = state.selectedDerivedFileIds.map((id) => {
     const file = state.knownFiles.get(String(id));
-    return `<div class="selected-file derived-selection"><img src="/api/data-core/files/${encodeURIComponent(id)}" alt="인스타 파생 이미지" loading="lazy"><div><strong>${h(file?.fileName || '인스타 파생 이미지')}</strong><small>2160 × 2700px · 4:5</small></div><button class="ghost-btn" data-remove-derived="${h(id)}" type="button">제외</button></div>`;
+    return `<div class="selected-file derived-selection"><img src="/api/data-core/files/${encodeURIComponent(id)}" alt="인스타 파생 이미지" width="64" height="80" loading="lazy" decoding="async"><div><strong>${h(file?.fileName || '인스타 파생 이미지')}</strong><small>2160 × 2700px · 4:5</small></div><button class="ghost-btn" data-remove-derived="${h(id)}" type="button">제외</button></div>`;
   }).join('');
   $('selectedDerivatives').querySelectorAll('[data-remove-derived]').forEach((button) => {
     button.onclick = () => {
