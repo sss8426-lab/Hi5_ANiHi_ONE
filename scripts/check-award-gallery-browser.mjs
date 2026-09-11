@@ -126,6 +126,12 @@ try {
   const upload=writes.find(w=>w.path==='/api/data-core/files');
   assert.match(upload.body,/name="recordId"\r\n\r\nc\r\n/);
   assert.match(upload.body,/competition-material/);checks+=2;
+  await page.locator('#deleteAwardFolderBtn').click();
+  assert.equal(writes.filter(w=>w.method==='DELETE').length,0,'nonempty folder is protected');
+  for(const file of files('c'))trashed.add(file.id);
+  await page.locator('[data-award-folder-id="a"]').click();
+  await page.locator('[data-award-folder-id="c"]').click();
+  await page.getByText('이 폴더에 연결된 수상작이 없습니다.',{exact:true}).waitFor();checks++;
   page.once('dialog',d=>d.accept());
   await page.locator('#deleteAwardFolderBtn').click();
   await page.locator('[data-award-folder-id="c"]').waitFor({state:'detached'});
@@ -147,6 +153,7 @@ try {
   await page.goto(`${base}/data-core/counseling`);
   await page.goBack();await page.locator('[data-award-image="a-0"]').waitFor();
   await page.reload();await page.locator('[data-award-image="a-0"]').waitFor();checks+=2;
+  await page.setViewportSize({width:1440,height:1000});
   for (const nextRole of ['SUPER_ADMIN','CAMPUS_DIRECTOR','TEACHER','STAFF']) {
     role=nextRole;
     await page.goto(`${base}/data-core/counseling`);

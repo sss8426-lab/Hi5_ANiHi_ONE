@@ -243,6 +243,14 @@ td strong { font-size: 12px; }
 .award-library-file:focus-visible, .award-folder-tab:focus-visible { outline: 3px solid #2563eb; outline-offset: 3px; }
 .award-library-file:hover img { border-color: #2563eb; }
 .award-library-item { position: relative; min-width: 0; }
+.award-thumbnail-frame { position: relative; display: grid; aspect-ratio: 1; border-radius: 6px; overflow: hidden; background: var(--surface, #202625); }
+.award-thumbnail-frame img { grid-area: 1 / 1; display: block; height: 100%; }
+.award-thumbnail-frame img:not([data-load-state="ready"]) { visibility: hidden; }
+.award-thumbnail-status { grid-area: 1 / 1; align-self: center; justify-self: center; color: var(--muted); font-size: 12px; }
+.award-thumbnail-frame img[data-load-state="ready"] + .award-thumbnail-status,
+.award-thumbnail-frame img[data-load-state="error"] + .award-thumbnail-status,
+.award-thumbnail-frame img[data-load-state="denied"] + .award-thumbnail-status { display: none; }
+.award-thumbnail-retry { position: absolute; top: 42%; left: 50%; transform: translateX(-50%); font-size: 12px; padding: 6px 10px; white-space: nowrap; }
 .award-select { position: absolute; top: 6px; left: 6px; z-index: 1; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 6px; background: rgb(255 255 255 / 94%); box-shadow: 0 1px 5px #0002; }
 .award-select input { width: 20px; height: 20px; margin: 0; accent-color: #287a6c; cursor: pointer; }
 .award-selection-bar { display: flex; justify-content: flex-end; align-items: center; gap: 12px; margin-top: 12px; font-size: 13px; }

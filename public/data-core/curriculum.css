@@ -13,12 +13,11 @@
 .curriculum-card p { color: #c2d1c9; margin: 0; font-size: 14px; line-height: 1.7; }
 .curriculum-card > div > svg { position: absolute; right: 20px; bottom: 26px; color: #98d7bc; }
 .curriculum-folders { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-.curriculum-folders a { display: flex; align-items: center; gap: 14px; padding: 24px; color: #e5f0e9; border: 1px solid #53645b; border-radius: 6px; text-decoration: none; }
-.curriculum-folders h3 { margin: 0; font-size: 18px; }
-.curriculum-folders svg { color: #98d7bc; flex-shrink: 0; }
-.curriculum-folders svg:last-child { margin-left: auto; }
+.curriculum-stage-card > div { padding: 20px 48px 20px 20px; }
+.curriculum-stage-card h3 { font-size: 20px; margin-bottom: 6px; }
+.curriculum-stage-card img { background: #f5f7f6; }
 .curriculum-card:hover, .curriculum-folders a:hover { border-color: #98d7bc; background: #303d35; }
 #view-curriculum a:focus-visible { outline: 2px solid #a4efce; outline-offset: 4px; }
 .curriculum-empty { display: grid; justify-items: center; align-content: center; gap: 12px; min-height: 240px; border-block: 1px solid #3b4741; color: #c2d1c9; }
-@media (max-width: 900px) { .curriculum-folders { grid-template-columns: 1fr; } }
-@media (max-width: 640px) { #view-curriculum { padding: 20px 16px; } .curriculum-cards { grid-template-columns: 1fr; } .curriculum-heading h2 { font-size: 20px; } }
+@media (max-width: 900px) { .curriculum-folders { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { #view-curriculum { padding: 20px 16px; } .curriculum-cards, .curriculum-folders { grid-template-columns: 1fr; } .curriculum-heading h2 { font-size: 20px; } }

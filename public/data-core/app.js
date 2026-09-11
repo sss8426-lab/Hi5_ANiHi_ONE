@@ -825,13 +825,20 @@ function moveAwardFolder(direction) {
 }
 
 const awardSelected = new Set();
-const awardImages = new AwardImageCache();
+const awardImages = new AwardImageCache({ onDenied: () => {
+  awardImageObserver?.disconnect();
+  $('awardLibraryFiles').querySelectorAll('[data-award-thumbnail]').forEach(img => { img.removeAttribute('src'); img.dataset.loadState = 'denied'; });
+  $('awardLightboxImage').removeAttribute('src');
+  $('awardLightbox')?.close();
+  toast('이미지 접근 권한을 다시 확인해 주세요.', 'error');
+} });
 let awardImageObserver;
 let awardDeletePending = null;
 let awardDeleteBusy = false;
 function clearAwardImages() {
   awardImageObserver?.disconnect();
   awardImages.clear();
+  $('awardLightboxImage')?.removeAttribute?.('src');
   $('awardLightbox')?.close();
 }
 function updateAwardSelection() {
@@ -916,9 +923,9 @@ function renderAwardLibraryFiles() {
     const url = fileUrl(file);
     const image = String(file.mimeType || '').startsWith('image/');
     return `<div class="award-library-item">${canDeleteAward(file) ? `<label class="award-select"><input type="checkbox" data-award-select="${h(file.id)}" aria-label="${h(file.fileName || '수상작')} 선택" ${awardSelected.has(file.id) ? 'checked' : ''}></label>` : ''}<a class="award-library-file" href="${url}" ${image ? `data-award-image="${h(file.id)}" aria-haspopup="dialog"` : 'target="_blank" rel="noopener"'}>
-      ${image ? `<img data-award-thumbnail="${h(file.id)}" alt="${h(file.fileName || '수상작')}" decoding="async">` : '<span class="award-file-icon">파일</span>'}
+      ${image ? `<span class="award-thumbnail-frame"><img data-award-thumbnail="${h(file.id)}" alt="${h(file.fileName || '수상작')}" decoding="async" data-load-state="waiting"><span class="award-thumbnail-status" aria-live="polite">불러오는 중</span></span>` : '<span class="award-file-icon">파일</span>'}
       <strong>${h(file.fileName || '수상작 파일')}</strong>
-    </a></div>`;
+    </a>${image ? `<button class="award-thumbnail-retry hidden" data-award-retry="${h(file.id)}" aria-label="미리보기 다시 불러오기">다시 시도</button>` : ''}</div>`;
   }).join('') : '<div class="empty-state compact">이 폴더에 연결된 수상작이 없습니다.</div>';
   root.querySelectorAll('[data-award-select]').forEach((checkbox) => {
     checkbox.onchange = () => {
@@ -929,21 +936,43 @@ function renderAwardLibraryFiles() {
   });
   const folderId = state.selectedAwardFolderId;
   const loadThumbnail = async (img) => {
+    if (['loading', 'ready', 'denied'].includes(img.dataset.loadState)) return;
+    img.dataset.loadState = 'loading';
+    const retry = img.closest('.award-library-item').querySelector('[data-award-retry]');
+    retry.classList.add('hidden');
     try {
-      const url = await awardImages.get(img.dataset.awardThumbnail);
-      if (folderId === state.selectedAwardFolderId && img.isConnected) img.src = url;
-    } catch { if (img.isConnected) img.alt = '이미지를 다시 눌러 확인하세요'; }
+      const url = await awardImages.getThumbnail(img.dataset.awardThumbnail);
+      if (folderId !== state.selectedAwardFolderId || !img.isConnected) return;
+      img.src = url;
+      await img.decode();
+      img.dataset.loadState = 'ready';
+      awardImageObserver?.unobserve(img);
+    } catch (error) {
+      if (!img.isConnected || folderId !== state.selectedAwardFolderId) return;
+      img.removeAttribute('src');
+      if (awardImages.blocked) { img.dataset.loadState = 'denied'; return; }
+      img.dataset.loadState = error.name === 'AbortError' ? 'waiting' : 'error';
+      retry.classList.toggle('hidden', error.name === 'AbortError');
+      // A queued cancellation may settle after the image has already re-entered the viewport.
+      if (error.name === 'AbortError') requestAnimationFrame(() => {
+        if (!img.isConnected || folderId !== state.selectedAwardFolderId) return;
+        const rect = img.getBoundingClientRect();
+        if (rect.bottom >= -80 && rect.top <= innerHeight + 80) loadThumbnail(img);
+      });
+    }
   };
   if (typeof IntersectionObserver !== 'undefined') {
     awardImageObserver = new IntersectionObserver((entries) => entries.forEach((entry) => {
-      if (!entry.isIntersecting) return;
-      awardImageObserver.unobserve(entry.target);
+      if (!entry.isIntersecting) { awardImages.cancelQueued(entry.target.dataset.awardThumbnail); return; }
       loadThumbnail(entry.target);
-    }), { rootMargin: '160px' });
+    }), { rootMargin: '80px' });
   }
   root.querySelectorAll('[data-award-thumbnail]').forEach((img) => {
     if (awardImageObserver) awardImageObserver.observe(img);
     else loadThumbnail(img);
+  });
+  root.querySelectorAll('[data-award-retry]').forEach(button => {
+    button.onclick = () => loadThumbnail(button.closest('.award-library-item').querySelector('[data-award-thumbnail]'));
   });
   root.querySelectorAll('[data-award-image]').forEach((link) => {
     link.onclick = async (event) => {
@@ -954,12 +983,13 @@ function renderAwardLibraryFiles() {
       image.removeAttribute('src');
       image.dataset.fileId = file.id;
       const cached = awardImages.peek(file.id);
-      if (cached) image.src = cached;
+      const preview = awardImages.peekPreview(file.id);
+      if (cached || preview) image.src = cached || preview;
       $('awardLightboxImage').alt = file.fileName || '수상작';
       $('awardLightboxCaption').textContent = file.fileName || '수상작';
       $('awardLightbox').showModal();
       try {
-        const url = cached || await awardImages.get(file.id);
+        const url = cached || await awardImages.get(file.id, { priority: true });
         if ($('awardLightbox').open && image.dataset.fileId === file.id && file.recordId === state.selectedAwardFolderId) image.src = url;
       } catch (error) {
         if ($('awardLightbox').open && image.dataset.fileId === file.id) $('awardLightboxCaption').textContent = error.message;
