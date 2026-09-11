@@ -1,5 +1,5 @@
 import { DEFAULT_ORGANIZATION_ID } from './data-core';
-import { DataCoreAccessContext, DataCoreAccessError } from './data-core-access';
+import { DataCoreAccessContext, DataCoreAccessError, isCampusAdmin, managesCampus } from './data-core-access';
 import { PRIVATE_IMAGE_MIMES } from './private-image-response';
 
 export const DERIVATIVE_RECORD_TYPE = 'instagram-derived-file';
@@ -35,6 +35,7 @@ export async function thumbnailSource(db: D1Database, row: Record<string, unknow
 export function canReadBaseFile(context: DataCoreAccessContext, row: Record<string, unknown>) {
   if (context.isSuperAdmin) return true;
   if (!context.user || !context.memberships.length) return false;
+  if (isCampusAdmin(context) && row.campus_id) return managesCampus(context, row.campus_id);
   if (row.visibility === 'organization' || row.visibility === 'public') return true;
   if (row.visibility === 'campus') return typeof row.campus_id === 'string' && context.campusIds.includes(row.campus_id);
   return context.user.internalUserId === row.owner_user_id;

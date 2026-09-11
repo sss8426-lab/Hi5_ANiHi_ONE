@@ -65,6 +65,7 @@ jobs:
           node --check public/data-core/login.js
           node --check public/data-core/accounts.js
           node --check public/data-core/design-shell.js
+          node --check public/data-core/session-activity.js
           node --check public/data-core/work/kkumeum.js
           node --check public/data-core/work/kkumeum-analytics.js
           node --check public/data-core/work/kkumeum-notices.js

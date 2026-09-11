@@ -1,11 +1,11 @@
 (function () {
-  const DB_NAME = 'anihi-admissions-web';
-  const DB_VERSION = 1;
-  const STORE = 'records';
-  const DATA_KEY = 'admissions-data';
-  const DEFAULT_DATA_URL = '../data/default-data.json';
   const SERVER_DATA_URL = '/api/data';
   const SERVER_UPLOAD_URL = '/api/upload';
+  let nextIdBase = 0;
+  function dataUrl() {
+    const campus = new URL(location.href).searchParams.get('campusId');
+    return SERVER_DATA_URL + (campus ? `?campusId=${encodeURIComponent(campus)}` : '');
+  }
   const IMAGE_ACCEPT = 'image/png,image/jpeg,image/webp,image/gif,image/bmp';
   const IMAGE_EXT_RE = /\.(png|jpe?g|webp|gif|bmp)$/i;
   const LEGACY_IMAGE_KEYS = new Set([
@@ -21,42 +21,11 @@
     'src',
   ]);
 
-  function openDb() {
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open(DB_NAME, DB_VERSION);
-      request.onupgradeneeded = () => {
-        const db = request.result;
-        if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
-      };
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-  }
-
-  async function dbGet(key) {
-    const db = await openDb();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE, 'readonly');
-      const request = tx.objectStore(STORE).get(key);
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-  }
-
-  async function dbSet(key, value) {
-    const db = await openDb();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE, 'readwrite');
-      tx.objectStore(STORE).put(value, key);
-      tx.oncomplete = () => resolve(value);
-      tx.onerror = () => reject(tx.error);
-    });
-  }
 
   function normalizeData(data) {
     const normalized = data && typeof data === 'object' ? data : {};
     normalized.version = normalized.version || 1;
-    normalized.settings = { consultantName: '컨설턴트님', ...(normalized.settings || {}) };
+    normalized.settings = normalized.settings || {};
     normalized.universities = Array.isArray(normalized.universities) ? normalized.universities : [];
     normalized.students = Array.isArray(normalized.students) ? normalized.students : [];
     normalized.cases = Array.isArray(normalized.cases) ? normalized.cases : [];
@@ -66,40 +35,28 @@
     return normalized;
   }
 
-  async function loadDefaultData() {
-    const response = await fetch(DEFAULT_DATA_URL, { cache: 'no-store' });
-    if (!response.ok) throw new Error('초기 데이터를 불러오지 못했습니다.');
-    return normalizeData(await response.json());
-  }
 
   async function readData() {
-    try {
-      const response = await fetch(SERVER_DATA_URL, { cache: 'no-store' });
-      if (response.ok) return normalizeData(await response.json());
-    } catch (_) {}
-
-    const stored = await dbGet(DATA_KEY);
-    if (stored) return normalizeData(structuredClone(stored));
-    const initial = await loadDefaultData();
-    await writeData(initial);
-    return normalizeData(structuredClone(initial));
+    const response = await fetch(dataUrl(), { cache: 'no-store', credentials: 'same-origin' });
+    if (response.status === 401) { location.assign('/data-core/login?next=' + encodeURIComponent(location.pathname + location.search + location.hash)); throw new Error('로그인이 필요합니다.'); }
+    if (!response.ok) throw new Error('입시 데이터를 불러오지 못했습니다. 로그인과 연결 상태를 확인하세요.');
+    const data = normalizeData(await response.json());
+    nextIdBase = data._campus?.nextIdBase || 0;
+    return data;
   }
 
   async function writeData(data) {
-    try {
-      const response = await fetch(SERVER_DATA_URL, {
+      const response = await fetch(dataUrl(), {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(normalizeData(structuredClone(data))),
       });
-      if (response.ok) return data;
-    } catch (_) {}
-
-    return dbSet(DATA_KEY, normalizeData(structuredClone(data)));
+      if (!response.ok) { const result = await response.json().catch(() => ({})); throw new Error(result.error || '저장하지 못했습니다.'); }
+      return data;
   }
 
   function nextId(items) {
-    return (items || []).reduce((max, item) => Math.max(max, Number(item?.id) || 0), 0) + 1;
+    return (items || []).reduce((max, item) => Math.max(max, Number(item?.id) || 0), nextIdBase) + 1;
   }
 
   function downloadFile(fileName, contents, type = 'application/json') {

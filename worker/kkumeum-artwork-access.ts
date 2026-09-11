@@ -11,7 +11,7 @@ function hasCampusRole(
   role: string,
 ): boolean {
   return context.memberships.some(
-    (membership) => membership.campusId === campusId && membership.role === role,
+    (membership) => membership.campusId === campusId && (membership.role === role || (role === "CAMPUS_DIRECTOR" && membership.role === "CAMPUS_ADMIN")),
   );
 }
 

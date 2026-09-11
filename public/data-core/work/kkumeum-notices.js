@@ -78,7 +78,7 @@
     }
     const roles = new Set(rolesForCampus(state.campusId));
     const rows = [];
-    if (roles.has('CAMPUS_DIRECTOR')) rows.push(['campus', '캠퍼스공지'], ['class', '반소식'], ['student', '개별소식']);
+    if ((roles.has('CAMPUS_DIRECTOR') || roles.has('CAMPUS_ADMIN'))) rows.push(['campus', '캠퍼스공지'], ['class', '반소식'], ['student', '개별소식']);
     if (roles.has('TEACHER')) rows.push(['class', '반소식'], ['student', '개별소식']);
     if (roles.has('STAFF')) rows.push(['campus', '캠퍼스공지']);
     return Array.from(new Map(rows.map((row) => [row[0], row])).values());

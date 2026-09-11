@@ -4,8 +4,11 @@ import {
   requestIdentity,
   syncRequestUser,
 } from "./data-core";
+import { CAMPUS_DIRECTORY, canonicalCampusId } from './campus-directory';
 
 export const DATA_CORE_ROLES = [
+  "MASTER",
+  "CAMPUS_ADMIN",
   "SUPER_ADMIN",
   "CAMPUS_DIRECTOR",
   "TEACHER",
@@ -19,6 +22,7 @@ export type DataCoreMembership = {
   organizationId: string;
   campusId: string | null;
   campusName: string | null;
+  campusCode?: string | null;
   role: DataCoreRole;
 };
 
@@ -60,7 +64,12 @@ export class DataCoreAccessError extends Error {
   }
 }
 
+const campusSeedReady = new WeakMap<D1Database, Promise<void>>();
 export async function ensureDefaultCampuses(db: D1Database): Promise<void> {
+  if (!campusSeedReady.has(db)) campusSeedReady.set(db, seedDefaultCampuses(db).catch(error => { campusSeedReady.delete(db); throw error; }));
+  return campusSeedReady.get(db)!;
+}
+async function seedDefaultCampuses(db: D1Database): Promise<void> {
   await ensureDataCoreDatabase(db);
   const now = new Date().toISOString();
   await db.batch(
@@ -70,10 +79,7 @@ export async function ensureDefaultCampuses(db: D1Database): Promise<void> {
           `INSERT INTO campuses (
              id, organization_id, code, name, status, created_at, updated_at
            ) VALUES (?, ?, ?, ?, 'active', ?, ?)
-           ON CONFLICT(id) DO UPDATE SET
-             code = excluded.code,
-             name = excluded.name,
-             updated_at = excluded.updated_at`,
+           ON CONFLICT(id) DO NOTHING`,
         )
         .bind(id, DEFAULT_ORGANIZATION_ID, code, name, now, now),
     ),
@@ -115,7 +121,10 @@ export async function resolveDataCoreAccess(
   db?: D1Database,
   bootstrapAdminEmails?: string,
 ): Promise<DataCoreAccessContext> {
-  const identity = requestIdentity(request);
+  // Plain OAI headers are only a local compatibility bridge, not production credentials.
+  const hostname = new URL(request.url).hostname;
+  const localIdentity = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.test') || hostname.endsWith('.invalid');
+  const identity = localIdentity ? requestIdentity(request) : null;
   if (!identity && !db) {
     return {
       authenticated: false,
@@ -190,9 +199,12 @@ export async function resolveDataCoreAccess(
        FROM memberships m
        LEFT JOIN campuses c ON c.id = m.campus_id
        WHERE m.user_id = ? AND m.organization_id = ?
+         AND (m.campus_id IS NULL OR c.status = 'active')
        ORDER BY
          CASE m.role
            WHEN 'SUPER_ADMIN' THEN 0
+           WHEN 'MASTER' THEN 0
+           WHEN 'CAMPUS_ADMIN' THEN 1
            WHEN 'CAMPUS_DIRECTOR' THEN 1
            WHEN 'TEACHER' THEN 2
            ELSE 3
@@ -212,10 +224,11 @@ export async function resolveDataCoreAccess(
     id: item.id,
     organizationId: item.organization_id,
     campusId: item.campus_id,
-    campusName: item.campus_name,
+    campusName: CAMPUS_DIRECTORY.find(c => c.id === item.campus_id)?.name || item.campus_name,
+    campusCode: CAMPUS_DIRECTORY.find(c => c.id === item.campus_id)?.code || null,
     role: item.role,
   }));
-  const isSuperAdmin = memberships.some((item) => item.role === "SUPER_ADMIN");
+  const isSuperAdmin = memberships.some((item) => isMasterRole(item.role));
   const campusIds = Array.from(
     new Set(memberships.map((item) => item.campusId).filter((value): value is string => Boolean(value))),
   );
@@ -264,9 +277,28 @@ export function requireCampusAccess(
 ): void {
   requireWriteAccess(context);
   if (context.isSuperAdmin) return;
-  if (!campusId || !context.campusIds.includes(campusId)) {
+  if (!campusId || !context.campusIds.includes(canonicalCampusId(campusId)!)) {
     throw new DataCoreAccessError(403, "해당 캠퍼스의 데이터에 접근할 권한이 없습니다.");
   }
+}
+
+export function isMasterRole(role: unknown) {
+  return role === 'MASTER' || role === 'SUPER_ADMIN';
+}
+
+export function isCampusAdmin(context: DataCoreAccessContext) {
+  return context.memberships.some(m => m.organizationId === DEFAULT_ORGANIZATION_ID && m.role === 'CAMPUS_ADMIN');
+}
+
+export function managesCampus(context: DataCoreAccessContext, campusId: unknown) {
+  const id = canonicalCampusId(campusId);
+  return Boolean(id && context.memberships.some(m => m.organizationId === DEFAULT_ORGANIZATION_ID && m.role === 'CAMPUS_ADMIN' && m.campusId === id));
+}
+
+export function campusForWrite(context: DataCoreAccessContext, value: unknown) {
+  const id = canonicalCampusId(value) || (isCampusAdmin(context) && context.campusIds.length === 1 ? context.campusIds[0] : null);
+  if (!context.isSuperAdmin) requireCampusAccess(context, id);
+  return id;
 }
 
 export async function listAccessibleCampuses(
@@ -286,7 +318,7 @@ export async function listAccessibleCampuses(
       )
       .bind(DEFAULT_ORGANIZATION_ID)
       .all();
-    return result.results || [];
+    return (result.results || []).map(row => ({...row, code: CAMPUS_DIRECTORY.find(c => c.id === row.id)?.code || row.code, name: CAMPUS_DIRECTORY.find(c => c.id === row.id)?.name || row.name}));
   }
 
   if (!context.campusIds.length) return [];
@@ -300,5 +332,5 @@ export async function listAccessibleCampuses(
     )
     .bind(DEFAULT_ORGANIZATION_ID, ...context.campusIds)
     .all();
-  return result.results || [];
+  return (result.results || []).map(row => ({...row, code: CAMPUS_DIRECTORY.find(c => c.id === row.id)?.code || row.code, name: CAMPUS_DIRECTORY.find(c => c.id === row.id)?.name || row.name}));
 }

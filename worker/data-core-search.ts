@@ -6,19 +6,12 @@ import {
   requireWriteAccess,
 } from "./data-core-access";
 import { ensureDataCoreMigrations } from "./data-core-migrations";
-import { getDataRecord } from "./data-core-records";
+import { getDataRecord, canMutateRecord } from "./data-core-records";
 
 function cleanText(value: unknown, maxLength: number): string {
   return String(value ?? "").trim().slice(0, maxLength);
 }
 
-function canMutate(
-  context: DataCoreAccessContext,
-  row: { created_by_user_id: string | null },
-) {
-  if (context.isSuperAdmin) return true;
-  return Boolean(context.user && context.user.internalUserId === row.created_by_user_id);
-}
 
 async function audit(
   db: D1Database,
@@ -83,7 +76,7 @@ export async function setDataRecordContent(
 
   const existing = await db
     .prepare(
-      `SELECT id, campus_id, created_by_user_id
+      `SELECT id, campus_id, created_by_user_id, record_type
        FROM data_records
        WHERE id = ? AND organization_id = ? AND deleted_at IS NULL`,
     )
@@ -92,10 +85,11 @@ export async function setDataRecordContent(
       id: string;
       campus_id: string | null;
       created_by_user_id: string | null;
+      record_type: string;
     }>();
 
   if (!existing) throw new DataCoreAccessError(404, "데이터를 찾을 수 없습니다.");
-  if (!canMutate(context, existing)) {
+  if (!canMutateRecord(context, existing)) {
     throw new DataCoreAccessError(403, "본인이 등록한 데이터의 본문만 수정할 수 있습니다.");
   }
 

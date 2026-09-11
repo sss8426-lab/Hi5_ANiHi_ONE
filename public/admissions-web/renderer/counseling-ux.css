@@ -24,3 +24,5 @@
   #dashboard .compact-scores > .field { flex-basis: 140px; width: 140px !important; }
   #dashboard .compact-scores .score-submit { margin-top: 4px; }
 }
+.admissions-campus-filter { display:flex; align-items:center; gap:8px; margin:12px 0; font-size:13px; }
+.admissions-campus-filter select { max-width:260px; min-height:36px; background:#202424; color:#e8efec; border:1px solid #46504d; border-radius:4px; padding:6px 10px; }

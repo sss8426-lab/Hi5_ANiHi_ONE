@@ -6,7 +6,9 @@ import {
   DataCoreRole,
   ensureDefaultCampuses,
   requireAuthenticatedAccess,
+  isMasterRole,
 } from "./data-core-access";
+import { canonicalCampusId } from './campus-directory';
 
 function cleanText(value: unknown, maxLength: number) {
   return String(value ?? "").trim().slice(0, maxLength);
@@ -132,7 +134,8 @@ export async function upsertDataCoreMembership(
   const email = cleanText(input.email, 320).toLowerCase();
   const requestedUserId = cleanText(input.userId, 200);
   const role = normalizeRole(input.role);
-  const campusId = role === "SUPER_ADMIN" ? null : cleanText(input.campusId, 120) || null;
+  const campusId = isMasterRole(role) ? null : canonicalCampusId(input.campusId);
+  if (!isMasterRole(role) && !campusId) throw new DataCoreAccessError(400,'캠퍼스를 지정하세요.');
 
   let user:
     | { id: string; email: string | null; display_name: string }
@@ -157,6 +160,12 @@ export async function upsertDataCoreMembership(
   }
 
   if (campusId) {
+    const existingCampusAdmin = await db.prepare("SELECT campus_id FROM memberships WHERE user_id=? AND organization_id=? AND role='CAMPUS_ADMIN' LIMIT 1").bind(user.id,DEFAULT_ORGANIZATION_ID).first<{campus_id:string}>();
+    if (existingCampusAdmin && existingCampusAdmin.campus_id !== campusId) throw new DataCoreAccessError(409,'캠퍼스 계정은 한 캠퍼스에만 연결할 수 있습니다.');
+    if (role === 'CAMPUS_ADMIN') {
+      const other = await db.prepare('SELECT 1 FROM memberships WHERE user_id = ? AND organization_id = ? AND (campus_id <> ? OR campus_id IS NULL) LIMIT 1').bind(user.id,DEFAULT_ORGANIZATION_ID,campusId).first();
+      if (other) throw new DataCoreAccessError(409,'캠퍼스 계정은 한 캠퍼스에만 연결할 수 있습니다.');
+    }
     const campus = await db
       .prepare(
         "SELECT id FROM campuses WHERE id = ? AND organization_id = ? AND status = 'active'",
@@ -167,7 +176,7 @@ export async function upsertDataCoreMembership(
   }
 
   const membershipId =
-    role === "SUPER_ADMIN"
+    isMasterRole(role)
       ? `membership:${user.id}:super-admin`
       : `membership:${user.id}:${campusId}:${role.toLowerCase()}`;
   const now = new Date().toISOString();
@@ -228,7 +237,7 @@ export async function deleteDataCoreMembership(
 
   if (
     context.user?.internalUserId === existing.user_id &&
-    existing.role === "SUPER_ADMIN"
+    isMasterRole(existing.role)
   ) {
     throw new DataCoreAccessError(400, "현재 로그인한 자신의 마스터 권한은 여기서 제거할 수 없습니다.");
   }

@@ -9,7 +9,7 @@ test('shared design is versioned and scoped to CORE staff and counseling, not FA
     const html=fs.readFileSync(`public/data-core/${name}.html`,'utf8');
     assert.match(html,/design-tokens\.css\?v=20260910-1/);
     assert.match(html,/design-system\.css\?v=20260910-1/);
-    assert.match(html,/design-shell\.js\?v=20260910-1/);
+    assert.match(html,/design-shell\.js\?v=20260912-campus/);
   }
   const css=fs.readFileSync('public/data-core/design-system.css','utf8');
   assert.doesNotMatch(css,/body\.family|\/family\//);

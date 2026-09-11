@@ -23,6 +23,7 @@ async function accountForm({ rejectCreate = false } = {}) {
   let accountLoads = 0;
   vm.runInNewContext(source, {
     document: { getElementById: element }, crypto: webcrypto,
+    window: { addEventListener() {} }, setInterval() {},
     location: { assign() { throw new Error('Unexpected login redirect'); } },
     fetch: async (path, options = {}) => {
       calls.push({ path, method: options.method || 'GET' });
@@ -32,6 +33,7 @@ async function accountForm({ rejectCreate = false } = {}) {
       }
       if (path === '/api/auth/accounts') accountLoads++;
       const body = path === '/api/auth/session' ? { isSuperAdmin: true }
+        : path === '/api/auth/campuses' ? {summary:{total:10,online:0,today:0},campuses:[],recentLogins:[]}
         : path === '/api/data-core/campuses' ? { campuses: [{ id: 'synthetic-campus', name: 'Synthetic campus' }] }
         : { accounts: [] };
       return { ok: true, json: async () => body };

@@ -56,7 +56,7 @@ function actorId(context: DataCoreAccessContext): string {
 
 function hasCampusRole(context: DataCoreAccessContext, campusId: string, role: string): boolean {
   return context.memberships.some(
-    (membership) => membership.campusId === campusId && membership.role === role,
+    (membership) => membership.campusId === campusId && (membership.role === role || (role === "CAMPUS_DIRECTOR" && membership.role === "CAMPUS_ADMIN")),
   );
 }
 
@@ -439,7 +439,7 @@ export async function listStaffAnnouncements(
   }
   if (!context.isSuperAdmin) {
     const directorCampuses = context.memberships
-      .filter((membership) => membership.role === "CAMPUS_DIRECTOR" && membership.campusId)
+      .filter((membership) => ['CAMPUS_DIRECTOR', 'CAMPUS_ADMIN'].includes(membership.role) && membership.campusId)
       .map((membership) => String(membership.campusId));
     if (directorCampuses.length && campusId && directorCampuses.includes(campusId)) {
       // Directors may see notices for their selected campus.

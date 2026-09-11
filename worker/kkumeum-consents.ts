@@ -77,7 +77,7 @@ function requireManager(context: DataCoreAccessContext, campusId: string): void 
   requireAuthenticatedAccess(context);
   if (context.isSuperAdmin) return;
   if (context.memberships.some((membership) => (
-    membership.campusId === campusId && membership.role === "CAMPUS_DIRECTOR"
+    membership.campusId === campusId && ['CAMPUS_DIRECTOR', 'CAMPUS_ADMIN'].includes(membership.role)
   ))) return;
   throw new DataCoreAccessError(403, "동의 기록은 최고관리자 또는 해당 캠퍼스 원장만 관리할 수 있습니다.");
 }
@@ -85,7 +85,7 @@ function requireManager(context: DataCoreAccessContext, campusId: string): void 
 function requirePolicyReader(context: DataCoreAccessContext): void {
   requireAuthenticatedAccess(context);
   if (context.isSuperAdmin) return;
-  if (context.memberships.some((membership) => membership.role === "CAMPUS_DIRECTOR")) return;
+  if (context.memberships.some((membership) => ['CAMPUS_DIRECTOR', 'CAMPUS_ADMIN'].includes(membership.role))) return;
   throw new DataCoreAccessError(403, "동의 정책은 최고관리자 또는 캠퍼스 원장만 확인할 수 있습니다.");
 }
 

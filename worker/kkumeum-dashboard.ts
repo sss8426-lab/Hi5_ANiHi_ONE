@@ -17,7 +17,7 @@ export async function getKkumeumDashboard(
 ) {
   requireAuthenticatedAccess(context);
   if (!context.isSuperAdmin && !context.memberships.some(
-    (membership) => membership.campusId === campusId && membership.role === "CAMPUS_DIRECTOR",
+    (membership) => membership.campusId === campusId && ['CAMPUS_DIRECTOR', 'CAMPUS_ADMIN'].includes(membership.role),
   )) {
     throw new DataCoreAccessError(403, "꿈이음 전체 현황은 최고관리자 또는 해당 캠퍼스 원장만 볼 수 있습니다.");
   }

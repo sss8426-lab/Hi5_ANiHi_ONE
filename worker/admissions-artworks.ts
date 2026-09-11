@@ -29,7 +29,7 @@ export async function handleAdmissionsArtworks(request:Request,env:Env):Promise<
     if(!env.DB||!env.FILES)throw new DataCoreAccessError(503,'그림 저장소를 확인할 수 없습니다.');
     const context=await resolveDataCoreAccess(request,env.DB,env.DATA_CORE_SUPER_ADMIN_EMAILS);
     requireAuthenticatedAccess(context);
-    if(!context.isSuperAdmin&&!context.memberships.some(m=>m.organizationId===DEFAULT_ORGANIZATION_ID&&['TEACHER','STAFF','CAMPUS_DIRECTOR'].includes(m.role)))throw new DataCoreAccessError(403,'학생 그림을 볼 권한이 없습니다.');
+    if(!context.isSuperAdmin&&!context.memberships.some(m=>m.organizationId===DEFAULT_ORGANIZATION_ID&&['TEACHER','STAFF','CAMPUS_DIRECTOR','CAMPUS_ADMIN'].includes(m.role)))throw new DataCoreAccessError(403,'학생 그림을 볼 권한이 없습니다.');
     const match=url.pathname.match(/^\/api\/admissions\/students\/([^/]+)\/artworks\/(\d+|artworkImage|artwork|image)$/);
     if(!match)throw new DataCoreAccessError(404,'그림을 찾을 수 없습니다.');
     const id=decodeURIComponent(match[1]);

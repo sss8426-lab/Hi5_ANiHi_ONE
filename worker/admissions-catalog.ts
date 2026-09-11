@@ -108,7 +108,7 @@ export async function handleAdmissionsCatalog(request: Request, env: Env): Promi
     if (!env.DB) throw new DataCoreAccessError(503,'DATA CORE DB 연결이 필요합니다.');
     const context = await resolveDataCoreAccess(request,env.DB,env.DATA_CORE_SUPER_ADMIN_EMAILS);
     requireAuthenticatedAccess(context);
-    if (!context.isSuperAdmin && !context.memberships.some((m)=>m.organizationId===DEFAULT_ORGANIZATION_ID && ['STAFF','TEACHER','CAMPUS_DIRECTOR'].includes(m.role))) throw new DataCoreAccessError(403,'교직원 권한이 필요합니다.');
+    if (!context.isSuperAdmin && !context.memberships.some((m)=>m.organizationId===DEFAULT_ORGANIZATION_ID && ['STAFF','TEACHER','CAMPUS_DIRECTOR','CAMPUS_ADMIN'].includes(m.role))) throw new DataCoreAccessError(403,'교직원 권한이 필요합니다.');
     if (sync) {
       if (!context.isSuperAdmin) throw new DataCoreAccessError(403,'마스터 관리자만 입시요강을 동기화할 수 있습니다.');
       if (request.method !== 'POST') return privateJson({error:'POST 요청이 필요합니다.'},405);

@@ -1,7 +1,7 @@
 const $ = (id) => document.getElementById(id);
 const nextPath = (() => {
   const value = new URLSearchParams(location.search).get('next') || '/data-core/work';
-  return value.startsWith('/data-core/') ? value : '/data-core/work';
+  return value.startsWith('/data-core/') || /^\/admissions-web\/renderer\/(?:index\.html)?(?:[?#]|$)/.test(value) ? value : '/data-core/work';
 })();
 
 async function request(path, options = {}) {

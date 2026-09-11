@@ -53,7 +53,7 @@
   function renderUser() {
     const context = state.context;
     if (!context?.authenticated || !userEl) return;
-    const name = context.user?.displayName || context.user?.email || '사용자';
+    const name = context.memberships?.find(m => m.role === 'CAMPUS_ADMIN')?.campusName || context.user?.displayName || context.user?.email || '사용자';
     const role = context.isSuperAdmin
       ? '마스터 관리자'
       : (context.memberships || []).map((membership) => membership.role).join(' · ') || '업무용 사용자';
@@ -64,7 +64,7 @@
   function isManager() {
     if (state.context?.isSuperAdmin) return true;
     return (state.context?.memberships || []).some((membership) => (
-      membership.campusId === state.campusId && membership.role === 'CAMPUS_DIRECTOR'
+      membership.campusId === state.campusId && ['CAMPUS_DIRECTOR', 'CAMPUS_ADMIN'].includes(membership.role)
     ));
   }
 

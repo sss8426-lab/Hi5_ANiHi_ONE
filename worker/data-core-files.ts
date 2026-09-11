@@ -12,6 +12,7 @@ import {
   requireAuthenticatedAccess,
   requireCampusAccess,
   requireWriteAccess,
+  isCampusAdmin, managesCampus, campusForWrite,
 } from "./data-core-access";
 import { canReadRegisteredFile, derivativeMetadata, DERIVATIVE_CATEGORY, DERIVATIVE_RECORD_TYPE } from './data-core-derivative-policy';
 import { libraryUploadTarget, libraryCanDelete, LIBRARY_FOLDER, LIBRARY_SOURCE } from './data-core-library-policy';
@@ -98,6 +99,7 @@ function libraryFileProfile(category: string, campusId: string | null) {
 
 function canMutateFileRow(context: DataCoreAccessContext, row: Record<string, unknown>) {
   if (context.isSuperAdmin) return true;
+  if (isCampusAdmin(context)) return managesCampus(context, row.campus_id);
   return context.user?.internalUserId === row.owner_user_id;
 }
 
@@ -152,7 +154,7 @@ async function assertRecordLinkAllowed(
     throw new DataCoreAccessError(400, '파일과 수상작 폴더의 캠퍼스가 다릅니다.');
   }
   if (context.isSuperAdmin) return record;
-  if (record.created_by_user_id !== context.user?.internalUserId) {
+  if (record.created_by_user_id !== context.user?.internalUserId && !managesCampus(context, record.campus_id)) {
     throw new DataCoreAccessError(403, "본인이 등록한 데이터에만 파일을 연결할 수 있습니다.");
   }
   if (record.campus_id !== campusId) {
@@ -245,7 +247,7 @@ export async function uploadDataCoreFile(
     throw new DataCoreAccessError(415, "실행 파일 또는 스크립트 파일은 업로드할 수 없습니다.");
   }
 
-  const campusId = cleanText(form.get("campusId"), 120) || null;
+  const campusId = isCampusAdmin(context) ? campusForWrite(context, form.get('campusId')) : cleanText(form.get("campusId"), 120) || null;
   const category = cleanText(form.get("category") || form.get("purpose") || "general", 80) || "general";
   if ([DERIVATIVE_CATEGORY,THUMBNAIL_CATEGORY].includes(category)) throw new DataCoreAccessError(400, '파생 이미지 저장 기능을 사용하세요.');
   const recordId = cleanText(form.get("recordId"), 120) || null;

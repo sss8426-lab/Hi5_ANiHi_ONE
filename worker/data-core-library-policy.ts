@@ -1,5 +1,5 @@
 import { DEFAULT_ORGANIZATION_ID as ORG } from './data-core';
-import { DataCoreAccessContext, DataCoreAccessError, requireWriteAccess, requireCampusAccess } from './data-core-access';
+import { DataCoreAccessContext, DataCoreAccessError, requireWriteAccess, requireCampusAccess, managesCampus } from './data-core-access';
 import { canReadBaseFile } from './data-core-derivative-policy';
 
 export const LIBRARY_FOLDER = 'library-folder';
@@ -35,7 +35,7 @@ export function requireLibraryWrite(context: DataCoreAccessContext, folder: Libr
   if (folder.campusId) requireCampusAccess(context, folder.campusId);
 }
 export function libraryCanDelete(context: DataCoreAccessContext, folder: LibraryFolder, owner: unknown) {
-  return libraryCanWrite(context, folder) && (context.isSuperAdmin || context.user?.internalUserId === owner ||
+  return libraryCanWrite(context, folder) && (context.isSuperAdmin || managesCampus(context, folder.campusId) || context.user?.internalUserId === owner ||
     context.memberships.some(m => m.organizationId === ORG && m.campusId === folder.campusId && m.role === 'CAMPUS_DIRECTOR'));
 }
 export function libraryFolderScope(folder: LibraryFolder) {
@@ -143,7 +143,7 @@ export class LibraryTree {
   assertRead(folder: LibraryFolder) {
     if (this.context.isSuperAdmin) return;
     if (folder.shareMode === 'campus' && (!folder.campusId || !this.context.campusIds.includes(folder.campusId))) fail();
-    if (folder.shareMode === 'restricted' && folder.row?.created_by_user_id !== this.context.user?.internalUserId) fail();
+    if (folder.shareMode === 'restricted' && folder.row?.created_by_user_id !== this.context.user?.internalUserId && !managesCampus(this.context, folder.campusId)) fail();
   }
   async breadcrumbs(folder: LibraryFolder) {
     const result = [folder];
