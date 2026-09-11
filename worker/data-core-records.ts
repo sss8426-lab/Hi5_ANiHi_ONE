@@ -1,5 +1,6 @@
 import { DEFAULT_ORGANIZATION_ID, ensureDataCoreDatabase } from "./data-core";
 import { assertMutableRecordType, DERIVATIVE_RECORD_TYPE } from './data-core-derivative-policy';
+import { LIBRARY_FOLDER, HQ_FOLDER } from './data-core-library-policy';
 import {
   DataCoreAccessContext,
   DataCoreAccessError,
@@ -181,6 +182,7 @@ function hasMembership(context: DataCoreAccessContext) {
 }
 
 function canReadRow(context: DataCoreAccessContext, row: Record<string, unknown>) {
+  if (row.record_type === LIBRARY_FOLDER) return false;
   if (row.record_type === DERIVATIVE_RECORD_TYPE) return false;
   if (context.isSuperAdmin) return true;
   if (row.visibility === "public") return true;
@@ -306,6 +308,10 @@ export async function createDataRecord(
   assertMutableRecordType(recordType);
   const sourceApp = cleanText(input.sourceApp, 80);
   const campusId = cleanText(input.campusId, 120) || null;
+  if (recordType === LIBRARY_FOLDER || (recordType === HQ_FOLDER && (!context.isSuperAdmin || campusId ||
+    (input.metadata && typeof input.metadata === 'object' && 'parentFolderId' in input.metadata)))) {
+    throw new DataCoreAccessError(403, '자료보관함 폴더 기능을 사용하세요.');
+  }
   if (!title) throw new DataCoreAccessError(400, "title이 필요합니다.");
   if (!recordType) throw new DataCoreAccessError(400, "recordType이 필요합니다.");
   if (!sourceApp) throw new DataCoreAccessError(400, "sourceApp이 필요합니다.");
@@ -370,6 +376,9 @@ export async function updateDataRecord(
     .bind(recordId, DEFAULT_ORGANIZATION_ID)
     .first<Record<string, unknown>>();
   if (!existing) throw new DataCoreAccessError(404, "데이터를 찾을 수 없습니다.");
+  if ([LIBRARY_FOLDER, HQ_FOLDER].includes(String(existing.record_type)) || [LIBRARY_FOLDER, HQ_FOLDER].includes(cleanText(input.recordType, 80))) {
+    throw new DataCoreAccessError(403, '자료보관함 폴더 구조는 직접 변경할 수 없습니다.');
+  }
   assertMutableRecordType(existing.record_type);
   assertMutableRecordType(cleanText(input.recordType, 80));
   if (!canMutateRow(context, existing)) {
@@ -437,6 +446,9 @@ export async function deleteDataRecord(
     .bind(recordId, DEFAULT_ORGANIZATION_ID)
     .first<Record<string, unknown>>();
   if (!existing) throw new DataCoreAccessError(404, "데이터를 찾을 수 없습니다.");
+  if ([LIBRARY_FOLDER, HQ_FOLDER].includes(String(existing.record_type))) {
+    throw new DataCoreAccessError(403, '자료보관함의 빈 폴더 삭제 기능을 사용하세요.');
+  }
   assertMutableRecordType(existing.record_type);
   if (!canMutateRow(context, existing)) {
     throw new DataCoreAccessError(403, "본인이 등록한 데이터만 삭제할 수 있습니다.");

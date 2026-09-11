@@ -374,3 +374,7 @@ Content create/update accepts additive `derivedFileIds` alongside existing `rela
 8. 개인정보와 학생 자료는 기본 private로 본다.
 9. 기존 입시컨설팅은 점진적으로 DATA CORE로 이전한다.
 10. 기능 구현 후 CI 빌드/타입검사를 통과해야 완료로 판단한다.
+
+## Library Folder Browser (2026-09-11)
+
+The scoped `/api/data-core/library/folders` and `/api/data-core/library/files` adapters wrap existing records/files storage. See [LIBRARY_FOLDER_BROWSER.md](LIBRARY_FOLDER_BROWSER.md) for query/mutation contracts, lineage validation, cross-campus shared download boundaries and unchanged generic file restrictions.

@@ -183,7 +183,10 @@ function switchView(view, options = {}) {
   }
 
   if (state.context !== null) renderUser();
-  if (view === 'library') loadFiles();
+  if (view === 'library') {
+    if (window.DataCoreLibrary) window.DataCoreLibrary.refresh();
+    else loadFiles();
+  }
   if (view === 'competitions') {
     loadCompetitions();
     loadAwardFolders();
@@ -301,6 +304,7 @@ function folderButton(folder, campusId = '') {
 }
 
 function renderLibraryFolders() {
+  if (window.DataCoreLibrary) return;
   const container = $('folderGroups');
   if (!container) return;
   const groups = new Map();
@@ -399,6 +403,7 @@ async function loadHealthAndContext() {
 }
 
 async function loadFiles() {
+  if (window.DataCoreLibrary) return;
   if (!state.context?.authenticated) return;
   const params = new URLSearchParams();
   const campusId = $('fileCampusFilter')?.value || '';

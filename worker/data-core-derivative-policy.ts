@@ -30,8 +30,19 @@ export async function derivativeMetadata(db: D1Database, row: Record<string, unk
   } catch { return null; }
 }
 
-export async function canReadRegisteredFile(db: D1Database, context: DataCoreAccessContext, row: Record<string, unknown>) {
+export async function canReadRegisteredFile(db: D1Database, context: DataCoreAccessContext, row: Record<string, unknown>): Promise<boolean> {
   if (!canReadBaseFile(context, row)) return false;
+  if (row.source_app === 'data-core-library' || row.category === 'hq-workspace') {
+    if (!row.data_record_id) return false;
+    const { LibraryTree, LIBRARY_FOLDER, HQ_FOLDER, libraryFileReadable } = await import('./data-core-library-policy');
+    const tree = await new LibraryTree(db, context).init();
+    const record = await tree.row(String(row.data_record_id));
+    if (!record || ![LIBRARY_FOLDER, HQ_FOLDER].includes(record.record_type)) return false;
+    if (record && [LIBRARY_FOLDER, HQ_FOLDER].includes(record.record_type)) {
+      try { if (!libraryFileReadable(context, await tree.resolve(record.id), row)) return false; }
+      catch (e) { if (e instanceof DataCoreAccessError) return false; throw e; }
+    }
+  }
   if (row.category !== DERIVATIVE_CATEGORY) return true;
   const metadata = await derivativeMetadata(db, row);
   if (!metadata) return false;
@@ -39,5 +50,5 @@ export async function canReadRegisteredFile(db: D1Database, context: DataCoreAcc
     .bind(metadata.derivedFromFileId, DEFAULT_ORGANIZATION_ID).first<Record<string, unknown>>();
   // One-hop immutable provenance: no chains, cycles, stale campus grants, or deleted-source bypass.
   return Boolean(source && source.category !== DERIVATIVE_CATEGORY && source.campus_id === row.campus_id
-    && canReadBaseFile(context, source) && (context.isSuperAdmin || !source.campus_id || context.campusIds.includes(String(source.campus_id))));
+    && await canReadRegisteredFile(db, context, source) && (context.isSuperAdmin || !source.campus_id || context.campusIds.includes(String(source.campus_id))));
 }

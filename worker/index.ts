@@ -265,6 +265,12 @@ async function handleDataCoreApi(request: Request, env: Env) {
     env.DATA_CORE_SUPER_ADMIN_EMAILS,
   );
 
+  if (url.pathname.startsWith('/api/data-core/library/')) {
+    if (!env.DB || !env.FILES) throw new DataCoreAccessError(503, 'DATA CORE 저장소가 연결되지 않았습니다.');
+    const { handleLibraryApi } = await import('./data-core-library');
+    return (await handleLibraryApi(request, env.DB, env.FILES, context))!;
+  }
+
   if (url.pathname === '/api/data-core/instagram/derivatives' && request.method === 'POST') {
     if (!env.DB || !env.FILES) throw new DataCoreAccessError(503, 'DATA CORE 저장소가 연결되지 않았습니다.');
     return jsonResponse({file:await createInstagramDerivative(request, env.DB, env.FILES, context)}, {status:201});

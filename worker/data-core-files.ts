@@ -14,6 +14,7 @@ import {
   requireWriteAccess,
 } from "./data-core-access";
 import { canReadRegisteredFile, derivativeMetadata, DERIVATIVE_CATEGORY, DERIVATIVE_RECORD_TYPE } from './data-core-derivative-policy';
+import { libraryUploadTarget, libraryCanDelete, LIBRARY_FOLDER, LIBRARY_SOURCE } from './data-core-library-policy';
 
 const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024;
 const FILE_AREAS: DataCoreFileArea[] = [
@@ -246,8 +247,14 @@ export async function uploadDataCoreFile(
   const category = cleanText(form.get("category") || form.get("purpose") || "general", 80) || "general";
   if (category === DERIVATIVE_CATEGORY) throw new DataCoreAccessError(400, '파생 이미지 저장 기능을 사용하세요.');
   const recordId = cleanText(form.get("recordId"), 120) || null;
-
-  await assertHqWorkspaceUpload(db, context, category, campusId, recordId);
+  const libraryFolder = await libraryUploadTarget(db, context, recordId);
+  if (libraryFolder && (libraryFolder.campusId !== campusId || libraryFolder.category !== category)) {
+    throw new DataCoreAccessError(400, '파일과 자료보관함 폴더의 위치가 다릅니다.');
+  }
+  if (libraryFolder?.row?.record_type === LIBRARY_FOLDER && request.headers.get('origin') !== new URL(request.url).origin) {
+    throw new DataCoreAccessError(403, '동일 출처 요청만 허용됩니다.');
+  }
+  if (!libraryFolder) await assertHqWorkspaceUpload(db, context, category, campusId, recordId);
   if (category !== "hq-workspace") {
     if (!context.isSuperAdmin && !campusId) {
       throw new DataCoreAccessError(400, "캠퍼스 사용자는 campusId가 필요합니다.");
@@ -256,7 +263,11 @@ export async function uploadDataCoreFile(
   }
 
   const isLibraryUpload = new URL(request.url).pathname === "/api/data-core/files";
-  const profile = isLibraryUpload
+  const profile = libraryFolder ? {
+    area: (category === 'student-artwork' ? 'student-private' : 'documents-private') as DataCoreFileArea,
+    visibility: (category === 'student-artwork' || libraryFolder.shareMode === 'restricted' ? 'private' : campusId ? 'campus' : 'organization') as 'private' | 'campus' | 'organization',
+    sourceApp: libraryFolder.row?.record_type === LIBRARY_FOLDER ? LIBRARY_SOURCE : 'hq-library',
+  } : isLibraryUpload
     ? libraryFileProfile(category, campusId)
     : {
       area: fileAreaForPurpose(category),
@@ -266,7 +277,7 @@ export async function uploadDataCoreFile(
   const { area, visibility, sourceApp } = profile;
   const year = cleanText(form.get("year"), 8).replace(/[^0-9]/g, "");
   const ownerRef = cleanText(form.get("ownerId"), 120) || "shared";
-  await assertRecordLinkAllowed(db, context, recordId, campusId);
+  if (!libraryFolder) await assertRecordLinkAllowed(db, context, recordId, campusId);
   const fileName = file.name;
 
   const id = crypto.randomUUID();
@@ -494,6 +505,7 @@ export async function deleteDataCoreFile(
   context: DataCoreAccessContext,
   fileId: string,
   awardFolderId?: string,
+  libraryScope = false,
 ) {
   if (awardFolderId !== undefined) return purgeDataCoreFile(db, files, context, fileId, awardFolderId);
   requireWriteAccess(context);
@@ -506,7 +518,10 @@ export async function deleteDataCoreFile(
     .bind(fileId, DEFAULT_ORGANIZATION_ID)
     .first<Record<string, unknown>>();
   if (!row) throw new DataCoreAccessError(404, "파일을 찾을 수 없습니다.");
-  if (!canMutateFileRow(context, row)) {
+  const folder = await libraryUploadTarget(db, context, row.data_record_id as string | null);
+  if (libraryScope && row.campus_id) requireCampusAccess(context, String(row.campus_id));
+  const director = libraryScope && context.memberships.some(m => m.campusId === row.campus_id && m.role === 'CAMPUS_DIRECTOR');
+  if ((!canMutateFileRow(context, row) && !director) || (folder && !libraryCanDelete(context, folder, row.owner_user_id))) {
     throw new DataCoreAccessError(403, "본인이 업로드한 파일만 삭제할 수 있습니다.");
   }
   const deletedAt = new Date().toISOString();
@@ -541,6 +556,10 @@ export async function restoreDataCoreFile(
     .first<Record<string, unknown>>();
   if (!row) throw new DataCoreAccessError(404, "휴지통에서 파일을 찾을 수 없습니다.");
   if (String(row.deleted_at || '').startsWith('purging:')) throw new DataCoreAccessError(409, '파일 삭제 처리 중입니다.');
+  if (row.source_app === LIBRARY_SOURCE || row.category === 'hq-workspace') {
+    const folder = await libraryUploadTarget(db, context, row.data_record_id as string | null);
+    if (!folder) throw new DataCoreAccessError(403, '원본 폴더를 확인할 수 없습니다.');
+  }
   if (!canMutateFileRow(context, row)) {
     throw new DataCoreAccessError(403, "본인이 삭제한 파일만 복원할 수 있습니다.");
   }
