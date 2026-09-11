@@ -953,6 +953,12 @@ function renderAwardLibraryFiles() {
       if (awardImages.blocked) { img.dataset.loadState = 'denied'; return; }
       img.dataset.loadState = error.name === 'AbortError' ? 'waiting' : 'error';
       retry.classList.toggle('hidden', error.name === 'AbortError');
+      // A queued cancellation may settle after the image has already re-entered the viewport.
+      if (error.name === 'AbortError') requestAnimationFrame(() => {
+        if (!img.isConnected || folderId !== state.selectedAwardFolderId) return;
+        const rect = img.getBoundingClientRect();
+        if (rect.bottom >= -80 && rect.top <= innerHeight + 80) loadThumbnail(img);
+      });
     }
   };
   if (typeof IntersectionObserver !== 'undefined') {

@@ -14,6 +14,15 @@ function harness(fetch, extra = {}) {
   return { cache: vm.runInContext('new AwardImageCache({maxBytes:8,maxEntries:2})', scope), revoked, created };
 }
 const response = () => new Response(new Blob(['1234'], {type:'image/png'}));
+
+test('stalled transfer becomes a retryable error, releases its slot and retry succeeds', async()=>{
+  let attempts=0;
+  const h=harness((_url,{signal})=>++attempts===1?new Promise((_,reject)=>signal.addEventListener('abort',()=>reject(new DOMException('Cancelled','AbortError')))):response());
+  h.cache.timeoutMs=10;
+  await assert.rejects(h.cache.get('slow'),error=>error.name!=='AbortError'&&/다시 시도/.test(error.message));
+  assert.equal(h.cache.active,0);assert.equal(h.cache.pending.size,0);
+  await h.cache.get('slow');assert.equal(attempts,2);
+});
 test('thumbnail/lightbox share one authenticated request and warm reopen uses memory only', async () => {
   const requests = [], h = harness(async (url, options) => { requests.push({url, options}); return response(); });
   const [thumbnail, lightbox] = await Promise.all([h.cache.get('one'), h.cache.get('one')]);

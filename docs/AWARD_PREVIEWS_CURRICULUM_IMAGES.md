@@ -20,7 +20,7 @@ gallery records are used as test fixtures.
   pending requests are deduplicated. Three gallery transfers plus one reserved
   clicked-original slot prevent a lightbox request waiting behind unseen tiles.
 - IntersectionObserver loads only the visible region plus 80px. Offscreen queued
-  work is cancelled, started transfers complete. A 30-second transfer timeout
+  work is cancelled, started transfers complete. A 60-second transfer timeout
   releases stalled slots. Failure has an explicit retry button and no broken
   image symbol. A retained preview appears immediately in the lightbox while an
   evicted original is revalidated and downloaded if required.

@@ -5,7 +5,7 @@ const {chromium}=await import(pathToFileURL(process.env.PLAYWRIGHT_MODULE).href)
 const base=process.env.ROADMAP_TEST_ORIGIN||'http://localhost:3123';
 if(!/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(base))throw Error('Local synthetic fixtures only');
 const preview=process.env.STATIC_PREVIEW_ORIGIN;
-if(preview&&!/^https:\/\/[a-z0-9-]+\.hi5-anihi-one\.sss8426\.workers\.dev$/.test(preview))throw Error('Unexpected preview origin');
+if(preview&&!/^https:\/\/[a-z0-9-]+-hi5-anihi-one\.sss8426\.workers\.dev$/.test(preview))throw Error('Unexpected preview origin');
 const out='outputs/award-curriculum';await fs.mkdir(out,{recursive:true});
 const browser=await chromium.launch({headless:true,channel:'chrome'});
 let checks=0;

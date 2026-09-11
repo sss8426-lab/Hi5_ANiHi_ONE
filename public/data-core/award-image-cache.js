@@ -1,7 +1,7 @@
 // Originals and display-sized previews are page memory only; no R2 writes or persistent cache.
 class AwardImageCache {
-  constructor({ maxBytes = 128 * 1024 * 1024, maxEntries = 24, onDenied = () => {} } = {}) {
-    Object.assign(this, { maxBytes, maxEntries, onDenied });
+  constructor({ maxBytes = 128 * 1024 * 1024, maxEntries = 24, timeoutMs = 60000, onDenied = () => {} } = {}) {
+    Object.assign(this, { maxBytes, maxEntries, timeoutMs, onDenied });
     this.entries = new Map();
     this.previews = new Map();
     this.pending = new Map();
@@ -81,7 +81,7 @@ class AwardImageCache {
     this.queue.push(job);
     job.promise = (async () => {
       await permit;
-      const timer = setTimeout(() => job.controller.abort(), 30000);
+      const timer = setTimeout(() => { job.timedOut = true; job.controller.abort(); }, this.timeoutMs);
       try {
         if (job.controller.signal.aborted || generation !== this.generation) throw new DOMException('Cancelled', 'AbortError');
         const response = await fetch(`/api/data-core/files/${encodeURIComponent(id)}`, {
@@ -100,6 +100,9 @@ class AwardImageCache {
         const entry = { url: URL.createObjectURL(blob), blob, size: blob.size, createdAt: Date.now() };
         this.entries.set(id, entry); this.bytes += blob.size;
         return entry;
+      } catch (error) {
+        if (job.timedOut) throw new Error('이미지 응답이 늦어지고 있습니다. 다시 시도해 주세요.');
+        throw error;
       } finally { clearTimeout(timer); this.active -= 1; this.drain(); }
     })();
     this.pending.set(id, job);
