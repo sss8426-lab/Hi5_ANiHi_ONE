@@ -46,7 +46,7 @@ class AwardImageCache {
       try {
       if (controller.signal.aborted || generation !== this.generation) throw new Error('이미지 요청이 취소되었습니다.');
       const response = await fetch(`/api/data-core/files/${encodeURIComponent(id)}`, {
-        credentials: 'same-origin', cache: 'no-store', signal: controller.signal,
+        credentials: 'same-origin', cache: 'no-cache', signal: controller.signal,
       });
       if (!response.ok) {
         if ([401, 403].includes(response.status)) this.clear();

@@ -1,10 +1,35 @@
 import { DEFAULT_ORGANIZATION_ID } from './data-core';
 import { DataCoreAccessContext, DataCoreAccessError } from './data-core-access';
+import { PRIVATE_IMAGE_MIMES } from './private-image-response';
 
 export const DERIVATIVE_RECORD_TYPE = 'instagram-derived-file';
 export const DERIVATIVE_CATEGORY = 'instagram-derived';
+export const THUMBNAIL_RECORD_TYPE = 'image-thumbnail';
+export const THUMBNAIL_CATEGORY = 'image-thumbnail';
 export function assertMutableRecordType(type: unknown) {
-  if (type === DERIVATIVE_RECORD_TYPE) throw new DataCoreAccessError(403, '파생 이미지 원본 관계는 변경할 수 없습니다.');
+  if ([DERIVATIVE_RECORD_TYPE, THUMBNAIL_RECORD_TYPE].includes(String(type).trim())) throw new DataCoreAccessError(403, '파생 이미지 원본 관계는 변경할 수 없습니다.');
+}
+
+export function validThumbnail(row: Record<string, any>, metadata: any, source: Record<string, any>) {
+  return row.category === THUMBNAIL_CATEGORY && row.source_app === 'data-core-thumbnail' && row.mime_type === 'image/webp' &&
+    row.area === 'documents-private' && metadata?.schemaVersion === 1 && metadata.derivativeType === 'thumbnail' &&
+    metadata.derivativeFileId === row.id && metadata.derivedFromFileId === source.id && metadata.createdBy === 'library-upload' &&
+    metadata.format === 'webp' && Number.isInteger(metadata.width) && Number.isInteger(metadata.height) &&
+    metadata.width > 0 && metadata.height > 0 && Math.max(metadata.width,metadata.height) <= 480 &&
+    source.organization_id === DEFAULT_ORGANIZATION_ID && source.organization_id === row.organization_id &&
+    source.campus_id === row.campus_id && source.owner_user_id === row.owner_user_id && source.visibility === row.visibility &&
+    !source.deleted_at && PRIVATE_IMAGE_MIMES.has(source.mime_type) && ![DERIVATIVE_CATEGORY,THUMBNAIL_CATEGORY].includes(source.category);
+}
+
+export async function thumbnailSource(db: D1Database, row: Record<string, unknown>) {
+  if (typeof row.data_record_id !== 'string') return null;
+  const record = await db.prepare('SELECT metadata_json FROM data_records WHERE id=? AND organization_id=? AND record_type=? AND deleted_at IS NULL')
+    .bind(row.data_record_id,DEFAULT_ORGANIZATION_ID,THUMBNAIL_RECORD_TYPE).first<{metadata_json:string}>();
+  let m;try { m=JSON.parse(record?.metadata_json || 'null'); } catch { return null; }
+  if (!m || typeof m.derivedFromFileId !== 'string') return null;
+  const source=await db.prepare('SELECT * FROM file_objects WHERE id=? AND organization_id=? AND deleted_at IS NULL')
+    .bind(m.derivedFromFileId,DEFAULT_ORGANIZATION_ID).first<Record<string,any>>();
+  return source && validThumbnail(row,m,source) ? source : null;
 }
 
 export function canReadBaseFile(context: DataCoreAccessContext, row: Record<string, unknown>) {
@@ -32,6 +57,10 @@ export async function derivativeMetadata(db: D1Database, row: Record<string, unk
 
 export async function canReadRegisteredFile(db: D1Database, context: DataCoreAccessContext, row: Record<string, unknown>): Promise<boolean> {
   if (!canReadBaseFile(context, row)) return false;
+  if (row.category === THUMBNAIL_CATEGORY) {
+    const source=await thumbnailSource(db,row);
+    return Boolean(source && await canReadRegisteredFile(db,context,source));
+  }
   if (row.source_app === 'data-core-library' || row.category === 'hq-workspace') {
     if (!row.data_record_id) return false;
     const { LibraryTree, LIBRARY_FOLDER, HQ_FOLDER, libraryFileReadable } = await import('./data-core-library-policy');
@@ -49,6 +78,6 @@ export async function canReadRegisteredFile(db: D1Database, context: DataCoreAcc
   const source = await db.prepare(`SELECT * FROM file_objects WHERE id = ? AND organization_id = ? AND deleted_at IS NULL`)
     .bind(metadata.derivedFromFileId, DEFAULT_ORGANIZATION_ID).first<Record<string, unknown>>();
   // One-hop immutable provenance: no chains, cycles, stale campus grants, or deleted-source bypass.
-  return Boolean(source && source.category !== DERIVATIVE_CATEGORY && source.campus_id === row.campus_id
+  return Boolean(source && ![DERIVATIVE_CATEGORY,THUMBNAIL_CATEGORY].includes(String(source.category)) && source.campus_id === row.campus_id
     && await canReadRegisteredFile(db, context, source) && (context.isSuperAdmin || !source.campus_id || context.campusIds.includes(String(source.campus_id))));
 }

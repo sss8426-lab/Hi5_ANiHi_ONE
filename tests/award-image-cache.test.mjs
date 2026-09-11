@@ -20,7 +20,7 @@ test('thumbnail/lightbox share one authenticated request and warm reopen uses me
   assert.equal(thumbnail, lightbox);
   assert.equal(await h.cache.get('one'), thumbnail);
   assert.equal(requests.length, 1);
-  assert.equal(requests[0].options.cache, 'no-store');
+  assert.equal(requests[0].options.cache, 'no-cache');
   assert.equal(requests[0].options.credentials, 'same-origin');
   assert.equal(requests[0].url, '/api/data-core/files/one');
 });

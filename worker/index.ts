@@ -393,7 +393,7 @@ async function handleDataCoreApi(request: Request, env: Env) {
       throw new DataCoreAccessError(503, "DATA CORE의 D1과 R2가 모두 연결되어야 합니다.");
     }
     if (request.method === "GET") {
-      return readDataCoreFile(env.DB, env.FILES, context, fileId);
+      return readDataCoreFile(env.DB, env.FILES, context, fileId, request);
     }
     if (request.method === "DELETE") {
       if (url.searchParams.has('awardFolderId') && request.headers.get('origin') !== url.origin) {

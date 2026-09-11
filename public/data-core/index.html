@@ -349,7 +349,7 @@
           </aside>
           <section class="panel competition-news" id="competitionNewsPanel">
             <div class="competition-news-heading">
-              <img src="/data-core/assets/counseling/competition-news-photo-v1.webp" alt="" width="1440" height="960" loading="lazy">
+              <img src="/data-core/assets/counseling/competition-news-photo-v1.webp" alt="" width="1440" height="960" loading="lazy" decoding="async">
               <h3>공모전 소식</h3>
             </div>
             <div class="competition-source-actions">
@@ -409,7 +409,7 @@
 
   <dialog class="award-lightbox" id="awardLightbox" aria-label="수상작 크게 보기">
     <button class="icon-btn" id="closeAwardLightboxBtn" type="button" aria-label="수상작 닫기">×</button>
-    <img id="awardLightboxImage" alt="">
+    <img id="awardLightboxImage" alt="" decoding="async">
     <p id="awardLightboxCaption"></p>
   </dialog>
 
@@ -500,9 +500,11 @@
 
   <dialog id="awardDeleteDialog" class="award-delete-dialog" aria-labelledby="awardDeleteTitle"><h3 id="awardDeleteTitle">선택한 수상작을 완전히 삭제할까요?</h3><p id="awardDeleteSummary"></p><p>DATA CORE와 중앙 저장소에서도 제거되며 복원할 수 없습니다.</p><div class="row-actions"><button class="ghost-btn" id="cancelAwardDeleteBtn" type="button" autofocus>취소</button><button class="danger-btn" id="confirmAwardDeleteBtn" type="button">완전히 삭제</button></div></dialog>
   <div class="toast hidden" id="toast"></div>
-  <script src="/data-core/award-image-cache.js?v=20260909-counseling"></script>
+  <script src="/data-core/award-image-cache.js?v=20260911-thumbnails"></script>
   <script src="/data-core/upload-queue.js?v=20260911-library"></script>
-  <script src="/data-core/work/hq-library.js?v=20260911-root-controls"></script>
+  <script src="/data-core/private-image-cache.js?v=20260911-thumbnails"></script>
+  <script src="/data-core/library-thumbnail.js?v=20260911-thumbnails"></script>
+  <script src="/data-core/work/hq-library.js?v=20260911-thumbnails"></script>
   <script src="/data-core/app.js?v=20260911-folder-browser"></script>
   <script src="/data-core/mode-home-artwork.js?v=20260909-counseling"></script>
   <script type="module" src="/data-core/design-shell.js?v=20260910-1"></script>

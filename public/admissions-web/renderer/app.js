@@ -2377,7 +2377,7 @@ function renderAwards(){
   }).join('') : `<div class="empty-state">대학 폴더를 먼저 만들어주세요.</div>`;
   const yearOptions = awardYears().map(item => `<option value="${item}" ${year===item?'selected':''}>${item}년</option>`).join('');
   const gallery = selected ? (images.length ? images.map(image => `<figure class="award-thumb">
-    <button type="button" data-award-image="${h(image.id)}"><img src="${h(imgSrc(image.filePath || image.path || image.url))}" alt="${h(image.fileName || image.name || '수상작 이미지')}"></button>
+    <button type="button" data-award-image="${h(image.id)}"><img src="${h(imgSrc(image.filePath || image.path || image.url))}" alt="${h(image.fileName || image.name || '수상작 이미지')}" loading="lazy" decoding="async"></button>
     <figcaption>${h(image.fileName || image.name || '수상작 이미지')}</figcaption>
   </figure>`).join('') : `<div class="empty-state">선택한 연도에 저장된 이미지가 없습니다.</div>`) : `<div class="empty-state">새 폴더를 만들면 연도별 이미지를 저장할 수 있습니다.</div>`;
 
@@ -2433,7 +2433,7 @@ function awardViewerMarkup(){
         </div>
       </div>
       <div class="award-viewer-body">
-        <img src="${h(imgSrc(state.awardViewer.filePath || state.awardViewer.path || state.awardViewer.url))}" alt="${h(state.awardViewer.fileName || '수상작 이미지')}">
+        <img src="${h(imgSrc(state.awardViewer.filePath || state.awardViewer.path || state.awardViewer.url))}" alt="${h(state.awardViewer.fileName || '수상작 이미지')}" decoding="async">
       </div>
     </div>
   </div>`;

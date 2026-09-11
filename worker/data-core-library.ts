@@ -1,6 +1,9 @@
 import { DEFAULT_ORGANIZATION_ID as ORG } from './data-core';
 import { DataCoreAccessContext, DataCoreAccessError } from './data-core-access';
 import { uploadDataCoreFile, deleteDataCoreFile } from './data-core-files';
+import { THUMBNAIL_CATEGORY, THUMBNAIL_RECORD_TYPE, thumbnailSource, validThumbnail } from './data-core-derivative-policy';
+import { createLibraryThumbnail } from './data-core-thumbnails';
+import { privateImageResponse } from './private-image-response';
 import { LibraryTree, LibraryFolder, LIBRARY_FOLDER, HQ_FOLDER, LIBRARY_SOURCE, LIBRARY_CATEGORIES, HQ_DEFAULTS,
   libraryMetadata, libraryCanWrite, libraryCanDelete, libraryCanDeleteFolder, libraryFolderScope, requireLibraryWrite, libraryFileReadable } from './data-core-library-policy';
 
@@ -139,9 +142,29 @@ async function fileRow(tree: LibraryTree, id: string) {
   const row = await tree.db.prepare('SELECT * FROM file_objects WHERE id = ? AND organization_id = ? AND deleted_at IS NULL')
     .bind(id, ORG).first<Record<string, any>>();
   if (!row) error(404, '파일을 찾을 수 없습니다.');
-  const folder = await fileFolder(tree, row);
-  if (!libraryFileReadable(tree.context, folder, row)) error(403, '이 파일을 볼 권한이 없습니다.');
-  return { row, folder };
+  const source = row.category === THUMBNAIL_CATEGORY ? await thumbnailSource(tree.db,row) : row;
+  if (!source) error(403,'원본 파일을 확인할 수 없습니다.');
+  const folder = await fileFolder(tree, source);
+  if (!libraryFileReadable(tree.context, folder, source)) error(403, '이 파일을 볼 권한이 없습니다.');
+  return { row, folder, source };
+}
+
+async function thumbnailUrls(tree:LibraryTree, sources:Record<string,any>[]) {
+  const urls = new Map<string,string>();
+  if (!sources.length) return urls;
+  const byId = new Map(sources.map(row=>[row.id,row]));
+  const rows = (await tree.db.prepare(`SELECT fo.*, dr.metadata_json FROM file_objects fo JOIN data_records dr ON dr.id=fo.data_record_id
+    WHERE fo.organization_id=? AND dr.organization_id=? AND fo.category=? AND dr.record_type=?
+    AND fo.deleted_at IS NULL AND dr.deleted_at IS NULL
+    AND CASE WHEN json_valid(dr.metadata_json) THEN json_extract(dr.metadata_json,'$.derivedFromFileId') END
+      IN (${sources.map(()=>'?').join(',')}) ORDER BY fo.created_at DESC, fo.id`)
+    .bind(ORG,ORG,THUMBNAIL_CATEGORY,THUMBNAIL_RECORD_TYPE,...byId.keys()).all<Record<string,any>>()).results || [];
+  for (const row of rows) {
+    let metadata; try { metadata=JSON.parse(row.metadata_json); } catch { continue; }
+    const source=byId.get(metadata?.derivedFromFileId);
+    if (source && !urls.has(source.id) && validThumbnail(row,metadata,source)) urls.set(source.id,`/api/data-core/library/files/${encodeURIComponent(row.id)}`);
+  }
+  return urls;
 }
 
 async function listFiles(tree: LibraryTree, folder: LibraryFolder, url: URL) {
@@ -154,11 +177,12 @@ async function listFiles(tree: LibraryTree, folder: LibraryFolder, url: URL) {
     AND fo.original_file_name LIKE ? ESCAPE '\\' ORDER BY fo.created_at DESC, fo.id LIMIT 51 OFFSET ?`)
     .bind(ORG, folder.campusId, folder.category, folder.id, legacy ? 1 : 0, LIBRARY_FOLDER, HQ_FOLDER,
       `%${q.replace(/[\\%_]/g, '\\$&')}%`, (Math.floor(page)-1)*50).all<Record<string, any>>()).results || [];
-  const files = [];
+  const files = [], visible:Record<string,any>[] = [];
   for (const row of rows.slice(0,50)) {
     try {
       const sourceFolder = await fileFolder(tree, row);
       if (sourceFolder.id !== folder.id || !libraryFileReadable(tree.context, sourceFolder, row)) continue;
+      visible.push(row);
       files.push({ id: row.id, fileName: row.original_file_name, mimeType: row.mime_type, sizeBytes: row.size_bytes,
         createdAt: row.created_at, campusId: row.campus_id, ownerName: row.owner_name, recordId: row.data_record_id,
         canDelete: libraryCanDelete(tree.context, folder, row.owner_user_id),
@@ -166,13 +190,14 @@ async function listFiles(tree: LibraryTree, folder: LibraryFolder, url: URL) {
         downloadUrl: `/api/data-core/library/files/${encodeURIComponent(row.id)}/download` });
     } catch (e) { if (!(e instanceof DataCoreAccessError)) throw e; }
   }
-  return { files, hasMore: rows.length > 50 };
+  const thumbnails = await thumbnailUrls(tree,visible);
+  return { files:files.map(file=>({...file,thumbnailUrl:thumbnails.get(file.id) || null})), hasMore: rows.length > 50 };
 }
 
 export async function handleLibraryApi(request: Request, db: D1Database, bucket: R2Bucket, context: DataCoreAccessContext) {
   const url = new URL(request.url);
   if (!url.pathname.startsWith('/api/data-core/library/')) return null;
-  if (!['GET','HEAD'].includes(request.method) && request.headers.get('origin') !== url.origin) error(403, '동일 출처 요청만 허용됩니다.');
+  if (!['GET','HEAD'].includes(request.method) && (request.headers.get('origin') !== url.origin || request.headers.get('sec-fetch-site') === 'cross-site')) error(403, '동일 출처 요청만 허용됩니다.');
   const tree = await new LibraryTree(db, context).init();
   if (url.pathname === '/api/data-core/library/folders' && request.method === 'GET') {
     const folder = await tree.resolve(text(url.searchParams.get('parentId')) || 'root');
@@ -197,24 +222,36 @@ export async function handleLibraryApi(request: Request, db: D1Database, bucket:
     const canonical = new Request(new URL('/api/data-core/files', url), { method: 'POST', headers: { origin: url.origin }, body: form });
     return json({ file: await uploadDataCoreFile(canonical, db, bucket, context) }, 201);
   }
+  const thumbnailMatch = /^\/api\/data-core\/library\/files\/([^/]+)\/thumbnail$/.exec(url.pathname);
+  if (thumbnailMatch && request.method === 'POST') {
+    const {row,folder}=await fileRow(tree,decodeURIComponent(thumbnailMatch[1]));
+    requireLibraryWrite(context,folder);
+    return json({file:await createLibraryThumbnail(request,db,bucket,context,row,async current=>{
+      // Rebuild the ancestry after the R2 write; the request-local tree may be stale.
+      const fresh=await new LibraryTree(db,context).init();
+      try { const parent=await fileFolder(fresh,current); requireLibraryWrite(context,parent); return libraryFileReadable(context,parent,current); }
+      catch(e) { if(e instanceof DataCoreAccessError)return false; throw e; }
+    })},201);
+  }
   const match = /^\/api\/data-core\/library\/files\/([^/]+)(\/download)?$/.exec(url.pathname);
   if (match) {
-    const { row, folder } = await fileRow(tree, decodeURIComponent(match[1]));
+    const { row, folder, source } = await fileRow(tree, decodeURIComponent(match[1]));
     if (request.method === 'DELETE' && !match[2]) {
       requireLibraryWrite(context, folder);
       if (!libraryCanDelete(context, folder, row.owner_user_id)) error(403, '이 파일은 삭제할 수 없습니다.');
       return json(await deleteDataCoreFile(db, bucket, context, row.id, undefined, true));
     }
     if (request.method === 'GET' || request.method === 'HEAD') {
+      if (row.category === THUMBNAIL_CATEGORY && !await bucket.head(source.r2_key)) error(404,'원본 파일을 찾을 수 없습니다.');
       const object = await bucket.get(row.r2_key);
       if (!object) error(404, '원본 파일을 찾을 수 없습니다.');
       const preview = /^(image\/(jpeg|png|webp|gif|avif)|application\/pdf|text\/plain)$/.test(row.mime_type);
       const disposition = match[2] || !preview ? 'attachment' : 'inline';
-      return new Response(request.method === 'HEAD' ? null : object.body, { headers: {
+      return privateImageResponse(request,object,new Headers({
         'content-type': preview ? row.mime_type : 'application/octet-stream', 'cache-control': 'private, no-store',
         'x-content-type-options': 'nosniff', 'content-security-policy': "sandbox; default-src 'none'; style-src 'unsafe-inline'",
         'content-disposition': `${disposition}; filename*=UTF-8''${encodeURIComponent(row.original_file_name || 'file')}`,
-      } });
+      }),row.mime_type,!match[2]);
     }
   }
   return json({ error: '지원하지 않는 자료보관함 요청입니다.' }, 405);
