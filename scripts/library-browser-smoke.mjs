@@ -14,7 +14,7 @@ const out = resolve('outputs/library-browser' + (previewOrigin ? '-preview' : ''
 await mkdir(out, { recursive: true });
 const h = await libraryHarness(); let role = users.admin;
 const fixtures = {}, checked = new Set();
-const create = async(parent, title, user) => { const r=await h.folder(parent,title,user); assert.equal(r.status,201,JSON.stringify(r.body)); return r.body.folder.id; };
+const create = async(parent, title, user) => { const r=await h.folder(parent,'__synthetic_'+title,user); assert.equal(r.status,201,JSON.stringify(r.body)); return r.body.folder.id; };
 fixtures.a = await create(`category:${A}:admission-material`, '합성 입시 자료', users.staff);
 fixtures.b = await create(`category:${B}:admission-material`, '합성 공유 자료', users.foreign);
 fixtures.hq = await create('hq', '합성 본원 자료', users.admin);
@@ -55,12 +55,40 @@ try {
   const settled=()=>page.waitForFunction(()=>document.querySelector('#libraryContents')?.getAttribute('aria-busy')==='false');
   await visit();
   assert.equal(await page.locator('#legacyLibrary').isVisible(),false);
+  const noCommon=async()=>{
+    assert.equal(await page.getByRole('heading',{name:'공통',exact:true}).count(),0);
+    assert.equal(await page.locator('#libraryFolders [data-lb-folder="organization"]').count(),0);
+    assert.equal(await page.locator('#libraryFolders [data-lb-folder="campus:campus-synthetic-acceptance-20260909"]').count(),0);
+  };
+  await noCommon();assert.equal(await page.locator('#libraryNew').isVisible(),true);
+  await page.locator('#libraryNew').click();await page.locator('#libraryFolderName').fill('__synthetic_root_browser');await page.locator('#libraryCreate').click();
+  await page.getByRole('link',{name:'__synthetic_root_browser',exact:true}).click();await settled();
+  const customRoot=new URL(page.url()).searchParams.get('folder');assert.ok(customRoot);
+  await page.reload();await settled();assert.equal(await page.locator('#libraryTitle').innerText(),'__synthetic_root_browser');
+  await page.goBack();await settled();await noCommon();
+  await page.goForward();await settled();assert.equal(new URL(page.url()).searchParams.get('folder'),customRoot);
+  await page.locator('#libraryUp').click();await settled();await noCommon();
+  await page.getByLabel('__synthetic_root_browser 폴더 메뉴').click();await page.keyboard.press('Escape');
+  assert.equal(await page.locator('.lb-folder-menu[open]').count(),0);
+  for(const user of [users.director,users.teacher,users.staff]) {
+    role=user;await visit();await noCommon();await page.reload();await settled();await noCommon();
+    assert.equal(await page.locator('#libraryNew').isVisible(),false);assert.equal(await page.locator('.lb-folder-menu').count(),0);
+    assert.equal(await page.locator('#libraryDeleteFolder').isVisible(),false);
+    await page.getByRole('link',{name:'__synthetic_root_browser',exact:true}).click();await settled();assert.equal(await page.locator('#libraryNew').isVisible(),false);
+    await page.goBack();await settled();await noCommon();
+  }
+  role=users.admin;await visit();await noCommon();assert.equal(await page.locator('#libraryNew').isVisible(),true);
+  await page.getByLabel('__synthetic_root_browser 폴더 메뉴').click();await page.locator(`[data-lb-delete-folder="${customRoot}"]`).click();
+  assert.equal(await page.locator('#libraryDeleteTitle').innerText(),'"__synthetic_root_browser" 폴더를 삭제하시겠습니까?');
+  await page.locator('#libraryDeleteConfirm').click();await page.getByRole('link',{name:'__synthetic_root_browser',exact:true}).waitFor({state:'detached'});
+  assert.ok((await h.env.DB.prepare('SELECT deleted_at FROM data_records WHERE id=?').bind(customRoot).first()).deleted_at);
+  result.flows.push('admin root create/open/menu/delete; director/teacher/staff no root controls; common absent across role changes, refresh, back/forward');
   await page.locator(`[data-lb-folder="campus:${A}"]`).click();await settled();
   await page.locator(`[data-lb-folder="category:${A}:admission-material"]`).click();await settled();
   await page.locator(`[data-lb-folder="${fixtures.a}"]`).click();await settled();
-  await page.locator('#libraryNew').click();await page.locator('#libraryFolderName').fill('새 하위 폴더');await page.locator('#libraryCreate').click();
-  await page.getByRole('link',{name:'새 하위 폴더',exact:true}).waitFor();
-  await page.getByRole('link',{name:'새 하위 폴더',exact:true}).press('Space');await settled();
+  await page.locator('#libraryNew').click();await page.locator('#libraryFolderName').fill('__synthetic_새 하위 폴더');await page.locator('#libraryCreate').click();
+  await page.getByRole('link',{name:'__synthetic_새 하위 폴더',exact:true}).waitFor();
+  await page.getByRole('link',{name:'__synthetic_새 하위 폴더',exact:true}).press('Space');await settled();
   const current=new URL(page.url()).searchParams.get('folder');assert.ok(current&&current!==fixtures.a);
   await page.reload();await settled();assert.equal(new URL(page.url()).searchParams.get('folder'),current);
   await page.goBack();await settled();assert.equal(new URL(page.url()).searchParams.get('folder'),fixtures.a);
@@ -76,17 +104,27 @@ try {
   await page.locator('.lb-file').waitFor({state:'detached'});assert.equal((await h.file(fid)).deleted_at!==null,true);
   assert.equal((await h.request('POST',`/api/data-core/trash/files/${fid}/restore`,users.admin)).status,200);
   await page.locator('#libraryRefresh').click();await page.locator('.lb-file').waitFor();
-  await page.locator('#libraryDeleteFolder').click();await page.locator('#libraryDeleteConfirm').click();await page.getByText('폴더 안에 자료가 있습니다. 먼저 내부 자료를 정리하세요.',{exact:true}).waitFor();await page.keyboard.press('Escape');
+  await page.locator('#libraryDeleteFolder').click();await page.locator('#libraryDeleteConfirm').click();await page.getByText('폴더 안에 자료가 있습니다. 내부 자료를 먼저 정리해주세요.',{exact:true}).waitFor();await page.keyboard.press('Escape');
   result.flows.push('navigate, breadcrumb, new folder, Space, refresh, back/forward, upload progress, Unicode download, preview, soft-trash/restore, nonempty409');
-  await visit(fixtures.hq);await page.locator('#libraryNew').click();await page.locator('#libraryFolderName').fill('빈 본원 폴더');await page.locator('#libraryCreate').click();await page.getByRole('link',{name:'빈 본원 폴더',exact:true}).click();await settled();await page.locator('#libraryDeleteFolder').click();await page.locator('#libraryDeleteConfirm').click();await page.waitForURL('**folder='+fixtures.hq);await settled();
+  await visit(fixtures.hq);await page.locator('#libraryNew').click();await page.locator('#libraryFolderName').fill('__synthetic_빈 본원 폴더');await page.locator('#libraryCreate').click();await page.getByRole('link',{name:'__synthetic_빈 본원 폴더',exact:true}).click();await settled();await page.locator('#libraryDeleteFolder').click();await page.locator('#libraryDeleteConfirm').click();await page.waitForURL('**folder='+fixtures.hq);await settled();
   role=users.staff;await visit(fixtures.b);assert.equal(await page.locator('#libraryNew').isVisible(),false);assert.equal(await page.locator('#libraryUpload').isVisible(),false);assert.equal(await page.locator('[data-lb-delete]').count(),0);await page.getByRole('link',{name:'다운로드',exact:true}).waitFor();
   result.flows.push('HQ empty-folder delete; foreign browse/download with no mutation controls');
+  const foreignDownload=page.waitForEvent('download');await page.getByRole('link',{name:'다운로드',exact:true}).click();assert.equal((await foreignDownload).suggestedFilename(),'검증 자료.txt');
   for(const width of [1920,1440,1024,820,390,320]) {
     await page.setViewportSize({width,height:width<500?900:1080});await visit(deep);
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`overflow at ${width}`);
     await page.screenshot({path:resolve(out,`nested-${width}.png`),fullPage:true});
     await visit();assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`root overflow ${width}`);
     await page.screenshot({path:resolve(out,`root-${width}.png`),fullPage:true});result.viewports.push(width);
+  }
+  role=users.admin;await create('root','최상위 메뉴 반응형 검증',users.admin);
+  for(const width of [1440,390,320]) {
+    await page.setViewportSize({width,height:1000});await visit();await page.getByLabel('__synthetic_최상위 메뉴 반응형 검증 폴더 메뉴').click();
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`root menu overflow ${width}`);
+    assert.ok(await page.locator('.lb-folder-menu[open] button').evaluate(el=>{
+      const r=el.getBoundingClientRect();return r.width>=100&&r.left>=0&&r.right<=innerWidth&&el.scrollWidth<=el.clientWidth;
+    }),`root menu label clipped ${width}`);
+    await page.screenshot({path:resolve(out,`admin-root-menu-${width}.png`),fullPage:true});
   }
   assert.deepEqual(errors,[]);result.errors=errors;result.previewAssetCount=checked.size;
   await writeFile(resolve(out,'result.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result));
