@@ -27,7 +27,7 @@ export interface FileObjectInput {
   createdAt: string;
 }
 
-let schemaReady: Promise<void> | null = null;
+const schemaReady = new WeakMap<D1Database, Promise<void>>();
 
 export function fileAreaForPurpose(purpose: string): DataCoreFileArea {
   if (purpose === "student-artwork") return "student-private";
@@ -40,13 +40,14 @@ export function visibilityForArea(area: DataCoreFileArea): FileObjectInput["visi
 }
 
 export async function ensureDataCoreDatabase(db: D1Database): Promise<void> {
-  if (!schemaReady) {
-    schemaReady = initializeSchema(db).catch((error) => {
-      schemaReady = null;
+  if (!schemaReady.has(db)) {
+    const ready = initializeSchema(db).catch((error) => {
+      schemaReady.delete(db);
       throw error;
     });
+    schemaReady.set(db, ready);
   }
-  return schemaReady;
+  return schemaReady.get(db)!;
 }
 
 async function ensureFileObjectSourceAppColumn(db: D1Database) {

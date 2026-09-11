@@ -658,3 +658,7 @@ Synthetic concurrent publication reproduced two successful responses for one dra
 Additional isolated behavior coverage: concurrent/repeated publish, expired subscription 404/410, provider rejection/network failure, no-device subscription, and artwork object/metadata failure followed by retry. Production acceptance remains separately tracked in Issue #43; local tests do not establish OS notification receipt or the outstanding authenticated negative-access check. Existing successful production upload, report read receipt, and provider delivery are not repeated.
 
 Local validation: npm ci, build (through npm test), TypeScript noEmit, all 37 public JavaScript syntax checks, 218/218 tests without skips, and Wrangler deploy dry-run passed. The full suite includes the isolated synthetic restore drill and production-target rejection guard. CI, Preview and production evidence are recorded separately on the PR/Issue after verification.
+
+## 22. Library folder browser (2026-09-11)
+
+Folder navigation, breadcrumb/history, nested-folder creation, shared upload queue, authenticated download and recoverable file trash now use one library browser. Existing HQ records and virtual campus categories are retained. Only verified shared library lineage grants cross-campus reads; generic #166 campus restrictions and private/FAMILY boundaries remain. No storage/schema/binding replacement or real data migration. See `docs/LIBRARY_FOLDER_BROWSER.md` for behavior/security tests and deployment evidence scope.

@@ -1,252 +1,158 @@
 (() => {
-  const DEFAULT_FOLDERS = [
-    { key: 'class-artwork', label: '수업그림', sortOrder: 10 },
-    { key: 'director-only', label: '원장전용', sortOrder: 20 },
-    { key: 'resources', label: '자료', sortOrder: 30 },
-    { key: 'production', label: '제작물', sortOrder: 40 },
-  ];
-  const RECORD_TYPE = 'hq-library-folder';
-  const SOURCE_APP = 'data-core-library';
-  const UPLOAD_CATEGORY = 'hq-workspace';
-  const state = { context: null, folders: [], selectedId: '', files: [], ensuring: false };
-
-  const h = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-  }[ch]));
-
+  if (window.DataCoreLibrary) return;
+  const host = document.getElementById('libraryBrowser');
+  if (!host) return;
+  const $ = id => document.getElementById(id);
+  const h = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const icon = name => `<svg class="lb-icon" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#${name}"></use></svg>`;
+  const href = id => `/data-core/work/library${id === 'root' ? '' : `?folder=${encodeURIComponent(id)}`}`;
+  const state = { folder: null, files: [], breadcrumbs: [], controller: null, generation: 0, queue: null, pending: null };
+  const sheet = document.createElement('link'); sheet.rel = 'stylesheet'; sheet.href = '/data-core/work/library-browser.css?v=20260911-1'; document.head.append(sheet);
+  host.innerHTML = `<nav id="libraryBreadcrumb" aria-label="자료보관함 경로"></nav>
+    <header class="lb-heading"><div><h2 id="libraryTitle" tabindex="-1">자료보관함</h2><small id="libraryPermission"></small></div>
+    <div class="lb-toolbar"><a id="libraryUp" class="lb-button" hidden>${icon('ArrowLeft')}상위 폴더</a>
+      <button id="libraryNew" class="lb-button" hidden>${icon('Folder')}새 폴더</button>
+      <button id="libraryUpload" class="lb-button lb-primary" hidden>${icon('Image')}파일 업로드</button>
+      <button id="libraryDeleteFolder" class="lb-button lb-danger" hidden>폴더 삭제</button>
+      <button id="libraryRefresh" class="lb-button lb-square" aria-label="새로고침" title="새로고침">${icon('RotateCcw')}</button>
+    </div></header>
+    <form id="librarySearch" class="lb-search"><label for="libraryQuery">현재 폴더 검색</label><input id="libraryQuery" type="search" maxlength="120"><button class="lb-button" type="submit">검색</button></form>
+    <p id="libraryStatus" role="status"></p><div id="libraryContents" aria-busy="false"><div id="libraryFolders"></div><div id="libraryFiles"></div></div>
+    <nav id="libraryPages" class="lb-toolbar" aria-label="파일 페이지"></nav>
+    <input id="libraryFileInput" type="file" multiple hidden>
+    <dialog id="libraryFolderDialog" aria-labelledby="libraryFolderTitle"><form id="libraryFolderForm"><h3 id="libraryFolderTitle">새 폴더</h3>
+      <label for="libraryFolderName">새 폴더 이름</label><input id="libraryFolderName" required maxlength="80" autocomplete="off">
+      <p id="libraryFolderError" role="alert"></p><div class="lb-toolbar"><button type="button" data-lb-close>취소</button><button id="libraryCreate" class="lb-primary" type="submit">만들기</button></div></form></dialog>
+    <dialog id="libraryDeleteDialog" aria-labelledby="libraryDeleteTitle"><h3 id="libraryDeleteTitle"></h3><p id="libraryDeleteName"></p><p id="libraryDeleteError" role="alert"></p>
+      <div class="lb-toolbar"><button type="button" data-lb-close autofocus>취소</button><button id="libraryDeleteConfirm" class="lb-danger" type="button">휴지통으로 이동</button></div></dialog>
+    <dialog id="libraryProgressDialog" aria-labelledby="libraryProgressTitle"><h3 id="libraryProgressTitle">파일 업로드</h3><p id="libraryProgressCount" role="status"></p>
+      <progress id="libraryProgress" max="100" value="0"></progress><p id="libraryProgressCurrent"></p><ul id="libraryUploadErrors"></ul>
+      <div class="lb-toolbar"><button id="libraryCancelUpload" type="button">업로드 취소</button><button id="libraryRetry" type="button" hidden>실패 파일 재시도</button><button id="libraryCloseProgress" type="button" hidden>닫기</button></div></dialog>`;
   async function api(url, options = {}) {
     const response = await fetch(url, { cache: 'no-store', ...options });
-    const type = response.headers.get('content-type') || '';
-    const body = type.includes('application/json') ? await response.json() : await response.text();
-    if (!response.ok) {
-      const message = typeof body === 'object' && body?.error ? body.error : String(body || `HTTP ${response.status}`);
-      throw new Error(message);
-    }
+    const body = await response.json();
+    if (!response.ok) { const e = new Error(body.error || '요청에 실패했습니다.'); e.status = response.status; throw e; }
     return body;
   }
-
-  function isSuperAdmin() {
-    return Boolean(state.context?.isSuperAdmin);
+  function presentation(folder) {
+    const code = folder.id.startsWith('campus:campus-') ? folder.id.slice('campus:campus-'.length) : '';
+    const info = typeof CAMPUS_PRESENTATION !== 'undefined' && CAMPUS_PRESENTATION[code];
+    return { title: info?.name || folder.title, group: folder.group || info?.group || '폴더', order: info?.order || 0 };
   }
-
-  function folderMeta(folder) {
-    return folder?.metadata && typeof folder.metadata === 'object' ? folder.metadata : {};
+  function locationState() {
+    const params = new URLSearchParams(location.search);
+    return { id: params.get('folder') || 'root', q: params.get('q') || '', page: Math.max(1, Number(params.get('page')) || 1) };
   }
-
-  function normalizedFolders(records) {
-    return (records || [])
-      .filter((folder) => folder && folder.campusId == null && folder.recordType === RECORD_TYPE && folder.sourceApp === SOURCE_APP)
-      .sort((a, b) => {
-        const left = Number(folderMeta(a).sortOrder) || 9999;
-        const right = Number(folderMeta(b).sortOrder) || 9999;
-        return left - right || String(a.title || '').localeCompare(String(b.title || ''), 'ko');
-      });
+  function navigate(id, q = '', page = 1) {
+    const url = new URL(href(id), location.origin);
+    if (q) url.searchParams.set('q', q);
+    if (page > 1) url.searchParams.set('page', String(page));
+    history.pushState({ view: 'library' }, '', url.pathname + url.search);
+    load(true);
   }
-
-  async function readFolders() {
-    const response = await api(`/api/data-core/records?recordType=${encodeURIComponent(RECORD_TYPE)}&sourceApp=${encodeURIComponent(SOURCE_APP)}&limit=100`);
-    return normalizedFolders(response.records || []);
+  function renderFolders(folders, q) {
+    const groups = new Map();
+    folders.filter(f => !q || presentation(f).title.toLocaleLowerCase().includes(q.toLocaleLowerCase())).forEach(f => {
+      const p = presentation(f), group = state.folder.id === 'root' ? p.group : '폴더';
+      if (!groups.has(group)) groups.set(group, []); groups.get(group).push({ ...f, ...p });
+    });
+    $('libraryFolders').innerHTML = [...groups].map(([group, rows]) => `<section class="lb-folder-group"><h3>${h(group)}</h3><div class="lb-folder-grid">${rows.sort((a,b)=>a.order-b.order).map(f =>
+      `<a class="lb-folder" href="${h(href(f.id))}" data-lb-folder="${h(f.id)}">${icon('Folder')}<strong>${h(f.title)}</strong></a>`).join('')}</div></section>`).join('');
   }
-
-  async function ensureDefaultFolders() {
-    if (!isSuperAdmin() || state.ensuring) return;
-    state.ensuring = true;
+  function size(bytes) { return bytes < 1024 ? `${bytes} B` : bytes < 1048576 ? `${(bytes/1024).toFixed(1)} KB` : `${(bytes/1048576).toFixed(1)} MB`; }
+  function renderFiles(files) {
+    $('libraryFiles').innerHTML = files.length ? `<ul class="lb-file-list">${files.map(f => {
+      const preview = /^(image\/(jpeg|png|webp|gif|avif)|application\/pdf|text\/plain)$/.test(f.mimeType);
+      return `<li class="lb-file" data-library-file="${h(f.id)}"><div class="lb-file-main">${icon(String(f.mimeType).startsWith('image/')?'Image':'BookOpen')}
+        <div><strong>${h(f.fileName)}</strong><small>${h(f.mimeType)} · ${h(size(f.sizeBytes))} · ${h(new Date(f.createdAt).toLocaleDateString('ko-KR'))}</small>
+        <small>${h(state.breadcrumbs.find(b=>b.id.startsWith('campus:'))?.title || '본원·조직 공통')} · ${h(f.ownerName || '')}</small></div></div>
+        <div class="lb-file-actions">${preview ? `<a class="lb-button" href="${h(f.previewUrl)}" target="_blank" rel="noopener">미리보기</a>` : ''}
+        <a class="lb-button" href="${h(f.downloadUrl)}" download>다운로드</a>${f.canDelete ? `<button class="lb-button lb-danger" data-lb-delete="${h(f.id)}">삭제</button>` : ''}</div></li>`;
+    }).join('')}</ul>` : '';
+  }
+  async function load(focus = false) {
+    if (!/\/data-core\/work\/library\/?$/.test(location.pathname)) return;
+    const generation = ++state.generation, current = locationState();
+    state.controller?.abort(); state.controller = new AbortController();
+    state.folder = null; state.files = [];
+    $('libraryUp').hidden = true; $('libraryPermission').textContent = '';
+    $('libraryStatus').textContent = '불러오는 중…'; $('libraryContents').setAttribute('aria-busy','true');
+    $('libraryFolders').replaceChildren(); $('libraryFiles').replaceChildren(); $('libraryPages').replaceChildren();
+    for (const id of ['libraryNew','libraryUpload','libraryDeleteFolder']) $(id).hidden = true;
+    $('libraryQuery').value = current.q;
     try {
-      let folders = await readFolders();
-      const keys = new Set(folders.map((folder) => String(folderMeta(folder).folderKey || '')));
-      for (const item of DEFAULT_FOLDERS) {
-        if (keys.has(item.key)) continue;
-        await api('/api/data-core/records', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            campusId: null,
-            recordType: RECORD_TYPE,
-            sourceApp: SOURCE_APP,
-            title: item.label,
-            summary: '본원 공용 작업물 폴더',
-            visibility: 'organization',
-            metadata: { folderKey: item.key, sortOrder: item.sortOrder, system: true },
-            tags: ['본원 작업물', 'hq-library-folder', `hq:${item.key}`],
-          }),
-        });
-        keys.add(item.key);
-      }
-      folders = await readFolders();
-      state.folders = folders;
-    } finally {
-      state.ensuring = false;
-    }
+      const options = { signal: state.controller.signal };
+      const view = await api(`/api/data-core/library/folders?parentId=${encodeURIComponent(current.id)}`, options);
+      const listing = await api(`/api/data-core/library/files?folderId=${encodeURIComponent(current.id)}&q=${encodeURIComponent(current.q)}&page=${current.page}`, options);
+      if (generation !== state.generation) return;
+      state.folder = view.folder; state.files = listing.files; state.breadcrumbs = view.breadcrumbs;
+      $('libraryTitle').textContent = presentation(view.folder).title;
+      $('libraryPermission').textContent = view.folder.readOnly ? '읽기·다운로드 가능' : '';
+      $('libraryBreadcrumb').innerHTML = `<ol>${view.breadcrumbs.map((b,i) => `<li>${i === view.breadcrumbs.length-1 ? `<span aria-current="page">${h(presentation(b).title)}</span>` : `<a href="${h(href(b.id))}" data-lb-folder="${h(b.id)}">${h(presentation(b).title)}</a>`}</li>`).join('')}</ol>`;
+      $('libraryUp').hidden = !view.folder.parentId; $('libraryUp').href = href(view.folder.parentId || 'root'); $('libraryUp').dataset.lbFolder = view.folder.parentId || 'root';
+      $('libraryNew').hidden = !view.folder.canWrite;
+      $('libraryUpload').hidden = !view.folder.canWrite || !view.folder.category;
+      $('libraryDeleteFolder').hidden = !view.folder.canDelete;
+      renderFolders(view.folders, current.q); renderFiles(listing.files);
+      $('libraryStatus').textContent = !listing.files.length && !$('libraryFolders').children.length ? (current.q ? '검색 결과가 없습니다.' : '이 폴더에 자료가 없습니다.') : '';
+      if (current.page > 1 || listing.hasMore) $('libraryPages').innerHTML = `<button class="lb-button" data-lb-page="${current.page-1}" ${current.page===1?'disabled':''}>이전</button><span>${current.page} 페이지</span><button class="lb-button" data-lb-page="${current.page+1}" ${listing.hasMore?'':'disabled'}>다음</button>`;
+      if (focus) $('libraryTitle').focus({ preventScroll: true });
+    } catch (e) {
+      if (e.name === 'AbortError' || generation !== state.generation) return;
+      $('libraryTitle').textContent = '자료보관함';
+      $('libraryBreadcrumb').innerHTML = `<a href="${href('root')}" data-lb-folder="root">자료보관함</a>`;
+      $('libraryStatus').textContent = e.message;
+      if (e.status === 401) $('libraryStatus').innerHTML = `<a href="/data-core/login?next=${encodeURIComponent(location.pathname+location.search)}">교직원 로그인</a>`;
+    } finally { if (generation === state.generation) $('libraryContents').setAttribute('aria-busy','false'); }
   }
-
-  async function loadFiles(folderId) {
-    if (!folderId) {
-      state.files = [];
-      renderFiles();
-      return;
-    }
-    const response = await api(`/api/data-core/files?recordId=${encodeURIComponent(folderId)}&category=${encodeURIComponent(UPLOAD_CATEGORY)}&limit=100`);
-    state.files = response.files || [];
-    renderFiles();
+  host.addEventListener('click', e => {
+    const folder = e.target.closest('[data-lb-folder]');
+    if (folder && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.button === 0) { e.preventDefault(); navigate(folder.dataset.lbFolder); }
+    const page = e.target.closest('[data-lb-page]'); if (page && !page.disabled) { const s=locationState(); navigate(s.id,s.q,Number(page.dataset.lbPage)); }
+    const remove = e.target.closest('[data-lb-delete]');
+    if (remove) confirmDelete('file', state.files.find(f=>f.id===remove.dataset.lbDelete));
+    if (e.target.closest('[data-lb-close]')) e.target.closest('dialog').close();
+  });
+  // Space complements the native Enter behavior of folder links.
+  host.addEventListener('keydown', e => { if (e.code === 'Space' && e.target.matches('[data-lb-folder]')) { e.preventDefault(); e.target.click(); } });
+  $('librarySearch').onsubmit = e => { e.preventDefault(); navigate(locationState().id,$('libraryQuery').value.trim()); };
+  $('libraryRefresh').onclick = () => load();
+  $('libraryNew').onclick = () => { if (!state.folder?.canWrite) return; $('libraryFolderForm').reset(); $('libraryFolderError').textContent=''; $('libraryFolderDialog').dataset.parentId=state.folder.id; $('libraryFolderDialog').showModal(); $('libraryFolderName').focus(); };
+  $('libraryFolderForm').onsubmit = async e => {
+    e.preventDefault(); $('libraryCreate').disabled=true;
+    try { await api('/api/data-core/library/folders',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({parentFolderId:$('libraryFolderDialog').dataset.parentId,title:$('libraryFolderName').value.trim()})}); $('libraryFolderDialog').close(); await load(); }
+    catch(e) { $('libraryFolderError').textContent=e.message; } finally { $('libraryCreate').disabled=false; }
+  };
+  function confirmDelete(kind, item) {
+    if (!item) return;
+    state.pending={kind,id:item.id}; $('libraryDeleteError').textContent='';
+    $('libraryDeleteTitle').textContent=kind==='file'?'이 파일을 휴지통으로 이동하시겠습니까?':'빈 폴더를 삭제하시겠습니까?';
+    $('libraryDeleteName').textContent=item.fileName||item.title;
+    $('libraryDeleteConfirm').textContent=kind==='file'?'휴지통으로 이동':'폴더 삭제'; $('libraryDeleteDialog').showModal();
   }
-
-  function renderFiles() {
-    const root = document.getElementById('hqLibraryFiles');
-    const title = document.getElementById('hqLibrarySelectedTitle');
-    const upload = document.getElementById('hqLibraryUploadBtn');
-    if (!root || !title) return;
-    const selected = state.folders.find((folder) => String(folder.id) === String(state.selectedId));
-    title.textContent = selected ? selected.title : '본원 폴더를 선택하세요';
-    if (upload) upload.disabled = !selected;
-    if (!selected) {
-      root.innerHTML = '<div class="hq-library-empty">수업그림·원장전용·자료·제작물 중 하나를 선택하세요.</div>';
-      return;
-    }
-    if (!state.files.length) {
-      root.innerHTML = '<div class="hq-library-empty">이 폴더에 등록된 작업물이 없습니다.</div>';
-      return;
-    }
-    root.innerHTML = state.files.map((file) => `<a class="hq-library-file" href="${h(file.downloadUrl || `/api/data-core/files/${encodeURIComponent(String(file.id))}`)}" target="_blank" rel="noopener">
-      <span class="hq-library-file-icon">${String(file.mimeType || '').startsWith('image/') ? '▧' : '▤'}</span>
-      <span><strong>${h(file.fileName || '파일')}</strong><small>${h(file.ownerName || '본원')} · ${h(new Date(file.createdAt).toLocaleDateString('ko-KR'))}</small></span>
-    </a>`).join('');
+  $('libraryDeleteFolder').onclick=()=>confirmDelete('folder',state.folder);
+  $('libraryDeleteConfirm').onclick=async()=>{
+    const pending=state.pending, parent=state.folder?.parentId; if(!pending)return;
+    $('libraryDeleteConfirm').disabled=true;
+    try { await api(`/api/data-core/library/${pending.kind==='file'?'files':'folders'}/${encodeURIComponent(pending.id)}`,{method:'DELETE'}); $('libraryDeleteDialog').close(); if(pending.kind==='folder')navigate(parent||'root');else await load(); }
+    catch(e){$('libraryDeleteError').textContent=e.message;}finally{$('libraryDeleteConfirm').disabled=false;}
+  };
+  function progress(p) {
+    $('libraryProgressCount').textContent=`${p.count}개 파일 · ${p.percent}% · 완료 ${p.success}개 · 실패 ${p.failed}개`;
+    $('libraryProgress').value=p.percent; $('libraryProgressCurrent').textContent=p.current;
+    $('libraryCancelUpload').hidden=!p.running; $('libraryCloseProgress').hidden=p.running; $('libraryRetry').hidden=p.running||!p.failed||p.cancelled;
+    $('libraryUploadErrors').innerHTML=state.queue?.items.filter(i=>i.status==='failed').map(i=>`<li>${h(i.file.name)}: ${h(i.error)}</li>`).join('')||'';
   }
-
-  function renderSection() {
-    const host = document.getElementById('folderGroups');
-    if (!host) return;
-    let section = document.getElementById('hqLibrarySection');
-    if (!section) {
-      section = document.createElement('section');
-      section.id = 'hqLibrarySection';
-      section.className = 'campus-folder-section hq-library-section';
-      host.prepend(section);
-    }
-    const buttons = state.folders.length
-      ? state.folders.map((folder) => `<button class="folder-chip ${String(folder.id) === String(state.selectedId) ? 'active' : ''}" data-hq-folder-id="${h(folder.id)}" aria-pressed="${String(folder.id) === String(state.selectedId) ? 'true' : 'false'}"><span>▣</span><strong>${h(folder.title)}</strong></button>`).join('')
-      : DEFAULT_FOLDERS.map((folder) => `<button class="folder-chip" disabled><span>▣</span><strong>${h(folder.label)}</strong></button>`).join('');
-    section.innerHTML = `
-      <div class="hq-library-heading">
-        <div><h4>본원 작업물</h4><small>본원에서 올린 공용 작업물을 모든 캠퍼스가 함께 사용합니다.</small></div>
-        ${isSuperAdmin() ? '<button class="ghost-btn hq-library-add" id="hqLibraryAddFolderBtn" type="button">+ 폴더 추가</button>' : ''}
-      </div>
-      <div class="folder-chip-grid hq-library-folder-grid">${buttons}</div>
-      <div class="hq-library-browser">
-        <div class="hq-library-browser-head">
-          <strong id="hqLibrarySelectedTitle">본원 폴더를 선택하세요</strong>
-          ${isSuperAdmin() ? '<button class="secondary-btn" id="hqLibraryUploadBtn" type="button" disabled>파일 업로드</button><input id="hqLibraryFileInput" type="file" multiple hidden>' : ''}
-        </div>
-        <div class="hq-library-files" id="hqLibraryFiles"></div>
-      </div>`;
-
-    section.querySelectorAll('[data-hq-folder-id]').forEach((button) => {
-      button.addEventListener('click', async () => {
-        state.selectedId = button.dataset.hqFolderId || '';
-        renderSection();
-        await loadFiles(state.selectedId);
-      });
-    });
-    section.querySelector('#hqLibraryAddFolderBtn')?.addEventListener('click', createFolder);
-    const uploadButton = section.querySelector('#hqLibraryUploadBtn');
-    const input = section.querySelector('#hqLibraryFileInput');
-    uploadButton?.addEventListener('click', () => input?.click());
-    input?.addEventListener('change', async () => {
-      const files = Array.from(input.files || []);
-      if (!files.length || !state.selectedId) return;
-      uploadButton.disabled = true;
-      uploadButton.textContent = '업로드 중...';
-      try {
-        for (const file of files) {
-          const form = new FormData();
-          form.append('file', file);
-          form.append('campusId', '');
-          form.append('category', UPLOAD_CATEGORY);
-          form.append('sourceApp', 'hq-library');
-          form.append('recordId', state.selectedId);
-          form.append('ownerId', 'shared');
-          form.append('year', String(new Date().getFullYear()));
-          await api('/api/data-core/files', { method: 'POST', body: form });
-        }
-        await loadFiles(state.selectedId);
-      } catch (error) {
-        window.alert(`본원 작업물 업로드에 실패했습니다: ${error.message}`);
-      } finally {
-        input.value = '';
-        uploadButton.disabled = false;
-        uploadButton.textContent = '파일 업로드';
-      }
-    });
-    renderFiles();
-  }
-
-  async function createFolder() {
-    if (!isSuperAdmin()) return;
-    const title = window.prompt('새 본원 작업물 폴더 이름을 입력하세요.');
-    if (!title?.trim()) return;
-    const sortOrder = Math.max(1000, ...state.folders.map((folder) => Number(folderMeta(folder).sortOrder) || 0)) + 10;
-    await api('/api/data-core/records', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        campusId: null,
-        recordType: RECORD_TYPE,
-        sourceApp: SOURCE_APP,
-        title: title.trim().slice(0, 80),
-        summary: '본원 공용 작업물 폴더',
-        visibility: 'organization',
-        metadata: { folderKey: `custom-${Date.now()}`, sortOrder, system: false },
-        tags: ['본원 작업물', 'hq-library-folder'],
-      }),
-    });
-    await refresh();
-  }
-
-  function addStyle() {
-    if (document.getElementById('hq-library-style')) return;
-    const style = document.createElement('style');
-    style.id = 'hq-library-style';
-    style.textContent = `
-      .hq-library-section{margin-bottom:22px;padding-bottom:22px;border-bottom:1px solid var(--line,#e5e7eb)}
-      .hq-library-heading,.hq-library-browser-head{display:flex;align-items:center;justify-content:space-between;gap:16px}
-      .hq-library-heading h4{margin:0 0 4px}.hq-library-heading small{color:var(--muted,#667085)}
-      .hq-library-folder-grid{margin-top:14px}.hq-library-browser{margin-top:16px;padding:14px;border:1px solid var(--line,#e5e7eb);border-radius:14px;background:rgba(255,255,255,.7)}
-      .hq-library-files{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-top:12px}
-      .hq-library-file{display:flex;align-items:center;gap:10px;padding:12px;border:1px solid var(--line,#e5e7eb);border-radius:12px;text-decoration:none;color:inherit;background:#fff}
-      .hq-library-file:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(15,23,42,.06)}
-      .hq-library-file span:last-child{min-width:0}.hq-library-file strong,.hq-library-file small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.hq-library-file small{margin-top:3px;color:var(--muted,#667085);font-size:12px}
-      .hq-library-file-icon{font-size:20px}.hq-library-empty{padding:18px;text-align:center;color:var(--muted,#667085)}
-      @media(max-width:720px){.hq-library-heading,.hq-library-browser-head{align-items:flex-start;flex-direction:column}.hq-library-files{grid-template-columns:1fr}}
-    `;
-    document.head.appendChild(style);
-  }
-
-  async function refresh() {
-    if (!state.context?.authenticated) return;
-    state.folders = await readFolders();
-    await ensureDefaultFolders();
-    if (!state.folders.length) state.folders = await readFolders();
-    if (state.selectedId && !state.folders.some((folder) => String(folder.id) === String(state.selectedId))) state.selectedId = '';
-    renderSection();
-    if (state.selectedId) await loadFiles(state.selectedId);
-  }
-
-  async function init() {
-    const host = document.getElementById('folderGroups');
-    if (!host) return;
-    addStyle();
-    try {
-      state.context = await api('/api/data-core/context');
-      if (!state.context?.authenticated) return;
-      await refresh();
-      const observer = new MutationObserver(() => {
-        if (!document.getElementById('hqLibrarySection')) queueMicrotask(renderSection);
-      });
-      observer.observe(host, { childList: true });
-    } catch (error) {
-      console.warn('본원 작업물 영역을 불러오지 못했습니다.', error);
-    }
-  }
-
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
-  else init();
+  async function run(retry=false){await state.queue.run(retry);await load();}
+  $('libraryUpload').onclick=()=>{if(state.folder?.canWrite&&!state.queue?.running)$('libraryFileInput').click();};
+  $('libraryFileInput').onchange=async()=>{
+    const files=[...$('libraryFileInput').files]; if(!files.length||!state.folder?.canWrite)return;
+    state.queue=new DataCoreUploadQueue(files,{recordId:state.folder.id,libraryScoped:true},progress); $('libraryProgressDialog').showModal();
+    await run(); $('libraryFileInput').value='';
+  };
+  $('libraryCancelUpload').onclick=()=>state.queue?.cancel(); $('libraryRetry').onclick=()=>run(true);
+  $('libraryCloseProgress').onclick=()=>$('libraryProgressDialog').close();
+  $('libraryProgressDialog').addEventListener('cancel',e=>{if(state.queue?.running)e.preventDefault();});
+  for(const dialog of host.querySelectorAll('dialog'))dialog.addEventListener('click',e=>{if(e.target===dialog&&dialog.id!=='libraryProgressDialog')dialog.close();});
+  window.DataCoreLibrary={refresh:load};
 })();

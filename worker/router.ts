@@ -483,7 +483,7 @@ const worker = {
       ) {
         const context = await resolveDataCoreAccess(request, env.DB, env.DATA_CORE_SUPER_ADMIN_EMAILS);
         if (!context.authenticated || context.mustChangePassword) {
-          return loginPageResponse(request, env, url.pathname.replace(/\/$/, "") || "/data-core/work");
+          return loginPageResponse(request, env, (url.pathname.replace(/\/$/, "") || "/data-core/work") + url.search);
         }
       }
       if (url.pathname === "/data-core/kkumeum" || url.pathname === "/data-core/kkumeum/") {

@@ -1,0 +1,42 @@
+#legacyLibrary[hidden],#libraryBrowser [hidden]{display:none!important}
+#libraryBrowser{min-width:0;color:#24433c}
+#libraryBrowser *{box-sizing:border-box;letter-spacing:0}
+#libraryBrowser h2{font-size:26px;line-height:1.4;margin:0;overflow-wrap:anywhere}
+#libraryBrowser h3{font-size:17px;margin:0 0 14px}
+#libraryBrowser small,#libraryPermission{font-size:12px;line-height:1.7;color:#687973;display:block}
+.lb-icon{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+#libraryBreadcrumb ol{list-style:none;display:flex;flex-wrap:wrap;gap:7px 10px;margin:0 0 24px;padding:0;font-size:13px}
+#libraryBreadcrumb li{min-width:0;overflow-wrap:anywhere;display:flex;gap:10px;max-width:100%}
+#libraryBreadcrumb li+li:before{content:'›';color:#85948e}
+#libraryBreadcrumb a{color:#457364;text-decoration:none;overflow-wrap:anywhere}
+.lb-heading{display:flex;align-items:center;justify-content:space-between;gap:20px;padding-bottom:20px;border-bottom:1px solid #dce5df}
+.lb-heading>div{min-width:0}.lb-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+#libraryBrowser button,.lb-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:40px;padding:9px 13px;border:1px solid #cbdad1;background:#fff;color:#325d4d;border-radius:6px;font:inherit;font-size:13px;text-decoration:none;cursor:pointer;white-space:normal}
+#libraryBrowser .lb-primary{background:#286751;color:#fff;border-color:#286751}
+#libraryBrowser .lb-danger{color:#a23c36;border-color:#dfcac6}
+#libraryBrowser button:disabled{opacity:.45;cursor:default}
+#libraryBrowser :focus-visible{outline:3px solid #397eaa;outline-offset:3px}
+#libraryBrowser .lb-square{width:40px;padding:8px}
+.lb-search{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:24px 0 12px;font-size:13px}
+#libraryBrowser input:not([type=file]){min-width:0;max-width:100%;height:40px;border:1px solid #cbdad1;border-radius:6px;padding:8px 12px;background:#fff;color:#24433c;font:inherit}
+.lb-search input{width:280px}
+#libraryStatus{color:#64756c;font-size:14px;min-height:22px;margin:14px 0}
+.lb-folder-group{padding:12px 0 24px}
+.lb-folder-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+.lb-folder{display:flex;align-items:center;gap:14px;min-height:82px;border:1px solid #d9e3dc;border-radius:8px;background:#fff;text-decoration:none;color:#2d5744;padding:18px}
+.lb-folder:hover{border-color:#6e9981;background:#f4f8f5}.lb-folder .lb-icon{width:30px;height:30px;color:#739375}.lb-folder strong{font-size:14px;overflow-wrap:anywhere;min-width:0}
+.lb-file-list{list-style:none;margin:0 0 20px;padding:0;border-top:1px solid #d9e3dc}
+.lb-file{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:18px 0;border-bottom:1px solid #d9e3dc}
+.lb-file-main{display:flex;align-items:center;gap:16px;min-width:0}.lb-file-main>div{min-width:0}.lb-file-main strong{display:block;overflow-wrap:anywhere;font-size:14px;line-height:1.7}
+.lb-file-actions{display:flex;flex-wrap:wrap;gap:6px;flex-shrink:0}
+#libraryBrowser dialog{width:min(440px,calc(100% - 32px));max-height:85dvh;overflow:auto;border:1px solid #cad9cf;border-radius:8px;padding:24px;color:#24433c;background:#fff}
+#libraryBrowser dialog::backdrop{background:#172c2559}
+#libraryBrowser dialog label{display:block;font-size:13px;margin:20px 0 8px}
+#libraryBrowser dialog input,#libraryBrowser progress{width:100%}
+#libraryBrowser dialog .lb-toolbar{justify-content:flex-end;margin-top:22px}
+#libraryBrowser dialog p,#libraryUploadErrors{overflow-wrap:anywhere;font-size:13px;line-height:1.7}
+#libraryFolderError,#libraryDeleteError,#libraryUploadErrors{color:#a23c36}
+#libraryBrowser progress{accent-color:#286751;height:10px}
+@media(max-width:1100px){.lb-heading{align-items:flex-start;flex-direction:column}.lb-file{align-items:flex-start;flex-direction:column;gap:10px}}
+@media(max-width:680px){#libraryBreadcrumb ol{font-size:12px}.lb-folder-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.lb-folder{padding:14px;gap:8px;flex-direction:column;align-items:flex-start}.lb-folder strong{font-size:13px}.lb-search label{width:100%}.lb-search input{flex:1;width:auto}.lb-heading{gap:15px}#libraryBrowser h2{font-size:23px}}
+@media(max-width:360px){.lb-folder-grid{grid-template-columns:minmax(0,1fr)}.lb-file-actions{width:100%}.lb-file-actions .lb-button{flex:1;padding:8px}.lb-toolbar{width:100%}}

@@ -1,56 +1,35 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
+const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
-
-test('HQ shared library renders before campus groups with the four requested defaults', async () => {
-  const source = await read('public/data-core/work/hq-library.js');
-  const labels = ['수업그림', '원장전용', '자료', '제작물'];
+test('HQ defaults retain stable keys and order in the shared server folder projection', async () => {
+  const source = await read('worker/data-core-library-policy.ts');
   let cursor = -1;
-  for (const label of labels) {
-    const next = source.indexOf(`label: '${label}'`);
-    assert.ok(next > cursor, `${label} must keep the requested order`);
-    cursor = next;
+  for (const [key, label] of [['class-artwork','수업그림'],['director-only','원장전용'],['resources','자료'],['production','제작물']]) {
+    const next = source.indexOf(`['${key}', '${label}']`); assert.ok(next > cursor); cursor = next;
   }
-  assert.match(source, /host\.prepend\(section\)/);
-  assert.match(source, /<h4>본원 작업물<\/h4>/);
+  assert.match(source, /Legacy HQ visibility/);
+  assert.match(source, /shareMode: shared \? 'organization' : 'restricted'/);
 });
-
-test('HQ folder creation and upload stay master-only organization workflows', async () => {
+test('one browser reuses the upload queue and server-authorized controls without automatic default creation', async () => {
   const source = await read('public/data-core/work/hq-library.js');
-  assert.match(source, /if \(!isSuperAdmin\(\)\) return;/);
-  assert.match(source, /campusId: null/);
-  assert.match(source, /visibility: 'organization'/);
-  assert.match(source, /recordType: RECORD_TYPE/);
-  assert.match(source, /sourceApp: SOURCE_APP/);
-  assert.match(source, /recordId', state\.selectedId/);
-  assert.match(source, /campusId', ''/);
-  assert.match(source, /const UPLOAD_CATEGORY = 'hq-workspace'/);
-  assert.match(source, /recordId=\$\{encodeURIComponent\(folderId\)\}&category=\$\{encodeURIComponent\(UPLOAD_CATEGORY\)\}/);
-  assert.match(source, /isSuperAdmin\(\) \? '<button class="ghost-btn hq-library-add"/);
+  assert.match(source, /new DataCoreUploadQueue/);
+  assert.match(source, /libraryScoped:true/);
+  assert.match(source, /view\.folder\.canWrite/);
+  assert.match(source, /history\.pushState/);
+  assert.match(source, /params\.get\('folder'\)/);
+  assert.match(source, /aria-label="자료보관함 경로"/);
+  assert.doesNotMatch(source, /ensureDefault|hq-library-add|\/api\/data-core\/records/);
+  const queue = await read('public/data-core/upload-queue.js');
+  assert.match(queue, /libraryScoped/);
+  assert.match(queue, /\/api\/data-core\/library\/files/);
+  assert.match(queue, /\/api\/data-core\/files/);
 });
-
-test('HQ workspace upload has server-side master and folder guards', async () => {
-  const source = await read('worker/data-core-files.ts');
-  assert.match(source, /"hq-workspace"/);
-  assert.match(source, /category === "hq-workspace"/);
-  assert.match(source, /if \(!context\.isSuperAdmin\)/);
-  assert.match(source, /본원 작업물 업로드는 마스터 관리자만/);
-  assert.match(source, /folder\.campus_id !== null/);
-  assert.match(source, /folder\.record_type !== "hq-library-folder"/);
-  assert.match(source, /folder\.source_app !== "data-core-library"/);
-  assert.match(source, /folder\.visibility !== "organization"/);
-  assert.match(source, /sourceApp: "hq-library"/);
-  assert.match(source, /visibility: "organization" as const/);
-});
-
-test('HQ library reuses current DATA CORE storage instead of creating a new backend', async () => {
-  const source = await read('public/data-core/work/hq-library.js');
-  const loader = await read('public/data-core/work/kkumeum-nav.js');
-  assert.match(source, /\/api\/data-core\/records/);
-  assert.match(source, /\/api\/data-core\/files/);
-  assert.match(source, /const UPLOAD_CATEGORY = 'hq-workspace'/);
-  assert.doesNotMatch(source, /new R2|new D1|FAMILY_FILES/);
-  assert.match(loader, /\/data-core\/work\/hq-library\.js/);
+test('library routes wrap existing storage; soft folder deletion cannot cascade or migrate', async () => {
+  const source = await read('worker/data-core-library.ts');
+  assert.match(source, /uploadDataCoreFile/); assert.match(source, /deleteDataCoreFile/);
+  assert.match(source, /NOT EXISTS \(SELECT 1 FROM file_objects WHERE data_record_id = \?\)/);
+  assert.doesNotMatch(source, /bucket\.(delete|put)|CREATE TABLE|DROP TABLE|DELETE FROM/);
+  assert.match(await read('public/data-core/work/kkumeum-nav.js'), /\/data-core\/work\/hq-library\.js/);
 });

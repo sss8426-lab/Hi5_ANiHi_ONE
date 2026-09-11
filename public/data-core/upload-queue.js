@@ -59,8 +59,8 @@ class DataCoreUploadQueue {
       const xhr = new XMLHttpRequest();
       const form = new FormData();
       form.append('file', file);
-      for (const [key,value] of Object.entries(target)) form.append(key, value);
-      xhr.open('POST', '/api/data-core/files');
+      for (const [key,value] of Object.entries(target)) if (key !== 'libraryScoped') form.append(key, value);
+      xhr.open('POST', target.libraryScoped === true ? '/api/data-core/library/files' : '/api/data-core/files');
       xhr.timeout = 180000;
       xhr.responseType = 'json';
       xhr.upload.onprogress = event => { if (event.lengthComputable) onProgress(event.loaded, event.total); };
