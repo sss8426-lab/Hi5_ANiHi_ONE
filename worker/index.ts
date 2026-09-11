@@ -507,7 +507,7 @@ const worker = {
     const url = new URL(request.url);
     let assetPath = url.pathname;
     try { assetPath = decodeURIComponent(assetPath); } catch { return new Response(null,{status:400}); }
-    if (assetPath === '/admissions-web/data/default-data.json') {
+    if (assetPath.startsWith('/admissions-web/data/')) {
       const context = await resolveDataCoreAccess(request,env.DB,env.DATA_CORE_SUPER_ADMIN_EMAILS);
       if (!context.isSuperAdmin || context.mustChangePassword) return new Response(null,{status:context.authenticated?403:401,headers:{'cache-control':'no-store'}});
     }

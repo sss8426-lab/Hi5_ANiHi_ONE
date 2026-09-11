@@ -26,6 +26,8 @@
 
 The legacy `/api/data`, `/api/upload` and `/api/files` paths require authentication. Unsigned OAI identity headers are accepted only by local/test development hosts, never by production or Cloudflare Preview hosts. Direct access to the packaged default data is master-only.
 
+Wrangler `assets.run_worker_first` explicitly includes API, packaged admissions data and master account/operations/readiness paths. This prevents the static asset layer from bypassing Worker authorization. Other public assets retain asset-first delivery. DB/R2 bindings are not changed. Routing reference: https://developers.cloudflare.com/workers/static-assets/routing/worker-script/
+
 The existing R2 `state/admissions-data.json` is preserved. Campus changes live in an additive `campus_admissions_state` table in the existing D1 DB, not in a new database/bucket. Unassigned legacy rows remain master-only. Explicitly campus-owned legacy rows are projected into their campus without a migration or copying students to FAMILY. Updates use revision compare-and-swap; stale writes return 409. New numeric IDs have disjoint campus ranges for legacy UI compatibility.
 
 Masters select a campus to edit campus-owned records; the all-campus view combines original data and campus overlays. Campus edits cannot replace universities, settings or admission grade rules. Private browser IndexedDB fallback is disabled to avoid retaining another account's snapshot or falsely reporting an offline save. Operational backups include the additive campus state section when present. Existing backup manifests remain readable.

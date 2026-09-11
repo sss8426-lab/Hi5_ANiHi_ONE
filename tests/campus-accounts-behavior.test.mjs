@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Miniflare } from 'miniflare';
+import { readFileSync } from 'node:fs';
+
+test('Cloudflare protects private packaged data and master shells before serving static assets',()=>{
+  const config=JSON.parse(readFileSync('wrangler.jsonc','utf8'));
+  for(const route of ['/api/*','/admissions-web/data/*','/data-core/accounts*','/data-core/operations*','/data-core/readiness*']) assert.ok(config.assets.run_worker_first.includes(route));
+});
 
 const campuses = [
   ['ba','BUCHEON_ANI','campus-anihi-admission'],['bd','BUCHEON_DESIGN','campus-design-admission'],
@@ -36,6 +42,8 @@ test('ten campus accounts: normalized login, forced change, own CRUD, cross-camp
   try {
     const {request,DB,FILES}=h;
     assert.equal((await request('/api/data')).status,401);
+    assert.equal((await request('/admissions-web/data/default-data.json')).status,401);
+    assert.equal((await request('/admissions-web/data/%64efault-data.json')).status,401);
     const forged = await h.worker.fetch(new Request('https://hi5-anihi-one.sss8426.workers.dev/api/data',{headers:{'oai-authenticated-user-id':'campus-master','oai-authenticated-user-email':'campus-master@example.test'}}),h.env,{waitUntil(){}});
     assert.equal(forged.status,401,'production does not trust unsigned identity headers');
     const accounts=[];
@@ -52,6 +60,7 @@ test('ten campus accounts: normalized login, forced change, own CRUD, cross-camp
       assert.deepEqual(context.body.campusIds,[campus]);
       assert.equal(context.body.memberships[0].campusCode,code);
       assert.equal(context.body.memberships[0].role,'CAMPUS_ADMIN');assert.equal(context.body.isSuperAdmin,false);
+      assert.equal((await request('/admissions-web/data/default-data.json',{cookie})).status,403);
       for(const path of ['/data-core/work','/data-core/counseling','/data-core/curriculum','/data-core/roadmap','/data-core/work/library']) assert.equal((await request(path,{cookie})).status,200,path);
       for(const path of ['/api/auth/accounts','/api/auth/campuses','/api/data-core/admin/users','/api/data-core/admin/backups','/data-core/accounts','/data-core/operations','/data-core/readiness']) assert.equal((await request(path,{cookie})).status,403,path);
       const own=await request('/api/data',{cookie});assert.equal(own.status,200);assert.equal(own.body.students.length,0);
