@@ -13,10 +13,17 @@ test('legacy student artwork read-through restores exact stored originals with c
     const save=()=>h.env.FILES.put('state/admissions-data.json',JSON.stringify(state));
     await save();await h.env.FILES.put('artworks/original.png',tinyPng(),{httpMetadata:{contentType:'image/png'}});
     const before=await(await h.env.FILES.get('state/admissions-data.json')).text();
+    let artworkHeads=0;
+    const files=h.env.FILES;
+    h.env.FILES=new Proxy(files,{get(target,name){
+      if(name==='head')return async(key,...args)=>{if(key.startsWith('artworks/'))artworkHeads++;return target.head(key,...args);};
+      const value=target[name];return typeof value==='function'?value.bind(target):value;
+    }});
     const path='/api/admissions/students/synthetic-student/artworks/0';
     assert.equal((await h.request('GET',path)).response.status,401);
     const read=await h.request('GET',path,users.a);
     assert.equal(read.response.status,200,JSON.stringify(read.body));
+    assert.equal(artworkHeads,0,'a single exact stored key skips the redundant R2 HEAD');
     assert.equal(read.response.headers.get('content-type'),'image/png');
     assert.match(read.response.headers.get('cache-control'),/private/);
     const etag=read.response.headers.get('etag');
@@ -615,6 +622,11 @@ test("smoke checks admissions, competition, roadmap, knowledge, and readiness ro
       "/data-core",
       "/data-core/counseling",
       "/data-core/counseling/competitions",
+      "/data-core/curriculum",
+      ...['content','design'].flatMap(family=>[
+        `/data-core/curriculum/${family}`,
+        ...['basic','advanced','admission'].map(stage=>`/data-core/curriculum/${family}/${stage}`),
+      ]),
       "/data-core/work",
       "/data-core/work/library",
       "/data-core/content",

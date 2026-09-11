@@ -1,0 +1,26 @@
+/* Scope past the legacy dashboard's fixed-column rules without recoloring the app. */
+#dashboard .score-hero { display: flex !important; flex-direction: column; align-items: stretch; min-width: 0; }
+#dashboard .score-controls.compact-scores { display: flex !important; flex-wrap: wrap; align-items: end; gap: 14px 16px !important; width: 100%; min-width: 0 !important; }
+#dashboard .compact-scores > .field { flex: 0 1 176px; width: 176px !important; min-width: 0 !important; max-width: 100%; margin: 0; }
+#dashboard .compact-scores > .field:has(#gradeYear) { flex-basis: 80px; width: 80px !important; }
+#dashboard .compact-scores > .dashboard-practical-type-field { flex-basis: 200px; width: 200px !important; }
+#dashboard .compact-scores > .field:has(input[type=number]) { flex: 0 0 76px; width: 76px !important; min-width: 0 !important; }
+#dashboard .compact-scores > .dashboard-score-field { flex-basis: 88px !important; width: 88px !important; }
+#dashboard .compact-scores input, #dashboard .compact-scores select { box-sizing: border-box; min-width: 0 !important; width: 100% !important; height: 42px; padding: 8px !important; font-size: 14px !important; }
+#dashboard .compact-scores label { white-space: nowrap; font-size: 13px; }
+#dashboard .compact-scores .score-submit { flex: 0 0 auto; width: auto !important; min-width: 0 !important; max-width: 100%; padding: 10px 18px; height: 42px; order: 2; }
+#dashboard .compact-scores .score-row-break { flex-basis: 100%; height: 0; }
+#dashboard .top-list-scroll { max-height: 540px; overflow: auto; }
+#dashboard .top-list-scroll th { position: sticky; top: 0; background: var(--core-surface, #fff); z-index: 1; }
+#dashboard .top-list-scroll .campus-distance { display: block; font-size: 12px; color: var(--core-ink-muted, #68736e); font-weight: 400; }
+#cases .case-pagination { display: flex; align-items: center; justify-content: flex-end; gap: 16px; padding: 16px 0 0; }
+#cases .case-pagination button { display: grid; place-items: center; width: 36px; height: 36px; padding: 6px; }
+#cases .case-pagination button:disabled { opacity: .4; cursor: default; }
+#cases .case-pagination svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+#cases .case-pagination [data-step="1"] svg { transform: rotate(180deg); }
+#cases .case-split > section { min-width: 0; }
+#students .student-table-scroll { overflow-x: auto; max-width: 100%; }
+@media (max-width: 480px) {
+  #dashboard .compact-scores > .field { flex-basis: 140px; width: 140px !important; }
+  #dashboard .compact-scores .score-submit { margin-top: 4px; }
+}

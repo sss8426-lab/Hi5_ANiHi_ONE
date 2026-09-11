@@ -1,5 +1,8 @@
 let state = { data: null, selectedUniversityId: 1, lastAnalysis: null, studentSearch: '', studentGradeInputTab: 'simple', studentYearFilter: '', studentRoundFilter: '', studentTypeTab: 'result', studentEditor: null, studentDetailId: null, studentResultExpandedId: null, studentGalleryId: null, studentGradeId: null, caseSearch: '', caseReserveFilter: '', caseDetail: null, conversionDetailId: null, adminMode: 'edit', adminEditing: false, adminSearch: '', adminTrackSearch: '', pdfAnalysis: null, adminDraft: null, artworkViewer: null, awardFolderId: null, awardYear: '2024', awardViewer: null, strategyInput: { gpa: 3.2, skillLevel: '중', track: '웹툰', studentId: '', search: '' } };
 let dashboardAnalyzeTimer = null;
+let casePages = { pass: 1, fail: 1 };
+let admissionsDataRevision = 0;
+let closeArtworkViewer = null;
 let universityIdCache = null;
 let universityNameIndexCache = null;
 const admissionRowsCache = new Map();
@@ -15,6 +18,8 @@ function clearComputedCaches(){
   caseRowsCache = null;
 }
 function setStateData(data){
+  closeArtworkViewer?.();
+  admissionsDataRevision += 1;
   state.data = data || { students: [], universities: [], awardFolders: [] };
   if(!Array.isArray(state.data.awardFolders)) state.data.awardFolders = [];
   clearComputedCaches();
@@ -228,8 +233,27 @@ function studentArtworks(student, resolveStudent = true){
     return result;
   });
 }
-function studentArtworkImage(url,classes='',alt='학생 그림'){
-  return url?`<img class="${h(classes)}" src="${h(url)}" alt="${h(alt)}" loading="lazy" decoding="async" width="160" height="160" data-student-artwork><span class="artwork-missing" hidden>그림 없음</span>`:'<span class="artwork-missing">그림 없음</span>';
+function studentArtworkImage(url,classes='',alt='학생 그림',priority=false){
+  return url?`<img class="${h(classes)}" src="${h(url)}" alt="${h(alt)}" loading="${priority?'eager':'lazy'}" fetchpriority="${priority?'high':'auto'}" decoding="async" width="160" height="160" data-student-artwork><span class="artwork-missing" hidden>그림 없음</span>`:'<span class="artwork-missing">그림 없음</span>';
+}
+function replaceArtworkContent(host, markup){
+  // Keep decoded images only across the current view's redraw, never in persistent storage.
+  const existing=new Map();
+  host.querySelectorAll('img[data-student-artwork]').forEach(img=>{
+    if(!img.complete || !img.naturalWidth || img.dataset.dataRevision!==String(admissionsDataRevision))return;
+    const key=img.getAttribute('src');
+    if(!existing.has(key))existing.set(key,[]);
+    existing.get(key).push(img);
+  });
+  const template=document.createElement('template');template.innerHTML=markup;
+  template.content.querySelectorAll('img[data-student-artwork]').forEach(placeholder=>{
+    placeholder.dataset.dataRevision=String(admissionsDataRevision);
+    const image=existing.get(placeholder.getAttribute('src'))?.shift();
+    if(!image)return;
+    for(const attr of ['class','alt','loading','fetchpriority'])image.setAttribute(attr,placeholder.getAttribute(attr));
+    placeholder.replaceWith(image);
+  });
+  host.replaceChildren(template.content);
 }
 function termScoreValue(student, row, subjectKey){
   return student?.termGrades?.[row.gradeKey]?.[row.semesterKey]?.[subjectKey] ?? '';
@@ -560,7 +584,7 @@ function artworkGalleryMarkup(artworks, mode='view'){
   if(!artworks.length) return `<div class="artwork-empty">등록된 그림 이미지가 없습니다.</div>`;
   return artworks.map((artwork, index)=>`<figure class="student-artwork-card">
     <button class="artwork-open-btn" type="button" data-open-artwork="${h(artwork.displayUrl || '')}" data-open-artwork-name="${h(artwork.name || `그림 ${index + 1}`)}">
-      ${studentArtworkImage(artwork.displayUrl)}
+      ${studentArtworkImage(artwork.displayUrl,'','학생 그림',index<5)}
     </button>
     <figcaption>${h(artwork.name || `그림 ${index + 1}`)}</figcaption>
     ${mode === 'edit' ? `<button class="btn mini danger" type="button" data-remove-artwork="${index}">삭제</button>` : ''}
@@ -571,14 +595,23 @@ function artworkViewerMarkup(){
   return `<div class="artwork-viewer-backdrop" data-close-artwork-viewer>
     <div class="artwork-viewer" role="dialog" aria-modal="true" aria-label="그림 크게 보기">
       <div class="artwork-viewer-head"><b>${h(state.artworkViewer.name || '그림')}</b><button class="btn mini" type="button" data-close-artwork-viewer>닫기</button></div>
-      ${studentArtworkImage(imgSrc(state.artworkViewer.path),'',state.artworkViewer.name || '확대 그림')}
+      ${studentArtworkImage(imgSrc(state.artworkViewer.path),'',state.artworkViewer.name || '확대 그림',true)}
     </div>
   </div>`;
 }
 function bindArtworkViewer(){
   document.querySelectorAll('[data-student-artwork]').forEach(img=>{const fail=()=>{img.hidden=true;if(img.nextElementSibling)img.nextElementSibling.hidden=false;};img.onerror=fail;if(img.complete&&!img.naturalWidth)fail();});
-  document.querySelectorAll('[data-open-artwork]').forEach(btn=>btn.onclick=()=>{state.artworkViewer={path:btn.dataset.openArtwork,name:btn.dataset.openArtworkName || '그림'}; renderPage(activePageId());});
-  document.querySelectorAll('[data-close-artwork-viewer]').forEach(target=>target.onclick=(event)=>{if(event.target.hasAttribute('data-close-artwork-viewer')){state.artworkViewer=null; renderPage(activePageId());}});
+  document.querySelectorAll('[data-open-artwork]').forEach(btn=>btn.onclick=()=>{
+    state.artworkViewer={path:btn.dataset.openArtwork,name:btn.dataset.openArtworkName || '그림'};
+    const host=document.createElement('div');host.innerHTML=artworkViewerMarkup();document.body.append(host);
+    const closeButton=host.querySelector('button[data-close-artwork-viewer]');
+    const close=()=>{state.artworkViewer=null;closeArtworkViewer=null;host.remove();document.removeEventListener('keydown',keydown);if(btn.isConnected)btn.focus();};
+    const keydown=event=>{if(event.key==='Escape'){event.preventDefault();close();}else if(event.key==='Tab'){event.preventDefault();closeButton.focus();}};
+    host.addEventListener('click',event=>{if(event.target.hasAttribute('data-close-artwork-viewer'))close();});
+    const img=host.querySelector('img');img.onerror=()=>{img.hidden=true;img.nextElementSibling.hidden=false;};
+    document.addEventListener('keydown',keydown);closeButton.focus();
+    closeArtworkViewer=close;
+  });
 }
 function refreshTermGradeSummary(){
   const draft = { termGrades: readTermGradesFromEditor() };
@@ -657,6 +690,7 @@ function normalizeAdmissionResults(student, includeEmpty=false){
       universityName: row?.universityName || row?.admissionUniversity || '',
       competition: row?.competition || '',
       originalResult: row?.originalResult || '',
+      reserveNumber: row?.reserveNumber ?? row?.waitlistNumber ?? null,
       major: row?.major || '',
       university: row?.university || '',
       examSubject: row?.examSubject || '',
@@ -925,6 +959,7 @@ function caseRowsFromStudents(){
         anonymousId: s.name || `학생-${s.id}`,
         result: admission.result,
         resultNote: admission.resultNote || '',
+        reserveNumber: admission.reserveNumber,
         admissionYear: admission.year || '',
         admissionRound: admission.round || '',
         originalResult: admission.originalResult || '',
@@ -1291,7 +1326,7 @@ function refreshUniversityRecommendations(){
     const skill = Number.isFinite(Number(state.lastAnalysis.skill)) ? Number(state.lastAnalysis.skill) : 80;
     const track = state.lastAnalysis.track || '';
     const practicalType = state.lastAnalysis.practicalType || '';
-    const results = dashboardUniversitiesForTrack(track, practicalType).map(u=>({u,p:scoreUniversity(u,gpa,skill)})).sort((a,b)=>b.p-a.p);
+    const results = window.AdmissionsCounselingUx.sortByDistance(dashboardUniversitiesForTrack(track, practicalType).map(u=>({u,p:scoreUniversity(u,gpa,skill)})));
     state.lastAnalysis = { ...state.lastAnalysis, gpa, skill, track, practicalType, results };
     if(results.length && !results.some(item => item.u.id === state.selectedUniversityId)){
       state.selectedUniversityId = results[0].u.id;
@@ -1433,6 +1468,7 @@ function bindNav(){
   admissionsHistoryWindow().addEventListener('hashchange',routeAdmissions);
 }
 function showPage(page, updateHistory=true){
+  closeArtworkViewer?.();
   const target = $(page);
   if(!target) return;
   if(updateHistory) admissionsHistoryWindow().history.pushState(null,'',`#page=${encodeURIComponent(page)}`);
@@ -1481,7 +1517,7 @@ function renderDashboard(){
   const checkedUniversityCount = checkedUniversities().length;
   const checkedDashboardUniversities = dashboardUniversitiesForTrack(analysisTrack, analysisPracticalType);
   const hasDashboardAnalysis = !!state.lastAnalysis;
-  const analysis={...baseAnalysis,gpa:analysisGpa,skill:analysisSkill,track:analysisTrack,practicalType:analysisPracticalType,results:hasDashboardAnalysis ? checkedDashboardUniversities.map(u=>({u,p:scoreUniversity(u,analysisGpa,analysisSkill)})).sort((a,b)=>b.p-a.p) : []};
+  const analysis={...baseAnalysis,gpa:analysisGpa,skill:analysisSkill,track:analysisTrack,practicalType:analysisPracticalType,results:hasDashboardAnalysis ? window.AdmissionsCounselingUx.sortByDistance(checkedDashboardUniversities.map(u=>({u,p:scoreUniversity(u,analysisGpa,analysisSkill)}))) : []};
   if(state.lastAnalysis) state.lastAnalysis = analysis;
   const dashboardSubjects = analysis.subjectScores || {};
   const dashboardTrack = analysis.track || defaultTrack;
@@ -1501,11 +1537,12 @@ function renderDashboard(){
     <section class="score-hero">
       <div><h2>학생 성적 입력</h2><p>학생의 내신/수능 성적과 실기 평가를 입력하면 지원 가능 대학을 추천해드립니다.</p></div>
       <div class="checked-count-banner"><b>체크완료 대학 ${checkedUniversityCount}개</b><span>현재 전공 계열 추천 대상 ${checkedDashboardUniversities.length}개</span></div>
-      <div class="score-controls">
-        <div class="field"><label>학생명</label><input id="studentName" placeholder="예: 김학생"></div>
-        <div class="field"><label>학년</label><select id="gradeYear"><option>고3</option><option>고2</option><option>고1</option><option>N수</option></select></div>
+      <div class="score-controls compact-scores">
+        <div class="field"><label for="studentName">학생명</label><input id="studentName" value="${h(analysis.studentName || '')}" placeholder="예: 김학생"></div>
+        <div class="field"><label for="gradeYear">학년</label><select id="gradeYear">${['고3','고2','고1','N수'].map(year=>`<option ${year===(analysis.gradeYear||'고3')?'selected':''}>${year}</option>`).join('')}</select></div>
         <div class="field dashboard-track-field"><label>전공 계열</label><select id="track">${trackOptions}</select></div>
         <div class="field dashboard-practical-type-field"><label>실기 유형</label><select id="dashPracticalType">${practicalTypeOptionsHtml}</select></div>
+        <span class="score-row-break" aria-hidden="true"></span>
         <div class="field dashboard-score-field"><label>내신 평균</label><input id="gpa" type="number" step="0.1" value="${hasDashboardAnalysis ? formatGrade(analysis.gpa) : ''}"></div>
         <div class="field dashboard-score-field"><label>실기 점수</label><input id="skill" type="number" value="${hasDashboardAnalysis ? h(analysis.skill) : ''}"></div>
         <button class="btn primary score-submit" id="analyzeBtn">성적 입력하기 →</button>
@@ -1519,9 +1556,9 @@ function renderDashboard(){
 
     <section class="dashboard-grid">
       <article class="dash-card top-list">
-        <div class="card-head"><h3>지원 가능 대학 TOP 30</h3><span>ⓘ</span></div>
-        <div class="top-list-scroll"><table><thead><tr><th>순위</th><th>대학명</th><th>지원 가능 학과</th><th>예상 합격 가능성</th></tr></thead><tbody>${analysis.results.slice(0,30).map(({u,p},idx)=>{const l=level(p);return `<tr class="clickable" data-uni="${u.id}"><td>${idx+1}</td><td><b>${universityNameMarkup(u)}</b> ${collegeTypeBadge(u)}</td><td>${h(u.major)}</td><td><span class="badge ${l[1]}">${l[0]}</span> <b>${p}%</b></td></tr>`}).join('') || `<tr><td colspan="4" class="muted">${hasDashboardAnalysis ? '선택한 계열에 맞는 체크완료 대학이 없습니다.' : '학생 성적을 입력하면 체크완료된 대학 중에서 추천 목록이 표시됩니다.'}</td></tr>`}</tbody></table></div>
-        <button class="btn more-btn" id="goSearchBtn">더보기 →</button>
+        <div class="card-head"><h3>지원 가능 대학 TOP 30</h3><small>서울시청 가까운 순</small></div>
+        <div class="top-list-scroll"><table><thead><tr><th>순위</th><th>대학명</th><th>지원 가능 학과</th><th>예상 합격 가능성</th></tr></thead><tbody>${analysis.results.slice(0,30).map(({u,p,distanceKm},idx)=>{const l=level(p);return `<tr class="clickable" data-uni="${u.id}"><td>${idx+1}</td><td><b>${universityNameMarkup(u)}</b> ${collegeTypeBadge(u)}<small class="campus-distance">${distanceKm===null?'캠퍼스 위치 확인 필요':`서울시청 ${distanceKm.toFixed(1)} km`}</small></td><td>${h(u.major)}</td><td><span class="badge ${l[1]}">${l[0]}</span> <b>${p}%</b></td></tr>`}).join('') || `<tr><td colspan="4" class="muted">${hasDashboardAnalysis ? '선택한 계열에 맞는 체크완료 대학이 없습니다.' : '학생 성적을 입력하면 체크완료된 대학 중에서 추천 목록이 표시됩니다.'}</td></tr>`}</tbody></table></div>
+        <button class="btn more-btn" id="goSearchBtn">입시요강 확인 →</button>
       </article>
 
       <article class="dash-card summary-card">
@@ -1573,6 +1610,7 @@ function renderDashboard(){
 }
 
 async function analyze(){
+  clearTimeout(dashboardAnalyzeTimer);
   syncDashboardGpaFromSubjects();
   const subjectAverage = dashboardSubjectAverage();
   const gpa=Number.isFinite(subjectAverage) ? subjectAverage : parseFloat($('gpa').value||'3.2');
@@ -1580,8 +1618,8 @@ async function analyze(){
   const track=$('track')?.value || '웹툰';
   const practicalType=$('dashPracticalType')?.value || '';
   const subjectScores = subjectInputsFromDashboard();
-  const results=dashboardUniversitiesForTrack(track, practicalType).map(u=>({u,p:scoreUniversity(u,gpa,skill)})).sort((a,b)=>b.p-a.p);
-  state.lastAnalysis={gpa,skill,track,practicalType,subjectScores,results};
+  const results=window.AdmissionsCounselingUx.sortByDistance(dashboardUniversitiesForTrack(track, practicalType).map(u=>({u,p:scoreUniversity(u,gpa,skill)})));
+  state.lastAnalysis={gpa,skill,track,practicalType,subjectScores,results,studentName:$('studentName')?.value || '',gradeYear:$('gradeYear')?.value || '고3'};
   if(results[0]) state.selectedUniversityId=results[0].u.id;
   renderDashboard();
 }
@@ -1655,7 +1693,7 @@ function renderStudents(){
       <td><div class="row-actions">${convertButton}<button class="btn mini" data-edit-student="${s.id}">수정</button><button class="btn mini danger" data-delete-student="${s.id}">삭제</button></div></td>
     </tr>${editorDetailRow}${expandedDetailRow}`;
   };
-  $('students').innerHTML=`<div class="top"><div><h1>학생 관리</h1><p>학생을 검색하거나 직접 추가하고, 검색된 학생 정보를 수정/삭제할 수 있습니다.</p></div></div>
+  replaceArtworkContent($('students'),`<div class="top"><div><h1>학생 관리</h1><p>학생을 검색하거나 직접 추가하고, 검색된 학생 정보를 수정/삭제할 수 있습니다.</p></div></div>
   ${editor?.mode === 'add' ? `<div class="card student-add-card">${studentEditorMarkup(editor, editorArtworks, universityOptions, studentTrackOptions)}</div>` : ''}
   <div class="card">
     <div class="student-type-tabs">
@@ -1672,9 +1710,9 @@ function renderStudents(){
       <button class="btn" id="studentFilterClearBtn" type="button">분류 초기화</button>
     </div>` : `<div class="current-student-guide">현재 재원생은 상담 메모, 희망 대학, 준비 단계, 다음 상담일을 중심으로 관리합니다.</div>`}
     ${(query || (activeStudentTab === 'result' && (yearFilter || roundFilter))) ? `<div class="search-summary">${query ? `검색어 <b>${h(state.studentSearch)}</b> · ` : ''}${activeStudentTab === 'result' && (yearFilter || roundFilter) ? `분류 <b>${h([yearFilter, roundFilter].filter(Boolean).join(' · '))}</b> · ` : ''}${students.length}명</div>` : ''}
-    <table><thead><tr><th>그림</th><th>학생명</th><th>내신</th><th>실기점수</th><th>실기능력</th><th>전공 계열</th><th>결과</th><th>등록일</th><th>관리</th></tr></thead><tbody>${students.length?students.map(renderStudentRow).join(''):`<tr><td colspan="9" class="muted">${query ? '검색 결과가 없습니다.' : '등록된 학생이 없습니다.'}</td></tr>`}</tbody></table>
+    <div class="student-table-scroll"><table><thead><tr><th>그림</th><th>학생명</th><th>내신</th><th>실기점수</th><th>실기능력</th><th>전공 계열</th><th>결과</th><th>등록일</th><th>관리</th></tr></thead><tbody>${students.length?students.map(renderStudentRow).join(''):`<tr><td colspan="9" class="muted">${query ? '검색 결과가 없습니다.' : '등록된 학생이 없습니다.'}</td></tr>`}</tbody></table></div>
   </div>
-  ${artworkViewerMarkup()}`;
+  ${artworkViewerMarkup()}`);
   document.querySelectorAll('[data-student-tab]').forEach(btn=>btn.onclick=()=>{
     syncStudentEditorDraft();
     state.studentTypeTab=btn.dataset.studentTab;
@@ -1798,7 +1836,11 @@ function renderCases(){
       })
     : [];
   const accepted = rows.filter(c => c.result === '합격');
-  const rejected = rows.filter(c => c.result === '불합격');
+  const rejected = window.AdmissionsCounselingUx.rejectedOrder(rows.filter(c => c.result === '불합격'));
+  const passPage = window.AdmissionsCounselingUx.casePage(accepted, casePages.pass);
+  const failPage = window.AdmissionsCounselingUx.casePage(rejected, casePages.fail);
+  casePages = { pass: passPage.page, fail: failPage.page };
+  const pagination = (key, page, label) => `<nav class="case-pagination" aria-label="${label} 페이지"><button class="btn" data-case-page="${key}" data-step="-1" aria-label="${label} 이전" ${page.page===1?'disabled':''}><svg width="20" height="20" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#ArrowLeft"></use></svg></button><span>${page.page} / ${page.total}</span><button class="btn" data-case-page="${key}" data-step="1" aria-label="${label} 다음" ${page.page===page.total?'disabled':''}><svg width="20" height="20" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#ArrowLeft"></use></svg></button></nav>`;
   const renderCaseCard = (c) => {
     const detail = state.caseDetail && state.caseDetail.caseId === String(c.id) ? state.caseDetail.type : null;
     const universityName = c.universityName || c.university?.name || '-';
@@ -1809,16 +1851,17 @@ function renderCases(){
   $('cases').innerHTML=`<div class="top"><div><h1>합격·불합격 사례</h1><p>학생 ID, 대학, 학과, 결과, 메모로 검색하고 합격/불합격 사례를 나누어 비교합니다.</p></div></div>
   <div class="card">
     <div class="student-toolbar case-toolbar"><div class="search-box"><input id="caseSearchInput" placeholder="학생 ID, 대학명, 학과, 결과 검색" value="${h(state.caseSearch)}"><button class="btn" id="caseSearchBtn">학생 검색</button></div><div class="case-filter-group"><select id="caseReserveFilter"><option value="" ${!reserveFilter?'selected':''}>전체 결과</option><option value="direct" ${reserveFilter==='direct'?'selected':''}>일반 합격</option><option value="reserve" ${reserveFilter==='reserve'?'selected':''}>예비합격</option><option value="fail" ${reserveFilter==='fail'?'selected':''}>불합격</option></select><button class="btn" id="caseClearBtn">검색 초기화</button></div></div>
-    ${hasCaseSearch ? `<div class="search-summary">검색어 <b>${h(state.caseSearch)}</b> · ${reserveFilter ? `필터 <b>${h({direct:'일반 합격',reserve:'예비합격',fail:'불합격'}[reserveFilter])}</b> · ` : ''}전체 ${rows.length}건 / 합격 ${accepted.length}건 / 불합격 ${rejected.length}건</div>` : '<div class="empty-box case-search-empty">검색창에 학생명, 대학명, 학과명, 결과를 입력한 뒤 학생 검색을 누르면 합격·불합격 사례가 표시됩니다.</div>'}
+    ${hasCaseSearch ? `<div class="search-summary">검색어 <b>${h(state.caseSearch)}</b>${reserveFilter ? ` · <b>${h({direct:'일반 합격',reserve:'예비합격',fail:'불합격'}[reserveFilter])}</b>` : ''}</div>` : '<div class="empty-box case-search-empty">검색창에 학생명, 대학명, 학과명, 결과를 입력한 뒤 학생 검색을 누르면 합격·불합격 사례가 표시됩니다.</div>'}
     ${hasCaseSearch ? `<div class="case-split">
-      <section><div class="case-column-head pass"><h2>합격 사례</h2><b>${accepted.length}건</b></div>${accepted.length?accepted.map(renderCaseCard).join(''):'<div class="empty-box">합격 사례가 없습니다.</div>'}</section>
-      <section><div class="case-column-head fail"><h2>불합격 사례</h2><b>${rejected.length}건</b></div>${rejected.length?rejected.map(renderCaseCard).join(''):'<div class="empty-box">불합격 사례가 없습니다.</div>'}</section>
+      <section data-case-column="pass"><div class="case-column-head pass"><h2>합격 사례</h2></div>${accepted.length?passPage.rows.map(renderCaseCard).join('')+pagination('pass',passPage,'합격 사례'):'<div class="empty-box">합격 사례가 없습니다.</div>'}</section>
+      <section data-case-column="fail"><div class="case-column-head fail"><h2>불합격 사례</h2></div>${rejected.length?failPage.rows.map(renderCaseCard).join('')+pagination('fail',failPage,'불합격 사례'):'<div class="empty-box">불합격 사례가 없습니다.</div>'}</section>
     </div>` : ''}
   </div>${artworkViewerMarkup()}`;
-  $('caseSearchBtn').onclick=()=>{state.caseSearch=$('caseSearchInput').value.trim(); renderCases();};
+  document.querySelectorAll('[data-case-page]').forEach(button=>button.onclick=()=>{casePages[button.dataset.casePage]+=Number(button.dataset.step);state.caseDetail=null;renderCases();});
+  $('caseSearchBtn').onclick=()=>{state.caseSearch=$('caseSearchInput').value.trim();casePages={pass:1,fail:1};state.caseDetail=null;renderCases();};
   $('caseSearchInput').onkeydown=(e)=>{if(e.key==='Enter')$('caseSearchBtn').click();};
-  $('caseReserveFilter').onchange=()=>{state.caseReserveFilter=$('caseReserveFilter').value; state.caseDetail=null; renderCases();};
-  $('caseClearBtn').onclick=()=>{state.caseSearch=''; state.caseReserveFilter=''; state.caseDetail=null; renderCases();};
+  $('caseReserveFilter').onchange=()=>{state.caseReserveFilter=$('caseReserveFilter').value; casePages={pass:1,fail:1}; state.caseDetail=null; renderCases();};
+  $('caseClearBtn').onclick=()=>{state.caseSearch=''; state.caseReserveFilter=''; casePages={pass:1,fail:1}; state.caseDetail=null; renderCases();};
   document.querySelectorAll('[data-case-grade]').forEach(btn=>btn.onclick=()=>{const id=btn.dataset.caseGrade; state.caseDetail=state.caseDetail?.caseId===id&&state.caseDetail?.type==='grades'?null:{caseId:id,type:'grades'}; renderCases();});
   document.querySelectorAll('[data-case-artwork]').forEach(btn=>btn.onclick=()=>{const id=btn.dataset.caseArtwork; state.caseDetail=state.caseDetail?.caseId===id&&state.caseDetail?.type==='artwork'?null:{caseId:id,type:'artwork'}; renderCases();});
   bindArtworkViewer();

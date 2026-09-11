@@ -42,6 +42,8 @@ jobs:
           node --check public/family/sw.js
           node --check public/family/family.js
           node --check public/data-core/app.js
+          node --check public/data-core/curriculum.js
+          node --check public/admissions-web/renderer/counseling-ux.js
           node --check public/data-core/upload-queue.js
           node --check public/data-core/private-image-cache.js
           node --check public/data-core/library-thumbnail.js

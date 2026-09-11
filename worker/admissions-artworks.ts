@@ -47,8 +47,9 @@ export async function handleAdmissionsArtworks(request:Request,env:Env):Promise<
     // Legacy migration URLs may be stale. Only exact keys derived from this stored artwork qualify.
     const refs=typeof artwork==='string'?[legacyArtworkKey(artwork)]:['path','filePath','imageUrl','url','downloadUrl','fileName','name'].map(k=>legacyArtworkKey(artwork?.[k],k==='fileName'||k==='name'));
     const candidates=[...new Set(refs.filter((k):k is string=>Boolean(k)))];
-    const found:string[]=[];
-    for(const candidate of candidates)if(await env.FILES.head(candidate))found.push(candidate);
+    // A single exact stored key needs no existence roundtrip before its authenticated GET.
+    const found=candidates.length===1 ? candidates : (await Promise.all(candidates.map(async candidate=>
+      await env.FILES!.head(candidate) ? candidate : null))).filter((key):key is string=>key!==null);
     if(found.length!==1)throw new DataCoreAccessError(404,'연결된 그림을 찾을 수 없습니다.');
     const key=found[0];
     const object=await env.FILES.get(key);
