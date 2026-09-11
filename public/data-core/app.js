@@ -134,7 +134,7 @@ function isSuperAdmin() {
 
 function modeForView(view) {
   if (view === 'mode-home') return 'mode';
-  if (view === 'counseling-home' || view === 'competitions') return 'counseling';
+  if (view === 'counseling-home' || view === 'competitions' || view === 'curriculum') return 'counseling';
   if (view === 'work-home' || view === 'library') return 'work';
   return state.currentMode === 'mode' ? 'work' : state.currentMode;
 }
@@ -146,6 +146,7 @@ function titleForView(view) {
     'work-home': '업무용',
     library: '자료보관함',
     competitions: '공모전·실기대회',
+    curriculum: '꿈을 향한 커리큘럼',
     admin: '권한관리',
   })[view] || 'DATA CORE';
 }
@@ -178,11 +179,13 @@ function switchView(view, options = {}) {
       'work-home': '/data-core/work',
       library: '/data-core/work/library',
       competitions: '/data-core/counseling/competitions',
+      curriculum: '/data-core/curriculum',
     })[view];
     if (path && location.pathname !== path) history.pushState({ view }, '', path);
   }
 
   if (state.context !== null) renderUser();
+  if (view === 'curriculum') window.DataCoreCurriculum?.render();
   if (view === 'library') {
     if (window.DataCoreLibrary) window.DataCoreLibrary.refresh();
     else loadFiles();
@@ -197,6 +200,7 @@ function switchView(view, options = {}) {
 
 function initialViewFromPath() {
   const path = location.pathname.replace(/\/+$/, '');
+  if (/^\/data-core\/curriculum(?:\/(content|design)(?:\/(basic|advanced|admission))?)?$/.test(path)) return 'curriculum';
   if (path === '/data-core/counseling') return 'counseling-home';
   if (path === '/data-core/counseling/competitions') return 'competitions';
   if (path === '/data-core/work/library') return 'library';
