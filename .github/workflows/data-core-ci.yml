@@ -52,6 +52,8 @@ jobs:
           node --check public/data-core/roadmap.js
           node --check public/data-core/roadmap-model.js
           node --check public/data-core/roadmap-content.js
+          node --check public/data-core/career-visual-content.js
+          node --check public/data-core/career-visuals.js
           node --check public/data-core/admissions-model.js
           node --check public/data-core/occupation-image-concepts.js
           node --check public/admissions-web/renderer/app.js
