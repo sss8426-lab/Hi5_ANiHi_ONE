@@ -4,6 +4,7 @@ import {resolveUniversityLogo} from './university-logos.js?v=20260910-1';
 import {foundationImages} from './foundation-images.js?v=20260910-1';
 import { occupationImageConcepts } from './occupation-image-concepts.js?v=20260910-photo-v2';
 import { paginate } from './pagination.js?v=20260909-1';
+import { renderCareerVisuals } from './career-visuals.js?v=20260911-editorial-1';
 
 const content = window.HI5_ROADMAP_CONTENT || { careers: [], tracks: [], lessonAreas: [], sources: [] };
 const $ = (id) => document.getElementById(id);
@@ -12,9 +13,9 @@ const filterControls = {region:'regionFilter',schoolType:'schoolFilter',admissio
 let guidelineController, guidelineRequest = 0;
 const familyNames = { story: '만화·애니메이션·게임', design: '디자인' };
 const h = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-const art = (career) => {
+const art = (career, eager = false) => {
   const concept = occupationImageConcepts.find((c) => c.occupationId === career.id);
-  return concept ? `<img class="career-art job-image" src="${concept.asset}?v=${concept.version}" alt="${h(concept.action)}" width="480" height="640" loading="lazy" decoding="async">` : `<span class="career-art missing-art" data-missing-occupation="${h(career.id)}">이미지 준비 중</span>`;
+  return concept ? `<img class="career-art job-image" src="${concept.asset}?v=${concept.version}" alt="${h(concept.action)}" width="480" height="640" loading="${eager ? 'eager' : 'lazy'}" ${eager ? 'fetchpriority="high"' : ''} decoding="async">` : `<span class="career-art missing-art" data-missing-occupation="${h(career.id)}">이미지 준비 중</span>`;
 };
 const pathFor = (career) => `#family=${career.family}&career=${career.id}`;
 
@@ -62,11 +63,9 @@ function renderEducation(career) {
   $('resultGoal').textContent = career.name;
   $('resultGoalSummary').textContent = career.summary;
   $('careerDistinction').textContent = career.distinction || '';
-  $('resultPortrait').innerHTML = art(career);
+  $('resultPortrait').innerHTML = art(career, true);
   $('changeGoalBtn').href = `#family=${career.family}`;
-  $('majorGrid').innerHTML = career.majors.map((major) => `<span class="major-item">${h(major)}</span>`).join('');
-  $('skillGrid').innerHTML = career.skills.map((skill) => `<span>${h(skill)}</span>`).join('');
-  $('careerOutcome').textContent = career.outcome;
+  renderCareerVisuals($('careerVisualSections'), career);
   $('universityExamples').innerHTML = career.universityExamples.map((example) => `<li>${h(example)}</li>`).join('');
   $('referenceSources').innerHTML = content.sources.filter((s) => ['커리어넷', '대입정보포털 어디가', '전문대학포털'].includes(s.name) && safeUrl(s.url)).map((source) => `<a href="${h(safeUrl(source.url))}" target="_blank" rel="noopener noreferrer">${h(source.name)} ↗</a>`).join('');
   const steps = careerStages(career);

@@ -8,10 +8,12 @@ const {chromium}=await import(process.env.PLAYWRIGHT_MODULE?pathToFileURL(proces
 const base=process.env.ROADMAP_TEST_ORIGIN||'http://localhost:3107';
 if(!/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(base)&&!/^https:\/\/[a-f0-9]+-hi5-anihi-one\.sss8426\.workers\.dev$/.test(base))throw Error('Local or immutable Cloudflare preview only; production tests forbidden');
 const sandbox={window:{}};vm.runInNewContext(await fs.readFile('public/data-core/roadmap-content.js','utf8'),sandbox);
+vm.runInNewContext(await fs.readFile('public/data-core/career-visual-content.js','utf8'),sandbox);
 const careers=JSON.parse(JSON.stringify(sandbox.window.HI5_ROADMAP_CONTENT.careers));
 const output=`outputs/career-browser-${base.startsWith('http:')?'local':'preview'}`;await fs.mkdir(output,{recursive:true});
 const browser=await chromium.launch({headless:true,channel:process.env.ROADMAP_BROWSER_CHANNEL||'chrome'});
 const reports=[],errors=[],missing=[],mutations=[];let auth=true,empty=false,current;
+const representatives=new Set(['D001','D005','D009','D011','D013','D017','D022','D025','D027','D030','D032']);
 const fixtures=c=>Array.from({length:9},(_,i)=>({id:`synthetic-${c.id}-${i}`,metadata:{universityName:`합성 검증대학 ${i+1}`,major:c.majors[0]+' 합성전공',region:'합성지역',year:2027,admission:i%2?'정시':'수시',admissionSeason:i%2?'jungsi':'susi',guidelineId:`synthetic-${c.id}-${i}`,selectionFormula:i===0?'실기100':i===1?'수능100':i===2?'1단계 서류100 / 2단계 실기100':'학생부20/실기70/면접10',sourceUrl:'https://grinalda.net/univ-info-susi/',verificationStatus:'public-source-unverified',practicalType:'합성 실기',quota:0,competitionRate:0}}));
 try{
  const ctx=await browser.newContext({serviceWorkers:'block'});
@@ -35,11 +37,13 @@ try{
  const page=await ctx.newPage();page.on('pageerror',e=>errors.push(e.message));
  page.on('response',r=>{if(r.status()>=400&&!r.url().includes('/api/'))missing.push({url:new URL(r.url()).pathname,status:r.status()});});
  const noOverflow=async()=>assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
- for(const [width,height] of [[1920,1080],[1440,1000],[820,1180],[390,844],[320,740]]){
+ for(const [width,height] of [[1920,1080],[1440,1000],[1024,1000],[820,1180],[390,844],[320,740]]){
   await page.setViewportSize({width,height});
   for(const c of careers){
    current={id:c.id,width};
    await page.goto(`${base}/data-core/roadmap#family=${c.family}`);
+   await page.waitForURL(`${base}/data-core/roadmap#family=${c.family}`);
+   await page.locator('#catalogSection:visible').waitFor();
    await page.locator(`.dream-card[href="#family=${c.family}&career=${c.id}"]`).click();
    await page.locator('.university-item').first().waitFor();
    assert.equal(await page.locator('#resultGoal').textContent(),c.name);
@@ -49,6 +53,23 @@ try{
    assert.equal(await page.locator('.university-item').count(),4);
    await page.locator('#resultPortrait img').evaluate(e=>e.decode());
    assert.equal(await page.locator('#resultPortrait img').evaluate(e=>getComputedStyle(e).objectFit),'cover');
+   assert.equal(await page.locator('#resultPortrait img').getAttribute('loading'),'eager');
+   assert.equal(await page.locator('.career-visual-section').count(),3);
+   for(const key of ['learning','competencies','portfolio']){
+    const section=page.locator(`.career-visual-section[data-section="${key}"]`),visual=c.visualContent[key];
+    assert.equal(await section.getAttribute('data-career'),c.id);
+    assert.equal(await section.locator('h2').textContent(),visual.title);
+    const img=section.locator('img');await img.scrollIntoViewIfNeeded();await img.evaluate(e=>e.decode());
+    assert.equal(await img.getAttribute('loading'),'lazy');
+    assert.equal(await img.getAttribute('alt'),visual.imageAlt);
+    assert.ok((await img.getAttribute('src')).startsWith(visual.image+'?v='));
+    const geometry=await section.evaluate(e=>{const img=e.querySelector('img'),media=e.querySelector('.career-visual-media'),copy=e.querySelector('.career-visual-copy');return {fit:getComputedStyle(img).objectFit,natural:[img.naturalWidth,img.naturalHeight],image:media.getBoundingClientRect().toJSON(),copy:copy.getBoundingClientRect().toJSON()};});
+    assert.equal(geometry.fit,'contain');assert.deepEqual(geometry.natural,[visual.width,visual.height]);
+    assert.ok(Math.abs(geometry.image.width/geometry.image.height-visual.width/visual.height)<0.01);
+    if(width<=820)assert.ok(geometry.copy.top>=geometry.image.bottom-1,'Mobile image precedes copy');
+    await noOverflow();
+    if(representatives.has(c.id))await section.screenshot({path:`${output}/${width}-${c.id}-${key}.png`});
+   }
    assert.deepEqual(await page.locator('.timeline h3').allTextContents(),['기초 표현력','전공 기초','전공 심화','입시 실기 적용','실전 완성도']);
    assert.match(await page.locator('.timeline li').last().textContent(),new RegExp(c.completionFocus));
    assert.match(await page.locator('#preparationGrid').textContent(),new RegExp(c.specialization[0].replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
@@ -72,7 +93,9 @@ try{
    await page.goBack();await page.waitForFunction(()=>document.querySelector('#universityCount').textContent.includes('2 / 3'));
    await page.goBack();await page.waitForFunction(()=>document.querySelector('#universityCount').textContent.includes('1 / 3'));
    await page.goBack();await page.locator('#catalogSection:visible').waitFor();
-   await page.goForward();await page.locator('#roadmapResult:visible').waitFor();
+   await page.goForward();await page.waitForURL(`${base}/data-core/roadmap#family=${c.family}&career=${c.id}`);await page.locator('#roadmapResult:visible').waitFor();
+   await page.waitForFunction(id=>document.querySelector('#roadmapResult').hidden===false&&document.querySelector('.career-visual-section')?.dataset.career===id,c.id);
+   await page.locator('.university-item').first().waitFor();
    reports.push({id:c.id,width,passed:true});
   }
   console.log(JSON.stringify({width,traversals:reports.length}));
@@ -84,7 +107,29 @@ try{
  empty=true;await page.goto(base+'/data-core/roadmap#family=story&career=D001');await page.getByText('연결 대학 검수 필요',{exact:false}).waitFor();
  assert.equal(await page.locator('.university-item').count(),0);
  auth=false;await page.reload();await page.getByRole('link',{name:'교직원 로그인',exact:true}).waitFor();assert.equal(await page.locator('.timeline li').count(),5);
+ // A direct deep link must fetch only its own detail assets, even before scrolling.
+ const isolated=await ctx.newPage(),detailRequests=[];
+ isolated.on('request',req=>{if(req.url().includes('/roadmap/detail/'))detailRequests.push(new URL(req.url()).pathname);});
+ await isolated.goto(base+'/data-core/roadmap#family=story&career=D001');
+ for(const img of await isolated.locator('.career-visual-section img').all()){await img.scrollIntoViewIfNeeded();await img.evaluate(e=>e.decode());}
+ assert.deepEqual([...new Set(detailRequests)].sort(),Object.values(careers[0].visualContent).map(s=>s.image).sort());
+ // Delay one image to verify its reserved box does not move surrounding content.
+ const target=careers[0].visualContent.learning.image;let release;
+ const gate=new Promise(resolve=>{release=resolve;});
+ await isolated.route('**'+target+'?*',async route=>{await gate;await route.continue();});
+ await isolated.reload({waitUntil:'domcontentloaded'});
+ const box=isolated.locator('.career-visual-section[data-section="learning"] .career-visual-media');await box.waitFor();await box.scrollIntoViewIfNeeded();
+ const before=await box.boundingBox();assert.ok(before.height>0);
+ release();await isolated.locator('.career-visual-section[data-section="learning"] img').evaluate(e=>e.decode());
+ const after=await box.boundingBox();assert.ok(Math.abs(before.height-after.height)<1,'Image loading must preserve reserved height');
+ await isolated.unroute('**'+target+'?*');
+ await isolated.route('**'+target+'?*',route=>route.fulfill({status:404,body:'Synthetic missing image'}));
+ await isolated.reload();await isolated.locator('.career-visual-section[data-section="learning"] .career-visual-media').scrollIntoViewIfNeeded();
+ await isolated.locator('.career-visual-section[data-section="learning"] .career-visual-error:visible').waitFor();
+ assert.equal(await isolated.locator('.career-visual-section[data-section="learning"] img:visible').count(),0);
+ assert.equal(await isolated.locator('.career-visual-section[data-section="learning"] .career-visual-items li').count(),careers[0].visualContent.learning.items.length);
+ await isolated.close();
  assert.deepEqual(errors,[]);assert.deepEqual(missing,[]);assert.deepEqual(mutations,[]);
- const result={traversals:reports.length,careers:35,viewports:5,reports,pageErrors:0,missingAssets:0,mutationRequests:0};await fs.writeFile(output+'/results.json',JSON.stringify(result,null,2));console.log(JSON.stringify({...result,reports:undefined}));
+ const result={traversals:reports.length,careers:35,viewports:6,visualSections:105,representativeCareers:representatives.size,detailRequests:3,reservedImageLayout:true,missingImageFallback:true,reports,pageErrors:0,missingAssets:0,mutationRequests:0};await fs.writeFile(output+'/results.json',JSON.stringify(result,null,2));console.log(JSON.stringify({...result,reports:undefined}));
 }catch(error){console.error(JSON.stringify({current,traversals:reports.length,error:String(error),pageErrors:errors,missing}));throw error;}
 finally{await browser.close();}
