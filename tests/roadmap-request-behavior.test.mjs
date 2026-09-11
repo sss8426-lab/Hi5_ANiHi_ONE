@@ -12,7 +12,7 @@ function harness() {
   let items = [], dialog, timerId = 0;
   const element = () => ({
     value: '', hidden: false, textContent: '', innerHTML: '', children: [],
-    addEventListener() {}, focus() {}, after() {}, scrollIntoView() {},
+    addEventListener() {}, focus() {}, after() {}, scrollIntoView() {}, setAttribute() {},
     append(child) { this.children.push(child); },
     querySelectorAll(selector) { return selector === '.university-item' ? items : []; },
     querySelector() { return null; },
@@ -21,7 +21,7 @@ function harness() {
   const context = {
     ...model, paginate, occupationImageConcepts: [], foundationImages: {},
     resolveUniversityLogo: () => null, AbortController, URLSearchParams,
-    location: { hash: '' },
+    location: { hash: '' }, history: {pushState() {},replaceState() {}},
     window: { HI5_ROADMAP_CONTENT: { careers: [], tracks: [], lessonAreas: [], sources: [] }, addEventListener() {}, scrollTo() {} },
     document: { getElementById: el, createElement: element, querySelectorAll: () => [], querySelector: () => dialog },
     showGuideline(row) { shown.push(row.id); dialog = { close() { dialog = null; } }; },

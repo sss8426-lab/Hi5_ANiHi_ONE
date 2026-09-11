@@ -111,10 +111,12 @@ try {
   assert.equal(await page.locator('#universityContent img').count(), 0);
   assert.doesNotMatch(await page.locator('#roadmapResult').innerText(), /SYNTHETIC_PRIVATE|99%/);
   await page.selectOption('#regionFilter', '서울');
+  await page.waitForFunction(()=>document.querySelectorAll('.university-item').length===1);
   assert.equal(await page.locator('.university-item').count(), 1);
-  await page.selectOption('#focusFilter', 'academic');
-  await page.getByText('선택한 조건에 해당하는 전형이 없습니다.').waitFor();
-  await page.selectOption('#focusFilter', 'practical');
+  await page.selectOption('#academicRatioFilter', '30');
+  await page.waitForFunction(()=>document.querySelectorAll('.university-item').length===1);
+  await page.selectOption('#practicalRatioFilter', '70');
+  await page.waitForFunction(()=>document.querySelectorAll('.university-item').length===1);
   assert.equal(await page.locator('.university-item').count(), 1);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: path.join(output, 'desktop-authenticated.png'), fullPage: true });

@@ -41,4 +41,11 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,su
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important}}
 @media(max-width:1000px){.timeline{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:680px){.timeline{grid-template-columns:1fr;gap:8px}}
+.university-filters{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+.university-filter{display:grid;gap:5px;min-width:0}
+.university-filters label,.university-filters select{min-width:0;width:100%;max-width:100%}
+.university-filters select{min-height:44px}
+@media(max-width:1100px){.university-filters{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:680px){.university-filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:360px){.university-filters{grid-template-columns:minmax(0,1fr)}}
 @media print{body{background:white}.roadmap-header nav,.back-link,.flow-strip,.consultation-actions,footer,.university-filters,.notice{display:none!important}.content-shell{max-width:none;padding:0}.result-section{break-inside:avoid}.result-heading{margin-top:30px}.result-portrait{print-color-adjust:exact}.career-art{-webkit-print-color-adjust:exact;print-color-adjust:exact}.timeline{grid-template-columns:repeat(3,1fr)}h1{font-size:25px}h2{font-size:21px}}
