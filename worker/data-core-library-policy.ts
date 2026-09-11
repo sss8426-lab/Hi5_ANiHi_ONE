@@ -19,7 +19,7 @@ type Row = Record<string, any>;
 export type LibraryFolder = {
   id: string; title: string; parentId: string | null; campusId: string | null;
   category: string | null; shareMode: 'organization' | 'campus' | 'restricted';
-  virtual: boolean; depth: number; row?: Row; group?: string;
+  virtual: boolean; depth: number; row?: Row; group?: string; systemManaged?: boolean;
 };
 function fail(status = 403, message = '이 자료보관함에 접근할 권한이 없습니다.'): never { throw new DataCoreAccessError(status, message); }
 export function libraryMetadata(row: Row) {
@@ -37,6 +37,14 @@ export function requireLibraryWrite(context: DataCoreAccessContext, folder: Libr
 export function libraryCanDelete(context: DataCoreAccessContext, folder: LibraryFolder, owner: unknown) {
   return libraryCanWrite(context, folder) && (context.isSuperAdmin || context.user?.internalUserId === owner ||
     context.memberships.some(m => m.organizationId === ORG && m.campusId === folder.campusId && m.role === 'CAMPUS_DIRECTOR'));
+}
+export function libraryFolderScope(folder: LibraryFolder) {
+  if (folder.campusId) return 'campus';
+  return folder.id === 'root' || libraryMetadata(folder.row || {}).libraryScope === 'organization' ? 'organization' : 'hq';
+}
+export function libraryCanDeleteFolder(context: DataCoreAccessContext, folder: LibraryFolder) {
+  return !folder.virtual && !folder.systemManaged && Boolean(folder.row) &&
+    (folder.parentId !== 'root' || context.isSuperAdmin) && libraryCanDelete(context, folder, folder.row?.created_by_user_id);
 }
 
 /** Request-local cache; persisted metadata is checked through the entire ancestry. */
@@ -59,7 +67,7 @@ export class LibraryTree {
     if (this.folders.has(id)) return this.folders.get(id)!;
     seen.add(id);
     let folder: LibraryFolder;
-    const base = { campusId: null, category: null, shareMode: 'organization' as const, virtual: true, depth: 0 };
+    const base = { campusId: null, category: null, shareMode: 'organization' as const, virtual: true, depth: 0, systemManaged: true };
     if (id === 'root') folder = { ...base, id, title: '자료보관함', parentId: null };
     else if (id === 'hq') folder = { ...base, id, title: '본원 작업물', parentId: 'root', depth: 1 };
     else if (id === 'organization') folder = { ...base, id, title: '조직 공통', parentId: 'root', depth: 1 };
@@ -109,16 +117,24 @@ export class LibraryTree {
       // Legacy HQ visibility (including director-only) is not broadened or rewritten.
       const shared = ['organization', 'public'].includes(row.visibility) && !['restricted', 'campus'].includes(m.libraryShareMode);
       folder = { id: row.id, title: row.title, parentId: 'hq', campusId: null, category: 'hq-workspace',
-        virtual, depth: 2, row, shareMode: shared ? 'organization' : 'restricted' };
+        virtual, depth: 2, row, shareMode: shared ? 'organization' : 'restricted',
+        systemManaged: m.system === true || m.systemManaged === true || HQ_DEFAULTS.some(([key]) => key === m.folderKey) };
+    } else if (m.parentFolderId === null) {
+      // Only canonical, server-created organization roots are admitted here.
+      if (m.schemaVersion !== 1 || m.libraryScope !== 'organization' || m.createdFrom !== 'library-root' ||
+        m.systemManaged !== false || m.rootProjection || row.campus_id !== null || m.campusId !== null ||
+        m.category !== 'library-material' || m.libraryShareMode !== 'organization' || row.visibility !== 'organization') fail();
+      folder = { id: row.id, title: row.title, parentId: 'root', campusId: null, category: 'library-material',
+        shareMode: 'organization', virtual: false, depth: 1, row, systemManaged: false, group: '사용자 정의 폴더' };
     } else {
       if (m.schemaVersion !== 1 || typeof m.parentFolderId !== 'string' || !m.parentFolderId || m.rootProjection) fail();
       const parent = await this.resolve(m.parentFolderId, seen);
       const category = parent.category || (parent.id === 'hq' ? 'hq-workspace' : 'library-material');
       if (parent.id === 'root' || row.campus_id !== parent.campusId || m.campusId !== parent.campusId || m.category !== category ||
-        m.libraryScope !== (parent.campusId ? 'campus' : 'hq') || m.libraryShareMode !== parent.shareMode ||
+        m.libraryScope !== libraryFolderScope(parent) || m.libraryShareMode !== parent.shareMode ||
         row.visibility !== (parent.campusId ? 'campus' : 'organization') || parent.depth >= 14) fail();
       folder = { id: row.id, title: row.title, parentId: parent.id, campusId: parent.campusId, category,
-        shareMode: parent.shareMode, virtual: false, depth: parent.depth + 1, row };
+        shareMode: parent.shareMode, virtual: false, depth: parent.depth + 1, row, systemManaged: m.systemManaged === true };
     }
     this.assertRead(folder);
     this.folders.set(folder.id, folder);

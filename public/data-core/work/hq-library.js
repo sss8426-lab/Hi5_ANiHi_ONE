@@ -6,8 +6,8 @@
   const h = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const icon = name => `<svg class="lb-icon" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#${name}"></use></svg>`;
   const href = id => `/data-core/work/library${id === 'root' ? '' : `?folder=${encodeURIComponent(id)}`}`;
-  const state = { folder: null, files: [], breadcrumbs: [], controller: null, generation: 0, queue: null, pending: null };
-  const sheet = document.createElement('link'); sheet.rel = 'stylesheet'; sheet.href = '/data-core/work/library-browser.css?v=20260911-1'; document.head.append(sheet);
+  const state = { folder: null, folders: [], files: [], breadcrumbs: [], controller: null, generation: 0, queue: null, pending: null };
+  const sheet = document.createElement('link'); sheet.rel = 'stylesheet'; sheet.href = '/data-core/work/library-browser.css?v=20260911-root-controls'; document.head.append(sheet);
   host.innerHTML = `<nav id="libraryBreadcrumb" aria-label="자료보관함 경로"></nav>
     <header class="lb-heading"><div><h2 id="libraryTitle" tabindex="-1">자료보관함</h2><small id="libraryPermission"></small></div>
     <div class="lb-toolbar"><a id="libraryUp" class="lb-button" hidden>${icon('ArrowLeft')}상위 폴더</a>
@@ -57,7 +57,8 @@
       if (!groups.has(group)) groups.set(group, []); groups.get(group).push({ ...f, ...p });
     });
     $('libraryFolders').innerHTML = [...groups].map(([group, rows]) => `<section class="lb-folder-group"><h3>${h(group)}</h3><div class="lb-folder-grid">${rows.sort((a,b)=>a.order-b.order).map(f =>
-      `<a class="lb-folder" href="${h(href(f.id))}" data-lb-folder="${h(f.id)}">${icon('Folder')}<strong>${h(f.title)}</strong></a>`).join('')}</div></section>`).join('');
+      `<div class="lb-folder-item${f.canDelete && state.folder.id === 'root' ? ' lb-folder-editable' : ''}"><a class="lb-folder" href="${h(href(f.id))}" data-lb-folder="${h(f.id)}">${icon('Folder')}<strong>${h(f.title)}</strong></a>
+      ${f.canDelete && state.folder.id === 'root' ? `<details class="lb-folder-menu"><summary aria-label="${h(f.title)} 폴더 메뉴" title="폴더 메뉴">${icon('Menu')}</summary><button type="button" data-lb-delete-folder="${h(f.id)}">폴더 삭제</button></details>` : ''}</div>`).join('')}</div></section>`).join('');
   }
   function size(bytes) { return bytes < 1024 ? `${bytes} B` : bytes < 1048576 ? `${(bytes/1024).toFixed(1)} KB` : `${(bytes/1048576).toFixed(1)} MB`; }
   function renderFiles(files) {
@@ -74,7 +75,7 @@
     if (!/\/data-core\/work\/library\/?$/.test(location.pathname)) return;
     const generation = ++state.generation, current = locationState();
     state.controller?.abort(); state.controller = new AbortController();
-    state.folder = null; state.files = [];
+    state.folder = null; state.folders = []; state.files = [];
     $('libraryUp').hidden = true; $('libraryPermission').textContent = '';
     $('libraryStatus').textContent = '불러오는 중…'; $('libraryContents').setAttribute('aria-busy','true');
     $('libraryFolders').replaceChildren(); $('libraryFiles').replaceChildren(); $('libraryPages').replaceChildren();
@@ -85,7 +86,7 @@
       const view = await api(`/api/data-core/library/folders?parentId=${encodeURIComponent(current.id)}`, options);
       const listing = await api(`/api/data-core/library/files?folderId=${encodeURIComponent(current.id)}&q=${encodeURIComponent(current.q)}&page=${current.page}`, options);
       if (generation !== state.generation) return;
-      state.folder = view.folder; state.files = listing.files; state.breadcrumbs = view.breadcrumbs;
+      state.folder = view.folder; state.folders = view.folders; state.files = listing.files; state.breadcrumbs = view.breadcrumbs;
       $('libraryTitle').textContent = presentation(view.folder).title;
       $('libraryPermission').textContent = view.folder.readOnly ? '읽기·다운로드 가능' : '';
       $('libraryBreadcrumb').innerHTML = `<ol>${view.breadcrumbs.map((b,i) => `<li>${i === view.breadcrumbs.length-1 ? `<span aria-current="page">${h(presentation(b).title)}</span>` : `<a href="${h(href(b.id))}" data-lb-folder="${h(b.id)}">${h(presentation(b).title)}</a>`}</li>`).join('')}</ol>`;
@@ -111,10 +112,16 @@
     const page = e.target.closest('[data-lb-page]'); if (page && !page.disabled) { const s=locationState(); navigate(s.id,s.q,Number(page.dataset.lbPage)); }
     const remove = e.target.closest('[data-lb-delete]');
     if (remove) confirmDelete('file', state.files.find(f=>f.id===remove.dataset.lbDelete));
+    const removeFolder = e.target.closest('[data-lb-delete-folder]');
+    if (removeFolder) { removeFolder.closest('details').open=false; confirmDelete('folder', state.folders.find(f=>f.id===removeFolder.dataset.lbDeleteFolder)); }
     if (e.target.closest('[data-lb-close]')) e.target.closest('dialog').close();
   });
   // Space complements the native Enter behavior of folder links.
-  host.addEventListener('keydown', e => { if (e.code === 'Space' && e.target.matches('[data-lb-folder]')) { e.preventDefault(); e.target.click(); } });
+  host.addEventListener('keydown', e => {
+    if (e.code === 'Space' && e.target.matches('[data-lb-folder]')) { e.preventDefault(); e.target.click(); }
+    if (e.key === 'Escape') for (const menu of host.querySelectorAll('.lb-folder-menu[open]')) { menu.open=false; menu.querySelector('summary').focus(); }
+  });
+  document.addEventListener('click', e => { for (const menu of host.querySelectorAll('.lb-folder-menu[open]')) if (!menu.contains(e.target)) menu.open=false; });
   $('librarySearch').onsubmit = e => { e.preventDefault(); navigate(locationState().id,$('libraryQuery').value.trim()); };
   $('libraryRefresh').onclick = () => load();
   $('libraryNew').onclick = () => { if (!state.folder?.canWrite) return; $('libraryFolderForm').reset(); $('libraryFolderError').textContent=''; $('libraryFolderDialog').dataset.parentId=state.folder.id; $('libraryFolderDialog').showModal(); $('libraryFolderName').focus(); };
@@ -126,8 +133,8 @@
   function confirmDelete(kind, item) {
     if (!item) return;
     state.pending={kind,id:item.id}; $('libraryDeleteError').textContent='';
-    $('libraryDeleteTitle').textContent=kind==='file'?'이 파일을 휴지통으로 이동하시겠습니까?':'빈 폴더를 삭제하시겠습니까?';
-    $('libraryDeleteName').textContent=item.fileName||item.title;
+    $('libraryDeleteTitle').textContent=kind==='file'?'이 파일을 휴지통으로 이동하시겠습니까?':`"${item.title}" 폴더를 삭제하시겠습니까?`;
+    $('libraryDeleteName').textContent=kind==='file'?item.fileName:'';
     $('libraryDeleteConfirm').textContent=kind==='file'?'휴지통으로 이동':'폴더 삭제'; $('libraryDeleteDialog').showModal();
   }
   $('libraryDeleteFolder').onclick=()=>confirmDelete('folder',state.folder);

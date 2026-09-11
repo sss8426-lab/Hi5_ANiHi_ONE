@@ -23,6 +23,11 @@
 #libraryStatus{color:#64756c;font-size:14px;min-height:22px;margin:14px 0}
 .lb-folder-group{padding:12px 0 24px}
 .lb-folder-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+.lb-folder-item{position:relative;min-width:0}.lb-folder-item>.lb-folder{height:100%}.lb-folder-editable>.lb-folder{padding-right:48px}
+.lb-folder-menu{position:absolute;right:6px;top:6px;z-index:1}.lb-folder-menu[open]{z-index:2}
+.lb-folder-menu summary{list-style:none;display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:6px;color:#526b60;cursor:pointer}
+.lb-folder-menu summary::-webkit-details-marker{display:none}.lb-folder-menu summary:hover,.lb-folder-menu[open] summary{background:#eaf0ec}
+#libraryBrowser .lb-folder-menu button{position:absolute;right:0;top:38px;width:110px;max-width:none;white-space:nowrap;box-shadow:0 3px 10px #23382c14}
 .lb-folder{display:flex;align-items:center;gap:14px;min-height:82px;border:1px solid #d9e3dc;border-radius:8px;background:#fff;text-decoration:none;color:#2d5744;padding:18px}
 .lb-folder:hover{border-color:#6e9981;background:#f4f8f5}.lb-folder .lb-icon{width:30px;height:30px;color:#739375}.lb-folder strong{font-size:14px;overflow-wrap:anywhere;min-width:0}
 .lb-file-list{list-style:none;margin:0 0 20px;padding:0;border-top:1px solid #d9e3dc}

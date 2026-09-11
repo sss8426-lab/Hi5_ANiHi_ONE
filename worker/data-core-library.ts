@@ -2,14 +2,14 @@ import { DEFAULT_ORGANIZATION_ID as ORG } from './data-core';
 import { DataCoreAccessContext, DataCoreAccessError } from './data-core-access';
 import { uploadDataCoreFile, deleteDataCoreFile } from './data-core-files';
 import { LibraryTree, LibraryFolder, LIBRARY_FOLDER, HQ_FOLDER, LIBRARY_SOURCE, LIBRARY_CATEGORIES, HQ_DEFAULTS,
-  libraryMetadata, libraryCanWrite, libraryCanDelete, requireLibraryWrite, libraryFileReadable } from './data-core-library-policy';
+  libraryMetadata, libraryCanWrite, libraryCanDelete, libraryCanDeleteFolder, libraryFolderScope, requireLibraryWrite, libraryFileReadable } from './data-core-library-policy';
 
 function error(status: number, message: string): never { throw new DataCoreAccessError(status, message); }
 const json = (value: unknown, status = 200) => Response.json(value, { status, headers: { 'cache-control': 'private, no-store' } });
 const text = (value: unknown) => typeof value === 'string' ? value.trim() : '';
 const serialize = (tree: LibraryTree, f: LibraryFolder) => ({ id: f.id, title: f.title, parentId: f.parentId,
-  campusId: f.campusId, category: f.category, group: f.group, canWrite: f.id !== 'root' && libraryCanWrite(tree.context, f),
-  canDelete: !f.virtual && Boolean(f.row) && libraryCanDelete(tree.context, f, f.row?.created_by_user_id),
+  campusId: f.campusId, category: f.category, group: f.group, canWrite: libraryCanWrite(tree.context, f),
+  systemManaged: Boolean(f.systemManaged), canDelete: libraryCanDeleteFolder(tree.context, f),
   readOnly: !libraryCanWrite(tree.context, f) });
 
 async function audit(tree: LibraryTree, action: string, folder: LibraryFolder) {
@@ -22,8 +22,10 @@ async function children(tree: LibraryTree, parent: LibraryFolder) {
   const rows = (await tree.db.prepare(`SELECT * FROM data_records WHERE organization_id = ? AND source_app = ? AND deleted_at IS NULL
     AND record_type IN (?, ?) AND (CASE WHEN json_valid(metadata_json) THEN json_extract(metadata_json, '$.parentFolderId') END = ?
       OR (? IN ('root','hq') AND campus_id IS NULL AND (record_type = ? OR
-        CASE WHEN json_valid(metadata_json) THEN json_extract(metadata_json, '$.parentFolderId') END = 'hq'))) ORDER BY created_at, id`)
-    .bind(ORG, LIBRARY_SOURCE, LIBRARY_FOLDER, HQ_FOLDER, parent.id, parent.id, HQ_FOLDER).all<Record<string, any>>()).results || [];
+        CASE WHEN json_valid(metadata_json) THEN json_extract(metadata_json, '$.parentFolderId') END = 'hq'))
+      OR (? = 'root' AND campus_id IS NULL AND record_type = ? AND json_valid(metadata_json)
+        AND json_extract(metadata_json, '$.parentFolderId') IS NULL)) ORDER BY created_at, id`)
+    .bind(ORG, LIBRARY_SOURCE, LIBRARY_FOLDER, HQ_FOLDER, parent.id, parent.id, HQ_FOLDER, parent.id, LIBRARY_FOLDER).all<Record<string, any>>()).results || [];
   for (const row of rows) tree.rows.set(row.id, row);
   const output: LibraryFolder[] = [];
   for (const row of rows) {
@@ -43,8 +45,12 @@ async function children(tree: LibraryTree, parent: LibraryFolder) {
     });
   }
   if (parent.id === 'root') {
-    output.push({ ...await tree.resolve('organization'), group: '공통' });
-    for (const campus of tree.campuses) output.push(await tree.resolve(`campus:${campus.id}`));
+    // Retire only this known legacy acceptance projection, not its campus, files or access policy.
+    // Its three trashed file objects lack test-only provenance and must remain restorable.
+    for (const campus of tree.campuses) {
+      if (campus.id === 'campus-synthetic-acceptance-20260909') continue;
+      output.push(await tree.resolve(`campus:${campus.id}`));
+    }
   }
   if (parent.id.startsWith('campus:') || parent.id === 'organization') {
     for (const [key] of LIBRARY_CATEGORIES) {
@@ -78,14 +84,17 @@ async function materialize(tree: LibraryTree, folder: LibraryFolder) {
 async function createFolder(tree: LibraryTree, input: Record<string, unknown>) {
   const parent = await tree.resolve(text(input.parentFolderId) || 'root');
   requireLibraryWrite(tree.context, parent);
-  if (parent.id === 'root' || parent.depth >= 14) error(400, '폴더 위치 또는 깊이를 확인하세요.');
+  if (parent.id === 'root' && !tree.context.isSuperAdmin) error(403, '최상위 폴더는 마스터 관리자만 만들 수 있습니다.');
+  if (parent.depth >= 14) error(400, '폴더 위치 또는 깊이를 확인하세요.');
   const title = text(input.title);
   if (!title || [...title].length > 80 || /[\u0000-\u001f]/.test(title)) error(400, '폴더 이름은 1~80자로 입력하세요.');
   if ((await children(tree, parent)).some(f => f.title.normalize('NFC') === title.normalize('NFC'))) error(409, '같은 이름의 폴더가 있습니다.');
   const id = crypto.randomUUID(), now = new Date().toISOString();
-  const metadata = { schemaVersion: 1, parentFolderId: parent.id, campusId: parent.campusId,
-    libraryScope: parent.campusId ? 'campus' : 'hq', category: parent.category || (parent.id === 'hq' ? 'hq-workspace' : 'library-material'),
-    libraryShareMode: parent.shareMode };
+  const metadata = { schemaVersion: 1, parentFolderId: parent.id === 'root' ? null : parent.id, campusId: parent.campusId,
+    libraryScope: libraryFolderScope(parent), category: parent.category || (parent.id === 'hq' ? 'hq-workspace' : 'library-material'),
+    libraryShareMode: parent.shareMode, systemManaged: false,
+    ...(parent.id === 'root' ? { createdFrom: 'library-root' } : {}),
+    ...(title.startsWith('__synthetic_') || libraryMetadata(parent.row || {}).testOnly === true ? { testOnly: true } : {}) };
   const result = await tree.db.prepare(`INSERT INTO data_records (id, organization_id, campus_id, created_by_user_id,
     record_type, source_app, title, visibility, status, metadata_json, created_at, updated_at)
     SELECT ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ? WHERE ? = 1 OR EXISTS
@@ -101,7 +110,7 @@ async function createFolder(tree: LibraryTree, input: Record<string, unknown>) {
 async function deleteFolder(tree: LibraryTree, id: string) {
   const folder = await tree.resolve(id);
   requireLibraryWrite(tree.context, folder);
-  if (folder.virtual || !libraryCanDelete(tree.context, folder, folder.row?.created_by_user_id)) error(403, '이 폴더는 삭제할 수 없습니다.');
+  if (!libraryCanDeleteFolder(tree.context, folder)) error(403, '이 폴더는 삭제할 수 없습니다.');
   const now = new Date().toISOString();
   // Include trashed files: a later Operations restore must never lose its folder.
   const result = await tree.db.prepare(`UPDATE data_records SET deleted_at = ?, updated_at = ?, status = 'deleted'
@@ -110,7 +119,7 @@ async function deleteFolder(tree: LibraryTree, id: string) {
     AND NOT EXISTS (SELECT 1 FROM data_records WHERE organization_id = ? AND deleted_at IS NULL
       AND CASE WHEN json_valid(metadata_json) THEN json_extract(metadata_json, '$.parentFolderId') END = ?)`)
     .bind(now, now, id, ORG, id, ORG, id).run();
-  if (Number(result.meta?.changes) !== 1) error(409, '폴더 안에 자료가 있습니다. 먼저 내부 자료를 정리하세요.');
+  if (Number(result.meta?.changes) !== 1) error(409, '폴더 안에 자료가 있습니다. 내부 자료를 먼저 정리해주세요.');
   await audit(tree, 'delete', folder);
   return { ok: true, id, deletedAt: now };
 }
