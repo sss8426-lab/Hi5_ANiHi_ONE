@@ -113,7 +113,7 @@ function categoryLabel(category) {
 
 function roleLabel(role) {
   return ({
-    SUPER_ADMIN: '마스터 관리자', CAMPUS_DIRECTOR: '캠퍼스 원장', TEACHER: '교사', STAFF: '직원'
+    MASTER: '마스터 관리자', CAMPUS_ADMIN: '캠퍼스 관리자', SUPER_ADMIN: '마스터 관리자', CAMPUS_DIRECTOR: '캠퍼스 원장', TEACHER: '교사', STAFF: '직원'
   })[role] || role || '-';
 }
 
@@ -243,7 +243,7 @@ function renderUser() {
   }
 
   const user = context.user || {};
-  chip.querySelector('strong').textContent = user.displayName || user.email || '사용자';
+  chip.querySelector('strong').textContent = context.memberships?.find(m => m.role === 'CAMPUS_ADMIN')?.campusName || user.displayName || user.email || '사용자';
   const membershipText = context.isSuperAdmin
     ? '마스터 관리자'
     : context.memberships?.length
@@ -869,13 +869,16 @@ function toggleAllAwards() {
   updateAwardSelection();
 }
 function canDeleteAward(file) {
-  return canWrite() && isSuperAdmin();
+  return canWrite() && (isSuperAdmin() || state.context?.memberships?.some(m => m.role === 'CAMPUS_ADMIN' && m.campusId === file.campusId));
 }
 function requestAwardDelete() {
   const folder = selectedAwardFolder();
   if (!folder || awardDeleteBusy || !awardSelected.size) return;
   awardDeletePending = { folderId: folder.id, ids: [...awardSelected] };
   $('awardDeleteSummary').textContent = `${folder.title} · 선택 ${awardSelected.size}개`;
+  $('awardDeleteTitle').textContent = isSuperAdmin() ? '선택한 수상작을 완전히 삭제할까요?' : '선택한 수상작을 휴지통으로 옮길까요?';
+  $('awardDeletePolicy').textContent = isSuperAdmin() ? 'DATA CORE와 중앙 저장소에서도 제거되며 복원할 수 없습니다.' : '원본 파일은 보존되며 휴지통에서 복원할 수 있습니다.';
+  $('confirmAwardDeleteBtn').textContent = isSuperAdmin() ? '완전히 삭제' : '휴지통으로 이동';
   $('awardDeleteDialog').showModal();
   $('cancelAwardDeleteBtn').focus?.();
 }
@@ -890,12 +893,13 @@ async function deleteSelectedAwards() {
     for (const id of pending.ids) {
       const file = state.awardFiles.find((item) => item.id === id && item.recordId === pending.folderId);
       if (!file || !canDeleteAward(file)) throw new Error('선택한 파일의 권한을 확인해 주세요.');
-      await api(`/api/data-core/files/${encodeURIComponent(id)}?awardFolderId=${encodeURIComponent(pending.folderId)}`, { method: 'DELETE' });
+      const query = isSuperAdmin() ? `?awardFolderId=${encodeURIComponent(pending.folderId)}` : '';
+      await api(`/api/data-core/files/${encodeURIComponent(id)}${query}`, { method: 'DELETE' });
       awardImages.remove(id);
       awardSelected.delete(id);
       deleted += 1;
     }
-    toast(`${deleted}개 수상작을 완전히 삭제했습니다.`);
+    toast(isSuperAdmin() ? `${deleted}개 수상작을 완전히 삭제했습니다.` : `${deleted}개 수상작을 휴지통으로 옮겼습니다.`);
   } catch (error) { toast(`${deleted}개 삭제 완료. ${error.message}`, 'error'); }
   finally {
     awardDeleteBusy = false;

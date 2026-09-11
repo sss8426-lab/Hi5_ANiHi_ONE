@@ -51,7 +51,7 @@ function showNotice(message) {
 
 function roleLabel(role) {
   return ({
-    SUPER_ADMIN: '마스터 관리자', CAMPUS_DIRECTOR: '캠퍼스 원장', TEACHER: '교사', STAFF: '직원'
+    MASTER: '마스터 관리자', CAMPUS_ADMIN: '캠퍼스 관리자', SUPER_ADMIN: '마스터 관리자', CAMPUS_DIRECTOR: '캠퍼스 원장', TEACHER: '교사', STAFF: '직원'
   })[role] || role || '-';
 }
 
@@ -119,7 +119,7 @@ function renderUser() {
     return;
   }
   const user = context.user || {};
-  chip.querySelector('strong').textContent = user.displayName || user.email || '사용자';
+  chip.querySelector('strong').textContent = context.memberships?.find(m => m.role === 'CAMPUS_ADMIN')?.campusName || user.displayName || user.email || '사용자';
   chip.querySelector('small').textContent = context.isSuperAdmin
     ? '마스터 관리자'
     : context.memberships?.length

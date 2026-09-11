@@ -135,6 +135,13 @@ async function fetchKnowledgeEdges(db: D1Database, offset: number) {
 }
 
 const SECTIONS: BackupSection[] = [
+  { name: 'campus_admissions_state', fetchPage: async (db, offset) => {
+    const exists = await db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='campus_admissions_state'").first();
+    if (!exists) return [];
+    return (await db.prepare(`SELECT s.campus_id,s.payload_json,s.revision,s.created_at,s.updated_at
+      FROM campus_admissions_state s JOIN campuses c ON c.id=s.campus_id
+      WHERE c.organization_id=? ORDER BY s.campus_id LIMIT ? OFFSET ?`).bind(DEFAULT_ORGANIZATION_ID,PAGE_SIZE,offset).all<Record<string,unknown>>()).results || [];
+  } },
   { name: "organizations", fetchPage: fetchOrganizations },
   { name: "campuses", fetchPage: fetchCampuses },
   { name: "data_records", fetchPage: fetchDataRecords },

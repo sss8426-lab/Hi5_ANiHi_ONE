@@ -52,7 +52,9 @@ import {
   loginStandalone,
   logoutStandalone,
   updateStandaloneAccount,
+  recordStandaloneActivity,
 } from "./data-core-auth";
+import { campusPresence } from './campus-presence';
 import { handleKkumeumApi } from "./kkumeum-router";
 
 interface Env {
@@ -67,6 +69,7 @@ interface Env {
 function jsonResponse(value: unknown, init: ResponseInit = {}) {
   const headers = new Headers(init.headers);
   headers.set("content-type", "application/json; charset=utf-8");
+  headers.set("cache-control", "private, no-store");
   return new Response(JSON.stringify(value), { ...init, headers });
 }
 
@@ -154,6 +157,8 @@ async function handleStandaloneAuthApi(request: Request, env: Env) {
     return jsonResponse({ ok: true }, { headers: result.headers });
   }
   if (url.pathname === "/api/auth/session" && request.method === "GET") return jsonResponse(context);
+  if (url.pathname === '/api/auth/activity' && request.method === 'POST') return jsonResponse(await recordStandaloneActivity(env.DB, request, context));
+  if (url.pathname === '/api/auth/campuses' && request.method === 'GET') return jsonResponse(await campusPresence(env.DB, context));
   if (url.pathname === "/api/auth/password" && request.method === "PUT") {
     const result = await changeStandalonePassword(env.DB, request, context, await readJson(request));
     return jsonResponse({ ok: true }, { headers: { "set-cookie": `${AUTH_COOKIE_NAME}=${result.session.rawToken}; Max-Age=28800; Path=/; Secure; HttpOnly; SameSite=Lax` } });
@@ -484,6 +489,9 @@ const worker = {
         const context = await resolveDataCoreAccess(request, env.DB, env.DATA_CORE_SUPER_ADMIN_EMAILS);
         if (!context.authenticated || context.mustChangePassword) {
           return loginPageResponse(request, env, (url.pathname.replace(/\/$/, "") || "/data-core/work") + url.search);
+        }
+        if (/^\/data-core\/(accounts|operations|readiness)(?:\/|\.html)?$/.test(url.pathname) && !context.isSuperAdmin) {
+          return new Response('마스터 관리자만 접근할 수 있습니다.', { status: 403, headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' } });
         }
       }
       if (url.pathname === "/data-core/kkumeum" || url.pathname === "/data-core/kkumeum/") {

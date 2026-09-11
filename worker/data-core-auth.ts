@@ -1,5 +1,6 @@
 import { DEFAULT_ORGANIZATION_ID } from "./data-core";
-import { DataCoreAccessError, requireAuthenticatedAccess, requireSignedInAccess, type DataCoreAccessContext, type DataCoreRole } from "./data-core-access";
+import { DATA_CORE_ROLES, isMasterRole, DataCoreAccessError, requireAuthenticatedAccess, requireSignedInAccess, type DataCoreAccessContext, type DataCoreRole } from "./data-core-access";
+import { canonicalCampusId, HEARTBEAT_MINUTES } from './campus-directory';
 
 export const AUTH_COOKIE_NAME = "data_core_session";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 8;
@@ -83,7 +84,12 @@ function assertSameOrigin(request: Request) {
   }
 }
 
+const authSchemaReady = new WeakMap<D1Database, Promise<void>>();
 export async function ensureStandaloneAuthSchema(db: D1Database) {
+  if (!authSchemaReady.has(db)) authSchemaReady.set(db, initializeStandaloneAuthSchema(db).catch(error => { authSchemaReady.delete(db); throw error; }));
+  return authSchemaReady.get(db)!;
+}
+async function initializeStandaloneAuthSchema(db: D1Database) {
   await db.batch([
     db.prepare(`CREATE TABLE IF NOT EXISTS auth_accounts (
       id TEXT PRIMARY KEY NOT NULL, user_id TEXT NOT NULL UNIQUE, login_id TEXT NOT NULL UNIQUE,
@@ -101,6 +107,8 @@ export async function ensureStandaloneAuthSchema(db: D1Database) {
     db.prepare("CREATE INDEX IF NOT EXISTS auth_sessions_user_idx ON auth_sessions(user_id)"),
     db.prepare("CREATE INDEX IF NOT EXISTS auth_sessions_active_idx ON auth_sessions(token_hash, expires_at)"),
     db.prepare("CREATE INDEX IF NOT EXISTS auth_accounts_login_idx ON auth_accounts(login_id)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS auth_sessions_presence_idx ON auth_sessions(user_id, revoked_at, expires_at, last_seen_at)"),
+    db.prepare("CREATE INDEX IF NOT EXISTS audit_auth_login_idx ON audit_logs(organization_id, resource_type, action, resource_id, created_at)"),
   ]);
 }
 
@@ -116,7 +124,6 @@ export async function standaloneSessionIdentity(db: D1Database, request: Request
      WHERE s.token_hash = ? AND s.revoked_at IS NULL AND s.expires_at > ? AND a.status = 'active' AND u.status = 'active'`,
   ).bind(tokenHash, now).first<{ session_id: string; user_id: string; email: string | null; display_name: string; must_change_password: number }>();
   if (!row) return null;
-  await db.prepare("UPDATE auth_sessions SET last_seen_at = ? WHERE id = ?").bind(now, row.session_id).run();
   return {
     userId: row.user_id,
     internalUserId: row.user_id,
@@ -124,6 +131,19 @@ export async function standaloneSessionIdentity(db: D1Database, request: Request
     displayName: row.display_name,
     mustChangePassword: Boolean(row.must_change_password),
   };
+}
+
+export async function recordStandaloneActivity(db: D1Database, request: Request, context: DataCoreAccessContext) {
+  requireAuthenticatedAccess(context);
+  if (request.headers.get('origin') !== new URL(request.url).origin) throw new DataCoreAccessError(403, '허용되지 않은 요청 출처입니다.');
+  const token = sessionToken(request);
+  if (!token) return { ok: true };
+  const now = new Date();
+  await db.prepare(`UPDATE auth_sessions SET last_seen_at = ?
+    WHERE token_hash = ? AND user_id = ? AND revoked_at IS NULL AND expires_at > ? AND last_seen_at <= ?`)
+    .bind(now.toISOString(), await sha256(token), context.user!.internalUserId, now.toISOString(),
+      new Date(now.getTime() - HEARTBEAT_MINUTES * 60_000).toISOString()).run();
+  return { ok: true };
 }
 
 async function audit(db: D1Database, userId: string | null, action: string, resourceId: string | null, metadata: Record<string, unknown> = {}) {
@@ -149,7 +169,7 @@ export async function loginStandalone(db: D1Database, request: Request, body: { 
   const loginId = normalizeLoginId(body.loginId);
   const password = String(body.password || "");
   if (!loginId || !password) throw new DataCoreAccessError(400, "로그인 ID와 비밀번호를 입력하세요.");
-  const account = await db.prepare("SELECT * FROM auth_accounts WHERE login_id = ?").bind(loginId).first<AccountRow>();
+  const account = await db.prepare("SELECT a.* FROM auth_accounts a INNER JOIN users u ON u.id = a.user_id WHERE a.login_id = ? AND u.status = 'active'").bind(loginId).first<AccountRow>();
   const now = new Date();
   if (!account || account.status !== "active") {
     await audit(db, null, "login_failed", null, { loginId });
@@ -213,21 +233,22 @@ export async function createStandaloneAccount(db: D1Database, request: Request, 
   const loginId = normalizeLoginId(input.loginId);
   const temporaryPassword = String(input.temporaryPassword || "");
   const role = text(input.role, 40) as DataCoreRole;
-  if (!loginId || temporaryPassword.length < 12 || !["CAMPUS_DIRECTOR", "TEACHER", "STAFF", "SUPER_ADMIN"].includes(role)) throw new DataCoreAccessError(400, "계정 정보를 확인하세요.");
+  if (!loginId || temporaryPassword.length < 12 || !DATA_CORE_ROLES.includes(role)) throw new DataCoreAccessError(400, "계정 정보를 확인하세요.");
   const userId = `local:${crypto.randomUUID()}`;
   const accountId = crypto.randomUUID();
   const now = new Date().toISOString();
   const salt = toBase64(crypto.getRandomValues(new Uint8Array(16)));
   const hash = await passwordHash(temporaryPassword, salt, PASSWORD_ITERATIONS);
-  const campusId = text(input.campusId, 120) || null;
-  if (role !== "SUPER_ADMIN" && !campusId) throw new DataCoreAccessError(400, "캠퍼스 계정에는 캠퍼스 지정이 필요합니다.");
+  const campusId = isMasterRole(role) ? null : canonicalCampusId(input.campusId);
+  if (!isMasterRole(role) && !campusId) throw new DataCoreAccessError(400, "캠퍼스 계정에는 캠퍼스 지정이 필요합니다.");
+  if (campusId && !await db.prepare("SELECT id FROM campuses WHERE id = ? AND organization_id = ? AND status = 'active'").bind(campusId, DEFAULT_ORGANIZATION_ID).first()) throw new DataCoreAccessError(400, '활성 캠퍼스를 선택하세요.');
   await db.batch([
     db.prepare("INSERT INTO users (id, email, display_name, status, created_at, updated_at) VALUES (?, ?, ?, 'active', ?, ?)")
       .bind(userId, text(input.email, 240) || null, text(input.displayName, 160) || loginId, now, now),
     db.prepare("INSERT INTO auth_accounts (id, user_id, login_id, password_hash, password_salt, password_iterations, status, must_change_password, failed_login_count, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 'active', 1, 0, ?, ?)")
       .bind(accountId, userId, loginId, hash, salt, PASSWORD_ITERATIONS, now, now),
     db.prepare("INSERT INTO memberships (id, organization_id, campus_id, user_id, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
-      .bind(crypto.randomUUID(), DEFAULT_ORGANIZATION_ID, role === "SUPER_ADMIN" ? null : campusId, userId, role, now, now),
+      .bind(crypto.randomUUID(), DEFAULT_ORGANIZATION_ID, campusId, userId, role, now, now),
   ]);
   await audit(db, actor.internalUserId, "account_created", accountId, { loginId, campusId, role });
   return { id: accountId, loginId, userId, campusId, role, mustChangePassword: true };
@@ -268,7 +289,7 @@ export async function updateStandaloneAccount(
   if (status && !["active", "disabled"].includes(status)) throw new DataCoreAccessError(400, "계정 상태가 올바르지 않습니다.");
   if (temporaryPassword && temporaryPassword.length < 12) throw new DataCoreAccessError(400, "임시 비밀번호는 12자 이상이어야 합니다.");
   const targetIsSuperAdmin = Boolean(await db.prepare(
-    "SELECT 1 FROM memberships WHERE user_id = ? AND organization_id = ? AND role = 'SUPER_ADMIN' LIMIT 1",
+    "SELECT 1 FROM memberships WHERE user_id = ? AND organization_id = ? AND role IN ('SUPER_ADMIN', 'MASTER') LIMIT 1",
   ).bind(account.user_id, DEFAULT_ORGANIZATION_ID).first());
   if (account.user_id === actor.internalUserId && (status === "disabled" || revokeSessions || temporaryPassword)) {
     throw new DataCoreAccessError(400, "본인 계정의 비활성화, 세션 해제, 임시 비밀번호 재설정은 다른 마스터 관리자가 처리해야 합니다.");
@@ -278,7 +299,7 @@ export async function updateStandaloneAccount(
       `SELECT count(DISTINCT a.id) AS count
          FROM auth_accounts a
          INNER JOIN memberships m ON m.user_id = a.user_id
-         WHERE a.status = 'active' AND m.organization_id = ? AND m.role = 'SUPER_ADMIN'`,
+         WHERE a.status = 'active' AND m.organization_id = ? AND m.role IN ('SUPER_ADMIN', 'MASTER')`,
     ).bind(DEFAULT_ORGANIZATION_ID).first<{ count: number }>();
     if (Number(activeSuperAdmins?.count || 0) <= 1) {
       throw new DataCoreAccessError(409, "마지막 활성 마스터 계정은 비활성화할 수 없습니다.");

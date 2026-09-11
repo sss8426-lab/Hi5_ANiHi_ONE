@@ -6,6 +6,7 @@ import {
   requireAuthenticatedAccess,
   requireCampusAccess,
   requireWriteAccess,
+  isCampusAdmin, managesCampus,
 } from "./data-core-access";
 import { ensureDataCoreMigrations } from "./data-core-migrations";
 import {
@@ -152,6 +153,7 @@ function buildMetadata(input: ContentDraftInput, sourceApp: ContentSourceApp, re
 
 function canMutateRow(context: DataCoreAccessContext, row: Record<string, unknown>) {
   if (context.isSuperAdmin) return true;
+  if (isCampusAdmin(context)) return managesCampus(context,row.campus_id);
   return context.user?.internalUserId === row.created_by_user_id;
 }
 

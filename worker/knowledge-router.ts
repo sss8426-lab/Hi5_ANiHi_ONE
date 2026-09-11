@@ -2,6 +2,7 @@ import baseWorker from "./router";
 import {
   DataCoreAccessError,
   resolveDataCoreAccess,
+  isCampusAdmin,
 } from "./data-core-access";
 import {
   createKnowledgeEdge,
@@ -93,6 +94,7 @@ async function handleKnowledgeApi(request: Request, env: Env) {
     env.DB,
     env.DATA_CORE_SUPER_ADMIN_EMAILS,
   );
+  if (request.method !== 'GET' && isCampusAdmin(context) && !context.isSuperAdmin) throw new DataCoreAccessError(403,'공용 진로·입시 정보는 마스터 관리자만 수정할 수 있습니다.');
 
   if (url.pathname === "/api/data-core/knowledge/nodes") {
     if (request.method === "GET") {

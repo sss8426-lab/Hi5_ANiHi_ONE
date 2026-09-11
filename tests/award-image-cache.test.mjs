@@ -63,7 +63,7 @@ test('clicked original bypasses gallery backlog using reserved slot without dupl
   assert.deepEqual(started.map(url=>url.split('/').pop()),['a','b','c','e']);
   release.get('/api/data-core/files/e')(response());await clicked;
   for(const id of ['a','b','c'])release.get('/api/data-core/files/'+id)(response());
-  await new Promise(r=>setTimeout(r,0));
+  for(let attempt=0;!release.has('/api/data-core/files/d')&&attempt<100;attempt++)await new Promise(r=>setTimeout(r,5));
   release.get('/api/data-core/files/d')(response());await Promise.all(jobs);
   assert.equal(started.length,5);assert.equal(h.cache.active,0);
 });
@@ -93,7 +93,9 @@ test('403 clears displayed previews and blocks further reads until explicit rese
 test('late thumbnail encode cannot repopulate after folder change', async () => {
   let encode;
   const h=harness(async()=>response(),{...previewRuntime,document:{createElement:()=>({getContext:()=>({drawImage(){}}),toBlob:done=>{encode=done;}})}});
-  const task=h.cache.getThumbnail('one');await new Promise(r=>setTimeout(r,0));
+  const task=h.cache.getThumbnail('one');
+  for(let attempt=0;!encode&&attempt<100;attempt++)await new Promise(r=>setTimeout(r,5));
+  assert.equal(typeof encode,'function');
   h.cache.clear();encode(new Blob(['p'],{type:'image/webp'}));
   await assert.rejects(task,{name:'AbortError'});assert.equal(h.cache.previews.size,0);
 });

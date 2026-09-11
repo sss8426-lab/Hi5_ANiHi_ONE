@@ -33,7 +33,7 @@
     if (!context || !campusId) return false;
     if (context.isSuperAdmin) return true;
     return (context.memberships || []).some((membership) => (
-      membership.campusId === campusId && membership.role === 'CAMPUS_DIRECTOR'
+      membership.campusId === campusId && ['CAMPUS_DIRECTOR', 'CAMPUS_ADMIN'].includes(membership.role)
     ));
   }
 

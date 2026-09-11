@@ -72,7 +72,7 @@ function requireCampusId(value: unknown): string {
 
 function isOwnCampusDirector(context: DataCoreAccessContext, campusId: string): boolean {
   return context.memberships.some(
-    (membership) => membership.campusId === campusId && membership.role === "CAMPUS_DIRECTOR",
+    (membership) => membership.campusId === campusId && ['CAMPUS_DIRECTOR', 'CAMPUS_ADMIN'].includes(membership.role),
   );
 }
 

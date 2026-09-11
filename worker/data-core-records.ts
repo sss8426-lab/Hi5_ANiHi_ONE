@@ -2,6 +2,7 @@ import { DEFAULT_ORGANIZATION_ID, ensureDataCoreDatabase } from "./data-core";
 import { assertMutableRecordType, DERIVATIVE_RECORD_TYPE, THUMBNAIL_RECORD_TYPE } from './data-core-derivative-policy';
 import { LIBRARY_FOLDER, HQ_FOLDER } from './data-core-library-policy';
 import {
+  isCampusAdmin, managesCampus, campusForWrite,
   DataCoreAccessContext,
   DataCoreAccessError,
   requireAuthenticatedAccess,
@@ -185,6 +186,8 @@ function canReadRow(context: DataCoreAccessContext, row: Record<string, unknown>
   if (row.record_type === LIBRARY_FOLDER) return false;
   if ([DERIVATIVE_RECORD_TYPE,THUMBNAIL_RECORD_TYPE].includes(String(row.record_type))) return false;
   if (context.isSuperAdmin) return true;
+  if (isCampusAdmin(context) && row.campus_id && !managesCampus(context, row.campus_id)) return false;
+  if (managesCampus(context, row.campus_id)) return true;
   if (row.visibility === "public") return true;
   if (!hasMembership(context)) return false;
   if (row.visibility === "organization") return true;
@@ -197,8 +200,10 @@ function canReadRow(context: DataCoreAccessContext, row: Record<string, unknown>
   return false;
 }
 
-function canMutateRow(context: DataCoreAccessContext, row: Record<string, unknown>) {
+export function canMutateRecord(context: DataCoreAccessContext, row: Record<string, unknown>) {
   if (context.isSuperAdmin) return true;
+  if (isCampusAdmin(context) && ['competition','admission-guideline','admissions-guideline','university','curriculum','major'].includes(String(row.record_type))) return false;
+  if (isCampusAdmin(context)) return managesCampus(context, row.campus_id);
   return context.user?.internalUserId === row.created_by_user_id;
 }
 
@@ -305,9 +310,10 @@ export async function createDataRecord(
 
   const title = cleanText(input.title, 240);
   const recordType = cleanText(input.recordType, 80);
+  if (isCampusAdmin(context) && ['competition','admission-guideline','admissions-guideline','university','curriculum','major'].includes(recordType)) throw new DataCoreAccessError(403,'공용 정보는 마스터 관리자만 수정할 수 있습니다.');
   assertMutableRecordType(recordType);
   const sourceApp = cleanText(input.sourceApp, 80);
-  const campusId = cleanText(input.campusId, 120) || null;
+  const campusId = isCampusAdmin(context) ? campusForWrite(context, input.campusId) : cleanText(input.campusId, 120) || null;
   if (recordType === LIBRARY_FOLDER || (recordType === HQ_FOLDER && (!context.isSuperAdmin || campusId ||
     (input.metadata && typeof input.metadata === 'object' && 'parentFolderId' in input.metadata)))) {
     throw new DataCoreAccessError(403, '자료보관함 폴더 기능을 사용하세요.');
@@ -324,7 +330,7 @@ export async function createDataRecord(
   }
 
   const visibility = normalizeVisibility(input.visibility);
-  if (!context.isSuperAdmin && visibility === "organization") {
+  if (!context.isSuperAdmin && (visibility === "organization" || (isCampusAdmin(context) && visibility === 'public'))) {
     // 캠퍼스 사용자가 생성한 자료는 기본적으로 캠퍼스 공유 범위로 제한한다.
     input.visibility = "campus";
   }
@@ -381,7 +387,7 @@ export async function updateDataRecord(
   }
   assertMutableRecordType(existing.record_type);
   assertMutableRecordType(cleanText(input.recordType, 80));
-  if (!canMutateRow(context, existing)) {
+  if (!canMutateRecord(context, existing)) {
     throw new DataCoreAccessError(403, "본인이 등록한 데이터만 수정할 수 있습니다.");
   }
 
@@ -394,13 +400,14 @@ export async function updateDataRecord(
   if (!nextTitle) throw new DataCoreAccessError(400, "title은 비워둘 수 없습니다.");
   const nextRecordType =
     input.recordType === undefined ? String(existing.record_type) : cleanText(input.recordType, 80);
+  if (!canMutateRecord(context, { ...existing, record_type: nextRecordType })) throw new DataCoreAccessError(403, '공용 정보는 마스터 관리자만 수정할 수 있습니다.');
   const nextSourceApp =
     input.sourceApp === undefined ? String(existing.source_app) : cleanText(input.sourceApp, 80);
   let nextVisibility =
     input.visibility === undefined
       ? (existing.visibility as DataRecordVisibility)
       : normalizeVisibility(input.visibility);
-  if (!context.isSuperAdmin && nextVisibility === "organization") nextVisibility = "campus";
+  if (!context.isSuperAdmin && (nextVisibility === "organization" || (isCampusAdmin(context) && nextVisibility === 'public'))) nextVisibility = "campus";
   const nextSummary =
     input.summary === undefined ? (existing.summary as string | null) : cleanText(input.summary, 10_000) || null;
   const nextMetadata =
@@ -450,7 +457,7 @@ export async function deleteDataRecord(
     throw new DataCoreAccessError(403, '자료보관함의 빈 폴더 삭제 기능을 사용하세요.');
   }
   assertMutableRecordType(existing.record_type);
-  if (!canMutateRow(context, existing)) {
+  if (!canMutateRecord(context, existing)) {
     throw new DataCoreAccessError(403, "본인이 등록한 데이터만 삭제할 수 있습니다.");
   }
   if (existing.record_type === 'competition-award-folder') {

@@ -7,6 +7,7 @@
   "assets": {
     "directory": "dist/client",
     "not_found_handling": "none",
+    "run_worker_first": ["/api/*", "/admissions-web/data/*", "/data-core/accounts*", "/data-core/operations*", "/data-core/readiness*"],
     "binding": "ASSETS"
   }
 }

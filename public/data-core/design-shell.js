@@ -1,4 +1,5 @@
 // Presentation enhancement only: reuse existing navigation nodes and handlers.
+import './session-activity.js?v=20260912-campus';
 const ns = 'http://www.w3.org/2000/svg';
 function icon(name) {
   const svg = document.createElementNS(ns, 'svg');

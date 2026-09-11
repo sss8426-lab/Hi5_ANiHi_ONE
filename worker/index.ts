@@ -9,7 +9,10 @@ import {
   DataCoreAccessError,
   listAccessibleCampuses,
   resolveDataCoreAccess,
+  requireAuthenticatedAccess,
+  requireWriteAccess,
 } from "./data-core-access";
+import { readCampusAdmissions, saveCampusAdmissions } from './campus-admissions';
 import {
   deleteDataCoreMembership,
   listDataCoreMemberships,
@@ -131,9 +134,7 @@ async function readAppData(request: Request, env: Env) {
     }
   }
 
-  const initial = await defaultData(request, env);
-  await saveAppData(env, initial);
-  return initial;
+  return defaultData(request, env);
 }
 
 async function saveAppData(env: Env, data: unknown) {
@@ -439,6 +440,42 @@ async function handleDataCoreApi(request: Request, env: Env) {
 
 async function handleApi(request: Request, env: Env) {
   const url = new URL(request.url);
+  if (url.pathname === '/api/data' || url.pathname === '/api/upload' || url.pathname.startsWith('/api/files/')) {
+    try {
+      const context = await resolveDataCoreAccess(request, env.DB, env.DATA_CORE_SUPER_ADMIN_EMAILS);
+      requireAuthenticatedAccess(context);
+      if (!env.DB) throw new DataCoreAccessError(503,'DB 연결이 필요합니다.');
+      if (!['GET','HEAD'].includes(request.method)) {
+        requireWriteAccess(context);
+        if (request.headers.get('origin') !== url.origin) throw new DataCoreAccessError(403,'동일 출처 요청만 허용됩니다.');
+      }
+      if (url.pathname === '/api/data') {
+        const legacy = await readAppData(request,env) as Record<string, unknown>;
+        if (request.method === 'GET') return Response.json(await readCampusAdmissions(env.DB,context,url,legacy), {headers:{'cache-control':'private, no-store'}});
+        if (request.method === 'PUT') {
+          const result = await saveCampusAdmissions(env.DB,context,url,legacy,await request.json());
+          if (result.legacy) await saveAppData(env,result.legacy);
+          return Response.json({ok:true}, {headers:{'cache-control':'private, no-store'}});
+        }
+        return new Response(null,{status:405});
+      }
+      if (url.pathname === '/api/upload' && request.method === 'POST' && !context.isSuperAdmin) {
+        if (!env.FILES) throw new DataCoreAccessError(503,'파일 저장소가 필요합니다.');
+        const file = await uploadDataCoreFile(request,env.DB,env.FILES,context);
+        return Response.json({...file, dataCoreFileId:file.id, url:file.downloadUrl, imageUrl:file.downloadUrl,
+          filePath:file.downloadUrl, path:file.downloadUrl, fileName:file.fileName, name:file.fileName}, {headers:{'cache-control':'no-store'}});
+      }
+      if (url.pathname.startsWith('/api/files/') && !context.isSuperAdmin) {
+        const key = decodeURIComponent(url.pathname.slice('/api/files/'.length));
+        if (key.startsWith('data-core/') || key.startsWith('artworks/')) return new Response(null,{status:404,headers:{'cache-control':'no-store'}});
+        const row = await env.DB.prepare('SELECT id FROM file_objects WHERE r2_key = ? AND deleted_at IS NULL').bind(key).first<{id:string}>();
+        if (!row || !env.FILES) throw new DataCoreAccessError(403,'이 파일을 볼 권한이 없습니다.');
+        return readDataCoreFile(env.DB,env.FILES,context,row.id,request);
+      }
+    } catch (error) {
+      return Response.json({error:error instanceof DataCoreAccessError ? error.message : '입시 데이터를 처리하지 못했습니다.'}, {status:error instanceof DataCoreAccessError ? error.status : 503,headers:{'cache-control':'private, no-store'}});
+    }
+  }
   const artworkResponse = await handleAdmissionsArtworks(request, env);
   if (artworkResponse) return artworkResponse;
 
@@ -452,16 +489,6 @@ async function handleApi(request: Request, env: Env) {
       console.error("DATA CORE API error", error);
       return jsonResponse({ error: "DATA CORE 처리 중 오류가 발생했습니다." }, { status: 500 });
     }
-  }
-
-  if (url.pathname === "/api/data" && request.method === "GET") {
-    return jsonResponse(await readAppData(request, env));
-  }
-
-  if (url.pathname === "/api/data" && request.method === "PUT") {
-    const data = await request.json();
-    await saveAppData(env, data);
-    return jsonResponse({ ok: true });
   }
 
   if (url.pathname === "/api/upload" && request.method === "POST") {
@@ -478,6 +505,12 @@ async function handleApi(request: Request, env: Env) {
 const worker = {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    let assetPath = url.pathname;
+    try { assetPath = decodeURIComponent(assetPath); } catch { return new Response(null,{status:400}); }
+    if (assetPath.startsWith('/admissions-web/data/')) {
+      const context = await resolveDataCoreAccess(request,env.DB,env.DATA_CORE_SUPER_ADMIN_EMAILS);
+      if (!context.isSuperAdmin || context.mustChangePassword) return new Response(null,{status:context.authenticated?403:401,headers:{'cache-control':'no-store'}});
+    }
 
     const apiResponse = await handleApi(request, env);
     if (apiResponse) return apiResponse;
