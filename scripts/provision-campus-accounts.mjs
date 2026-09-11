@@ -5,6 +5,7 @@ import { mkdtemp, writeFile, unlink, rmdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 import { promisify } from 'node:util';
+import { fileURLToPath } from 'node:url';
 const execute = promisify(execFile);
 const directory = [
   ['ba','BUCHEON_ANI','campus-anihi-admission','부천 애니입시관'],['bd','BUCHEON_DESIGN','campus-design-admission','부천 디자인입시관'],
@@ -13,12 +14,18 @@ const directory = [
   ['gj','GWANGJIN','campus-gwangjin','광진'],['pj','PAJU','campus-paju','파주'],['as','ANSAN','campus-ansan','안산'],['us','ULSAN','campus-ulsan','울산'],
 ];
 const quote = value => `'${String(value).replaceAll("'","''")}'`;
+export function parseWranglerResult(stdout) {
+  // File imports can prefix --json output with upload progress lines.
+  const start = stdout.search(/^\s*\[\s*(?:\{|\])/m);
+  let parsed;
+  try { parsed = JSON.parse(stdout.slice(start)); } catch { throw new Error('D1 응답 형식을 확인하세요. 원문은 출력하지 않았습니다.'); }
+  if (start < 0 || !Array.isArray(parsed) || parsed.some(row => !row || row.success !== true)) throw new Error('D1 작업 결과 확인이 필요합니다. 기존 계정을 재생성하거나 재설정하지 마세요.');
+  return parsed;
+}
 async function run(args) {
   const result = await execute(process.execPath,[resolve('node_modules/wrangler/bin/wrangler.js'),'d1','execute','DB','--config','dist/server/wrangler.json','--remote','--yes','--json',...args],
     {windowsHide:true,maxBuffer:2_000_000,env:{...process.env,WRANGLER_WRITE_LOGS:'false'}}).catch(()=>{throw new Error('Cloudflare 인증 또는 D1 작업을 확인하세요. 비밀 값은 출력하지 않았습니다.');});
-  const parsed = JSON.parse(result.stdout);
-  if (!Array.isArray(parsed) || parsed.some(r=>!r.success)) throw new Error('D1 작업 실패. 기존 계정은 재설정하지 않았습니다.');
-  return parsed;
+  return parseWranglerResult(result.stdout);
 }
 async function provision() {
   const query = `SELECT a.login_id,m.campus_id,m.role FROM auth_accounts a LEFT JOIN memberships m ON m.user_id=a.user_id WHERE lower(a.login_id) IN (${directory.map(r=>quote(r[0])).join(',')})`;
@@ -54,4 +61,6 @@ async function provision() {
   if(directory.some(c=>!verified.some(r=>r.login_id===c[0]&&r.campus_id===c[2]&&r.role==='CAMPUS_ADMIN'))) throw new Error('계정 생성 후 연결 확인이 필요합니다.');
   console.log(JSON.stringify({created:needed.length,verifiedCampuses:10,existingMasterUnchanged:true,firstPasswordChangeRequired:true}));
 }
-provision().catch(error=>{console.error(error instanceof SyntaxError?'입력 형식을 확인하세요.':error.message);process.exitCode=1;});
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  provision().catch(error=>{console.error(error instanceof SyntaxError?'입력 형식을 확인하세요.':error.message);process.exitCode=1;});
+}
