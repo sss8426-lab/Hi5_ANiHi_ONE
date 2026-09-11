@@ -2,7 +2,7 @@ import { DEFAULT_ORGANIZATION_ID } from './data-core';
 import { createHash } from 'node:crypto';
 import { DataCoreAccessError, requireAuthenticatedAccess, resolveDataCoreAccess } from './data-core-access';
 import { readAdmissionsState } from './data-core-admissions-knowledge-sync';
-import {programView,filterPrograms,admissionTrend} from '../public/data-core/roadmap-model.js';
+import {programView,filterPrograms,ratioFilterOptions,admissionTrend} from '../public/data-core/roadmap-model.js';
 import {paginate} from '../public/data-core/pagination.js';
 import { careerMajorKeywords, decodePublicGuidelines, explainUniversityMatch, guidelineIdentity, indexUniversities, matchUniversity, matchesCareer, preserveKnownValues, projectUniversity, projectGuideline, selectGuidelines } from '../public/data-core/admissions-model.js';
 
@@ -200,11 +200,12 @@ export async function handleAdmissionsCatalog(request: Request, env: Env): Promi
       // Saved guidelines are readable now; this ordering does not link them to legacy university rows.
       rows.sort((a,b)=>Number(Boolean(b.metadata?.guidelineId))-Number(Boolean(a.metadata?.guidelineId)));
       const views=rows.map(programView);
-      const filtered=filterPrograms(views,Object.fromEntries(url.searchParams));
+      const filters=Object.fromEntries(url.searchParams);
+      const filtered=filterPrograms(views,filters);
       const paging=paginate(filtered,Number(url.searchParams.get('page')));
       const byId=new Map(rows.map(r=>[r.id,r]));
       return privateJson({programs:paging.rows.map((r:Row)=>byId.get(r.id)),pagination:{page:paging.page,totalPages:paging.totalPages,buttons:paging.buttons,total:filtered.length},
-        total:rows.length,facets:{region:[...new Set(views.map(r=>r.region).filter(Boolean))].sort(),schoolType:[...new Set(views.map(r=>r.schoolType).filter(Boolean))].sort()},trend:admissionTrend(views),readOnly:true});
+        total:rows.length,facets:{region:[...new Set(views.map(r=>r.region).filter(Boolean))].sort(),schoolType:[...new Set(views.map(r=>r.schoolType).filter(Boolean))].sort(),...ratioFilterOptions(views,filters)},trend:admissionTrend(views),readOnly:true});
     }
     return privateJson({programs:rows,source:'admissions-universities',matchBasis:'department-name',readOnly:true});
   } catch (error) {

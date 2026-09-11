@@ -47,6 +47,44 @@ available year, unique program/method rows, and explicitly identify their limite
 They are not presented as a whole-major average, ranking, or admission probability.
 The original data and API response contracts are unchanged.
 
+## Exact admissions ratio filters (2026-09-11)
+
+The connected university section replaces its former emphasis selector with `성적 %`
+and `실기 %`. The paginated `/api/data-core/roadmap/programs` read endpoint accepts
+`academicRatio` and `practicalRatio` as exact percentages, ANDed with region,
+schoolType and admission/season. Empty values do not constrain results; zero is a
+real value. The obsolete roadmap-only `focus` parameter is no longer used. Other
+admissions pages retain their existing source fields and filters.
+
+Cards, filtering and facets use the same `programView` / `selectionRatios` projection.
+Academic percentage sums school record and CSAT only when the existing complete
+single-stage parser succeeds. Interview/document/other factors stay separate.
+Staged, point-based, ambiguous and incomplete formulas never match numeric filters;
+an explicit formula also invalidates stale legacy percentages. Existing reviewed
+numeric-only legacy pairs retain their verification requirements. No source rows,
+mapping status or DB/R2 data are rewritten. Missing school type is not inferred;
+such rows cannot match a selected school type.
+
+The additive `facets.academicRatio` and `facets.practicalRatio` arrays contain sorted
+distinct numbers from the entire career's current region/type/season subset, not
+just its four visible rows. Both ratio facets intentionally ignore the ratio pair
+itself, so an impossible pair can be corrected without hiding other available values.
+An unavailable selection resets to All and page 1; if a server page was requested
+with an obsolete value, the client refetches that corrected state before showing cards.
+
+The existing career hash additionally carries region, schoolType, admission,
+academicRatio, practicalRatio and page. Each user change is one history entry;
+refresh/back/forward restore the selection. Server clamping and invalid-choice resets
+replace that entry. Only filter values are stored in the URL, never API results,
+credentials or student records. Pagination remains four per page. In-flight changes
+clear obsolete cards and cancel stale program/detail responses.
+
+Synthetic behavior and browser checks are in `tests/roadmap-ratio-filters.test.mjs`
+and `scripts/check-roadmap-ratio-browser.mjs`. The browser runner refuses production
+and intercepts every API request; required viewports are 1920/1440/1024/820/390/320.
+Production acceptance is a separate read-only public-guideline check, recorded on
+the PR only after CI, Preview and production deployment have succeeded.
+
 ## Design and navigation
 
 The full-width hero and two family cards use approved bright photorealistic scenes.

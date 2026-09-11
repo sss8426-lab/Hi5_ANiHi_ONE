@@ -66,12 +66,12 @@ test('valid zero is preserved while impossible or missing ratio pairs never ente
   assert.equal(safeUrl('data:text/html,test'), '');
 });
 
-test('filters combine region, school type, term and verified emphasis without treating unknowns as zero', () => {
+test('filters combine region, school type, term and exact ratios without treating unknowns as zero', () => {
   const rows = [programView(verified()), programView(verified({ region: '다른지역', gradeRatio: 80, skillRatio: 20 })), programView(verified({ verificationStatus: 'pending' }))];
-  assert.equal(filterPrograms(rows, { region: '테스트지역', schoolType: '4년제', admission: '수시', focus: 'practical' }).length, 1);
+  assert.equal(filterPrograms(rows, { region: '테스트지역', schoolType: '4년제', admission: '수시', academicRatio: '30', practicalRatio: '70' }).length, 1);
   assert.equal(filterPrograms(rows, { admission: '정시' }).length, 0);
-  assert.equal(filterPrograms(rows, { focus: 'portfolio' }).length, 2);
-  assert.equal(filterPrograms(rows, { focus: 'academic' }).length, 1);
+  assert.equal(filterPrograms(rows, { academicRatio: '80%' }).length, 1);
+  assert.equal(filterPrograms(rows, { practicalRatio: '0' }).length, 0);
 });
 
 test('sample trend only averages verified latest-year unique university program methods', () => {

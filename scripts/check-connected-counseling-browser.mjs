@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import {pathToFileURL} from 'node:url';
-import {programView,filterPrograms} from '../public/data-core/roadmap-model.js';
+import {programView,filterPrograms,ratioFilterOptions} from '../public/data-core/roadmap-model.js';
 import {paginate} from '../public/data-core/pagination.js';
 import {universityLogos} from '../public/data-core/university-logo-manifest.js';
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE?pathToFileURL(process.env.PLAYWRIGHT_MODULE).href:'playwright');
@@ -16,7 +16,7 @@ try{
   await ctx.route('**/api/data-core/roadmap/programs?*',async route=>{
     reads++;const params=Object.fromEntries(new URL(route.request().url()).searchParams);
     const selected=filterPrograms(rows.map(programView),params),p=paginate(selected,params.page);
-    await route.fulfill({json:{programs:p.rows.map(v=>rows.find(r=>r.id===v.id)),total:12,pagination:{page:p.page,totalPages:p.totalPages,buttons:p.buttons,total:selected.length},facets:{region:['합성지역'],schoolType:[]},trend:null}});
+    await route.fulfill({json:{programs:p.rows.map(v=>rows.find(r=>r.id===v.id)),total:12,pagination:{page:p.page,totalPages:p.totalPages,buttons:p.buttons,total:selected.length},facets:{region:['합성지역'],schoolType:[],...ratioFilterOptions(rows.map(programView),params)},trend:null}});
   });
   await ctx.route('**/api/data-core/admissions/guidelines?*',route=>route.fulfill({json:{rows:[{id:'fixture-0',universityName:'합성대학',department:'합성 웹툰학과',academicYear:2027,admissionSeason:'susi',selectionFormula:'실기100',sourceUrl:'https://grinalda.net/univ-info-susi/'}]}}));
   const page=await ctx.newPage();page.on('pageerror',e=>errors.push(e.message));
@@ -30,9 +30,9 @@ try{
     await page.getByRole('button',{name:'입시요강 보기',exact:true}).first().click();await page.locator('dialog[open]').waitFor();
     assert.equal(await page.locator('dialog a[href*="page=admin"]').count(),0);await page.keyboard.press('Escape');await page.locator('dialog').waitFor({state:'detached'});
     for(const next of [2,3]){await page.getByRole('button',{name:`${next} 페이지`,exact:true}).click();await page.waitForFunction(n=>document.querySelector('#universityCount').textContent.includes(`${n} /`),next);for(const img of await page.locator('.university-logo').all()){await img.scrollIntoViewIfNeeded();await img.evaluate(e=>e.decode());}}
-    await page.selectOption('#focusFilter','nonpractical');await page.waitForFunction(()=>document.querySelectorAll('.university-item').length===1);assert.match(await page.locator('#universityCount').innerText(),/1 \/ 1/);
-    await page.selectOption('#focusFilter','staged');await page.locator('.program-stage').waitFor();
-    await page.selectOption('#focusFilter','');await page.waitForFunction(()=>document.querySelectorAll('.university-item').length===4);
+    await page.selectOption('#practicalRatioFilter','0');await page.waitForFunction(()=>document.querySelectorAll('.university-item').length===1);assert.match(await page.locator('#universityCount').innerText(),/1 \/ 1/);
+    await page.selectOption('#practicalRatioFilter','');await page.locator('.program-stage').waitFor();
+    await page.waitForFunction(()=>document.querySelectorAll('.university-item').length===4);
     assert.equal(await page.locator('.foundation-item').count(),6);
     for(const img of await page.locator('.foundation-item img').all()){await img.scrollIntoViewIfNeeded();await img.evaluate(e=>e.decode());assert.equal(await img.evaluate(e=>e.naturalWidth),900);}
     await page.locator('#foundationTitle').scrollIntoViewIfNeeded();await page.screenshot({path:`${output}/${name}-foundation.png`,fullPage:false});

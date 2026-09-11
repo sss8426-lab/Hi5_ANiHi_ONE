@@ -1,4 +1,4 @@
-import { careerStages, programView, filterPrograms, admissionTrend, safeUrl, searchCareers } from './roadmap-model.js?v=20260911-practical';
+import { careerStages, programView, filterPrograms, ratioFilterOptions, percent, admissionTrend, safeUrl, searchCareers } from './roadmap-model.js?v=20260911-ratio-filters';
 import {detail as showGuideline} from '/admissions-web/renderer/guidelines.js?v=20260910-connected';
 import {resolveUniversityLogo} from './university-logos.js?v=20260910-1';
 import {foundationImages} from './foundation-images.js?v=20260910-1';
@@ -7,7 +7,8 @@ import { paginate } from './pagination.js?v=20260909-1';
 
 const content = window.HI5_ROADMAP_CONTENT || { careers: [], tracks: [], lessonAreas: [], sources: [] };
 const $ = (id) => document.getElementById(id);
-const state = { family: '', group: '', query: '', career: null, programs: [], page:1, visiblePrograms:[], pagination:null,total:0,trend:undefined,controller: null, request: 0 };
+const state = { family: '', group: '', query: '', career: null, filters:{}, programs: [], page:1, visiblePrograms:[], pagination:null,total:0,trend:undefined,controller: null, request: 0 };
+const filterControls = {region:'regionFilter',schoolType:'schoolFilter',admission:'admissionFilter',academicRatio:'academicRatioFilter',practicalRatio:'practicalRatioFilter'};
 let guidelineController, guidelineRequest = 0;
 const familyNames = { story: '만화·애니메이션·게임', design: '디자인' };
 const h = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
@@ -16,6 +17,29 @@ const art = (career) => {
   return concept ? `<img class="career-art job-image" src="${concept.asset}?v=${concept.version}" alt="${h(concept.action)}" width="480" height="640" loading="lazy" decoding="async">` : `<span class="career-art missing-art" data-missing-occupation="${h(career.id)}">이미지 준비 중</span>`;
 };
 const pathFor = (career) => `#family=${career.family}&career=${career.id}`;
+
+function saveFilterRoute(push = false) {
+  if (!state.career) return;
+  const params = new URLSearchParams({family:state.family,career:state.career.id});
+  for (const key of Object.keys(filterControls)) if (state.filters[key]) params.set(key,state.filters[key]);
+  if (state.page > 1) params.set('page',String(state.page));
+  const hash = '#' + params;
+  if (location.hash !== hash) history[push ? 'pushState' : 'replaceState'](null,'',hash);
+}
+
+function showFilterOptions(facets = {}) {
+  let reset = false;
+  for (const [key,id] of Object.entries(filterControls)) {
+    const selected = state.filters[key] || '';
+    const numeric = key.endsWith('Ratio');
+    const values = key === 'admission' ? ['수시','정시'] : facets[key] || [];
+    const options = values.map(String);
+    if (selected && !options.includes(selected)) { state.filters[key] = ''; reset = true; }
+    $(id).innerHTML = '<option value="">전체</option>' + options.map(value => `<option value="${h(value)}">${h(value)}${numeric?'%':''}</option>`).join('');
+    $(id).value = state.filters[key] || '';
+  }
+  return reset;
+}
 
 function notice(message, login = false, retry = false) {
   $('notice').hidden = !message;
@@ -63,8 +87,7 @@ function renderEducation(career) {
 
 function renderUniversities() {
   cancelGuideline();
-  const filters = { region: $('regionFilter').value, schoolType: $('schoolFilter').value, admission: $('admissionFilter').value, focus: $('focusFilter').value };
-  const filtered = filterPrograms(state.programs, filters);
+  const filtered = filterPrograms(state.programs, state.filters);
   const pagination = state.pagination ? {...state.pagination,rows:state.programs} : paginate(filtered, state.page);
   state.page = pagination.page;
   const rows = state.visiblePrograms = pagination.rows;
@@ -89,7 +112,7 @@ function renderUniversityPagination(pagination, count) {
   if (!nav) { nav = document.createElement('nav'); nav.id = 'universityPagination'; nav.className = 'university-pagination'; nav.setAttribute('aria-label','관련 대학 페이지'); $('universityContent').after(nav); }
   nav.hidden = count <= 4;
   nav.innerHTML = `<button type="button" data-page="${pagination.page-1}" aria-label="이전 페이지" ${pagination.page===1?'disabled':''}>‹</button>${pagination.buttons.map(n => n === null ? '<span aria-hidden="true">…</span>' : `<button type="button" data-page="${n}" aria-label="${n} 페이지" ${n===pagination.page?'aria-current="page"':''}>${n}</button>`).join('')}<button type="button" data-page="${pagination.page+1}" aria-label="다음 페이지" ${pagination.page===pagination.totalPages?'disabled':''}>›</button>`;
-  nav.querySelectorAll('[data-page]').forEach(button => { button.onclick = () => { state.page = Number(button.dataset.page); if(state.pagination){loadConnectedPrograms(state.career);return;} renderUniversities(); linkUniversitySources(); $('universityPagination').querySelector('[aria-current]')?.focus({preventScroll:true}); }; });
+  nav.querySelectorAll('[data-page]').forEach(button => { button.onclick = () => { state.page = Number(button.dataset.page); saveFilterRoute(true); loadConnectedPrograms(state.career); }; });
 }
 
 function renderTrend() {
@@ -103,16 +126,17 @@ function renderTrend() {
 
 function setPrograms(programs,response={}) {
   state.pagination=response.pagination||null;state.total=response.total||programs.length;state.trend=response.trend;
-  state.page = response.pagination?.page||1;
+  state.page = response.pagination?.page||state.page;
   state.programs = programs.map(programView);
-  for (const [id, key] of [['regionFilter', 'region'], ['schoolFilter', 'schoolType']]) {
-    const selected=$(id).value;
-    $(id).innerHTML = '<option value="">전체</option>' + (response.facets?.[key]||[...new Set(state.programs.map((p) => p[key]).filter(Boolean))].sort()).map((v) => `<option value="${h(v)}">${h(v)}</option>`).join('');
-    $(id).value=selected;
-  }
+  const facets = {region:[...new Set(state.programs.map(p=>p.region).filter(Boolean))].sort(),schoolType:[...new Set(state.programs.map(p=>p.schoolType).filter(Boolean))].sort(),...ratioFilterOptions(state.programs,state.filters),...response.facets};
+  const reset = showFilterOptions(facets);
+  if (reset && state.pagination) { state.page=1;saveFilterRoute();return false; }
+  if (reset) state.page=1;
   renderUniversities();
   linkUniversitySources();
   renderTrend();
+  saveFilterRoute();
+  return true;
 }
 
 function linkUniversitySources() {
@@ -176,17 +200,23 @@ async function loadConnectedPrograms(career) {
   // Goals and graph are sequential; allow cold-start D1 setup for both requests.
   const timeout = setTimeout(() => controller.abort(), 45000);
   notice('대학별 전형 정보를 확인하고 있습니다.');
+  $('universityContent').setAttribute('aria-busy','true');
+  $('universityContent').innerHTML = '';
+  $('universityCount').textContent = '전형 조회 중';
+  const pagination = $('universityPagination');
+  if (pagination) pagination.hidden = true;
   try {
-    const params=new URLSearchParams({careerId:career.id,page:String(state.page),region:$('regionFilter').value,schoolType:$('schoolFilter').value,admission:$('admissionFilter').value,focus:$('focusFilter').value});
+    const params=new URLSearchParams({careerId:career.id,page:String(state.page),...state.filters});
     const response = await api(`/api/data-core/roadmap/programs?${params}`, controller.signal);
     if (requestId !== state.request) return;
-    setPrograms(response.programs || [],response);
+    if (!setPrograms(response.programs || [],response)) return loadConnectedPrograms(career);
     notice('');
   } catch (error) {
     if (requestId !== state.request) return;
-    setPrograms([]);
+    state.programs=[];state.pagination=null;state.total=0;state.trend=null;
+    renderUniversities();renderTrend();
     notice(error.status === 401 ? '대학별 운영 입시정보는 교직원 로그인 후 확인할 수 있어요.' : error.status === 403 ? '대학별 전형 정보를 볼 권한이 없습니다.' : '대학별 전형 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.', error.status === 401, ![401,403].includes(error.status));
-  } finally { clearTimeout(timeout); }
+  } finally { clearTimeout(timeout);if(requestId===state.request)$('universityContent').setAttribute('aria-busy','false'); }
 }
 
 function route() {
@@ -194,21 +224,29 @@ function route() {
   const params = new URLSearchParams(location.hash.slice(1));
   const family = params.get('family');
   const career = content.careers.find((c) => c.id === params.get('career'));
+  const sameCareer = Boolean(career && career.id === state.career?.id);
   state.controller?.abort();
   state.request++;
   const nextFamily = career?.family || (familyNames[family] ? family : '');
   if (nextFamily !== state.family) { state.group = ''; state.query = ''; $('goalSearchInput').value = ''; }
   state.family = nextFamily;
   state.career = career || null;
+  state.filters = Object.fromEntries(Object.keys(filterControls).map(key=>{
+    const value = params.get(key) || '';
+    return [key,key.endsWith('Ratio') ? percent(value) === null ? '' : String(percent(value)) : value];
+  }));
+  state.page = /^\d+$/.test(params.get('page') || '') ? Math.min(1000,Math.max(1,Number(params.get('page')))) : 1;
+  if (sameCareer) { loadConnectedPrograms(career);return; }
   $('hero').hidden = Boolean(state.family);
   $('explore').hidden = Boolean(state.family);
   $('catalogSection').hidden = !state.family || Boolean(career);
   $('roadmapResult').hidden = !career;
   document.querySelectorAll('details').forEach((el) => { el.open = false; });
   if (career) {
-    for(const id of ['regionFilter','schoolFilter','admissionFilter','focusFilter'])$(id).value='';
+    for(const id of Object.values(filterControls))$(id).value='';
     renderEducation(career);
-    setPrograms([]);
+    state.programs=[];state.pagination=null;state.total=0;state.trend=undefined;
+    $('universityFilters').hidden=true;
     $('resultGoal').focus({ preventScroll: true });
     loadConnectedPrograms(career);
   } else if (state.family) {
@@ -226,7 +264,9 @@ $('groupTabs').addEventListener('click', (event) => {
 });
 $('goalSearchForm').addEventListener('submit', (event) => { event.preventDefault(); state.query = $('goalSearchInput').value; renderCatalog(); });
 $('goalSearchInput').addEventListener('input', () => { state.query = $('goalSearchInput').value; renderCatalog(); });
-for (const id of ['regionFilter', 'schoolFilter', 'admissionFilter', 'focusFilter']) $(id).addEventListener('change', () => { state.page = 1; if(state.pagination){loadConnectedPrograms(state.career);return;}renderUniversities(); linkUniversitySources(); });
+for (const [key,id] of Object.entries(filterControls)) $(id).addEventListener('change', () => {
+  state.filters[key]=$(id).value;state.page=1;saveFilterRoute(true);loadConnectedPrograms(state.career);
+});
 document.querySelectorAll('.flow-strip a').forEach((link) => link.addEventListener('click', (event) => { event.preventDefault(); document.querySelector(link.getAttribute('href')).scrollIntoView(); }));
 $('printRoadmap').addEventListener('click', () => window.print());
 window.addEventListener('hashchange', route);

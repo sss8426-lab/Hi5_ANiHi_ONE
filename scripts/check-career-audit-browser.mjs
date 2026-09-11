@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import vm from 'node:vm';
 import {pathToFileURL} from 'node:url';
-import {programView,filterPrograms} from '../public/data-core/roadmap-model.js';
+import {programView,filterPrograms,ratioFilterOptions} from '../public/data-core/roadmap-model.js';
 import {paginate} from '../public/data-core/pagination.js';
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE?pathToFileURL(process.env.PLAYWRIGHT_MODULE).href:'playwright');
 const base=process.env.ROADMAP_TEST_ORIGIN||'http://localhost:3107';
@@ -24,7 +24,7 @@ try{
   if(url.pathname==='/api/data-core/roadmap/programs'){
    const params=Object.fromEntries(url.searchParams),c=careers.find(c=>c.id===params.careerId);assert.ok(c);
    const rows=empty?[]:fixtures(c),filtered=filterPrograms(rows.map(programView),params),p=paginate(filtered,params.page);
-   return route.fulfill({json:{programs:p.rows.map(v=>rows.find(r=>r.id===v.id)),pagination:{page:p.page,totalPages:p.totalPages,buttons:p.buttons,total:filtered.length},total:rows.length,facets:{region:['합성지역'],schoolType:[]},trend:null}});
+   return route.fulfill({json:{programs:p.rows.map(v=>rows.find(r=>r.id===v.id)),pagination:{page:p.page,totalPages:p.totalPages,buttons:p.buttons,total:filtered.length},total:rows.length,facets:{region:['합성지역'],schoolType:[],...ratioFilterOptions(rows.map(programView),params)},trend:null}});
   }
   if(url.pathname==='/api/data-core/admissions/guidelines'){
    const id=url.searchParams.get('id'),c=careers.find(c=>id?.includes(c.id));assert.ok(c);
@@ -68,7 +68,9 @@ try{
    await page.locator('.flow-strip a[href="#preparationSection"]').click();
    await page.waitForFunction(()=>{const r=document.querySelector('#preparationSection h2').getBoundingClientRect();return r.top>=0&&r.top<innerHeight/2;});await noOverflow();
    await page.reload();await page.locator('.university-item').first().waitFor();assert.equal(await page.locator('#resultGoal').textContent(),c.name);
-   assert.equal(await page.locator('#universityPagination [aria-current]').textContent(),'1');
+   assert.equal(await page.locator('#universityPagination [aria-current]').textContent(),'3');
+   await page.goBack();await page.waitForFunction(()=>document.querySelector('#universityCount').textContent.includes('2 / 3'));
+   await page.goBack();await page.waitForFunction(()=>document.querySelector('#universityCount').textContent.includes('1 / 3'));
    await page.goBack();await page.locator('#catalogSection:visible').waitFor();
    await page.goForward();await page.locator('#roadmapResult:visible').waitFor();
    reports.push({id:c.id,width,passed:true});
