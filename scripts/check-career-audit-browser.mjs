@@ -42,6 +42,8 @@ try{
   for(const c of careers){
    current={id:c.id,width};
    await page.goto(`${base}/data-core/roadmap#family=${c.family}`);
+   await page.waitForURL(`${base}/data-core/roadmap#family=${c.family}`);
+   await page.locator('#catalogSection:visible').waitFor();
    await page.locator(`.dream-card[href="#family=${c.family}&career=${c.id}"]`).click();
    await page.locator('.university-item').first().waitFor();
    assert.equal(await page.locator('#resultGoal').textContent(),c.name);
@@ -91,7 +93,9 @@ try{
    await page.goBack();await page.waitForFunction(()=>document.querySelector('#universityCount').textContent.includes('2 / 3'));
    await page.goBack();await page.waitForFunction(()=>document.querySelector('#universityCount').textContent.includes('1 / 3'));
    await page.goBack();await page.locator('#catalogSection:visible').waitFor();
-   await page.goForward();await page.locator('#roadmapResult:visible').waitFor();
+   await page.goForward();await page.waitForURL(`${base}/data-core/roadmap#family=${c.family}&career=${c.id}`);await page.locator('#roadmapResult:visible').waitFor();
+   await page.waitForFunction(id=>document.querySelector('#roadmapResult').hidden===false&&document.querySelector('.career-visual-section')?.dataset.career===id,c.id);
+   await page.locator('.university-item').first().waitFor();
    reports.push({id:c.id,width,passed:true});
   }
   console.log(JSON.stringify({width,traversals:reports.length}));
