@@ -3,10 +3,11 @@
   const origin = Object.freeze({ latitude: 37.5666263, longitude: 126.9783924 });
   const radians = value => value * Math.PI / 180;
   function campusDistance(university) {
-    const point = university?.campusLocation;
+    const reviewed = !university?.campusLocation && window.AdmissionsCampusLocations?.resolve(university);
+    const point = university?.campusLocation || reviewed;
     // No university-name, region, main-campus, or probability fallback.
-    if (!point || point.verificationStatus !== 'verified' || !university.campus ||
-      point.campus !== university.campus || !/^https:\/\/[^\s]+$/.test(point.sourceUrl || '')) return null;
+    if (!point || point.verificationStatus !== 'verified' || (!reviewed && (!university.campus ||
+      point.campus !== university.campus)) || !/^https:\/\/[^\s]+$/.test(point.sourceUrl || '')) return null;
     const { latitude, longitude } = point;
     if (typeof latitude !== 'number' || typeof longitude !== 'number' ||
       !Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return null;

@@ -1,6 +1,52 @@
 # HI5·ANiHi DATA CORE 현재 상태
 
-기준일: 2026-09-07
+현재 구현 확인일: **2026-09-12**. 파일명은 기존 문서 링크 호환을 위해 유지한다.
+
+## 현재 상태 (2026-09-12)
+
+아래 현재 상태가 이전 날짜의 기록보다 우선한다. 구현, 로컬 검증, production 검증은 구분한다.
+
+- 기반 main: `f963e5dc1eced88bfc4245a79a006d57caa808bf`. 기존 production Worker: `5e49b8ff-faf1-42db-8dbf-539f0230756f` (이번 변경의 배포 버전 아님).
+- 상담용 메뉴는 **공모전·실기대회 / 꿈·전공 로드맵 / 대학 합격 로드맵 / 꿈을 향한 커리큘럼** 4개다.
+- 커리큘럼은 content/design 계열별 기초·심화·입시 경로와 이미지 카드가 있다. 내부 수업 콘텐츠가 없는 곳은 빈 상태를 유지한다.
+- 꿈·전공은 D001~D035 stable ID, alias, 4개 대학/학과 페이지, 실기향상 로드맵을 사용한다. 애매한 guideline mapping은 review로 유지한다.
+- 대학 TOP30은 기존 후보 선별 후 검증된 캠퍼스 직선거리, 동률은 원래 순서다. 확률로 거리 동률을 재정렬하지 않는다. 미검증은 뒤에 둔다.
+- 합격/불합격 사례는 각각 3개 독립 페이지이고, 불합격은 기존 예비번호 내림차순이다. 학생 이미지 첫 5장 우선 로딩과 현재 화면의 decoded image 재사용이 구현되어 있다.
+- 자료보관함은 캠퍼스/본원 폴더 브라우저, 원본 파일명 유지, private 읽기, soft-trash 및 별도 WebP 썸네일을 지원한다. 공모전 수상작은 폴더별 표시, 선택/전체선택, 원본 lightbox를 유지한다.
+- 블로그/인스타는 공통 FILES와 content draft를 재사용한다. 인스타 2160×2700 deterministic 파생 이미지 및 `derivedFromFileId`가 있으며 AI 이미지 생성으로 표현하지 않는다. 외부 자동 게시의 완료를 뜻하지 않는다.
+- FAMILY는 별도 FAMILY_DB/FAMILY_FILES, 학생/보호자 관계 검사, 월간평가/공지/read receipt/Web Push/PWA를 사용한다. 전체 캠퍼스 자동 활성화 및 실제 개인정보 bulk import는 하지 않는다. analytics sync는 계속 비활성이다.
+
+### 역할과 캠퍼스
+
+`MASTER`는 기존 `SUPER_ADMIN`과 같은 서버 관리 권한이다. 기존 MASTER 계정을 바꾸지 않는다. `CAMPUS_ADMIN`은 자기 캠퍼스 운영 데이터만 관리하며, 공용 입시정보는 조회만 가능하다. 계정·권한·시스템·백업/복구·영구삭제는 MASTER 전용이다. `SUPER_ADMIN`, `CAMPUS_DIRECTOR`, `TEACHER`, `STAFF`는 호환을 위해 유지한다.
+
+| 캠퍼스 | 공개 코드 | 로그인 ID |
+|---|---|---|
+| 부천 애니입시관 | BUCHEON_ANI | ba |
+| 부천 디자인입시관 | BUCHEON_DESIGN | bd |
+| 부천원종 | WONJONG | wj |
+| 부천범박 | BEOMBAK | bb |
+| 부천중동 | JUNGDONG | jd |
+| 부천옥길 | OKGIL | og |
+| 광진 | GWANGJIN | gj |
+| 파주 | PAJU | pj |
+| 안산 | ANSAN | as |
+| 울산 | ULSAN | us |
+
+공개 코드는 기존 campus FK에 연결되며 FK를 재발급하지 않는다. 자세한 정책은 `CAMPUS_ACCOUNTS_AND_PRESENCE.md` 참조. 비밀번호는 문서에 저장하지 않는다. 최초 변경 후 12자 이상 정책, 약 5분 활동 heartbeat, 약 15분 온라인 판정, MASTER 60초 갱신과 서울시간 표시를 유지한다. 기존 입시 원본은 유지하고 캠퍼스 운영 변경은 `campus_admissions_state` overlay에 저장한다. campus 없는 기존 자료를 임의 배정하지 않는다.
+
+### 이번 PHASE 1 / 제한
+
+- `ADMISSIONS_CAMPUS_LOCATIONS.md`: 공식 프로그램/지도 근거가 확인된 위치만 읽기 전용 overlay로 연결한다. 전체 대학 좌표 검증이 완료된 것은 아니다.
+- `ADMISSIONS_STUDENT_THUMBNAILS.md`: 새 학생 그림의 480px WebP와 선택 학생 최대 5장 MASTER backfill. 기존 학생 JSON/R2 원본을 변경하지 않는다. 생성 전에는 원본 fallback이다.
+- 상담 결과 저장/이력/비교는 후속 PHASE 3 범위이며 이 문서 시점에는 완료로 간주하지 않는다.
+- PHASE 2 실제 계정 CRUD는 최초 비밀번호 변경이 필요한 계정의 사용자 직접 단계와 synthetic acceptance를 분리한다. 이번 작업에서 기존 계정 재생성/reset을 하지 않는다.
+- 2026-09-12 `npm ci`: 기존 의존성 경고 12개(중간 4, 높음 8). 강제 업데이트 없음. 전체 lint의 기존 오류는 PHASE 4에서 새 오류와 분리하여 갱신한다.
+- 이 절의 새 기능은 PR의 CI/Preview/배포 증거가 기록되기 전까지 production 완료로 간주하지 않는다.
+
+## 과거 기록 (각 기록 작성 시점의 상태)
+
+아래 내용은 역사 기록이며 현재 역할/캠퍼스/검증 상태의 근거로 단독 사용하지 않는다.
 
 ## 2026-09-11 직업 상담 내용 감사
 

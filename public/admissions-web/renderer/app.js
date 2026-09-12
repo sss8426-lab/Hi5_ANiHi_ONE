@@ -230,11 +230,14 @@ function studentArtworks(student, resolveStudent = true){
       : student.id!==undefined?`/api/admissions/students/${encodeURIComponent(student.id)}/artworks/${item._slot}`:'';
     const result={...item,path};delete result._slot;
     Object.defineProperty(result,'displayUrl',{value:url,enumerable:false});
+    const thumbnailUrl=location.protocol==='file:'?url:item.dataCoreFileId?`/api/admissions/files/${encodeURIComponent(item.dataCoreFileId)}/thumbnail`
+      :/^\/api\/admissions\/students\//.test(url)?`${url}/thumbnail`:url;
+    Object.defineProperty(result,'thumbnailUrl',{value:thumbnailUrl,enumerable:false});
     return result;
   });
 }
-function studentArtworkImage(url,classes='',alt='학생 그림',priority=false){
-  return url?`<img class="${h(classes)}" src="${h(url)}" alt="${h(alt)}" loading="${priority?'eager':'lazy'}" fetchpriority="${priority?'high':'auto'}" decoding="async" width="160" height="160" data-student-artwork><span class="artwork-missing" hidden>그림 없음</span>`:'<span class="artwork-missing">그림 없음</span>';
+function studentArtworkImage(url,classes='',alt='학생 그림',priority=false,original=''){
+  return url?`<img class="${h(classes)}" src="${h(url)}" alt="${h(alt)}" loading="${priority?'eager':'lazy'}" fetchpriority="${priority?'high':'auto'}" decoding="async" width="160" height="160" data-student-artwork data-original="${h(original)}"><span class="artwork-missing" hidden>그림 없음</span>`:'<span class="artwork-missing">그림 없음</span>';
 }
 function replaceArtworkContent(host, markup){
   // Keep decoded images only across the current view's redraw, never in persistent storage.
@@ -584,7 +587,7 @@ function artworkGalleryMarkup(artworks, mode='view'){
   if(!artworks.length) return `<div class="artwork-empty">등록된 그림 이미지가 없습니다.</div>`;
   return artworks.map((artwork, index)=>`<figure class="student-artwork-card">
     <button class="artwork-open-btn" type="button" data-open-artwork="${h(artwork.displayUrl || '')}" data-open-artwork-name="${h(artwork.name || `그림 ${index + 1}`)}">
-      ${studentArtworkImage(artwork.displayUrl,'','학생 그림',index<5)}
+      ${studentArtworkImage(artwork.thumbnailUrl||artwork.displayUrl,'','학생 그림',index<5,artwork.displayUrl)}
     </button>
     <figcaption>${h(artwork.name || `그림 ${index + 1}`)}</figcaption>
     ${mode === 'edit' ? `<button class="btn mini danger" type="button" data-remove-artwork="${index}">삭제</button>` : ''}
@@ -600,7 +603,23 @@ function artworkViewerMarkup(){
   </div>`;
 }
 function bindArtworkViewer(){
-  document.querySelectorAll('[data-student-artwork]').forEach(img=>{const fail=()=>{img.hidden=true;if(img.nextElementSibling)img.nextElementSibling.hidden=false;};img.onerror=fail;if(img.complete&&!img.naturalWidth)fail();});
+  document.querySelectorAll('[data-student-artwork]').forEach(img=>{const fail=()=>{if(img.dataset.original&&img.getAttribute('src')!==img.dataset.original){img.src=img.dataset.original;return;}img.hidden=true;if(img.nextElementSibling)img.nextElementSibling.hidden=false;};img.onerror=fail;if(img.complete&&!img.naturalWidth)fail();});
+  document.querySelectorAll('[data-generate-thumbnails]').forEach(btn=>btn.onclick=async()=>{
+    const student=state.data.students.find(s=>String(s.id)===btn.dataset.generateThumbnails);
+    const originals=studentArtworks(student).filter(a=>/^\/api\/admissions\/(students|files)\//.test(a.thumbnailUrl)).slice(0,5);
+    if(!originals.length)return;
+    btn.disabled=true;let ready=0;
+    try{for(const artwork of originals){
+      const response=await fetch(artwork.displayUrl,{credentials:'same-origin',cache:'no-store'});
+      if(!response.ok)throw Error();
+      const blob=await response.blob();
+      await window.DataCoreLibraryThumbnail.create(blob,'',new AbortController().signal,artwork.thumbnailUrl);
+      ready++;
+    }
+    btn.textContent=`${ready}장 썸네일 준비 완료`;
+    btn.closest('section').querySelectorAll('img[data-original]').forEach(img=>{img.hidden=false;img.src=studentArtworks(student).find(a=>a.displayUrl===img.dataset.original)?.thumbnailUrl||img.dataset.original;});
+    }catch{btn.textContent=`${ready}장 완료 · 다시 시도`;}finally{btn.disabled=false;}
+  });
   document.querySelectorAll('[data-open-artwork]').forEach(btn=>btn.onclick=()=>{
     state.artworkViewer={path:btn.dataset.openArtwork,name:btn.dataset.openArtworkName || '그림'};
     const host=document.createElement('div');host.innerHTML=artworkViewerMarkup();document.body.append(host);
@@ -906,7 +925,7 @@ function studentAdmissionDetailPanel(student){
 }
 function studentArtworkDetailPanel(student){
   const artworks = studentArtworks(student);
-  return `<section class="student-detail-section"><h3>그림 ${artworks.length?`<small>${artworks.length}장</small>`:''}</h3>${artworks.length?`<div class="student-gallery">${artworkGalleryMarkup(artworks)}</div>`:'<div class="empty-box compact">등록된 그림 이미지가 없습니다.</div>'}</section>`;
+  return `<section class="student-detail-section"><h3>그림 ${artworks.length?`<small>${artworks.length}장</small>`:''}</h3>${artworks.length&&state.data?._campus?.master?`<button class="btn mini" type="button" data-generate-thumbnails="${h(student.id)}">기존 썸네일 생성 (최대 5장)</button>`:''}${artworks.length?`<div class="student-gallery">${artworkGalleryMarkup(artworks)}</div>`:'<div class="empty-box compact">등록된 그림 이미지가 없습니다.</div>'}</section>`;
 }
 function studentFullDetailPanel(student){
   return `<div class="student-full-detail">
@@ -1670,7 +1689,7 @@ function renderStudents(){
       ? `<span class="student-status-chip">${h(s.enrollmentStatus || '재원중')}</span><span class="student-prep-text">${h(s.preparationStage || '관리중')}</span>`
       : admissionSummaryMarkup(s);
     const artworkCell = firstArtwork
-      ? `<button type="button" class="thumb-wrap artwork-open-btn" data-open-artwork="${h(firstArtwork.displayUrl || '')}" data-open-artwork-name="학생 그림">${studentArtworkImage(firstArtwork.displayUrl,'student-thumb')}<span>${artworks.length}장</span></button>`
+      ? `<button type="button" class="thumb-wrap artwork-open-btn" data-open-artwork="${h(firstArtwork.displayUrl || '')}" data-open-artwork-name="학생 그림">${studentArtworkImage(firstArtwork.thumbnailUrl||firstArtwork.displayUrl,'student-thumb','학생 그림',false,firstArtwork.displayUrl)}<span>${artworks.length}장</span></button>`
       : '<div class="student-thumb empty">없음</div>';
     const convertButton = isCurrentStudent(s)
       ? `<button class="btn mini" data-convert-student="${s.id}">결과 데이터로 전환</button>`

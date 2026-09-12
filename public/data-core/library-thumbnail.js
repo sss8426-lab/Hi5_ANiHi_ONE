@@ -1,7 +1,7 @@
 (() => {
   const supported = /^image\/(jpeg|png|webp|avif|gif)$/;
   let serial=Promise.resolve();
-  async function create(file,id,signal) {
+  async function create(file,id,signal=new AbortController().signal,endpoint) {
     signal.throwIfAborted();
     const bitmap=await createImageBitmap(file);
     const canvas=document.createElement('canvas');
@@ -15,11 +15,11 @@
       if(!blob||blob.type!=='image/webp'||blob.size>256*1024)throw new Error('Thumbnail unavailable');
       signal.throwIfAborted();
       const body=new FormData();body.set('file',blob,'thumbnail.webp');
-      const response=await fetch(`/api/data-core/library/files/${encodeURIComponent(id)}/thumbnail`,{
+      const response=await fetch(endpoint || `/api/data-core/library/files/${encodeURIComponent(id)}/thumbnail`,{
         method:'POST',body,signal,credentials:'same-origin',cache:'no-store',
       });
       if(!response.ok)throw new Error('Thumbnail upload failed');
-      return true;
+      return response.json();
     } finally { bitmap.close();canvas.width=canvas.height=0; }
   }
   async function send(file,target,signal,onProgress) {
@@ -31,5 +31,5 @@
     catch {result.thumbnailCreated=false;console.warn('Library thumbnail unavailable; original upload preserved.');}
     return result;
   }
-  globalThis.DataCoreLibraryThumbnail={send};
+  globalThis.DataCoreLibraryThumbnail={send,create};
 })();
