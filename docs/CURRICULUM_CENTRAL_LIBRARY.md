@@ -1,7 +1,7 @@
 # 중앙 커리큘럼 수업자료
 
 기준: 2026-09-12, 작업 시작 main `1ddf3cdd858035e7541f973ff375615787999632`.
-배포 및 운영 import 증거는 PR 최종 코멘트로 구분한다. 아래 inventory는 실제 D:를 읽은 결과이며 운영 업로드 완료를 뜻하지 않는다.
+배포 및 운영 import 증거는 PR 최종 코멘트로 구분한다. PR #195/#196에서 실제 45폴더/825페이지와 원본·preview·thumbnail·print 3,300파일의 중앙 등록 및 원본 전수 SHA256 검증을 완료했다. 이 후속 작업에서는 운영 자료를 재수입하지 않는다.
 
 ## 범위와 저장 구조
 
@@ -12,6 +12,8 @@
 - 기존 `file_objects`와 `FILES`의 documents-private 영역을 사용한다. 새 DB, bucket, binding, migration 없음.
 - 원본 byte는 그대로 저장한다. preview 최대 2200px WebP quality 88, 대표 thumbnail 최대 640px WebP quality 82, print 최대 3200px JPEG quality 93. 확대는 원본이다. 파생물은 EXIF 방향을 반영하며 원본은 변경하지 않는다.
 - 운영 브라우저는 D:를 읽지 않는다. 모든 자료는 인증된 `/api/data-core/files/:id`에서 제공한다.
+- Git static asset/manifest는 수업자료의 source of truth가 아니다. 목록/순서/현재 버전은 매 진입·인쇄 요청 때 D1 curriculum API에서 읽고, 모든 파일은 기존 FILES에서 제공한다. `outputs/`의 변환 중간 파일은 배포하지 않는다. 새 자료 import 후 코드 재배포 없이 다음 조회에 반영된다.
+- 새 버전은 기존 `curriculum-page`에 `version`, `previousPageId`를 추가한다. 구버전은 `supersededByPageId`/`supersededAt`으로 현재 목록에서만 제외하며 원본/파생 파일과 기존 인증 URL을 보존한다. 초기 825개 legacy row는 version 필드가 없어도 그대로 지원한다. 폴더 계층 보존을 위해 `curriculum-lesson`으로 record type을 재작성하지 않는다.
 
 ## API와 권한
 
@@ -102,7 +104,18 @@ node scripts/import-curriculum-tree.mjs --family content --stage basic --source 
 
 기초 verify 후에만 stage/source를 advanced/심화과정으로 바꿔 동일 순서로 실행한다. Preview report와 파생 파일은 gitignore 대상 `outputs/curriculum-import/<stage>`에만 쓴다. D: source 안으로 출력하는 경로와 symlink는 차단한다.
 
-빈 source, 원본 변경, 기존 identity/순서 충돌, 삭제된 중앙 자료, 지원 불가 형식, source 누락은 apply를 차단한다. 중앙 자료를 삭제하거나 덮어쓰지 않는다. 중단된 draft는 새 preview 후 재개하며 모든 파일 등록 전에는 노출하지 않는다. 동일 원본/폴더 경로는 deterministic ID로 중복 생성을 막는다. 원본 변경은 새 자동 버전을 만들지 않고 검토 대상으로 남긴다.
+빈 source, 기존 identity 충돌, 삭제/숨김된 현재 중앙 자료, 지원 불가 형식은 apply를 차단한다. 새 파일은 추가하고, 원본 변경은 새로운 fingerprint/버전 ID로 원본·파생 파일을 먼저 저장한다. 이후 새 페이지 공개와 구버전 목록 제외를 한 SQL 문에서 원자적으로 처리한다. 사전 metadata가 바뀌었으면 공개하지 않고 중단한다. 구버전 파일은 덮어쓰거나 삭제하지 않는다. 과거 byte로 되돌아온 source도 별도 revision으로 보존한다.
+
+source에서 사라진 폴더/현재 페이지는 `metadata.sourceReview={status:'needs_review',reason:'source-missing',detectedAt:...}`로 표시하고 계속 열람/인쇄할 수 있게 유지한다. source가 돌아오면 이 검토 표시만 해제한다. 원본 삭제/숨김을 자동 복구하지 않는다. 기존 source와 새 파일 및 보존된 누락 자료를 natural order로 배치하며 기존 폴더 ID/URL은 유지한다.
+
+중단된 draft는 새 preview 후 재개하며 모든 파일 등록 전에는 노출하지 않는다. 동일 fingerprint의 현재 버전은 파생 파일 재생성·R2 재업로드를 건너뛴다. source 전체 삭제/불가 경로는 여전히 중단한다. 실제 원본 영구삭제는 importer에 없으며 별도 MASTER/SUPER_ADMIN 명시적 관리 동작에서만 허용한다.
+
+짧은 진입점도 제공한다. 인자가 아래처럼 주어지면 기본 동작은 안전한 **remote preview**이며 쓰기는 명시적 `--apply`에서만 실행한다. 이전 `import-curriculum-tree.mjs` 명령도 유지한다.
+
+```powershell
+node scripts/import-curriculum.mjs --family content --stage basic --source "D:\애니하이 스스로 학습\기초과정"
+node scripts/import-curriculum.mjs --family content --stage advanced --source "D:\애니하이 스스로 학습\심화과정"
+```
 
 원본 R2 객체는 SHA256 content-addressed key이며 기존 key의 내용이 다르면 중단한다. import 후 D: 원본 재해시, 중앙 count, 별도 verify로 R2 원본 전수 SHA256을 검증한다. 기존 비커리큘럼 자료와 FAMILY에는 쓰지 않는다.
 
@@ -115,6 +128,7 @@ node scripts/import-curriculum-tree.mjs --family content --stage basic --source 
 - 합성 unit: 자연 정렬/중첩/표지 우선/원본 SHA/중단 재개/중복 방지/권한/숨김 상위폴더/원본 삭제 후 derivative 차단.
 - 합성 browser: 1920/1440/1024/820/390/320, 두 과정, 확대/스와이프/back/reload, 인쇄 실패 차단, API mutation 외부전송 0.
 - 실제 운영 import 및 browser 확인 결과는 실행 후 PR evidence에 추가한다. 합성 결과를 실제 운영 검증으로 간주하지 않는다.
+- 후속 합성 테스트는 source 임시 디렉터리를 제거한 뒤 다른 캠퍼스 조직 사용자로 전체 API/preview/print 파일을 읽는다. 버전 중단·동시 metadata 변경·재개·되돌림·중복 방지·source 누락 보존을 검증하며 실제 D: 및 운영 원본에는 쓰지 않는다.
 - Windows 병렬 Miniflare 테스트에서 기존 roadmap D1 검증의 EADDRINUSE가 재현되어 전체 테스트 실행 동시성을 1로 통일했다. 테스트를 생략하거나 assertion을 완화하지 않았으며 334개 전체가 단일 실행에서 통과했다.
 
 ## 제한

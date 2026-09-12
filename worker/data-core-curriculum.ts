@@ -66,7 +66,7 @@ async function collection(db: D1Database, family: string, stage: string) {
   }
   const order = (a: CurriculumRow, b: CurriculumRow) => Number(a.m.order) - Number(b.m.order) || String(a.id).localeCompare(String(b.id));
   const activeFolders = folders.filter(f => live(f.id)).sort(order);
-  const pages = rows.filter(r => r.record_type === 'curriculum-page' && live(r.m.curriculumFolderId)).sort(order);
+  const pages = rows.filter(r => r.record_type === 'curriculum-page' && !r.m.supersededByPageId && live(r.m.curriculumFolderId)).sort(order);
   const viewPage = (p: CurriculumRow) => ({ id: p.id, folderId: p.m.curriculumFolderId, order: p.m.order, width: p.m.width, height: p.m.height,
     previewUrl: fileUrl(p.m.previewFileId), thumbnailUrl: fileUrl(p.m.thumbnailFileId), originalUrl: fileUrl(p.m.originalFileId), printUrl: fileUrl(p.m.printFileId) });
   const viewFolder = (f: CurriculumRow) => ({ id: f.id, title: f.title, order: f.m.order, parentFolderId: f.m.parentFolderId || null,

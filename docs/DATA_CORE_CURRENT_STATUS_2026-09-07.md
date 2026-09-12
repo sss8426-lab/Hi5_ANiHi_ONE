@@ -8,7 +8,7 @@
 
 - 확인한 main: `0b572d0999b422da1cc60a66c6807aa916b8ca48` (PR #193). production Worker `8ea007b5-3a93-48fd-a54e-d2f03c8a5cf7` 100% 배포 확인 (2026-09-12 02:03 UTC).
 - 상담용 메뉴는 **공모전·실기대회 / 꿈·전공 로드맵 / 대학 합격 로드맵 / 꿈을 향한 커리큘럼** 4개다.
-- 커리큘럼은 content/design 계열별 기초·심화·입시 경로와 이미지 카드가 있다. content 기초/심화에는 기존 D1/FILES 기반 중앙 수업폴더, 슬라이드, 개별/전체 인쇄와 안전한 importer를 추가했다. 실제 source 45폴더/825 JPG를 확인했으며 운영 import 결과는 `CURRICULUM_CENTRAL_LIBRARY.md` 및 PR 최종 evidence에서 별도로 확인한다. design/입시과정은 기존 빈 상태를 유지한다.
+- 커리큘럼은 content/design 계열별 기초·심화·입시 경로와 이미지 카드가 있다. content 기초/심화는 기존 D1/FILES 기반 중앙 수업폴더, 슬라이드, 개별/전체 인쇄를 사용한다. PR #195/#196에서 실제 45폴더/825 JPG와 3,300파일의 운영 등록 및 원본 SHA256 검증을 완료했다. Git static manifest나 D:를 웹 런타임에서 읽지 않는다. 후속 importer는 기존 원본을 보존하는 새 버전, source 누락 검토 표시, 동일 fingerprint skip을 지원한다. 후속 배포 증거와 물리 cross-PC/프린터 QA 제한은 `CURRICULUM_CENTRAL_LIBRARY.md` 및 PR evidence에서 구분한다. design/입시과정은 기존 빈 상태를 유지한다.
 - 꿈·전공은 D001~D035 stable ID, alias, 4개 대학/학과 페이지, 실기향상 로드맵을 사용한다. 애매한 guideline mapping은 review로 유지한다.
 - 대학 TOP30은 기존 후보 선별 후 검증된 캠퍼스 직선거리, 동률은 원래 순서다. 확률로 거리 동률을 재정렬하지 않는다. 미검증은 뒤에 둔다.
 - 합격/불합격 사례는 각각 3개 독립 페이지이고, 불합격은 기존 예비번호 내림차순이다. 학생 이미지 첫 5장 우선 로딩과 현재 화면의 decoded image 재사용이 구현되어 있다.

@@ -8,8 +8,8 @@ if(!/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(base)&&!/^https:\/\/[a-f0-9]+
 const out='outputs/curriculum-browser';await mkdir(out,{recursive:true});
 const browser=await chromium.launch({headless:true,channel:'chrome'});
 const image=await sharp({create:{width:900,height:1200,channels:3,background:'#bad7c4'}}).composite([{input:Buffer.from('<svg width="900" height="1200"><rect x="50" y="50" width="800" height="1100" fill="white" stroke="#247052" stroke-width="8"/><circle cx="450" cy="500" r="200" fill="#cee4d5"/><path d="M100 1000H800 M100 1050H800" stroke="#247052" stroke-width="8"/></svg>')}]).jpeg().toBuffer();
-let auth=true,failPrint=false,printCalls=0,mutations=0;const errors=[],missing=[],requests=[];
-const folders=stage=>Array.from({length:5},(_,i)=>({id:`syn-${stage}-${i}`,title:`${i+1}-1 합성 수업`,order:i+1,parentFolderId:null,representativeUrl:`/api/data-core/files/thumb-${stage}-${i}-0`,pageCount:4}));
+let auth=true,admin=true,catalogRevision=0,failPrint=false,printCalls=0,mutations=0;const errors=[],missing=[],requests=[];
+const folders=stage=>Array.from({length:5+catalogRevision},(_,i)=>({id:`syn-${stage}-${i}`,title:`${i+1}-1 합성 수업`,order:i+1,parentFolderId:null,representativeUrl:`/api/data-core/files/thumb-${stage}-${i}-0`,pageCount:4}));
 const pages=(stage,folder)=>Array.from({length:4},(_,i)=>({id:`page-${stage}-${folder}-${i}`,folderId:`syn-${stage}-${folder}`,order:i+1,width:900,height:1200,
   previewUrl:`/api/data-core/files/view-${stage}-${folder}-${i}`,thumbnailUrl:`/api/data-core/files/thumb-${stage}-${folder}-${i}`,originalUrl:`/api/data-core/files/original-${stage}-${folder}-${i}`,printUrl:`/api/data-core/files/print-${stage}-${folder}-${i}`}));
 try{
@@ -21,13 +21,13 @@ try{
     // Production's shared shell previews public contest sources with read-only POSTs.
     if(req.method()==='POST'&&/^\/api\/data-core\/competition-sources\/(mgood|artmd)\/preview$/.test(u.pathname))return route.fulfill({json:{items:[]}});
     if(req.method()!=='GET'){mutations++;console.log(JSON.stringify({unexpectedMutation:u.pathname,method:req.method()}));return route.fulfill({status:405,body:''});}
-    if(u.pathname.endsWith('/context'))return route.fulfill({json:{authenticated:auth,canWrite:auth,isSuperAdmin:auth,user:auth?{name:'Synthetic QA'}:null,memberships:[]}});
+    if(u.pathname.endsWith('/context'))return route.fulfill({json:{authenticated:auth,canWrite:auth,isSuperAdmin:auth&&admin,user:auth?{name:'Synthetic QA'}:null,memberships:admin?[]:[{campusId:'synthetic-campus',role:'CAMPUS_ADMIN'}]}});
     if(u.pathname.endsWith('/health'))return route.fulfill({json:{ok:true,bindings:{database:true,files:true}}});
     if(u.pathname.startsWith('/api/data-core/curriculum')){
       if(!auth)return route.fulfill({status:401,json:{error:'Synthetic unauthenticated'}});
       const match=u.pathname.match(/folders\/syn-(basic|advanced)-(\d+)$/),stage=match?.[1]||u.searchParams.get('stage'),index=match?Number(match[2]):null,lesson=u.searchParams.get('lesson');
       const list=folders(stage),folder=index===null?null:list[index];
-      return route.fulfill({json:{family:'content',stage,folder,breadcrumbs:folder?[folder]:[],folders:folder?[]:list,totalPages:20,
+      return route.fulfill({json:{family:'content',stage,folder,breadcrumbs:folder?[folder]:[],folders:folder?[]:list,totalPages:list.length*4,
         pages:u.pathname.endsWith('/print')?(lesson?pages(stage,Number(lesson.split('-').at(-1))):list.flatMap((_,i)=>pages(stage,i))):folder?pages(stage,index):[]}});
     }
     if(u.pathname.startsWith('/api/data-core/files/')){
@@ -82,11 +82,19 @@ try{
     }
     console.log(JSON.stringify({width,passed:true}));
   }
+  // Fresh API data must appear without rebuilding the static app, including for a campus account.
+  admin=false;await page.goto(`${base}/data-core/curriculum/content/basic`);await page.locator('.lesson-card').first().waitFor();
+  assert.equal(await page.locator('.lesson-card').count(),5);catalogRevision=1;
+  await page.reload();await page.locator('.lesson-card').nth(5).waitFor();assert.equal(await page.locator('.lesson-card').count(),6);
+  await page.locator('.lesson-card').last().click();await page.locator('.lesson-canvas img').evaluate(i=>i.decode());
+  await page.locator('[data-print]').click();await page.waitForFunction(()=>document.querySelector('.lesson-status')?.textContent==='인쇄 준비가 완료되었습니다.');
+  assert.equal(await page.locator('.curriculum-print-sheet').count(),4);
+  catalogRevision=0;
   await page.goto(`${base}/data-core/curriculum/content/basic?lesson=syn-basic-0`);await page.locator('[data-print]').waitFor();failPrint=true;
   printCalls=await page.evaluate(()=>window.__printCalls||0);await page.locator('[data-print]').click();await page.getByRole('button',{name:'다시 시도',exact:true}).waitFor();
   assert.equal(await page.evaluate(()=>window.__printCalls||0),printCalls);assert.equal(await page.locator('.curriculum-print-root').count(),0);
   failPrint=false;await page.getByRole('button',{name:'다시 시도',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.lesson-status')?.textContent==='인쇄 준비가 완료되었습니다.');
   auth=false;await page.reload();await page.getByText('로그인이 필요합니다.',{exact:true}).waitFor();assert.equal(await page.locator('.lesson-card,.lesson-reader').count(),0);
   assert.deepEqual(errors,[]);assert.deepEqual(missing,[]);assert.equal(mutations,0);
-  const result={origin:base,checks:reports,errors:0,missingAssets:0,mutations:0,printFailureBlocked:true,sourceFilesystemAccess:false};await writeFile(out+'/results.json',JSON.stringify(result,null,2));console.log(JSON.stringify(result));
+  const result={origin:base,checks:reports,errors:0,missingAssets:0,mutations:0,printFailureBlocked:true,campusReadPrint:true,apiUpdatesWithoutRedeploy:true,sourceFilesystemAccess:false};await writeFile(out+'/results.json',JSON.stringify(result,null,2));console.log(JSON.stringify(result));
 }finally{await browser.close();}
