@@ -92,6 +92,8 @@ Source: `D:\애니하이 스스로 학습\심화과정`
 
 OAuth credential은 Wrangler subprocess stdout에서 메모리로만 받아 Cloudflare API에 사용한다. 파일/argv/로그/문서에 기록하지 않는다. CLI는 Cloudflare 운영 권한을 필요로 하며 웹 클라이언트용 인증 우회 경로가 아니다.
 
+긴 import 중 OAuth가 만료되어 401이 반환되면 Wrangler로 한 번 갱신해 같은 요청을 재시도한다. 지속적인 401, 403 또는 API token 오류는 권한을 우회하지 않고 중단한다. 중단 후에는 새 remote preview로 이미 등록된 페이지를 확인하고 이어간다.
+
 ```powershell
 node scripts/import-curriculum-tree.mjs --family content --stage basic --source "D:\애니하이 스스로 학습\기초과정" --preview --remote
 node scripts/import-curriculum-tree.mjs --family content --stage basic --source "D:\애니하이 스스로 학습\기초과정" --apply --remote
