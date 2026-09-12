@@ -32,7 +32,7 @@ jobs:
         run: npm run build
 
       - name: Behavior tests
-        run: node --test tests/*.test.mjs
+        run: node --test --test-concurrency=1 tests/*.test.mjs
 
       - name: Type check
         run: npx tsc --noEmit
@@ -44,6 +44,7 @@ jobs:
           node --check public/data-core/app.js
           node --check public/data-core/award-image-cache.js
           node --check public/data-core/curriculum.js
+          node --check public/data-core/curriculum-library.js
           node --check public/admissions-web/renderer/counseling-ux.js
           node --check public/data-core/upload-queue.js
           node --check public/data-core/private-image-cache.js

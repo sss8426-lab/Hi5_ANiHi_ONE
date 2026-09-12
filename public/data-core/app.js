@@ -167,6 +167,7 @@ function switchView(view, options = {}) {
   state.currentMode = modeForView(view);
   document.body.classList.toggle('counseling-header', state.currentMode === 'counseling');
   if (view !== 'competitions') clearAwardImages();
+  if (view !== 'curriculum') window.DataCoreCurriculumLibrary?.dispose();
   document.querySelectorAll('.view').forEach((section) => section.classList.remove('active'));
   $(`view-${view}`)?.classList.add('active');
   $('pageTitle').textContent = titleForView(view);

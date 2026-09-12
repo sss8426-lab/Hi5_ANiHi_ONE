@@ -21,11 +21,17 @@
   const courses = { content: { basic: [], advanced: [], admission: [] }, design: { basic: [], advanced: [], admission: [] } };
   const icon = name => `<svg aria-hidden="true" width="24" height="24" ${name==='ArrowRight'?'class="curriculum-forward"':''}><use href="/data-core/assets/core-icons.svg#${name==='ArrowRight'?'ArrowLeft':name}"></use></svg>`;
   function render(path = location.pathname) {
+    window.DataCoreCurriculumLibrary?.dispose();
     const match = path.replace(/\/+$/, '').match(/^\/data-core\/curriculum(?:\/(content|design)(?:\/(basic|advanced|admission))?)?$/);
     const host = document.getElementById('view-curriculum');
     if (!host) return;
     if (!match) { host.innerHTML = '<h2>과정을 찾을 수 없습니다.</h2>'; return; }
     const [, family, stage] = match, selected = families[family];
+    host.classList.toggle('curriculum-library', family === 'content' && ['basic','advanced'].includes(stage));
+    if (family === 'content' && ['basic','advanced'].includes(stage)) {
+      window.DataCoreCurriculumLibrary?.mount(host, family, stage, () => render());
+      return;
+    }
     const title = stage ? stages[stage] : selected ? `${selected.title} 커리큘럼` : '꿈을 향한 커리큘럼';
     const back = stage ? `${root}/${family}` : selected ? root : '/data-core/counseling';
     host.innerHTML = `<div class="curriculum-heading"><a class="curriculum-back" href="${back}" aria-label="${stage ? '과정 선택' : selected ? '커리큘럼 선택' : '상담용 홈'}으로 돌아가기">${icon('ArrowLeft')}</a><div>${stage ? `<p>${selected.title} 커리큘럼</p>` : ''}<h2>${title}</h2></div></div>` +

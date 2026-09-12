@@ -1,6 +1,7 @@
 import { DEFAULT_ORGANIZATION_ID } from './data-core';
 import { DataCoreAccessContext, DataCoreAccessError, isCampusAdmin, managesCampus } from './data-core-access';
 import { PRIVATE_IMAGE_MIMES } from './private-image-response';
+import { curriculumFile, curriculumFileReadable } from './data-core-curriculum';
 
 export const DERIVATIVE_RECORD_TYPE = 'instagram-derived-file';
 export const DERIVATIVE_CATEGORY = 'instagram-derived';
@@ -57,6 +58,7 @@ export async function derivativeMetadata(db: D1Database, row: Record<string, unk
 }
 
 export async function canReadRegisteredFile(db: D1Database, context: DataCoreAccessContext, row: Record<string, unknown>): Promise<boolean> {
+  if (curriculumFile(row)) return curriculumFileReadable(db, context, row);
   // This derivative is served only after resolving the live legacy student/slot.
   if(row.category==='admissions-legacy-thumbnail')return false;
   if (!canReadBaseFile(context, row)) return false;
