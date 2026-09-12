@@ -49,7 +49,7 @@ export async function curriculumFileReadable(db: D1Database, context: DataCoreAc
 }
 
 async function collection(db: D1Database, family: string, stage: string) {
-  if (family !== 'content' || !['basic','advanced'].includes(stage)) throw new DataCoreAccessError(404, '과정을 찾을 수 없습니다.');
+  if (family !== 'content' || !['basic','advanced','admission'].includes(stage)) throw new DataCoreAccessError(404, '과정을 찾을 수 없습니다.');
   const result = await db.prepare(`SELECT * FROM data_records WHERE organization_id=? AND source_app='curriculum'
     AND record_type IN ('curriculum-folder','curriculum-page') AND campus_id IS NULL AND visibility='organization'
     AND status='active' AND deleted_at IS NULL AND json_valid(metadata_json)
@@ -102,5 +102,5 @@ export async function handleCurriculumApi(request: Request, db: D1Database, cont
   return Response.json({ family, stage, folder: target ? c.viewFolder(c.byId.get(target)!) : null, breadcrumbs,
     folders: c.folders.filter(f => (f.m.parentFolderId || null) === target).map(c.viewFolder),
     pages: (url.pathname.endsWith('/print') ? printPages : target ? c.pages.filter(p => p.m.curriculumFolderId === target) : []).map(c.viewPage),
-    totalPages: c.pages.length }, { headers: { 'cache-control': 'private, no-store' } });
+    totalFolders: c.folders.length, totalPages: c.pages.length }, { headers: { 'cache-control': 'private, no-store' } });
 }

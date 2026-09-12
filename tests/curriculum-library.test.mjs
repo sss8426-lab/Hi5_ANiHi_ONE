@@ -15,6 +15,75 @@ async function sourceFixture() {
   for(const name of ['1-1 수업/10.jpg','1-1 수업/2.jpg','1-1 수업/1.jpg','1-2 수업/1.jpg','1-2 수업/대표.jpg','1-2 수업/추가 자료/2.jpg','1-10 수업/1.jpg'])await writeFile(join(source,name),bytes);
   return {temp,source,bytes,cleanup:()=>rm(temp,{recursive:true,force:true})};
 }
+
+test('admission reuses the central library without changing basic/advanced, and works without its source PC',async()=>{
+  const h=await libraryHarness(),f=await sourceFixture();
+  try{
+    const objects=new Map();let puts=0;
+    const remote={
+      query:async(sql,params=[])=>h.env.DB.prepare(sql).bind(...params).all(),
+      records:async(family,stage)=>(await h.env.DB.prepare("SELECT * FROM data_records WHERE source_app='curriculum' AND json_extract(metadata_json,'$.family')=? AND json_extract(metadata_json,'$.stage')=? ORDER BY id").bind(family,stage).all()).results.map(r=>({...r,metadata:JSON.parse(r.metadata_json)})),
+      put:async a=>{assert.equal(objects.has(a.key),false);const bytes=await readFile(a.path);await h.env.FILES.put(a.key,bytes,{httpMetadata:{contentType:a.mime}});objects.set(a.key,hash(bytes));puts++;return true;},
+    };
+    const trees={},before={};
+    for(const stage of ['basic','advanced','admission']){
+      trees[stage]=await prepareAssets(await inventoryTree(f.source,'content',stage),join(f.temp,stage));
+      await applyTree(trees[stage],remote,hash(JSON.stringify([])));
+      before[stage]=JSON.stringify(await remote.records('content',stage));
+    }
+    assert.equal(new Set(Object.values(trees).flatMap(t=>[...t.folders,...t.files].map(p=>p.id))).size,36);
+    assert.equal(puts,84);
+    const rows=await remote.records('content','admission');
+    const unchanged=await prepareAssets(planInventory(await inventoryTree(f.source,'content','admission'),rows),join(f.temp,'admission'),rows);
+    await applyTree(unchanged,remote,hash(JSON.stringify(rows)));assert.equal(puts,84);
+    for(const stage of ['basic','advanced'])assert.equal(JSON.stringify(await remote.records('content',stage)),before[stage]);
+    await rm(f.source,{recursive:true});
+    await h.env.DB.prepare("UPDATE memberships SET role='CAMPUS_ADMIN' WHERE id=?").bind(users.teacher.id).run();
+    for(const stage of ['basic','advanced','admission']){
+      for(const user of [users.admin,users.teacher,users.foreign,users.staff]){
+        const list=await h.request('GET',`/api/data-core/curriculum?family=content&stage=${stage}`,user);
+        assert.equal(list.status,200);assert.equal(list.body.totalFolders,5);assert.equal(list.body.totalPages,7);
+        const print=await h.request('GET',`/api/data-core/curriculum/print?family=content&stage=${stage}`,user);
+        assert.deepEqual(print.body.pages.map(p=>p.id),trees[stage].files.map(p=>p.id));
+        for(const p of print.body.pages)for(const url of [p.previewUrl,p.thumbnailUrl,p.printUrl,p.originalUrl]){
+          assert.match(url,/^\/api\/data-core\/files\/cur-file-/);
+          const file=await h.raw('GET',url,user);assert.equal(file.status,200);assert.ok((await file.arrayBuffer()).byteLength);
+        }
+      }
+    }
+    const folder=trees.admission.folders[0],asset=trees.admission.files[0].assets[1];
+    for(const user of [users.teacher,users.foreign,users.staff]){
+      for(const method of ['PATCH','DELETE'])assert.equal((await h.request(method,`/api/data-core/records/${folder.id}`,user,method==='PATCH'?{title:'forbidden'}:undefined)).status,403);
+      assert.equal((await h.request('DELETE',`/api/data-core/files/${asset.id}`,user)).status,403);
+    }
+    const valid=await h.raw('GET',`/api/data-core/files/${asset.id}`,users.teacher);await valid.arrayBuffer();
+    for(const user of [null,users.outsider]){
+      assert.equal((await h.request('GET','/api/data-core/curriculum?family=content&stage=admission',user)).status,user?403:401);
+      assert.equal((await h.raw('GET',`/api/data-core/files/${asset.id}`,user,undefined,'http://localhost',{'If-None-Match':valid.headers.get('etag')})).status,user?403:401);
+    }
+    for(const [key,digest] of objects)assert.equal(hash(new Uint8Array(await (await h.env.FILES.get(key)).arrayBuffer())),digest);
+    assert.equal(await (await h.env.FAMILY_FILES.get('synthetic-sentinel')).text(),'preserved');
+  }finally{await h.mf.dispose();await f.cleanup();}
+});
+
+test('admission derivatives remove EXIF user/GPS metadata, honor orientation and retain complete landscape proportions',async()=>{
+  const f=await sourceFixture();
+  try{
+    const bytes=await sharp({create:{width:160,height:240,channels:3,background:'#c9dfd3'}})
+      .withMetadata({orientation:6}).withExifMerge({IFD0:{Artist:'SYNTHETIC_CAMERA_USER'},IFD3:{GPSLatitudeRef:'N',GPSLatitude:'1/1 0/1 0/1',GPSLongitudeRef:'E',GPSLongitude:'1/1 0/1 0/1'}}).jpeg().toBuffer();
+    const original=await sharp(bytes).metadata();assert.ok(original.exif);assert.equal(original.orientation,6);
+    await writeFile(join(f.source,'1-1 수업','landscape.jpg'),bytes);
+    const tree=await prepareAssets(await inventoryTree(f.source,'content','admission'),join(f.temp,'derivatives'));
+    const page=tree.files.find(p=>p.sourceFileName==='landscape.jpg');
+    assert.equal(hash(await readFile(page.sourcePath)),hash(bytes));
+    assert.deepEqual([page.width,page.height],[240,160]);
+    for(const a of page.assets.filter(a=>a.kind!=='original')){
+      const m=await sharp(await readFile(a.path)).metadata();assert.equal(m.exif,undefined);assert.equal(m.xmp,undefined);assert.equal(m.iptc,undefined);
+      assert.deepEqual([m.width,m.height],[240,160]);assert.equal(m.orientation,undefined);
+    }
+    assert.equal(hash(await readFile(page.assets[0].path)),hash(bytes));
+  }finally{await f.cleanup();}
+});
 test('curriculum inventory preserves names, nested paths, natural order, cover priority and immutable source bytes',async()=>{
   const f=await sourceFixture();
   try{
