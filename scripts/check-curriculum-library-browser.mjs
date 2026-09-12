@@ -18,6 +18,8 @@ try{
   await ctx.route('**/api/**',async route=>{
     const req=route.request(),u=new URL(req.url());requests.push(u.pathname);
     if(req.method()==='POST'&&u.pathname==='/api/auth/activity')return route.fulfill({json:{ok:true}});
+    // Production's shared shell previews public contest sources with read-only POSTs.
+    if(req.method()==='POST'&&/^\/api\/data-core\/competition-sources\/(mgood|artmd)\/preview$/.test(u.pathname))return route.fulfill({json:{items:[]}});
     if(req.method()!=='GET'){mutations++;console.log(JSON.stringify({unexpectedMutation:u.pathname,method:req.method()}));return route.fulfill({status:405,body:''});}
     if(u.pathname.endsWith('/context'))return route.fulfill({json:{authenticated:auth,canWrite:auth,isSuperAdmin:auth,user:auth?{name:'Synthetic QA'}:null,memberships:[]}});
     if(u.pathname.endsWith('/health'))return route.fulfill({json:{ok:true,bindings:{database:true,files:true}}});
