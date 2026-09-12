@@ -20,15 +20,17 @@
   // Separate catalog slots; do not invent lessons or write an empty seed to production.
   const courses = { content: { basic: [], advanced: [], admission: [] }, design: { basic: [], advanced: [], admission: [] } };
   const icon = name => `<svg aria-hidden="true" width="24" height="24" ${name==='ArrowRight'?'class="curriculum-forward"':''}><use href="/data-core/assets/core-icons.svg#${name==='ArrowRight'?'ArrowLeft':name}"></use></svg>`;
+  let countController;
   function render(path = location.pathname) {
+    countController?.abort();
     window.DataCoreCurriculumLibrary?.dispose();
     const match = path.replace(/\/+$/, '').match(/^\/data-core\/curriculum(?:\/(content|design)(?:\/(basic|advanced|admission))?)?$/);
     const host = document.getElementById('view-curriculum');
     if (!host) return;
     if (!match) { host.innerHTML = '<h2>과정을 찾을 수 없습니다.</h2>'; return; }
     const [, family, stage] = match, selected = families[family];
-    host.classList.toggle('curriculum-library', family === 'content' && ['basic','advanced'].includes(stage));
-    if (family === 'content' && ['basic','advanced'].includes(stage)) {
+    host.classList.toggle('curriculum-library', family === 'content' && Object.hasOwn(stages, stage));
+    if (family === 'content' && Object.hasOwn(stages, stage)) {
       window.DataCoreCurriculumLibrary?.mount(host, family, stage, () => render());
       return;
     }
@@ -38,9 +40,24 @@
       (!selected ? `<div class="curriculum-cards">${Object.entries(families).map(([key, item]) => `<a class="curriculum-card" href="${root}/${key}"><img src="/data-core/assets/roadmap/${item.image}" alt="${item.alt}" width="1440" height="960" decoding="async"><div><h3>${item.title}</h3><p>${item.description}</p>${icon('ArrowRight')}</div></a>`).join('')}</div>`
         : !stage ? `<div class="curriculum-folders">${Object.entries(stages).map(([key, label]) => {
           const art = stageImages[family][key];
-          return `<a class="curriculum-card curriculum-stage-card" href="${root}/${family}/${key}"><img src="/data-core/assets/curriculum/${art.image}" alt="${art.alt}" width="1200" height="800" decoding="async"><div><h3>${label}</h3><p>${art.description}</p>${icon('ArrowRight')}</div></a>`;
+          return `<a class="curriculum-card curriculum-stage-card" href="${root}/${family}/${key}"><img src="/data-core/assets/curriculum/${art.image}" alt="${art.alt}" width="1200" height="800" decoding="async"><div><h3>${label}</h3><p>${art.description}</p>${family==='content'?`<p data-stage-count="${key}" aria-live="polite">수업 수 확인 중</p>`:''}${icon('ArrowRight')}</div></a>`;
         }).join('')}</div>`
           : `<section class="curriculum-empty" data-family="${family}" data-stage="${stage}" data-course-count="${courses[family][stage].length}">${icon('BookOpen')}<p>등록된 커리큘럼이 없습니다.</p></section>`);
+    if (family === 'content' && !stage) {
+      countController = new AbortController();
+      const { signal } = countController;
+      host.querySelectorAll('[data-stage-count]').forEach(async label => {
+        try {
+          const response = await fetch(`/api/data-core/curriculum?family=content&stage=${label.dataset.stageCount}`, { credentials: 'same-origin', cache: 'no-store', signal });
+          if (!response.ok) throw Error('count unavailable');
+          const data = await response.json();
+          if (!Number.isSafeInteger(data.totalFolders) || data.totalFolders < 0) throw Error('invalid count');
+          if (!signal.aborted && label.isConnected) label.textContent = `${data.totalFolders}개 수업`;
+        } catch {
+          if (!signal.aborted && label.isConnected) label.textContent = '수업 수 확인 필요';
+        }
+      });
+    }
     host.querySelectorAll(`a[href^="${root}"]`).forEach(link => link.addEventListener('click', event => {
       if (event.button || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       event.preventDefault(); history.pushState({}, '', link.getAttribute('href')); render();

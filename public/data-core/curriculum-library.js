@@ -1,7 +1,7 @@
 (() => {
   const root = '/data-core/curriculum/content', api = '/api/data-core/curriculum';
-  const titles = {basic:'기초과정',advanced:'심화과정'};
-  const descriptions = {basic:'기초부터 차근차근, 스스로 성장할 수 있는 힘을 만듭니다.',advanced:'기초에서 익힌 표현력을 바탕으로 전공에 필요한 구조·연출·완성도를 깊이 있게 확장합니다.'};
+  const titles = {basic:'기초과정',advanced:'심화과정',admission:'입시과정'};
+  const descriptions = {basic:'기초부터 차근차근, 스스로 성장할 수 있는 힘을 만듭니다.',advanced:'기초에서 익힌 표현력을 바탕으로 전공에 필요한 구조·연출·완성도를 깊이 있게 확장합니다.',admission:'목표 대학과 실기 유형에 맞춰 실전 작품의 완성도와 시험 대응력을 높입니다.'};
   const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const icon = name => `<svg aria-hidden="true" width="22" height="22"><use href="/data-core/assets/core-icons.svg?v=20260912-curriculum#${name}"></use></svg>`;
   const safeUrl = url => /^\/api\/data-core\/files\/[a-zA-Z0-9_-]+$/.test(url || '') ? url : '';

@@ -5,7 +5,7 @@
 
 ## 범위와 저장 구조
 
-- `content/basic`, `content/advanced`만 변경한다. content/admission, design 전 과정은 유지한다.
+- `content/basic`, `content/advanced`, `content/admission`이 같은 importer/API/folder grid/viewer/print를 사용한다. 입시과정 추가는 main `b3ab8ced1b2b9fcfff8204551b8223876cb51946` 기준이며 기존 기초/심화를 재import하지 않는다. design 전 과정은 기존 빈 상태를 유지한다.
 - 기존 D1 `data_records`: `curriculum-folder`, `curriculum-page`, `source_app=curriculum`, organization visibility, campus NULL.
 - 폴더 metadata: family/stage/order/relativePath/parentFolderId/representativeFileId/active.
 - 페이지 metadata: 원본 파일명/상대경로/SHA256/크기/순서/폴더, original/preview/thumbnail/print file IDs 및 파생물 SHA256.
@@ -17,11 +17,13 @@
 
 ## API와 권한
 
-`GET /api/data-core/curriculum?family=content&stage=basic|advanced`
+`GET /api/data-core/curriculum?family=content&stage=basic|advanced|admission`
 
 `GET /api/data-core/curriculum/folders/:id`
 
-`GET /api/data-core/curriculum/print?family=content&stage=basic|advanced&lesson=<optional>`
+`GET /api/data-core/curriculum/print?family=content&stage=basic|advanced|admission&lesson=<optional>`
+
+목록 응답의 `totalFolders`는 접근 가능한 전체 수업 폴더 수(중첩/빈 폴더 포함), `totalPages`는 현재 페이지 수다. content 과정 선택 카드는 이 실제 중앙 count를 매 진입 시 조회한다. 인증/조회 실패를 0개로 표시하지 않는다.
 
 조직에 속한 로그인 사용자는 공통 교재를 열람/인쇄한다. MASTER/SUPER_ADMIN만 기존 records/files mutation을 수행할 수 있다. campus/owner 클라이언트 값을 권한 근거로 사용하지 않는다. 삭제/숨김된 상위 폴더 또는 원본은 파생 파일에서도 접근을 차단한다. private conditional cache는 인증 및 관계 검사 후 304를 반환한다. R2 공개 URL은 제공하지 않는다.
 
@@ -90,6 +92,28 @@ Source: `D:\애니하이 스스로 학습\심화과정`
 
 같은 숫자 접두사가 있는 심화 폴더도 전체 경로가 다르므로 별도 수업으로 유지한다. importer가 부여하는 정렬 순서는 중복되지 않는다.
 
+### 입시과정
+
+Source: `D:\애니하이 스스로 학습\입시과정`
+
+2026-09-12 읽기 전용 inventory에서 전체 101 JPG decode와 SHA256 계산 완료. 617,181,366 bytes, 손상/미지원/중복 충돌/대표 이미지 없는 폴더 0. 이름과 자연 정렬을 그대로 유지한다. 아래는 source 확인이며 운영 등록/배포 완료 증거는 PR 최종 코멘트로 구분한다.
+
+| 실제 폴더명 (natural order) | 이미지 |
+|---|---:|
+| 24상황표현-고1 | 24 |
+| 24상황표현-고2 | 42 |
+| 24상황표현-고3 | 35 |
+
+배포/Preview 검증이 모두 끝난 뒤에만 아래 운영 import를 순서대로 수행한다. 기초/심화는 재import하지 않고 사전/사후 row digest로 보존을 확인한다.
+
+```powershell
+node scripts/import-curriculum-tree.mjs --family content --stage admission --source "D:\애니하이 스스로 학습\입시과정" --preview --remote
+node scripts/import-curriculum-tree.mjs --family content --stage admission --source "D:\애니하이 스스로 학습\입시과정" --apply --remote
+node scripts/import-curriculum-tree.mjs --family content --stage admission --source "D:\애니하이 스스로 학습\입시과정" --verify --remote
+```
+
+원본 byte와 EXIF는 원본에 보존한다. 웹/thumbnail/print 파생물에서는 EXIF GPS/카메라 사용자 정보 등을 제거하고 orientation을 픽셀에 반영한다. 가로 자료도 viewer/인쇄 모두 contain이며 크롭하지 않는다.
+
 ## 안전한 import
 
 OAuth credential은 Wrangler subprocess stdout에서 메모리로만 받아 Cloudflare API에 사용한다. 파일/argv/로그/문서에 기록하지 않는다. CLI는 Cloudflare 운영 권한을 필요로 하며 웹 클라이언트용 인증 우회 경로가 아니다.
@@ -126,7 +150,7 @@ node scripts/import-curriculum.mjs --family content --stage advanced --source "D
 수업 및 과정 인쇄는 4개 이하 동시 decode로 전체 준비 후 브라우저 인쇄를 호출한다. 실패가 있으면 누락 인쇄를 차단하고 재시도한다. A4 세로 8mm margin, contain, UI 숨김. 실제 프린터를 자동으로 선택하거나 출력하지 않는다.
 
 - 합성 unit: 자연 정렬/중첩/표지 우선/원본 SHA/중단 재개/중복 방지/권한/숨김 상위폴더/원본 삭제 후 derivative 차단.
-- 합성 browser: 1920/1440/1024/820/390/320, 두 과정, 확대/스와이프/back/reload, 인쇄 실패 차단, API mutation 외부전송 0.
+- 합성 browser: 1920/1440/1024/820/390/320, 세 과정, 실제 API count/확대/스와이프/back/forward/reload, 가로 입시자료 contain, 인쇄 실패 차단, API mutation 외부전송 0.
 - 실제 운영 import 및 browser 확인 결과는 실행 후 PR evidence에 추가한다. 합성 결과를 실제 운영 검증으로 간주하지 않는다.
 - 후속 합성 테스트는 source 임시 디렉터리를 제거한 뒤 다른 캠퍼스 조직 사용자로 전체 API/preview/print 파일을 읽는다. 버전 중단·동시 metadata 변경·재개·되돌림·중복 방지·source 누락 보존을 검증하며 실제 D: 및 운영 원본에는 쓰지 않는다.
 - Windows 병렬 Miniflare 테스트에서 기존 roadmap D1 검증의 EADDRINUSE가 재현되어 전체 테스트 실행 동시성을 1로 통일했다. 테스트를 생략하거나 assertion을 완화하지 않았으며 334개 전체가 단일 실행에서 통과했다.

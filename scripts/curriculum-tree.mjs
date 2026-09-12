@@ -14,7 +14,7 @@ export function outsideSource(source, output) {
   if(!r || (!r.startsWith('..')&&!isAbsolute(r)))throw Error('출력 경로는 원본 폴더 밖이어야 합니다.');
 }
 export async function inventoryTree(source, family, stage) {
-  if(family!=='content'||!['basic','advanced'].includes(stage))throw Error('이번 importer는 content/basic 또는 content/advanced만 지원합니다.');
+  if(family!=='content'||!['basic','advanced','admission'].includes(stage))throw Error('이번 importer는 content/basic, content/advanced, content/admission만 지원합니다.');
   const root=await realpath(source), folders=[],files=[],blockers=[];
   async function walk(path,parent=null,depth=0){
     if(depth>32){blockers.push({path:relative(root,path),reason:'depth-limit'});return;}
