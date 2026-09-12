@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
-import { inventoryTree, diffInventory, prepareAssets, folderMetadata, pageMetadata, hash, outsideSource } from '../scripts/curriculum-tree.mjs';
+import { inventoryTree, planInventory, diffInventory, prepareAssets, folderMetadata, pageMetadata, hash, outsideSource } from '../scripts/curriculum-tree.mjs';
 import { applyTree } from '../scripts/import-curriculum-tree.mjs';
 import { libraryHarness, users } from './support/library-harness.mjs';
 
@@ -37,6 +37,89 @@ test('curriculum inventory preserves names, nested paths, natural order, cover p
     await writeFile(join(f.source,'1-1 수업','bad.jpg'),'not an image');
     await writeFile(join(f.source,'1-1 수업','slides.pptx'),'synthetic unsupported');
     const broken=await inventoryTree(f.source,'content','basic');assert.equal(broken.blockers.length,2);assert.equal(diffInventory(broken,[]).canApply,false);
+  }finally{await f.cleanup();}
+});
+
+test('central revisions retain originals, publish atomically, skip unchanged assets and review missing source without deletion',async()=>{
+  const h=await libraryHarness(),f=await sourceFixture();
+  try{
+    const objects=new Map();let puts=0,interrupt=false,driftId=null;
+    const remote={
+      query:async(sql,params=[])=>{
+        if(interrupt&&sql.startsWith('WITH expected')){interrupt=false;throw Error('Synthetic publish interruption');}
+        if(driftId&&sql.startsWith('WITH expected')){await h.env.DB.prepare("UPDATE data_records SET metadata_json=json_set(metadata_json,'$.concurrentMarker','synthetic') WHERE id=?").bind(driftId).run();driftId=null;}
+        return h.env.DB.prepare(sql).bind(...params).all();
+      },
+      records:async(family,stage)=>(await h.env.DB.prepare("SELECT * FROM data_records WHERE source_app='curriculum' AND json_extract(metadata_json,'$.family')=? AND json_extract(metadata_json,'$.stage')=? ORDER BY id").bind(family,stage).all()).results.map(r=>({...r,metadata:JSON.parse(r.metadata_json)})),
+      put:async a=>{const bytes=await readFile(a.path);if(objects.has(a.key)){assert.equal(objects.get(a.key),hash(bytes));return false;}await h.env.FILES.put(a.key,bytes,{httpMetadata:{contentType:a.mime}});objects.set(a.key,hash(bytes));puts++;return true;},
+    };
+    const prepare=async()=>{const records=await remote.records('content','basic');return {records,tree:await prepareAssets(planInventory(await inventoryTree(f.source,'content','basic'),records),join(f.temp,'derivatives'),records)};};
+    let state=await prepare();await applyTree(state.tree,remote,hash(JSON.stringify(state.records)));
+    const original=state.tree.files[0],initialObjects=new Map(objects),lesson=state.tree.folders[0];
+    const changed=await sharp({create:{width:100,height:150,channels:3,background:'#edb875'}}).jpeg().toBuffer();
+    await writeFile(original.sourcePath,changed);
+    await writeFile(join(f.source,'1-1 수업','3.jpg'),f.bytes);
+    state=await prepare();assert.equal(diffInventory(state.tree,state.records).changed,1);
+    assert.equal(diffInventory(state.tree,state.records).canApply,true);
+    interrupt=true;
+    await assert.rejects(()=>applyTree(state.tree,remote,hash(JSON.stringify(state.records))),/Synthetic publish interruption/);
+    let response=await h.request('GET',`/api/data-core/curriculum/folders/${lesson.id}`,users.foreign);
+    assert.equal(response.body.pages[0].id,original.id);
+    state=await prepare();driftId=original.id;
+    await assert.rejects(()=>applyTree(state.tree,remote,hash(JSON.stringify(state.records))),/중앙 상태 변경/);
+    response=await h.request('GET',`/api/data-core/curriculum/folders/${lesson.id}`,users.foreign);
+    assert.equal(response.body.pages[0].id,original.id);
+    state=await prepare();await applyTree(state.tree,remote,hash(JSON.stringify(state.records)));
+    const replacement=state.tree.files[0];assert.notEqual(replacement.id,original.id);
+    let records=await remote.records('content','basic');
+    assert.equal(records.find(r=>r.id===replacement.id).metadata.version,2);
+    assert.equal(records.find(r=>r.id===replacement.id).metadata.previousPageId,original.id);
+    assert.equal(records.find(r=>r.id===original.id).metadata.supersededByPageId,replacement.id);
+    assert.equal(records.find(r=>r.id===original.id).metadata.concurrentMarker,'synthetic');
+    response=await h.request('GET',`/api/data-core/curriculum/folders/${lesson.id}`,users.foreign);
+    assert.deepEqual(response.body.pages.map(p=>p.id),state.tree.files.filter(p=>p.folderId===lesson.id).map(p=>p.id));
+    assert.equal(response.body.pages.length,4);
+    assert.equal(response.body.folder.representativeUrl,`/api/data-core/files/${replacement.assets.find(a=>a.kind==='thumbnail').id}`);
+    const count=puts;
+    state=await prepare();assert.ok(state.tree.files.every(p=>!p.assets));
+    await applyTree(state.tree,remote,hash(JSON.stringify(state.records)));assert.equal(puts,count);
+    // Reverting a source to historical bytes still creates a new revision identity, not an overwrite.
+    await writeFile(original.sourcePath,f.bytes);
+    state=await prepare();await applyTree(state.tree,remote,hash(JSON.stringify(state.records)));
+    const reverted=state.tree.files[0];assert.notEqual(reverted.id,original.id);assert.notEqual(reverted.id,replacement.id);
+    records=await remote.records('content','basic');assert.equal(records.find(r=>r.id===reverted.id).metadata.version,3);
+    const removed=state.tree.files.find(p=>p.sourceFileName==='10.jpg');
+    await rm(removed.sourcePath);await rm(join(f.source,'2 빈 폴더'),{recursive:true});
+    state=await prepare();assert.equal(diffInventory(state.tree,state.records).reviewNeeded,2);
+    await applyTree(state.tree,remote,hash(JSON.stringify(state.records)));
+    records=await remote.records('content','basic');
+    assert.equal(records.find(r=>r.id===removed.id).metadata.sourceReview.status,'needs_review');
+    assert.ok(records.every(r=>!r.deleted_at));
+    response=await h.request('GET','/api/data-core/curriculum/print?family=content&stage=basic',users.foreign);
+    assert.equal(response.body.pages.length,8);assert.ok(response.body.pages.some(p=>p.id===removed.id));
+    for(const [key,sha] of initialObjects)assert.equal(hash(new Uint8Array(await (await h.env.FILES.get(key)).arrayBuffer())),sha);
+    const old=await h.raw('GET',`/api/data-core/files/${original.assets[0].id}`,users.foreign);assert.equal(old.status,200);assert.equal(hash(new Uint8Array(await old.arrayBuffer())),original.sha256);
+    // No filesystem is available after import; the complete API/file/print flow still works.
+    await rm(f.source,{recursive:true});
+    for(const user of [users.admin,users.teacher,users.foreign,users.staff]){
+      const list=await h.request('GET','/api/data-core/curriculum?family=content&stage=basic',user);assert.equal(list.body.totalPages,8);
+      const print=await h.request('GET','/api/data-core/curriculum/print?family=content&stage=basic',user);assert.equal(print.body.pages.length,8);
+      for(const page of print.body.pages)for(const url of [page.previewUrl,page.printUrl]){assert.match(url,/^\/api\/data-core\/files\//);const file=await h.raw('GET',url,user);assert.equal(file.status,200);assert.ok((await file.arrayBuffer()).byteLength>0);}
+    }
+    assert.equal(await (await h.env.FAMILY_FILES.get('synthetic-sentinel')).text(),'preserved');
+  }finally{await h.mf.dispose();await f.cleanup();}
+});
+
+test('curriculum plans block hidden/current-deleted data and duplicate current identities',async()=>{
+  const f=await sourceFixture();
+  try{
+    const tree=await prepareAssets(await inventoryTree(f.source,'content','basic'),join(f.temp,'derivatives'));
+    const page=tree.files[0],row={id:page.id,record_type:'curriculum-page',status:'active',metadata:pageMetadata(tree,page)};
+    assert.equal(diffInventory(tree,[{...row,metadata:{...row.metadata,active:false}}]).canApply,false);
+    assert.equal(diffInventory(tree,[{...row,deleted_at:'synthetic-trash'}]).canApply,false);
+    assert.equal(diffInventory(tree,[row,{...row,id:'duplicate-current'}]).canApply,false);
+    const changed={...tree,files:tree.files.map(p=>p.id===page.id?{...p,sha256:'different'}:p)};
+    assert.equal(diffInventory(changed,[row]).canApply,true);
   }finally{await f.cleanup();}
 });
 

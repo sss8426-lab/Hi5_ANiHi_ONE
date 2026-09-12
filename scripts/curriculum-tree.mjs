@@ -50,21 +50,46 @@ export async function inventoryTree(source, family, stage) {
   return {schemaVersion:1,family,stage,sourceRoot:root,folders,files,blockers,sourceBytes:files.reduce((sum,f)=>sum+f.size,0)};
 }
 export function diffInventory(tree, records) {
+  tree=planInventory(tree,records);
   const folders=records.filter(r=>r.record_type==='curriculum-folder'), pages=records.filter(r=>r.record_type==='curriculum-page');
-  const live=records.filter(r=>r.deleted_at||!['active','draft'].includes(r.status));
-  const changed=tree.files.filter(f=>pages.some(p=>p.metadata.relativePath===f.relativePath&&p.id!==f.id));
-  const conflicts=tree.folders.filter(f=>folders.some(p=>p.id===f.id&&(p.title!==f.title||p.metadata.parentFolderId!==f.parentFolderId||p.metadata.order!==f.order)));
-  const pageConflicts=tree.files.filter(f=>pages.some(p=>p.id===f.id&&(p.metadata.order!==f.order||p.metadata.curriculumFolderId!==f.folderId||p.metadata.fingerprint!==f.sha256)));
-  const missingSource=records.filter(r=>r.record_type==='curriculum-folder'?!tree.folders.some(f=>f.id===r.id):!tree.files.some(f=>f.id===r.id)&&!changed.some(f=>f.relativePath===r.metadata.relativePath));
+  const current=pages.filter(r=>!r.metadata.supersededByPageId);
+  const live=records.filter(r=>!r.metadata.supersededByPageId&&(r.deleted_at||!['active','draft'].includes(r.status)||(r.status==='active'&&r.metadata.active===false))&&
+    (r.record_type==='curriculum-folder'?tree.folders.some(f=>f.id===r.id):tree.files.some(f=>f.relativePath===r.metadata.relativePath)));
+  const changed=tree.files.filter(f=>f.previousPageId&&!pages.some(p=>p.id===f.id&&p.status==='active'));
+  const conflicts=tree.folders.filter(f=>folders.some(p=>p.id===f.id&&(p.title!==f.title||p.metadata.parentFolderId!==f.parentFolderId||p.metadata.relativePath!==f.relativePath)));
+  const pageConflicts=tree.files.filter(f=>pages.some(p=>p.id===f.id&&(p.metadata.curriculumFolderId!==f.folderId||p.metadata.fingerprint!==f.sha256||p.metadata.relativePath!==f.relativePath)));
+  const duplicates=current.filter((r,i)=>r.status==='active'&&current.slice(0,i).some(p=>p.status==='active'&&p.metadata.relativePath===r.metadata.relativePath));
+  const missingSource=records.filter(r=>r.status==='active'&&!r.deleted_at&&!r.metadata.supersededByPageId&&(r.record_type==='curriculum-folder'?!tree.folders.some(f=>f.id===r.id):!tree.files.some(f=>f.relativePath===r.metadata.relativePath)));
   return {folders:tree.folders.length,sourceFiles:tree.files.length,newFolders:tree.folders.filter(f=>!folders.some(r=>r.id===f.id)).length,
     newPages:tree.files.filter(f=>!pages.some(r=>r.id===f.id&&r.status==='active')).length,unchanged:tree.files.filter(f=>pages.some(r=>r.id===f.id&&r.status==='active')).length,
-    changed:changed.length,conflicts:conflicts.length+pageConflicts.length,deletedConflicts:live.length,reviewNeeded:missingSource.length,unsupported:tree.blockers.length,
-    canApply:tree.files.length>0&&!tree.blockers.length&&!changed.length&&!conflicts.length&&!pageConflicts.length&&!live.length&&!missingSource.length};
+    changed:changed.length,conflicts:conflicts.length+pageConflicts.length+duplicates.length,deletedConflicts:live.length,reviewNeeded:missingSource.length,unsupported:tree.blockers.length,
+    canApply:tree.files.length>0&&!tree.blockers.length&&!conflicts.length&&!pageConflicts.length&&!duplicates.length&&!live.length};
 }
-export async function prepareAssets(tree, output) {
+export function planInventory(tree,records) {
+  const pages=records.filter(r=>r.record_type==='curriculum-page');
+  const files=tree.files.map(f=>{
+    const versions=pages.filter(r=>r.metadata.relativePath===f.relativePath);
+    const current=versions.find(r=>r.status==='active'&&!r.metadata.supersededByPageId);
+    const baseId=stableId('page',tree.family,tree.stage,f.relativePath,f.sha256,f.size);
+    const id=current?.metadata.fingerprint===f.sha256?current.id:versions.some(r=>r.id===baseId&&r.metadata.supersededByPageId)?stableId('revision',baseId,current?.id):baseId;
+    const saved=versions.find(r=>r.id===id);
+    return {...f,id,version:saved?.metadata.version||((current?.metadata.version||1)+(current&&current.id!==id?1:0)),
+      previousPageId:saved?.metadata.previousPageId||(current&&current.id!==id?current.id:null)};
+  });
+  // Keep missing-source records in the same natural ordering instead of hiding or deleting them.
+  const folderPaths=[...new Set([...tree.folders.map(f=>f.relativePath),...records.filter(r=>r.record_type==='curriculum-folder'&&!r.deleted_at).map(r=>r.metadata.relativePath)])].sort(natural);
+  for(const f of files){
+    const paths=[...new Set([...files.filter(p=>p.folderId===f.folderId).map(p=>p.relativePath),...pages.filter(p=>p.metadata.curriculumFolderId===f.folderId&&!p.deleted_at&&!p.metadata.supersededByPageId).map(p=>p.metadata.relativePath)])].sort(natural);
+    f.order=paths.indexOf(f.relativePath)+1;
+  }
+  const ids=new Map(tree.files.map((f,i)=>[f.id,files[i].id]));
+  return {...tree,files,folders:tree.folders.map(f=>({...f,order:folderPaths.indexOf(f.relativePath)+1,representativePageId:ids.get(f.representativePageId)||null}))};
+}
+export async function prepareAssets(tree, output, records=[]) {
   outsideSource(tree.sourceRoot,output);await mkdir(output,{recursive:true});
   const canonicalOutput=await realpath(output);outsideSource(tree.sourceRoot,canonicalOutput);
   for(const f of tree.files){
+    if(records.some(r=>r.id===f.id&&r.status==='active'&&r.metadata.fingerprint===f.sha256))continue;
     const bytes=await readFile(f.sourcePath);
     if(hash(bytes)!==f.sha256||bytes.length!==f.size)throw Error('Preview 이후 원본이 변경되었습니다. 다시 preview 하세요.');
     const make=async(kind,width,format,quality)=>{
@@ -76,11 +101,11 @@ export async function prepareAssets(tree, output) {
       await make('preview',2200,'webp',88),await make('thumbnail',640,'webp',82),await make('print',3200,'jpeg',93)];
     for(const a of f.assets)a.key=`data-core/documents-private/${ORG}/organization/curriculum/${tree.family}/${tree.stage}/${f.id}/${a.kind}-${a.sha256}${extname(a.path).toLowerCase()}`;
   }
-  const byId=new Map(tree.files.map(f=>[f.id,f]));
-  for(const f of tree.folders)f.representativeFileId=byId.get(f.representativePageId)?.assets.find(a=>a.kind==='thumbnail')?.id||null;
+  for(const f of tree.folders)f.representativeFileId=f.representativePageId?stableId('file',f.representativePageId,'thumbnail'):null;
   return tree;
 }
 export function folderMetadata(tree,f){return {schemaVersion:1,family:tree.family,stage:tree.stage,order:f.order,relativePath:f.relativePath,parentFolderId:f.parentFolderId,representativeFileId:f.representativeFileId||null,active:true};}
 export function pageMetadata(tree,f){return {schemaVersion:1,family:tree.family,stage:tree.stage,curriculumFolderId:f.folderId,order:f.order,
+  version:f.version||1,previousPageId:f.previousPageId||null,
   relativePath:f.relativePath,sourceFileName:f.sourceFileName,fingerprint:f.sha256,sourceSize:f.size,width:f.width,height:f.height,
   ...Object.fromEntries(f.assets.map(a=>[`${a.kind}FileId`,a.id])),assets:f.assets.map(({id,kind,sha256,size,width,height})=>({id,kind,sha256,size,width,height})),active:true};}
