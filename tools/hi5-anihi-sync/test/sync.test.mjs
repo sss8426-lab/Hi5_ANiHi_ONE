@@ -91,7 +91,10 @@ test('empty, missing, unsupported, Korean long names and duplicate numerical pre
   try{
     const s=f.create();await s.scan();assert.equal(s.state.targets[0].status,'blocked');assert.equal(s.state.targets[0].folders,0);
     const a='1-1 합성 수업',b='1-1 다른 수업';for(const dir of [a,b])await mkdir(join(f.source,dir));
-    await writeFile(join(f.source,a,'한글'.repeat(60)+'.jpg'),f.image);await writeFile(join(f.source,b,'2.jpg'),f.image);
+    // Linux filename limits count UTF-8 bytes, unlike Windows UTF-16 characters.
+    const longName='한글'.repeat(20)+'long-name-'.repeat(10)+'.jpg';
+    assert.ok(longName.length>120&&Buffer.byteLength(longName)<255);
+    await writeFile(join(f.source,a,longName),f.image);await writeFile(join(f.source,b,'2.jpg'),f.image);
     await s.scan();assert.equal(s.state.targets[0].diff.conflicts,0);assert.equal(s.state.targets[0].diff.sourceFiles,2);
     await writeFile(join(f.source,a,'문서.pdf'),'synthetic unsupported');await s.scan();assert.equal(s.state.targets[0].diff.unsupported,1);assert.throws(()=>s.confirm(['content-basic']),e=>e.code==='blocked');
     const offline=f.create({connect:async()=>{throw Error('OAuth');}});await offline.scan();assert.equal(offline.state.connection,'auth');assert.equal(offline.state.targets[0].files,2);assert.equal(offline.state.targets[0].status,'offline');assert.equal(f.writes(),0);
