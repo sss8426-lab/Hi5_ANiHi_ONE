@@ -110,7 +110,15 @@
       const uploaded = payload?.file;
       const sourceFile = form.get('file');
       if (!uploaded?.id || !uploaded?.downloadUrl) return response;
-      return new Response(JSON.stringify(legacyUploadShape(sourceFile, uploaded)), {
+      const result=legacyUploadShape(sourceFile,uploaded);
+      if(purpose==='student-artwork' && /^image\/(jpeg|png|webp)$/.test(sourceFile?.type||'')) {
+        result.thumbnailGenerationStatus='pending';
+        try {
+          await window.DataCoreLibraryThumbnail.create(sourceFile,uploaded.id,init?.signal||new AbortController().signal,`/api/admissions/files/${encodeURIComponent(uploaded.id)}/thumbnail`);
+          result.thumbnailGenerationStatus='ready';
+        }catch{result.thumbnailGenerationStatus='failed';}
+      }
+      return new Response(JSON.stringify(result), {
         status: 200,
         headers: { 'content-type': 'application/json; charset=utf-8' },
       });

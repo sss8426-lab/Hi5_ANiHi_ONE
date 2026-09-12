@@ -7,7 +7,7 @@ export const DERIVATIVE_CATEGORY = 'instagram-derived';
 export const THUMBNAIL_RECORD_TYPE = 'image-thumbnail';
 export const THUMBNAIL_CATEGORY = 'image-thumbnail';
 export function assertMutableRecordType(type: unknown) {
-  if ([DERIVATIVE_RECORD_TYPE, THUMBNAIL_RECORD_TYPE].includes(String(type).trim())) throw new DataCoreAccessError(403, '파생 이미지 원본 관계는 변경할 수 없습니다.');
+  if ([DERIVATIVE_RECORD_TYPE, THUMBNAIL_RECORD_TYPE,'admissions-legacy-thumbnail'].includes(String(type).trim())) throw new DataCoreAccessError(403, '파생 이미지 원본 관계는 변경할 수 없습니다.');
 }
 
 export function validThumbnail(row: Record<string, any>, metadata: any, source: Record<string, any>) {
@@ -57,6 +57,8 @@ export async function derivativeMetadata(db: D1Database, row: Record<string, unk
 }
 
 export async function canReadRegisteredFile(db: D1Database, context: DataCoreAccessContext, row: Record<string, unknown>): Promise<boolean> {
+  // This derivative is served only after resolving the live legacy student/slot.
+  if(row.category==='admissions-legacy-thumbnail')return false;
   if (!canReadBaseFile(context, row)) return false;
   if (row.category === THUMBNAIL_CATEGORY) {
     const source=await thumbnailSource(db,row);

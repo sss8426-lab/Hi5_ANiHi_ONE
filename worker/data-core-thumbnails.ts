@@ -6,7 +6,7 @@ import { PRIVATE_IMAGE_MIMES } from './private-image-response';
 
 const MAX_BYTES = 256 * 1024;
 
-function thumbnailDimensions(bytes: Uint8Array) {
+export function thumbnailDimensions(bytes: Uint8Array) {
   try {
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     if (bytes.length < 30 || !WEBP.validate(bytes) || view.getUint32(4,true) + 8 !== bytes.length) throw new Error();
@@ -33,19 +33,49 @@ function thumbnailDimensions(bytes: Uint8Array) {
   } catch { throw new DataCoreAccessError(400,'긴 변 480px 이하의 올바른 WebP 썸네일이 필요합니다.'); }
 }
 
+export async function thumbnailInput(request:Request) {
+  const form=await boundedDerivativeForm(request,MAX_BYTES), file=form.get('file');
+  if (!(file instanceof File) || file.type!=='image/webp' || !file.size || file.size>MAX_BYTES) {
+    throw new DataCoreAccessError(400,'256KB 이하의 WebP 썸네일이 필요합니다.');
+  }
+  const bytes=new Uint8Array(await file.arrayBuffer());
+  return {bytes,...thumbnailDimensions(bytes)};
+}
+
+export async function existingThumbnail(db:D1Database, source:Record<string,unknown>) {
+  const {validThumbnail}=await import('./data-core-derivative-policy');
+  const rows=(await db.prepare(`SELECT fo.*, dr.metadata_json FROM file_objects fo JOIN data_records dr ON dr.id=fo.data_record_id
+    WHERE fo.organization_id=? AND dr.organization_id=? AND fo.category=? AND dr.record_type=?
+    AND fo.deleted_at IS NULL AND dr.deleted_at IS NULL
+    AND CASE WHEN json_valid(dr.metadata_json) THEN json_extract(dr.metadata_json,'$.derivedFromFileId') END=?
+    ORDER BY fo.created_at,fo.id`).bind(source.organization_id,source.organization_id,THUMBNAIL_CATEGORY,THUMBNAIL_RECORD_TYPE,source.id).all<Record<string,unknown>>()).results||[];
+  for(const row of rows) {
+    let metadata;try{metadata=JSON.parse(String(row.metadata_json));}catch{continue;}
+    if(validThumbnail(row,metadata,source))return {row,metadata};
+  }
+  return null;
+}
+
 export async function createLibraryThumbnail(request:Request, db:D1Database, bucket:R2Bucket, context:DataCoreAccessContext,
   source:Record<string,any>, canStillRead:(row:Record<string,any>)=>Promise<boolean>) {
   if (!PRIVATE_IMAGE_MIMES.has(source.mime_type) || [DERIVATIVE_CATEGORY,THUMBNAIL_CATEGORY].includes(source.category)) {
     throw new DataCoreAccessError(415,'원본 이미지에만 썸네일을 만들 수 있습니다.');
   }
   if (!await bucket.head(source.r2_key)) throw new DataCoreAccessError(404,'원본 파일을 찾을 수 없습니다.');
-  const form = await boundedDerivativeForm(request,MAX_BYTES), file = form.get('file');
-  if (!(file instanceof File) || file.type !== 'image/webp' || !file.size || file.size > MAX_BYTES) {
-    throw new DataCoreAccessError(400,'256KB 이하의 WebP 썸네일이 필요합니다.');
-  }
-  const bytes = new Uint8Array(await file.arrayBuffer()), {width,height} = thumbnailDimensions(bytes);
-  return persistImageDerivative(db,bucket,context,source,bytes,{
+  const {bytes,width,height}=await thumbnailInput(request);
+  const reuse=async()=>{
+    const found=await existingThumbnail(db,source);
+    if(!found || !await canStillRead(source) || !await bucket.head(String(found.row.r2_key)))return null;
+    return {id:found.row.id,metadata:found.metadata,downloadUrl:`/api/data-core/files/${found.row.id}`,reused:true};
+  };
+  const existing=await reuse();if(existing)return existing;
+  const previous=await db.prepare(`SELECT fo.id FROM file_objects fo JOIN data_records dr ON dr.id=fo.data_record_id
+    WHERE fo.organization_id=? AND dr.record_type=? AND (fo.deleted_at IS NOT NULL OR dr.deleted_at IS NOT NULL)
+    AND CASE WHEN json_valid(dr.metadata_json) THEN json_extract(dr.metadata_json,'$.derivedFromFileId') END=?
+    ORDER BY fo.created_at DESC,fo.id DESC LIMIT 1`).bind(source.organization_id,THUMBNAIL_RECORD_TYPE,source.id).first<{id:string}>();
+  try {return await persistImageDerivative(db,bucket,context,source,bytes,{
     category:THUMBNAIL_CATEGORY, recordType:THUMBNAIL_RECORD_TYPE, sourceApp:'data-core-thumbnail', mime:'image/webp',extension:'webp',
-    metadata:{derivativeType:'thumbnail',width,height,format:'webp',createdBy:'library-upload'},
-  },canStillRead);
+    recordId:`thumbnail-source:${source.id}:${previous?.id||'first'}`,
+    metadata:{derivativeType:'thumbnail',width,height,format:'webp',createdBy:'library-upload',generatedAt:new Date().toISOString()},
+  },canStillRead);}catch(error){const concurrent=await reuse();if(concurrent)return concurrent;throw error;}
 }

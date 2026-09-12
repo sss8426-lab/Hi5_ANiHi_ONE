@@ -91,10 +91,10 @@ export async function createInstagramDerivative(request: Request, db: D1Database
 
 export async function persistImageDerivative(db: D1Database, files: R2Bucket, context: DataCoreAccessContext,
   source: Record<string, any>, bytes: Uint8Array,
-  output: { category:string; recordType:string; sourceApp:string; mime:string; extension:string; metadata:Record<string,unknown> },
+  output: { category:string; recordType:string; sourceApp:string; mime:string; extension:string; metadata:Record<string,unknown>; recordId?:string },
   canStillRead: (current:Record<string,any>) => Promise<boolean>) {
   const sourceId = source.id;
-  const id = crypto.randomUUID(), recordId = `file-derivative:${id}`, now = new Date().toISOString();
+  const id = crypto.randomUUID(), recordId = output.recordId || `file-derivative:${id}`, now = new Date().toISOString();
   const metadata = { ...output.metadata, schemaVersion:1, derivedFromFileId:sourceId, derivativeFileId:id };
   const key = `data-core/documents-private/${DEFAULT_ORGANIZATION_ID}/${output.category}/${id}.${output.extension}`;
   const name = `${output.sourceApp}-${id}.${output.extension}`;

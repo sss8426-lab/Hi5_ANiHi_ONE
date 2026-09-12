@@ -373,7 +373,7 @@ export async function listDataCoreFiles(
   const q = cleanText(url.searchParams.get("q"), 120);
   const limit = Math.min(Math.max(Number(url.searchParams.get("limit")) || 50, 1), 100);
 
-  const conditions = ["fo.organization_id = ?", "fo.deleted_at IS NULL", "fo.category <> 'image-thumbnail'"];
+  const conditions = ["fo.organization_id = ?", "fo.deleted_at IS NULL", "fo.category NOT IN ('image-thumbnail','admissions-legacy-thumbnail')"];
   const bindings: unknown[] = [DEFAULT_ORGANIZATION_ID];
   if (campusId) {
     conditions.push("fo.campus_id = ?");
