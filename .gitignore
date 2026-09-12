@@ -39,3 +39,6 @@ yarn-error.log*
 /.wrangler/
 /outputs/
 /work/
+/dist-sync/
+/tools/hi5-anihi-sync/node_modules/
+/tools/hi5-anihi-sync/.runtime/

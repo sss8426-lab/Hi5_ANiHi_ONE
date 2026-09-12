@@ -5,7 +5,8 @@ import { pathToFileURL } from 'node:url';
 import { inventoryTree, planInventory, diffInventory, prepareAssets, folderMetadata, pageMetadata, ORG, hash, stableId, natural, outsideSource } from './curriculum-tree.mjs';
 import { cloudflare } from './curriculum-cloudflare.mjs';
 
-export async function applyTree(tree, remote, previewHash) {
+export async function applyTree(tree, remote, previewHash, {signal,onProgress,operator='cloudflare-oauth-cli'}={}) {
+  signal?.throwIfAborted();
   const before=await remote.records(tree.family,tree.stage),diff=diffInventory(tree,before);
   if(!diff.canApply||hash(JSON.stringify(before))!==previewHash)throw Error('중앙 preview 상태가 변경되었거나 충돌이 있습니다. 다시 preview 하세요.');
   if(planInventory(tree,before).files.some((f,i)=>f.id!==tree.files[i].id))throw Error('현재 버전 계획이 변경되었습니다. 다시 preview 하세요.');
@@ -17,11 +18,19 @@ export async function applyTree(tree, remote, previewHash) {
     const row=(await remote.query('SELECT organization_id,source_app,record_type,campus_id,metadata_json FROM data_records WHERE id=?',[id])).results[0];
     if(!row||row.organization_id!==ORG||row.source_app!=='curriculum'||row.record_type!==type||row.campus_id!==null||JSON.stringify(JSON.parse(row.metadata_json))!==JSON.stringify(metadata))throw Error('기존 record identity 충돌. 덮어쓰기 없이 중단했습니다.');
   }
-  for(const f of tree.folders)await record(f.id,'curriculum-folder',f.title,folderMetadata(tree,f));
+  const totalBytes=tree.files.flatMap(f=>f.assets||[]).reduce((n,a)=>n+a.size,0);
+  let processedBytes=0,uploadedBytes=0,processedAssets=0;
+  for(const f of tree.folders){signal?.throwIfAborted();await record(f.id,'curriculum-folder',f.title,folderMetadata(tree,f));}
   for(const f of tree.files){
+    signal?.throwIfAborted();
     if(existing.get(f.id)?.status==='active')continue;
     if(!f.assets||f.assets.length!==4||f.assets.some(a=>a.id!==stableId('file',f.id,a.kind)))throw Error('새 버전의 파생 파일 준비를 확인하세요.');
-    for(const asset of f.assets){if(await remote.put(asset))uploaded++;}
+    for(const asset of f.assets){
+      signal?.throwIfAborted();
+      if(await remote.put(asset)){uploaded++;uploadedBytes+=asset.size;}
+      processedBytes+=asset.size;processedAssets++;
+      onProgress?.({phase:'upload',completed:created,total:diff.newPages,path:f.relativePath,processedAssets,processedBytes,uploadedBytes,totalBytes,uploaded});
+    }
     // A page is invisible until every immutable asset was uploaded successfully.
     const m=pageMetadata(tree,f);
     await record(f.id,'curriculum-page',f.sourceFileName,{...m,active:false},'draft');
@@ -49,12 +58,16 @@ export async function applyTree(tree, remote, previewHash) {
       const result=await remote.query("UPDATE data_records SET status='active',metadata_json=?,updated_at=? WHERE id=? AND organization_id=? AND source_app='curriculum' AND status='draft' AND deleted_at IS NULL AND metadata_json=?",[JSON.stringify(m),now,f.id,ORG,draft]);
       if(result.meta?.changes!==1)throw Error('페이지 공개 중 중앙 상태 변경 감지. 다시 preview 하세요.');
     }
-    created++;if(created%10===0)console.log(JSON.stringify({stage:tree.stage,completedPages:created,totalNewPages:diff.newPages}));
+    created++;
+    if(onProgress)onProgress({phase:'upload',completed:created,total:diff.newPages,path:f.relativePath,processedAssets,processedBytes,uploadedBytes,totalBytes,uploaded});
+    else if(created%10===0)console.log(JSON.stringify({stage:tree.stage,completedPages:created,totalNewPages:diff.newPages}));
   }
+  signal?.throwIfAborted();
   const published=await remote.records(tree.family,tree.stage);
   const live=published.filter(r=>r.status==='active'&&!r.deleted_at&&!r.metadata.supersededByPageId);
   const folderPaths=live.filter(r=>r.record_type==='curriculum-folder').map(r=>r.metadata.relativePath).sort(natural);
   for(const row of live){
+    signal?.throwIfAborted();
     const folder=row.record_type==='curriculum-folder',source=folder?tree.folders.find(f=>f.id===row.id):tree.files.find(f=>f.id===row.id);
     const m={...row.metadata};
     if(folder){
@@ -76,8 +89,23 @@ export async function applyTree(tree, remote, previewHash) {
   const count=(await remote.query("SELECT count(*) AS n FROM file_objects WHERE organization_id=? AND source_app='curriculum' AND data_record_id IN (SELECT id FROM data_records WHERE source_app='curriculum' AND status='active' AND deleted_at IS NULL AND json_extract(metadata_json,'$.family')=? AND json_extract(metadata_json,'$.stage')=?) AND deleted_at IS NULL",[ORG,tree.family,tree.stage])).results[0].n;
   if(count!==after.filter(r=>r.record_type==='curriculum-page'&&r.status==='active'&&!r.deleted_at).length*4)throw Error('파일 등록 count 불일치. 재실행 전 점검이 필요합니다.');
   await remote.query("INSERT INTO audit_logs (id,organization_id,action,resource_type,resource_id,metadata_json,created_at) VALUES (?,?,'curriculum.import','curriculum',?,?,?)",
-    [crypto.randomUUID(),ORG,`${tree.family}/${tree.stage}`,JSON.stringify({folders:tree.folders.length,pages:tree.files.length,newPages:created,newObjects:uploaded,operator:'cloudflare-oauth-cli'}),now]);
+    [crypto.randomUUID(),ORG,`${tree.family}/${tree.stage}`,JSON.stringify({folders:tree.folders.length,pages:tree.files.length,newPages:created,newObjects:uploaded,operator:operator==='hi5-anihi-sync'?operator:'cloudflare-oauth-cli'}),now]);
   return {...verified,uploaded,created,registeredFiles:count};
+}
+export async function verifyTree(tree,remote,{signal,onProgress}={}){
+  const records=await remote.records(tree.family,tree.stage),diff=diffInventory(tree,records);
+  if(diff.newFolders||diff.newPages||!diff.canApply)throw Error('중앙 내용과 원본 count/fingerprint 불일치.');
+  const entries=(await remote.query("SELECT f.r2_key,m.metadata_json FROM file_objects f JOIN data_records m ON m.id=f.data_record_id WHERE f.organization_id=? AND f.source_app='curriculum' AND f.category='curriculum-original' AND m.status='active' AND m.deleted_at IS NULL AND json_extract(m.metadata_json,'$.family')=? AND json_extract(m.metadata_json,'$.stage')=? AND f.deleted_at IS NULL",[ORG,tree.family,tree.stage])).results;
+  let verified=0;
+  for(const e of entries){
+    signal?.throwIfAborted();
+    if(await remote.objectHash(e.r2_key)!==JSON.parse(e.metadata_json).fingerprint)throw Error('R2 original fingerprint 불일치.');
+    onProgress?.({phase:'verify',completed:++verified,total:entries.length});
+  }
+  if(verified!==records.filter(r=>r.record_type==='curriculum-page'&&r.status==='active'&&!r.deleted_at).length)throw Error('R2 original count 불일치.');
+  const count=(await remote.query("SELECT count(*) AS n FROM file_objects WHERE organization_id=? AND source_app='curriculum' AND data_record_id IN (SELECT id FROM data_records WHERE source_app='curriculum' AND status='active' AND deleted_at IS NULL AND json_extract(metadata_json,'$.family')=? AND json_extract(metadata_json,'$.stage')=?) AND deleted_at IS NULL",[ORG,tree.family,tree.stage])).results[0].n;
+  if(count!==verified*4)throw Error('파일 등록 count 불일치.');
+  return {originalsVerified:verified,registeredFiles:count,sourceWrites:0};
 }
 export async function main(args=process.argv.slice(2)){
   const {values:a}=parseArgs({args,options:{family:{type:'string'},stage:{type:'string'},source:{type:'string'},output:{type:'string'},config:{type:'string',default:'dist/server/wrangler.json'},preview:{type:'boolean'},apply:{type:'boolean'},remote:{type:'boolean'},verify:{type:'boolean'}}});
@@ -90,11 +118,7 @@ export async function main(args=process.argv.slice(2)){
   if(a.preview){await writeFile(join(output,'preview.json'),JSON.stringify({sourceHash:hash(JSON.stringify(tree)),remoteHash:hash(JSON.stringify(records)),remote:Boolean(remote),summary},null,2));return;}
   if(!remote)throw Error('실제 중앙 import/verify는 --remote가 필요합니다.');
   if(a.verify){
-    if(diff.newFolders||diff.newPages||!diff.canApply)throw Error('중앙 내용과 원본 count/fingerprint 불일치.');
-    const entries=(await remote.query("SELECT f.r2_key,m.metadata_json FROM file_objects f JOIN data_records m ON m.id=f.data_record_id WHERE f.organization_id=? AND f.source_app='curriculum' AND f.category='curriculum-original' AND m.status='active' AND m.deleted_at IS NULL AND json_extract(m.metadata_json,'$.family')=? AND json_extract(m.metadata_json,'$.stage')=? AND f.deleted_at IS NULL",[ORG,a.family,a.stage])).results;
-    let verified=0;
-    for(const e of entries){if(await remote.objectHash(e.r2_key)!==JSON.parse(e.metadata_json).fingerprint)throw Error('R2 original fingerprint 불일치.');verified++;}
-    if(verified!==records.filter(r=>r.record_type==='curriculum-page'&&r.status==='active'&&!r.deleted_at).length)throw Error('R2 original count 불일치.');console.log(JSON.stringify({originalsVerified:verified,sourceWrites:0}));return;
+    console.log(JSON.stringify(await verifyTree(tree,remote)));return;
   }
   const preview=JSON.parse(await readFile(join(output,'preview.json'),'utf8'));
   if(!preview.remote||preview.sourceHash!==hash(JSON.stringify(tree))||preview.remoteHash!==hash(JSON.stringify(records))||!diff.canApply)throw Error('정상 remote preview가 먼저 필요합니다. source/count/충돌을 확인하세요.');

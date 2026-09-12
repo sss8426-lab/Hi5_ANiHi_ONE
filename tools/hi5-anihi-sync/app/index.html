@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+  <title>HI5·ANiHi Sync · DATA CORE</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="lucide.js" defer></script>
+  <script src="renderer.js" defer></script>
+</head>
+<body>
+  <header class="app-header"><div class="brand"><img src="logo.png" alt="HI5·ANiHi" width="48" height="48"><div><h1>HI5·ANiHi Sync</h1><p>DATA CORE 동기화</p></div></div><nav aria-label="앱 메뉴"><span class="version">v1.0.0</span><button id="settings" class="icon" title="설정" aria-label="설정"><i data-lucide="settings-2"></i></button><button id="help" class="icon" title="도움말" aria-label="도움말"><i data-lucide="circle-help"></i></button></nav></header>
+  <main>
+    <section class="connection"><div><span class="eyebrow">중앙 서버</span><strong id="connection"><span class="dot"></span> 연결 확인 중</strong></div><div class="connection-actions"><button id="login" hidden><i data-lucide="log-in"></i>Cloudflare 로그인</button><button id="web"><i data-lucide="external-link"></i>웹앱에서 확인</button></div></section>
+    <div id="notice" class="notice" role="status" hidden></div>
+    <div class="section-heading"><h2>커리큘럼</h2><span id="selection">3개 과정 선택</span></div>
+    <section id="targets" aria-label="동기화 과정"></section>
+    <section id="progress-panel" class="progress-panel" hidden aria-label="작업 진행"><div class="progress-heading"><strong id="progress-title"></strong><span id="progress-number"></span></div><progress id="progress" max="100"></progress><p id="progress-path"></p><p id="progress-bytes"></p></section>
+    <section class="history"><div class="section-heading"><h2>최근 동기화</h2></div><div id="history"><p class="muted">아직 동기화 기록이 없습니다.</p></div></section>
+  </main>
+  <footer class="actions"><span id="operation-state">변경사항 확인 중</span><div><button id="scan"><i data-lucide="refresh-cw"></i>변경사항 다시 확인</button><button id="cancel" hidden><i data-lucide="square"></i>작업 중지</button><button id="sync" class="primary" disabled><i data-lucide="cloud-upload"></i>중앙서버에 동기화</button></div></footer>
+  <dialog id="modal"><div class="dialog-heading"><h2 id="modal-title"></h2><button id="modal-close" class="icon" title="닫기" aria-label="닫기"><i data-lucide="x"></i></button></div><div id="modal-body"></div></dialog>
+</body>
+</html>

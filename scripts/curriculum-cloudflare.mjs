@@ -26,11 +26,11 @@ export function createCloudflareRequest(base, getCredentials, request=fetch, pau
     throw Error('Cloudflare 작업을 완료하지 못했습니다. 재실행 전 preview를 확인하세요.');
   };
 }
-export async function cloudflare(configPath) {
+export async function cloudflare(configPath,{nodePath=process.execPath,nodeArgs=[],wranglerPath=resolve('node_modules/wrangler/bin/wrangler.js'),env={}}={}) {
   const config=JSON.parse(await readFile(configPath,'utf8'));
   const db=config.d1_databases?.find(b=>b.binding==='DB')?.database_id,bucket=config.r2_buckets?.find(b=>b.binding==='FILES')?.bucket_name;
   if(config.name!=='hi5-anihi-one'||!db||!bucket)throw Error('기존 HI5 Worker의 DB/FILES binding 확인이 필요합니다.');
-  const run=async args=>{try{return JSON.parse((await exec(process.execPath,[resolve('node_modules/wrangler/bin/wrangler.js'),...args],{windowsHide:true,maxBuffer:1_000_000,env:{...process.env,WRANGLER_WRITE_LOGS:'false',WRANGLER_SEND_METRICS:'false',WRANGLER_LOG:'log'}})).stdout);}catch{throw Error('Cloudflare OAuth 인증이 필요합니다. 자격증명 원문은 출력하지 않았습니다.');}};
+  const run=async args=>{try{return JSON.parse((await exec(nodePath,[...nodeArgs,wranglerPath,...args],{windowsHide:true,maxBuffer:1_000_000,env:{...process.env,...env,WRANGLER_WRITE_LOGS:'false',WRANGLER_SEND_METRICS:'false',WRANGLER_LOG:'log'}})).stdout);}catch{throw Error('Cloudflare OAuth 인증이 필요합니다. 자격증명 원문은 출력하지 않았습니다.');}};
   // Wrangler credentials are captured only in process memory, never argv, files or logs.
   const getCredentials=async()=>{
     const credentials=await run(['auth','token','--json']);

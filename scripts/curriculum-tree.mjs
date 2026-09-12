@@ -13,13 +13,14 @@ export function outsideSource(source, output) {
   const r=relative(resolve(source),resolve(output));
   if(!r || (!r.startsWith('..')&&!isAbsolute(r)))throw Error('출력 경로는 원본 폴더 밖이어야 합니다.');
 }
-export async function inventoryTree(source, family, stage) {
+export async function inventoryTree(source, family, stage, {signal,onProgress}={}) {
   if(family!=='content'||!['basic','advanced','admission'].includes(stage))throw Error('이번 importer는 content/basic, content/advanced, content/admission만 지원합니다.');
   const root=await realpath(source), folders=[],files=[],blockers=[];
   async function walk(path,parent=null,depth=0){
     if(depth>32){blockers.push({path:relative(root,path),reason:'depth-limit'});return;}
     const entries=(await readdir(path,{withFileTypes:true})).sort((a,b)=>natural(a.name,b.name));
     for(const e of entries){
+      signal?.throwIfAborted();
       const full=join(path,e.name), rel=relative(root,full).split('\\').join('/'), stat=await lstat(full);
       if(stat.isSymbolicLink()){blockers.push({path:rel,reason:'symlink'});continue;}
       if(e.isDirectory()){
@@ -36,7 +37,8 @@ export async function inventoryTree(source, family, stage) {
           await sharp(bytes,{limitInputPixels:100_000_000}).resize(2,2).raw().toBuffer();
           const sha256=hash(bytes), order=files.filter(f=>f.folderId===parent).length+1;
           files.push({id:stableId('page',family,stage,rel,sha256,bytes.length),folderId:parent,sourcePath:full,relativePath:rel,sourceFileName:e.name,
-            sha256,size:bytes.length,mime:imageTypes[ext],order,width:m.autoOrient?.width||m.width,height:m.autoOrient?.height||m.height});
+            sha256,size:bytes.length,mtimeMs:stat.mtimeMs,mime:imageTypes[ext],order,width:m.autoOrient?.width||m.width,height:m.autoOrient?.height||m.height});
+          onProgress?.({phase:'scan',completed:files.length,path:rel});
         }catch{blockers.push({path:rel,reason:'invalid-image'});}
       }
     }
@@ -85,10 +87,13 @@ export function planInventory(tree,records) {
   const ids=new Map(tree.files.map((f,i)=>[f.id,files[i].id]));
   return {...tree,files,folders:tree.folders.map(f=>({...f,order:folderPaths.indexOf(f.relativePath)+1,representativePageId:ids.get(f.representativePageId)||null}))};
 }
-export async function prepareAssets(tree, output, records=[]) {
+export async function prepareAssets(tree, output, records=[], {signal,onProgress}={}) {
   outsideSource(tree.sourceRoot,output);await mkdir(output,{recursive:true});
   const canonicalOutput=await realpath(output);outsideSource(tree.sourceRoot,canonicalOutput);
+  let prepared=0;
+  const total=tree.files.filter(f=>!records.some(r=>r.id===f.id&&r.status==='active'&&r.metadata.fingerprint===f.sha256)).length;
   for(const f of tree.files){
+    signal?.throwIfAborted();
     if(records.some(r=>r.id===f.id&&r.status==='active'&&r.metadata.fingerprint===f.sha256))continue;
     const bytes=await readFile(f.sourcePath);
     if(hash(bytes)!==f.sha256||bytes.length!==f.size)throw Error('Preview 이후 원본이 변경되었습니다. 다시 preview 하세요.');
@@ -100,6 +105,7 @@ export async function prepareAssets(tree, output, records=[]) {
     f.assets=[{id:stableId('file',f.id,'original'),kind:'original',path:f.sourcePath,size:f.size,sha256:f.sha256,mime:f.mime,width:f.width,height:f.height},
       await make('preview',2200,'webp',88),await make('thumbnail',640,'webp',82),await make('print',3200,'jpeg',93)];
     for(const a of f.assets)a.key=`data-core/documents-private/${ORG}/organization/curriculum/${tree.family}/${tree.stage}/${f.id}/${a.kind}-${a.sha256}${extname(a.path).toLowerCase()}`;
+    onProgress?.({phase:'prepare',completed:++prepared,total,path:f.relativePath});
   }
   for(const f of tree.folders)f.representativeFileId=f.representativePageId?stableId('file',f.representativePageId,'thumbnail'):null;
   return tree;
