@@ -1,6 +1,7 @@
 import { DEFAULT_ORGANIZATION_ID, ensureDataCoreDatabase } from "./data-core";
 import { assertMutableRecordType, DERIVATIVE_RECORD_TYPE, THUMBNAIL_RECORD_TYPE } from './data-core-derivative-policy';
 import { LIBRARY_FOLDER, HQ_FOLDER } from './data-core-library-policy';
+import { curriculumRecord } from './data-core-curriculum';
 import {
   isCampusAdmin, managesCampus, campusForWrite,
   DataCoreAccessContext,
@@ -202,6 +203,7 @@ function canReadRow(context: DataCoreAccessContext, row: Record<string, unknown>
 
 export function canMutateRecord(context: DataCoreAccessContext, row: Record<string, unknown>) {
   if (context.isSuperAdmin) return true;
+  if (curriculumRecord(row)) return false;
   if (isCampusAdmin(context) && ['competition','admission-guideline','admissions-guideline','university','curriculum','major'].includes(String(row.record_type))) return false;
   if (isCampusAdmin(context)) return managesCampus(context, row.campus_id);
   return context.user?.internalUserId === row.created_by_user_id;
@@ -310,6 +312,7 @@ export async function createDataRecord(
 
   const title = cleanText(input.title, 240);
   const recordType = cleanText(input.recordType, 80);
+  if (!context.isSuperAdmin && curriculumRecord({record_type:recordType,source_app:input.sourceApp})) throw new DataCoreAccessError(403, '공통 교재는 마스터 관리자만 등록할 수 있습니다.');
   if (isCampusAdmin(context) && ['competition','admission-guideline','admissions-guideline','university','curriculum','major'].includes(recordType)) throw new DataCoreAccessError(403,'공용 정보는 마스터 관리자만 수정할 수 있습니다.');
   assertMutableRecordType(recordType);
   const sourceApp = cleanText(input.sourceApp, 80);
@@ -403,6 +406,7 @@ export async function updateDataRecord(
   if (!canMutateRecord(context, { ...existing, record_type: nextRecordType })) throw new DataCoreAccessError(403, '공용 정보는 마스터 관리자만 수정할 수 있습니다.');
   const nextSourceApp =
     input.sourceApp === undefined ? String(existing.source_app) : cleanText(input.sourceApp, 80);
+  if (!context.isSuperAdmin && curriculumRecord({record_type:nextRecordType,source_app:nextSourceApp})) throw new DataCoreAccessError(403, '공통 교재는 마스터 관리자만 수정할 수 있습니다.');
   let nextVisibility =
     input.visibility === undefined
       ? (existing.visibility as DataRecordVisibility)

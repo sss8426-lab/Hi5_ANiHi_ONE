@@ -15,6 +15,7 @@ import {
   isCampusAdmin, managesCampus, campusForWrite,
 } from "./data-core-access";
 import { canReadRegisteredFile, derivativeMetadata, DERIVATIVE_CATEGORY, DERIVATIVE_RECORD_TYPE } from './data-core-derivative-policy';
+import { curriculumFile, curriculumRecord } from './data-core-curriculum';
 import { libraryUploadTarget, libraryCanDelete, LIBRARY_FOLDER, LIBRARY_SOURCE } from './data-core-library-policy';
 import { privateImageResponse } from './private-image-response';
 import { THUMBNAIL_CATEGORY, THUMBNAIL_RECORD_TYPE, thumbnailSource } from './data-core-derivative-policy';
@@ -99,6 +100,7 @@ function libraryFileProfile(category: string, campusId: string | null) {
 
 function canMutateFileRow(context: DataCoreAccessContext, row: Record<string, unknown>) {
   if (context.isSuperAdmin) return true;
+  if (curriculumFile(row)) return false;
   if (isCampusAdmin(context)) return managesCampus(context, row.campus_id);
   return context.user?.internalUserId === row.owner_user_id;
 }
@@ -251,6 +253,11 @@ export async function uploadDataCoreFile(
   const category = cleanText(form.get("category") || form.get("purpose") || "general", 80) || "general";
   if ([DERIVATIVE_CATEGORY,THUMBNAIL_CATEGORY].includes(category)) throw new DataCoreAccessError(400, '파생 이미지 저장 기능을 사용하세요.');
   const recordId = cleanText(form.get("recordId"), 120) || null;
+  if (curriculumFile({category,source_app:form.get('sourceApp')}) && request.headers.get('origin') !== new URL(request.url).origin) throw new DataCoreAccessError(403, '동일 출처 요청만 허용됩니다.');
+  if (!context.isSuperAdmin) {
+    const linked = recordId ? await db.prepare('SELECT record_type,source_app FROM data_records WHERE id=?').bind(recordId).first<Record<string,unknown>>() : null;
+    if (curriculumFile({category,source_app:form.get('sourceApp')}) || (linked && curriculumRecord(linked))) throw new DataCoreAccessError(403, '공통 교재는 마스터 관리자만 등록할 수 있습니다.');
+  }
   const libraryFolder = await libraryUploadTarget(db, context, recordId);
   if (libraryFolder && (libraryFolder.campusId !== campusId || libraryFolder.category !== category)) {
     throw new DataCoreAccessError(400, '파일과 자료보관함 폴더의 위치가 다릅니다.');
