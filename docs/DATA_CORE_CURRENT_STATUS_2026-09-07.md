@@ -6,7 +6,7 @@
 
 아래 현재 상태가 이전 날짜의 기록보다 우선한다. 구현, 로컬 검증, production 검증은 구분한다.
 
-- 기반 main: `f963e5dc1eced88bfc4245a79a006d57caa808bf`. 기존 production Worker: `5e49b8ff-faf1-42db-8dbf-539f0230756f` (이번 변경의 배포 버전 아님).
+- 확인한 main: `0b572d0999b422da1cc60a66c6807aa916b8ca48` (PR #193). production Worker `8ea007b5-3a93-48fd-a54e-d2f03c8a5cf7` 100% 배포 확인 (2026-09-12 02:03 UTC).
 - 상담용 메뉴는 **공모전·실기대회 / 꿈·전공 로드맵 / 대학 합격 로드맵 / 꿈을 향한 커리큘럼** 4개다.
 - 커리큘럼은 content/design 계열별 기초·심화·입시 경로와 이미지 카드가 있다. 내부 수업 콘텐츠가 없는 곳은 빈 상태를 유지한다.
 - 꿈·전공은 D001~D035 stable ID, alias, 4개 대학/학과 페이지, 실기향상 로드맵을 사용한다. 애매한 guideline mapping은 review로 유지한다.
@@ -41,8 +41,9 @@
 - `ADMISSIONS_STUDENT_THUMBNAILS.md`: 새 학생 그림의 480px WebP와 선택 학생 최대 5장 MASTER backfill. 기존 학생 JSON/R2 원본을 변경하지 않는다. 생성 전에는 원본 fallback이다.
 - 상담 결과 저장/이력/비교는 후속 PHASE 3 범위이며 이 문서 시점에는 완료로 간주하지 않는다.
 - PHASE 2 실제 계정 CRUD는 최초 비밀번호 변경이 필요한 계정의 사용자 직접 단계와 synthetic acceptance를 분리한다. 이번 작업에서 기존 계정 재생성/reset을 하지 않는다.
-- 2026-09-12 `npm ci`: 기존 의존성 경고 12개(중간 4, 높음 8). 강제 업데이트 없음. 전체 lint의 기존 오류는 PHASE 4에서 새 오류와 분리하여 갱신한다.
-- 이 절의 새 기능은 PR의 CI/Preview/배포 증거가 기록되기 전까지 production 완료로 간주하지 않는다.
+- 2026-09-12 전체 lint 91개 기존 오류. PR #193 변경 파일 비교는 기존 31/현재 31/신규 0. 의존성 경고 12개(중간 4, 높음 8). 강제 업데이트 없음. 상세 분류와 수정은 PHASE 4 미진행이다.
+- PHASE 1은 PR #193 CI/Preview/production 배포 및 읽기 전용 smoke가 확인되었다. 운영 썸네일 bulk/backfill은 실행하지 않았다.
+- `CAMPUS_OPERATION_ACCEPTANCE_2026-09-12.md`: 운영 10개 계정 유지 확인, 최초 비밀번호 변경 대기 10개. 현재 합성 권한 검증은 통과했지만 실제 운영 CRUD 완료가 아니다. 사용자가 최초 변경을 완료하기 전 PHASE 2를 완료 처리하거나 PHASE 3/4로 건너뛰지 않는다.
 
 ## 과거 기록 (각 기록 작성 시점의 상태)
 
