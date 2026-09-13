@@ -26,9 +26,9 @@ test('shared design is versioned and scoped to CORE staff and counseling, not FA
 
 test('approved bright photographs have a unique versioned mapping and bounded size',()=>{
   const {assets}=JSON.parse(fs.readFileSync('public/data-core/visual-assets.json','utf8'));
-  assert.equal(assets.length,41);
+  assert.equal(assets.length,43);
   assert.equal(assets.filter(a=>/^D\d/.test(a.key)).length,35);
-  assert.equal(new Set(assets.map(a=>a.asset)).size,41);
+  assert.equal(new Set(assets.map(a=>a.asset)).size,43);
   const hashes=new Set();
   for(const a of assets){
     const bytes=fs.readFileSync('public'+a.asset);
@@ -43,8 +43,24 @@ test('approved bright photographs have a unique versioned mapping and bounded si
       assert.equal(a.width/a.height,3/4);
     }
   }
-  assert.equal(hashes.size,41);
+  assert.equal(hashes.size,43);
   assert.match(fs.readFileSync('public/data-core/roadmap.js','utf8'),/occupation-image-concepts\.js\?v=20260910-photo-v2/);
+});
+
+test('approved home photographs match accessible slots without replacing existing page assets',()=>{
+  const {assets}=JSON.parse(fs.readFileSync('public/data-core/visual-assets.json','utf8'));
+  const html=fs.readFileSync('public/data-core/index.html','utf8');
+  for(const slot of ['dream','admissions']){
+    const asset=assets.find(a=>a.key===`counseling-home-${slot}`);
+    assert.equal(asset.role,'home-card');
+    assert.equal(asset.width/asset.height,3/2);
+    assert.equal(asset.fictionalPeople,true);
+    assert.ok(html.includes(`data-brand-image="${slot}" src="${asset.asset}" alt="${asset.alt}"`));
+  }
+  for(const [key,path] of [['roadmap-hero','dream-roadmap-photo-v1.webp'],['admissions','admission-roadmap.webp'],['competition','competition-challenge.webp']]){
+    assert.equal(assets.find(a=>a.key===key).asset,`/data-core/assets/counseling/${path}`);
+    assert.ok(fs.existsSync(`public/data-core/assets/counseling/${path}`));
+  }
 });
 
 test('licensed local icons do not require remote scripts or fonts',()=>{

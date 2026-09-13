@@ -14,7 +14,7 @@ The guardian FAMILY PWA is intentionally not restyled.
 2026-09-13 home-only extension: `.brand-home` uses the same shell/token system with
 an ink sidebar and Soft Premium warm-white main. See
 `COUNSELING_BRAND_HOME_2026-09-13.md` for two-pass screenshots, MASTER presentation
-UI, unchanged routes and pending new-photo approval. Other screens keep their
+UI, unchanged routes and the two newly approved home photographs. Other screens keep their
 existing themes; the campus account screen already has its own dark variant.
 
 - `design-tokens.css`: common surfaces, ink, brand, status colors, spacing, radius,
@@ -32,8 +32,9 @@ existing themes; the campus account screen already has its own dark variant.
 
 ## Images
 
-41 approved optimized images are used: six page/category scenes and 35 occupation
-scenes. The seventh page preview (decorative studio sidebar) is intentionally not
+43 approved optimized images are used: the original six page/category scenes and
+35 occupation scenes, plus two home-only scenes added on 2026-09-13. The seventh
+original page preview (decorative studio sidebar) is intentionally not
 applied because the newer UI instruction explicitly requests a plain sidebar.
 `public/data-core/visual-assets.json` is the asset inventory; the existing occupation
 mapping is reused. Existing job/competition asset paths are retained with stable

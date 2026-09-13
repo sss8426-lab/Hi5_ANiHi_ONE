@@ -34,6 +34,15 @@ try{
     for(const img of await cards.locator('img').all())await img.evaluate(i=>i.decode());
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,`Overflow ${width}`);
     if(pass==='final'){
+      for(const [slot,file,alt] of [
+        ['dream','dream-roadmap-field-v1.webp','푸른 하늘을 바라보며 미래를 상상하는 학생'],
+        ['admissions','university-success-family-v1.webp','합격 소식을 가족과 함께 기뻐하는 학생'],
+      ]){
+        const img=cards.locator(`[data-brand-image="${slot}"]`);
+        assert.equal(await img.getAttribute('src'),`/data-core/assets/counseling/${file}`);
+        assert.equal(await img.getAttribute('alt'),alt);
+        assert.deepEqual(await img.evaluate(i=>[i.naturalWidth,i.naturalHeight]),[1440,960]);
+      }
       assert.equal(await page.locator('#pageTitle').textContent(),'너와 나의 합격의 순간');
       assert.equal(await page.locator('#view-counseling-home h2').textContent(),'하이파이브.애니하이');
       assert.doesNotMatch(await page.locator('body').innerText(),/상담용|상담 홈|컨설팅|임시 컨설턴트/);

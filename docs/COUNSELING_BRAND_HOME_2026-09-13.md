@@ -47,28 +47,30 @@ non-MASTER context and successful logout clear it. Storage-disabled browsers use
 memory state. Forging the preference does not expose MASTER controls. This is not
 a security boundary and does not grant/revoke any permission.
 
-## Image review, approval pending
+## Approved home photographs
 
 The competition photograph is preserved without modifying its bytes:
 `public/data-core/assets/counseling/competition-challenge.webp`.
 
 Two new fictional-person photos were generated with the built-in image generator.
-They have been shown for approval but are **not yet applied** to the app or published
-as static assets. Existing approved images and accurate existing alt text remain
-until approval. No internet image download, reused card duplication or recoloring.
+The user approved application on 2026-09-13. They are applied to the two home cards
+only, with accurate alt text and separate inventory entries. Existing roadmap and
+admissions page images remain unchanged. No internet image download, reused card
+duplication or recoloring.
 
-| Slot | Proposed asset under public/data-core/assets/counseling | Output | Alt after approval |
+| Slot | Asset under public/data-core/assets/counseling | Output | Alt |
 |---|---|---|---|
 | `data-brand-image="dream"` | `dream-roadmap-field-v1.webp` | 1440x960, 114490 bytes | 푸른 하늘을 바라보며 미래를 상상하는 학생 |
 | `data-brand-image="admissions"` | `university-success-family-v1.webp` | 1440x960, 140894 bytes | 합격 소식을 가족과 함께 기뻐하는 학생 |
 
-Review-only WebP files are in `outputs/brand-image-review/` (not shipped/committed).
+Review copies remain in `outputs/brand-image-review/`; the approved WebPs are now
+shipped under the paths above. `visual-assets.json` has 43 distinct assets, including
+the unchanged 35 occupation images and two new home-only entries.
 Generated sources are 1536x1024 PNG. Deterministic Sharp conversion: auto-orient,
 1440x960, WebP quality 84; no visual retouch. Card-specific `--card-focus` is declared
 for both slots, currently 50% 50%; shared aspect-ratio 3:2 and object-fit cover.
-On approval, add new inventory entries without replacing the existing roadmap hero
-or admissions assets, then update only these two home src/alt attributes and inspect
-the crop again. No new UI/API feature is needed for the swap.
+Only the two home src/alt attributes are changed for this asset application.
+No new UI/API feature is needed for the swap.
 
 Generation brief, dream: photorealistic Korean teen student, fully clothed, resting
 comfortably on a broad green meadow and looking up at a blue sky with generous
@@ -95,14 +97,14 @@ logos, fake credentials or decorative text. 3:2 landscape with all faces visible
   is invented by this visual change.
 - Unit tests cover pending auth, forged preference, role loss, session reset,
   disabled storage, focus restoration, route preservation and theme scope.
-- Image approval and a final three-emotion visual review remain open. Keep the PR
-  unmerged until those image decisions and CI/Preview review are complete.
+- Image approval is complete. Keep the PR unmerged until the final image crop,
+  three-emotion visual review and latest CI/Preview checks are complete.
 
 CI/Preview and production release evidence are recorded separately on the PR.
 Do not infer deployment from local screenshots or mock API tests.
 
-Local results (2026-09-13): npm ci, build, tsc and Wrangler dry-run passed;
-56 public scripts passed node syntax checks; all 348 behavior tests passed.
+Final approved-image local results (2026-09-13): npm ci, build, tsc and Wrangler dry-run passed;
+56 public scripts passed node syntax checks; all 349 behavior tests passed.
 Home browser test passed all eight widths with no runtime errors, overlap or
 horizontal overflow; tested text contrast is at least 4.5:1. Shared six-width browser
 regression passed 794 checks with zero page/console errors or broken assets.
@@ -111,3 +113,11 @@ logout simulation. No real account, calendar, file or D1/R2 record was mutated.
 Targeted new files/tests lint passed; app.js has 3 pre-existing errors on main and
 3 after this change, with no added diagnostic. Existing tests were updated for the
 new labels/cache version and the already-existing dark account theme/activity API.
+
+Final image review: before/after 1440, final 1920/1440/1280, 1024 presentation and
+390 mobile screenshots were directly inspected. The creative studio, open meadow
+and joyful family scenes are distinct, bright and correctly framed. Both approved
+images decode at 1440x960 in all eight tested widths. The three earlier photographs
+also passed read-only production SHA256 comparison before release; no original
+asset was overwritten. The former home-image filename assertion was updated to
+the approved home asset while preserving the original asset existence check.
