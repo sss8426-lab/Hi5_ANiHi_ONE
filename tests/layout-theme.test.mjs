@@ -5,11 +5,12 @@ import fs from 'node:fs';
 test('signed-in DATA CORE staff shells load the shared versioned visual layer after their existing styles',()=>{
   for(const file of ['index','content','accounts','operations','readiness','work/kkumeum']) {
     const html=fs.readFileSync(`public/data-core/${file}.html`,'utf8');
-    assert.match(html,/<body class="data-core-layout(?: campus-accounts)?">/);
+    assert.match(html,/<body class="data-core-layout(?: campus-accounts| kk-mobile)?">/);
     const styles=[...html.matchAll(/<link[^>]+rel="stylesheet"[^>]*>/g)].map(match=>match[0]);
     const sharedIndex=styles.findIndex(style=>/layout-theme\.css\?v=20260909-bright-layout/.test(style));
     assert.ok(sharedIndex>0);
     if(file==='accounts') assert.match(styles.pop(),/accounts\.css\?v=/);
+    if(file==='work/kkumeum') assert.match(styles.pop(),/family\/kkumeum-mobile\.css/);
     assert.match(styles.at(-1),/design-system\.css\?v=/);
     assert.match(styles.at(-2),/design-tokens\.css\?v=/);
     if(file==='index')assert.ok(styles.some(style=>/counseling-refinements\.css\?v=/.test(style)));

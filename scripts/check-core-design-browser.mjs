@@ -101,6 +101,7 @@ try{
     checks+=5;
    }
    if(route==='/data-core/kkumeum'){
+    await page.locator('[data-menu=more]').click();await page.getByRole('button',{name:'반관리',exact:true}).click();
     await page.locator('#kkAddClassBtn').click();const modal=page.locator('dialog[open]');await modal.waitFor();
     assert.equal(await modal.evaluate(e=>e.scrollWidth>e.clientWidth+1),false);
     await page.keyboard.press('Escape');assert.equal(await page.locator('dialog[open]').count(),0);checks+=2;
@@ -130,17 +131,18 @@ try{
  for(const width of [1920,1440,1280,1024,768,390,320]){
   await page.setViewportSize({width,height:1000});
   await page.goto(base+'/family/index.html');await page.locator('#familyView:visible').waitFor();
+  await page.locator('[data-family-records]').click();
   await page.locator('#homeChildName').getByText('Synthetic child',{exact:true}).waitFor();
   assert.equal(await page.locator('#latestArtworks > .empty-inline').evaluate(e=>getComputedStyle(e).gridColumn),'1 / -1');
   assert.equal(await page.locator('#guardianName').evaluate(e=>getComputedStyle(e.parentElement).wordBreak),'keep-all');
   checks+=2;
-  for(const button of await page.locator('#bottomNav button').all()){
+  for(const button of await page.locator('.km-bottom button').all()){
    await button.click();
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
    assert.equal(await page.locator('body').evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(248, 248, 245)');
    checks+=2;
   }
-  await page.locator('#bottomNav button').first().click();
+  await page.locator('.km-more [data-open=home]').click();
   if([1440,1024,390].includes(width))await page.screenshot({path:`${out}/${width}-family.png`,fullPage:true});
  }
  authenticated=false;

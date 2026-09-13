@@ -1,0 +1,23 @@
+.family-mobile .family-shell { max-width: 480px; width: 100%; margin: 0 auto; min-height: 100dvh; border-radius: 0; background: #fff; }
+.family-mobile #bottomNav { display: none !important; }
+.family-mobile [hidden] { display: none !important; }
+.family-mobile .app-main { padding: 16px 18px calc(110px + env(safe-area-inset-bottom)); }
+.family-mobile .app-header { padding: 12px 18px; min-height: 58px; border-bottom: 1px solid #e5eceb; }
+.family-mobile .app-header small, .family-mobile .welcome-row .eyebrow { display: none; }
+.family-mobile .welcome-row { display: block; margin: 0 0 12px; }
+.family-mobile .welcome-row h1 { font-size: 17px; }
+.family-mobile .child-select-wrap { margin-top: 12px; }
+.family-mobile .summary-grid, .family-mobile .artwork-grid, .family-mobile .artwork-grid.compact { grid-template-columns: minmax(0,1fr); }
+.family-mobile .news-card { border-width: 0 0 1px; border-radius: 0; box-shadow: none; padding: 18px 0; }
+.family-mobile .news-card.unread { border-color: #b7d6ce; }
+.family-mobile .news-open-button strong { font-size: 15px; }
+.family-mobile .news-open-button span { display: none; }
+.family-mobile .news-list { gap: 0; }
+.family-mobile [data-panel=news] > .page-title { display: none; }
+.family-mobile .hero-card { background: #edf5f2; color: #27453d; }
+.family-mobile .hero-card :is(h2,p,.mini-label) { color: #27453d; }
+.family-mobile .hero-card { border-radius: 6px; }
+.family-mobile #familyMobileTools { margin-bottom: 10px; }
+.family-mobile .km-tabs button { border-radius: 0; }
+.family-mobile .km-tabs { z-index: 5; }
+.family-mobile .auth-card { margin: 30px auto; }

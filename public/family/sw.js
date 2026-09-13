@@ -1,11 +1,15 @@
 const CACHE_PREFIX = 'kkumeum-family-shell-';
-const CACHE_NAME = `${CACHE_PREFIX}v4`;
+const CACHE_NAME = `${CACHE_PREFIX}v5`;
 const STATIC_SHELL = [
   '/family/',
   '/family/index.html',
   '/family/family.css',
   '/family/family-news.css',
   '/family/family-theme.css',
+  '/family/family-mobile.css',
+  '/family/family-mobile.js',
+  '/family/kkumeum-mobile.css',
+  '/data-core/assets/core-icons.svg',
   '/data-core/design-tokens.css',
   '/family/family.js',
   '/family/family-growth-labels.js',

@@ -127,6 +127,13 @@ async function canPublishCampus(
   return staffCampusPermission(familyDb, context, campusId);
 }
 
+export async function staffAnnouncementCapabilities(familyDb: D1Database, context: DataCoreAccessContext, campusId: string) {
+  await ensureKkumeumStaffAnnouncementSchema(familyDb);
+  actorId(context);
+  if (!context.isSuperAdmin && !context.campusIds.includes(campusId)) throw new DataCoreAccessError(403, "해당 캠퍼스 접근 권한이 없습니다.");
+  return { canPublishCampus: await canPublishCampus(familyDb, context, campusId) };
+}
+
 function normalizeTargets(value: unknown): NoticeTarget[] {
   if (!Array.isArray(value) || value.length === 0) {
     throw new DataCoreAccessError(400, "소식 전달 대상을 하나 이상 선택해야 합니다.");
@@ -429,12 +436,17 @@ export async function listStaffAnnouncements(
   await ensureKkumeumStaffAnnouncementSchema(familyDb);
   requireAuthenticatedAccess(context);
   const bindings: unknown[] = [];
-  const conditions: string[] = [];
+  const conditions: string[] = ["a.status != 'archived'"];
+  if (!context.isSuperAdmin && !context.memberships.length) throw new DataCoreAccessError(403, "조직 소식 접근 권한이 없습니다.");
+  if (!context.isSuperAdmin && !campusId) {
+    conditions.push(`(a.campus_id IN (${context.campusIds.map(() => "?").join(",") || "NULL"}) OR (a.campus_id IS NULL AND a.announcement_type = 'organization-notice' AND a.status = 'published'))`);
+    bindings.push(...context.campusIds);
+  }
   if (campusId) {
     if (!context.isSuperAdmin && !context.campusIds.includes(campusId)) {
       throw new DataCoreAccessError(403, "해당 캠퍼스 소식을 확인할 권한이 없습니다.");
     }
-    conditions.push("a.campus_id = ?");
+    conditions.push(`(a.campus_id = ? OR (a.campus_id IS NULL AND a.announcement_type = 'organization-notice' ${context.isSuperAdmin ? "" : "AND a.status = 'published'"}))`);
     bindings.push(campusId);
   }
   if (!context.isSuperAdmin) {
@@ -444,7 +456,7 @@ export async function listStaffAnnouncements(
     if (directorCampuses.length && campusId && directorCampuses.includes(campusId)) {
       // Directors may see notices for their selected campus.
     } else {
-      conditions.push("a.author_user_id = ?");
+      conditions.push("(a.author_user_id = ? OR (a.campus_id IS NULL AND a.announcement_type = 'organization-notice' AND a.status = 'published'))");
       bindings.push(actorId(context));
     }
   }
@@ -452,7 +464,9 @@ export async function listStaffAnnouncements(
   const result = await familyDb.prepare(
     `SELECT a.id, a.campus_id, a.announcement_type, a.title, a.status,
             a.published_at, a.created_at, a.updated_at,
-            COUNT(t.id) AS target_count
+            COUNT(t.id) AS target_count,
+            (SELECT json_group_array(json_object('targetType', nt.target_type, 'targetId', nt.target_id)) FROM announcement_targets nt WHERE nt.announcement_id = a.id) AS targets_json,
+            (SELECT COUNT(*) FROM read_receipts r WHERE r.resource_type = 'announcement' AND r.resource_id = a.id) AS read_count
      FROM announcements a
      LEFT JOIN announcement_targets t ON t.announcement_id = a.id
      ${where}
@@ -469,8 +483,10 @@ export async function listStaffAnnouncements(
     created_at: string;
     updated_at: string;
     target_count: number;
+    targets_json: string;
+    read_count: number;
   }>();
-  return (result.results || []).map((row) => ({
+  const notices = (result.results || []).map((row) => ({
     id: row.id,
     campusId: row.campus_id,
     announcementType: row.announcement_type,
@@ -480,5 +496,72 @@ export async function listStaffAnnouncements(
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     targetCount: Number(row.target_count || 0),
+    targets: JSON.parse(row.targets_json || "[]") as NoticeTarget[],
+    readCount: Number(row.read_count || 0),
   }));
+  if (context.isSuperAdmin) return notices;
+  // Reuse current target checks after class assignments change, including list metadata.
+  const checks = new Map<string, Promise<void>>();
+  const visible = [];
+  for (const notice of notices) {
+    if ((!notice.campusId && notice.announcementType === "organization-notice" && notice.status === "published")
+      || (notice.campusId && hasCampusRole(context, notice.campusId, "CAMPUS_DIRECTOR"))) {
+      visible.push(notice);
+      continue;
+    }
+    try {
+      for (const target of notice.targets) {
+        const key = JSON.stringify([notice.campusId, notice.announcementType, target.targetType, target.targetId]);
+        let check = checks.get(key);
+        if (!check) {
+          check = validateTargets(familyDb, context, notice.campusId, notice.announcementType, [target]);
+          checks.set(key, check);
+        }
+        await check;
+      }
+      visible.push(notice);
+    } catch (error) {
+      if (!(error instanceof DataCoreAccessError) || ![400, 403, 404].includes(error.status)) throw error;
+    }
+  }
+  return visible;
+}
+
+// Detail uses the same author/campus boundary as the staff list, without its 100-row limit.
+export async function getStaffAnnouncement(familyDb: D1Database, context: DataCoreAccessContext, id: string) {
+  await ensureKkumeumStaffAnnouncementSchema(familyDb);
+  const actor = actorId(context);
+  const row = await familyDb.prepare("SELECT * FROM announcements WHERE id = ? AND status != 'archived'")
+    .bind(id).first<NoticeRow>();
+  if (!row) throw new DataCoreAccessError(404, "소식을 찾을 수 없습니다.");
+  const director = Boolean(row.campus_id && context.campusIds.includes(row.campus_id)
+    && hasCampusRole(context, row.campus_id, "CAMPUS_DIRECTOR"));
+  const publicOrganizationNotice = !row.campus_id && row.announcement_type === "organization-notice"
+    && row.status === "published" && context.memberships.length > 0;
+  if (!context.isSuperAdmin && !publicOrganizationNotice && (!row.campus_id || !context.campusIds.includes(row.campus_id)
+    || (!director && row.author_user_id !== actor))) {
+    throw new DataCoreAccessError(403, "이 소식을 볼 권한이 없습니다.");
+  }
+  const targets = await familyDb.prepare("SELECT target_type AS targetType, target_id AS targetId FROM announcement_targets WHERE announcement_id = ? ORDER BY created_at, id")
+    .bind(id).all<NoticeTarget>();
+  if (!context.isSuperAdmin && !director && !publicOrganizationNotice) {
+    await validateTargets(familyDb, context, row.campus_id, row.announcement_type, targets.results || []);
+  }
+  const receipt = await familyDb.prepare("SELECT COUNT(*) AS count FROM read_receipts WHERE resource_type = 'announcement' AND resource_id = ?")
+    .bind(id).first<{ count: number }>();
+  return { id: row.id, campusId: row.campus_id, announcementType: row.announcement_type,
+    title: row.title, body: row.body, status: row.status, publishedAt: row.published_at,
+    createdAt: row.created_at, updatedAt: row.updated_at, targets: targets.results || [],
+    readCount: Number(receipt?.count || 0),
+    canEdit: row.status === "draft" && (context.isSuperAdmin || row.author_user_id === actor) };
+}
+
+export async function archiveStaffAnnouncement(familyDb: D1Database, context: DataCoreAccessContext, id: string) {
+  const notice = await getStaffAnnouncement(familyDb, context, id);
+  if (!notice.canEdit) throw new DataCoreAccessError(403, "본인의 임시저장 소식만 삭제할 수 있습니다.");
+  const result = await familyDb.prepare("UPDATE announcements SET status = 'archived', updated_at = ? WHERE id = ? AND status = 'draft'")
+    .bind(new Date().toISOString(), id).run();
+  if (Number(result.meta?.changes || 0) !== 1) throw new DataCoreAccessError(409, "소식 상태가 변경되었습니다.");
+  await audit(familyDb, context, "announcement.archive", id, notice.campusId, { status: "archived" });
+  return { id, status: "archived" };
 }

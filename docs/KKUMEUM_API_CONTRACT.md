@@ -90,6 +90,11 @@ provider가 연결되지 않았으면 503 또는 명시적인 `provider_not_conf
 - `POST /api/kkumeum/announcements`
 - `PATCH /api/kkumeum/announcements/:id`
 - `POST /api/kkumeum/announcements/:id/publish`
+- `GET /api/kkumeum/announcements/:id` (모바일 상세, 동일 작성자/캠퍼스 권한)
+- `DELETE /api/kkumeum/announcements/:id` (수정 권한 있는 draft만 archived, 원본/대상 보존)
+- `GET /api/kkumeum/announcement-capabilities?campusId=` (기존 STAFF 명시 권한 포함)
+
+2026-09-13 모바일 목록에는 `targets`, `readCount`를 추가했다. `readCount`는 실제 읽은 보호자 수이며 가상 조회수를 생성하지 않는다. 발행된 조직 전체공지는 조직 회원이 읽을 수 있지만 임시저장 조직 공지는 MASTER만 접근한다. 첨부/예약발송은 이 API에 추가하지 않았다. 세부 UI와 미연결 기능은 `KKUMEUM_MOBILE_APP_2026-09-13.md`를 따른다.
 
 announcementType:
 - individual-news

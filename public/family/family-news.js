@@ -9,6 +9,7 @@
     unreadCount: 0,
     loaded: false,
     loading: false,
+    filter: null,
   };
 
   function text(value, fallback = '') {
@@ -177,10 +178,11 @@
 
     const list = document.createElement('div');
     list.className = 'news-list';
-    if (!state.notices.length) {
+    const notices = state.filter ? state.notices.filter(n => state.filter.includes(n.announcementType)) : state.notices;
+    if (!notices.length) {
       list.append(emptyState('새로운 소식이 없습니다', '선생님이 전달한 소식이 생기면 이곳에 표시됩니다.'));
     } else {
-      state.notices.forEach((notice) => list.append(noticeCard(notice)));
+      notices.forEach((notice) => list.append(noticeCard(notice)));
     }
     panel.append(list);
     updateUnreadBadges();
@@ -225,6 +227,11 @@
   }
 
   navButton.addEventListener('click', () => loadNotices({ force: true }));
+  window.addEventListener('family:news-filter', event => {
+    state.filter = Array.isArray(event.detail) ? event.detail : null;
+    if (state.loaded) render();
+    else void loadNotices();
+  });
   document.getElementById('logoutBtn')?.addEventListener('click', reset);
   document.getElementById('logoutTopBtn')?.addEventListener('click', reset);
 

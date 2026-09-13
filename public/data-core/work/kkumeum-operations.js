@@ -6,6 +6,7 @@
   const campusId = () => app()?.state?.campusId || '';
   const manager = () => Boolean(app()?.isManager?.());
   const currentReport = () => state.reports.find((item) => item.yearMonth === state.yearMonth);
+  let studentRequest = 0;
 
   async function api(url, options = {}) {
     const response = await fetch(url, { cache: 'no-store', credentials: 'include', ...options });
@@ -158,11 +159,15 @@
   async function unlinkGuardian(id){if(!id||!window.confirm('이 학생과 보호자의 연결을 해제할까요?'))return;await api(`/api/kkumeum/guardians/${encodeURIComponent(id)}/unlink`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({campusId:campusId(),studentId:state.student.id})});await load(state.student.id);}
 
   async function load(studentId) {
-    const student = await api(`/api/kkumeum/students/${encodeURIComponent(studentId)}?campusId=${encodeURIComponent(campusId())}`);
-    state.student=student.student;
-    const calls=[api(`/api/kkumeum/artworks?campusId=${encodeURIComponent(campusId())}&studentId=${encodeURIComponent(studentId)}`),api(`/api/kkumeum/reports?campusId=${encodeURIComponent(campusId())}&studentId=${encodeURIComponent(studentId)}`),api('/api/kkumeum/growth-skills/catalog')]; if(manager())calls.push(api(`/api/kkumeum/guardians?campusId=${encodeURIComponent(campusId())}&studentId=${encodeURIComponent(studentId)}`));
-    const [artworks,reports,catalog,guardianResult]=await Promise.all(calls); state.artworks=(artworks.artworks||[]).filter((item)=>String(item.lessonDate||item.createdAt||'').slice(0,7)===state.yearMonth);state.reports=reports.reports||[];state.growthSkillCatalog=catalog;state.guardians=guardianResult?.guardians||[];renderDetail();renderArtworks();reportForm();guardians();
+    const version=++studentRequest, campus=campusId();
+    const student = await api(`/api/kkumeum/students/${encodeURIComponent(studentId)}?campusId=${encodeURIComponent(campus)}`);
+    if(version!==studentRequest||campus!==campusId())return;
+    const calls=[api(`/api/kkumeum/artworks?campusId=${encodeURIComponent(campus)}&studentId=${encodeURIComponent(studentId)}`),api(`/api/kkumeum/reports?campusId=${encodeURIComponent(campus)}&studentId=${encodeURIComponent(studentId)}`),api('/api/kkumeum/growth-skills/catalog')]; if(manager())calls.push(api(`/api/kkumeum/guardians?campusId=${encodeURIComponent(campus)}&studentId=${encodeURIComponent(studentId)}`));
+    const [artworks,reports,catalog,guardianResult]=await Promise.all(calls);
+    if(version!==studentRequest||campus!==campusId())return;
+    state.student=student.student;state.artworks=(artworks.artworks||[]).filter((item)=>String(item.lessonDate||item.createdAt||'').slice(0,7)===state.yearMonth);state.reports=reports.reports||[];state.growthSkillCatalog=catalog;state.guardians=guardianResult?.guardians||[];renderDetail();renderArtworks();reportForm();guardians();
   }
+  window.addEventListener('kkumeum:scope-changing',()=>{studentRequest++;state.student=null;state.artworks=[];state.reports=[];state.guardians=[];['kkStudentDetail','kkReportOperations','kkArtworkOperations','kkGuardianOperations'].forEach(id=>$(id)?.replaceChildren());});
   function ready(){if(!app())return;const nav=document.querySelector('.kk-manager-nav');if(nav)nav.hidden=!manager();const guardianSection=$('kkGuardiansSection');if(guardianSection)guardianSection.hidden=!manager();overview();}
   window.addEventListener('kkumeum:ready',ready);window.addEventListener('kkumeum:students-updated',overview);window.addEventListener('kkumeum:select-student',(event)=>load(event.detail.studentId).catch((error)=>{const root=$('kkStudentDetail');root.hidden=false;root.textContent=error.message||'학생 정보를 불러오지 못했습니다.';}));if(app())ready();
 })();

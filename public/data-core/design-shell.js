@@ -30,7 +30,7 @@ if (shell) new MutationObserver(records => {
 }).observe(shell, {childList: true, subtree: true});
 
 const sidebar = document.querySelector('.sidebar, .kk-sidebar');
-if (sidebar && typeof HTMLDialogElement !== 'undefined' && 'showModal' in HTMLDialogElement.prototype) {
+if (sidebar && !document.body.classList.contains('kk-mobile') && typeof HTMLDialogElement !== 'undefined' && 'showModal' in HTMLDialogElement.prototype) {
   const anchor = document.createComment('desktop sidebar position');
   sidebar.before(anchor);
   const toggle = document.createElement('button');
