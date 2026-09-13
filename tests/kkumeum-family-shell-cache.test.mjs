@@ -5,7 +5,7 @@ import test from 'node:test';
 
 const origin = 'https://synthetic.example';
 const source = await readFile(new URL('../public/family/sw.js', import.meta.url), 'utf8');
-const currentCache = 'kkumeum-family-shell-v4';
+const currentCache = 'kkumeum-family-shell-v5';
 
 function response(body, status = 200) {
   const result = new Response(body, { status });
@@ -56,7 +56,8 @@ test('PWA install includes every deployed guardian script, including report conf
   const scripts = [...html.matchAll(/<script[^>]+src="([^"]+)"/g)].map((m) => m[1]);
   assert.ok(scripts.includes('/family/family-growth-labels.js'));
   for (const script of scripts) assert.ok(h.installed.includes(script), script);
-  assert.ok(h.installed.every((path) => (path.startsWith('/family/') || path === '/data-core/design-tokens.css') && !path.includes('/api/')));
+  const sharedShell = ['/data-core/design-tokens.css','/data-core/assets/core-icons.svg'];
+  assert.ok(h.installed.every((path) => (path.startsWith('/family/') || sharedShell.includes(path)) && !path.includes('/api/')));
   assert.ok(h.installed.includes('/family/family-theme.css'));
 });
 

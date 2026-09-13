@@ -112,6 +112,38 @@ function notice(campusId, announcementType, targetType, targetId) {
   };
 }
 
+test('mobile notice detail/targets and soft archive keep author, campus, origin and private boundaries', async () => {
+  const h = await harness();
+  try {
+    await initializeAndSeed(h);
+    await membership(h.env, h.request, TEACHER, 'TEACHER', CAMPUS_A);
+    await membership(h.env, h.request, DIRECTOR, 'CAMPUS_DIRECTOR', CAMPUS_B);
+    const created = await h.request('/api/kkumeum/announcements', {user:TEACHER,method:'POST',body:notice(CAMPUS_A,'selected-delivery','student',STUDENT_A)});
+    assert.equal(created.status,201);
+    const id=created.body.announcement.id, url=`/api/kkumeum/announcements/${id}`;
+    const detail=await h.request(url,{user:TEACHER});
+    assert.equal(detail.status,200);assert.equal(detail.body.announcement.canEdit,true);
+    assert.equal(detail.body.announcement.readCount,0);assert.equal(detail.headers.get('cache-control'),'private, no-store');
+    assert.deepEqual(detail.body.announcement.targets,[{targetType:'student',targetId:STUDENT_A}]);
+    await h.env.FAMILY_DB.prepare("UPDATE class_staff_assignments SET ended_at = ? WHERE id = 'notice-teacher-assignment'").bind(new Date().toISOString()).run();
+    assert.equal((await h.request(`/api/kkumeum/announcements?campusId=${CAMPUS_A}`,{user:TEACHER})).body.announcements.length,0);
+    assert.equal((await h.request(url,{user:TEACHER})).status,403);
+    await h.env.FAMILY_DB.prepare("UPDATE class_staff_assignments SET ended_at = NULL WHERE id = 'notice-teacher-assignment'").run();
+    assert.equal((await h.request(url,{user:DIRECTOR})).status,403);
+    assert.equal((await h.request(url,{user:null})).status,401);
+    assert.equal((await h.request(url,{user:DIRECTOR,method:'DELETE'})).status,403);
+    assert.equal((await h.request(url,{user:TEACHER,method:'DELETE',origin:'https://evil.example'})).status,403);
+    const listed=await h.request(`/api/kkumeum/announcements?campusId=${CAMPUS_A}`,{user:TEACHER});
+    assert.deepEqual(listed.body.announcements[0].targets,detail.body.announcement.targets);
+    assert.equal((await h.request(url,{user:TEACHER,method:'DELETE'})).status,200);
+    assert.equal((await h.request(url,{user:TEACHER})).status,404);
+    assert.equal((await h.request(`${url}/publish`,{user:TEACHER,method:'POST'})).status,409);
+    const row=await h.env.FAMILY_DB.prepare('SELECT status, body FROM announcements WHERE id = ?').bind(id).first();
+    assert.equal(row.status,'archived');assert.ok(row.body);
+    assert.equal((await h.request(`/api/kkumeum/announcements?campusId=${CAMPUS_A}`,{user:TEACHER})).body.announcements.length,0);
+  } finally { await h.mf.dispose(); }
+});
+
 test('super admin publishes organization notice with FAMILY_DB only and audit excludes full body', async () => {
   const h = await harness();
   try {
@@ -145,6 +177,8 @@ test('director/teacher/STAFF publishing obeys campus, assignment and explicit pe
     await membership(h.env, h.request, DIRECTOR, 'CAMPUS_DIRECTOR', CAMPUS_A);
     await membership(h.env, h.request, TEACHER, 'TEACHER', CAMPUS_A);
     await membership(h.env, h.request, STAFF, 'STAFF', CAMPUS_A);
+    assert.equal((await h.request(`/api/kkumeum/announcement-capabilities?campusId=${CAMPUS_A}`, {user:TEACHER})).body.canPublishCampus,false);
+    assert.equal((await h.request(`/api/kkumeum/announcement-capabilities?campusId=${CAMPUS_B}`, {user:TEACHER})).status,403);
 
     assert.equal((await h.request('/api/kkumeum/announcements', {
       user: DIRECTOR, method: 'POST', body: notice(CAMPUS_A, 'campus-news', 'campus', CAMPUS_A),
@@ -175,12 +209,31 @@ test('director/teacher/STAFF publishing obeys campus, assignment and explicit pe
          id, campus_id, staff_user_id, can_publish_campus, created_at, updated_at
        ) VALUES ('notice-staff-permission', ?, ?, 1, ?, ?)`,
     ).bind(CAMPUS_A, `oai:${STAFF.id}`, now, now).run();
+    assert.equal((await h.request(`/api/kkumeum/announcement-capabilities?campusId=${CAMPUS_A}`, {user:STAFF})).body.canPublishCampus,true);
     assert.equal((await h.request('/api/kkumeum/announcements', {
       user: STAFF, method: 'POST', body: notice(CAMPUS_A, 'campus-news', 'campus', CAMPUS_A),
     })).status, 201);
   } finally {
     await h.mf.dispose();
   }
+});
+
+test('published organization notices are readable but not editable by organization staff', async () => {
+  const h=await harness();
+  try {
+    await initializeAndSeed(h);await membership(h.env,h.request,TEACHER,'TEACHER',CAMPUS_A);
+    const n=await h.request('/api/kkumeum/announcements',{method:'POST',body:notice(null,'organization-notice','organization')});
+    const url=`/api/kkumeum/announcements/${n.body.announcement.id}`;
+    assert.equal((await h.request(url,{user:TEACHER})).status,403);
+    await h.request(`${url}/publish`,{method:'POST'});
+    const read=await h.request(url,{user:TEACHER});assert.equal(read.status,200);assert.equal(read.body.announcement.canEdit,false);
+    assert.equal((await h.request(`${url}`,{user:TEACHER,method:'DELETE'})).status,403);
+    const list=await h.request(`/api/kkumeum/announcements?campusId=${CAMPUS_A}`,{user:TEACHER});
+    assert.ok(list.body.announcements.some(a=>a.id===n.body.announcement.id));
+    const outsider={id:'outsider',email:'outsider@example.test',name:'Synthetic outsider'};
+    assert.equal((await h.request(url,{user:outsider})).status,403);
+    assert.equal((await h.request('/api/kkumeum/announcements',{user:outsider})).status,403);
+  } finally {await h.mf.dispose();}
 });
 
 test('staff notice mutations reject cross-origin and missing FAMILY_DB fails closed', async () => {

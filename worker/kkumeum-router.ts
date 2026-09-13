@@ -41,6 +41,9 @@ import {
 import {
   createStaffAnnouncementDraft,
   listStaffAnnouncements,
+  getStaffAnnouncement,
+  archiveStaffAnnouncement,
+  staffAnnouncementCapabilities,
   publishStaffAnnouncement,
   updateStaffAnnouncementDraft,
 } from "./kkumeum-staff-announcements";
@@ -173,6 +176,9 @@ export async function handleKkumeumApi(
     return respond({ error: "지원하지 않는 꿈이음 소식 요청입니다." }, { status: 405 });
   }
 
+  if (url.pathname === "/api/kkumeum/announcement-capabilities" && request.method === "GET") {
+    return respond(await staffAnnouncementCapabilities(requireFamilyDatabase(context, env.FAMILY_DB), context, String(url.searchParams.get("campusId") || "").slice(0, 120)));
+  }
   const announcementPublishMatch = url.pathname.match(/^\/api\/kkumeum\/announcements\/([^/]+)\/publish$/);
   if (announcementPublishMatch) {
     if (request.method !== "POST") {
@@ -191,6 +197,13 @@ export async function handleKkumeumApi(
 
   const announcementMatch = url.pathname.match(/^\/api\/kkumeum\/announcements\/([^/]+)$/);
   if (announcementMatch) {
+    if (request.method === "GET") {
+      return respond({ announcement: await getStaffAnnouncement(requireFamilyDatabase(context, env.FAMILY_DB), context, decodeURIComponent(announcementMatch[1])) });
+    }
+    if (request.method === "DELETE") {
+      assertSameOrigin(request);
+      return respond({ announcement: await archiveStaffAnnouncement(requireFamilyDatabase(context, env.FAMILY_DB), context, decodeURIComponent(announcementMatch[1])) });
+    }
     if (request.method !== "PATCH") {
       return respond({ error: "지원하지 않는 꿈이음 소식 요청입니다." }, { status: 405 });
     }
