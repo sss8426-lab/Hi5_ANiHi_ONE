@@ -27,6 +27,7 @@
 - 이동 감사에는 출발/도착 캠퍼스, 이전/새 반, 학생 ID, 실행자, 시각만 기록한다. 학생 이름/비밀번호/토큰/원본 bytes는 넣지 않는다.
 - 중복 제출/오래된 확인은 409로 중단한다. 결과가 불확실하면 재클릭 대신 학생 위치/이동 이력을 확인한다. 운영자만 반대 방향으로 다시 이동할 수 있다.
 - 기존 반 수정은 캠퍼스 이동을 수행하지 않는다. 학생 편집 중 이동이 일어나면 이전 캠퍼스의 늦은 반 배정 변경도 차단한다.
+- 동시 학생 편집에서는 성공한 UPDATE의 고유 audit marker가 있을 때만 반 배정 이력을 변경한다. 충돌한 요청은 audit/enrollment를 남기지 않으며, 같은 밀리초 안에서도 학생 수정/이동의 revision 시각은 증가한다.
 - 별도 테이블 또는 migration 없음. 기존 schema의 record와 audit만 재사용한다. 운영 학생 자동 이동/일괄 이전 없음.
 
 ## “API 미연결” 원인별 해결
@@ -62,7 +63,7 @@ AI를 연결할 때는 기존에 발급한 OpenAI Platform 키를 소유자가 C
 - 운영 브라우저 재진입은 로그인 화면으로 돌아왔다. 저장된 예전 MASTER 화면만으로 현재 인증 성공을 주장하지 않는다.
 - 운영 데이터 이동/계정 변경/푸시 재발송은 수행하지 않는다.
 - 격리된 Miniflare의 SYNTHETIC 데이터로 10개 캠퍼스 소유권, MASTER 이동, 타 캠퍼스 API 차단, 원본 bytes/관계/이력 보존을 검증한다.
-- 로컬 `npm ci`, `npm run build`, `npx tsc --noEmit`, public JS 59개 `node --check`, `npm test` 360개, 변경 파일 ESLint, `wrangler deploy --dry-run` 통과.
+- 로컬 `npm ci`, `npm run build`, `npx tsc --noEmit`, public JS 59개 `node --check`, `npm test` 361개, 변경 파일 ESLint, `wrangler deploy --dry-run` 통과. 후속 동시성 검사에는 고정 시계에서의 수정/이동 revision 증가와 실패한 수정의 audit/enrollment 무변경을 포함한다.
 - 꿈이음 browser fixture 검사 807개: 1920/1440/1024/820/768/430/390/375/320px, 운영자 이동 확인/제출/일반 관리자 버튼 숨김, 캠퍼스 선택, 기존 관리 영역 숨김 회귀. 다른 주요 화면 검사 1,444개: 오류/깨진 자산/운영 mutation 0.
 - 이동 중 DB 오류를 합성 trigger로 주입하여 학생/파일/audit가 함께 rollback되는 것도 확인했다. 이 trigger는 메모리 테스트 DB에만 생성하며 운영 DB에는 실행하지 않는다.
 - CI/Preview/production 버전은 PR evidence와 최종 보고에 별도 기록한다. Preview UI의 fixture 검증을 실제 운영 계정 로그인/학생 이동 성공으로 표현하지 않는다.
