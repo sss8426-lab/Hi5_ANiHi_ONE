@@ -20,6 +20,8 @@ dialog.core-image-gallery::backdrop{background:rgb(16 24 22 / .72)}
 .core-image-gallery.cig-actual .cig-image{width:auto;height:auto;max-width:none;max-height:none;margin:auto;object-fit:initial}
 .core-image-gallery .cig-feedback{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;background:rgb(255 255 255 / .85);font-size:14px;text-align:center;padding:12px}
 .core-image-gallery .cig-feedback button{width:auto;padding:0 16px;font:inherit}
+.core-image-gallery.cig-has-preview .cig-feedback{inset:auto 12px 12px auto;max-width:calc(100% - 24px);background:var(--core-surface,#fff);border:1px solid var(--core-border,#dce2df);border-radius:6px;font-size:12px;padding:8px 12px;pointer-events:none}
+.core-image-gallery.cig-has-preview .cig-feedback button{pointer-events:auto}
 .core-image-gallery .cig-caption{min-height:32px;margin:0;padding:6px 14px;font-size:13px;line-height:20px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;border-top:1px solid var(--core-border,#dce2df)}
 .gallery-image-button{display:block;width:100%;padding:0!important;border:0!important;border-radius:0;background:transparent!important;cursor:zoom-in;overflow:hidden}
 .gallery-image-button img{display:block;width:100%}

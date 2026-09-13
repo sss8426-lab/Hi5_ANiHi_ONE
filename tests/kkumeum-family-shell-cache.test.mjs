@@ -5,7 +5,7 @@ import test from 'node:test';
 
 const origin = 'https://synthetic.example';
 const source = await readFile(new URL('../public/family/sw.js', import.meta.url), 'utf8');
-const currentCache = 'kkumeum-family-shell-v6';
+const currentCache = 'kkumeum-family-shell-v7';
 
 function response(body, status = 200) {
   const result = new Response(body, { status });

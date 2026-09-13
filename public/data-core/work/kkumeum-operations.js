@@ -126,7 +126,7 @@
     root.querySelectorAll('[data-trash]').forEach((button) => button.onclick = () => trash(button.dataset.trash));
     root.querySelectorAll('[data-kk-artwork]').forEach(button=>button.onclick=()=>window.DataCoreImageGallery.open({
       scope:'kkumeum-artworks',title:'학생 작품',anchor:button,index:state.artworks.findIndex(item=>item.id===button.dataset.kkArtwork),
-      items:state.artworks.map(item=>({src:item.fileUrl,title:item.title||item.fileName}))}));
+      items:state.artworks.map(item=>({src:item.fileUrl,previewSrc:item.fileUrl,title:item.title||item.fileName}))}));
   }
 
   async function upload(files) {

@@ -58,17 +58,17 @@ try{
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
     await page.screenshot({path:`${out}/students-${width}.png`,fullPage:true});
     await page.locator('.student-detail-row [data-open-artwork]').first().click();
-    assert.match(await page.locator('.cig-image').getAttribute('src'),/\/artworks\/0$/);
+    assert.match(await page.locator('.cig-image').getAttribute('data-source'),/\/artworks\/0$/);
     assert.equal(await page.locator('.cig-counter').textContent(),'1 / 6');
     await page.locator('[data-cig-next]').click();
-    await page.locator('.cig-image').evaluate(i=>i.decode());
-    assert.match(await page.locator('.cig-image').getAttribute('src'),/\/artworks\/1$/);
+    await page.waitForFunction(()=>document.querySelector('.cig-feedback')?.hidden&&document.querySelector('.cig-image')?.naturalWidth);
+    assert.match(await page.locator('.cig-image').getAttribute('data-source'),/\/artworks\/1$/);
     if([1440,1024,390].includes(width))await page.screenshot({path:`${out}/enlarged-${width}.png`});
     await page.keyboard.press('Escape');assert.equal(await page.locator('.core-image-gallery').count(),0);
     await page.locator('[data-artwork-student="1"]').click();assert.equal(await page.locator('.cig-counter').textContent(),'1 / 6');await page.keyboard.press('Escape');
   }
   await page.evaluate(()=>window.desktopAPI.openAdmissionImages(10));
-  await page.locator('.cig-image').evaluate(i=>i.decode());assert.equal(await page.locator('.cig-counter').textContent(),'1 / 3');
+  await page.waitForFunction(()=>document.querySelector('.cig-feedback')?.hidden&&document.querySelector('.cig-image')?.naturalWidth);assert.equal(await page.locator('.cig-counter').textContent(),'1 / 3');
   await page.locator('[data-cig-next]').click();assert.equal(await page.locator('.cig-counter').textContent(),'2 / 3');await page.keyboard.press('Escape');
   await page.goto(base+'/admissions-web/renderer/index.html#page=awards');
   await page.locator('[data-award-image]').first().click();await page.locator('[data-cig-next]').click();

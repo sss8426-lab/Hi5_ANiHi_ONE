@@ -282,6 +282,7 @@ export async function handleKkumeumApi(
       requireFamilyFiles(context, env.FAMILY_FILES),
       context,
       decodeURIComponent(familyFileMatch[1]),
+      request,
     );
   }
 

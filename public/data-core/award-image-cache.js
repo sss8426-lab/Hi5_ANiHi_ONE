@@ -1,7 +1,7 @@
-// Originals and display-sized previews are page memory only; no R2 writes or persistent cache.
+// Page-memory cache; an optional callback can persist an already generated preview.
 class AwardImageCache {
-  constructor({ maxBytes = 128 * 1024 * 1024, maxEntries = 24, timeoutMs = 60000, onDenied = () => {} } = {}) {
-    Object.assign(this, { maxBytes, maxEntries, timeoutMs, onDenied });
+  constructor({ maxBytes = 128 * 1024 * 1024, maxEntries = 24, timeoutMs = 60000, onDenied = () => {}, onPreview = null } = {}) {
+    Object.assign(this, { maxBytes, maxEntries, timeoutMs, onDenied, onPreview });
     this.entries = new Map();
     this.previews = new Map();
     this.pending = new Map();
@@ -12,6 +12,9 @@ class AwardImageCache {
     this.active = 0;
     this.queue = [];
     this.blocked = false;
+    this.previewController = new AbortController();
+    this.persistCount = 0;
+    this.persistQueue = Promise.resolve();
   }
   peek(id) {
     const entry = this.entries.get(id);
@@ -40,6 +43,9 @@ class AwardImageCache {
   clear() {
     this.generation += 1;
     this.blocked = false;
+    this.previewController.abort();
+    this.previewController = new AbortController();
+    this.persistCount = 0;
     for (const pending of this.pending.values()) pending.controller.abort();
     this.pending.clear();
     this.previewPending.clear();
@@ -67,7 +73,7 @@ class AwardImageCache {
   async get(id, { priority = false } = {}) {
     return (await this.resource(id, priority)).url;
   }
-  async resource(id, priority) {
+  async resource(id, priority, path=`/api/data-core/files/${encodeURIComponent(id)}`) {
     if (this.blocked) throw new Error('접근 권한을 확인해 주세요.');
     if (this.peek(id)) return this.entries.get(id);
     const pending = this.pending.get(id);
@@ -84,7 +90,7 @@ class AwardImageCache {
       const timer = setTimeout(() => { job.timedOut = true; job.controller.abort(); }, this.timeoutMs);
       try {
         if (job.controller.signal.aborted || generation !== this.generation) throw new DOMException('Cancelled', 'AbortError');
-        const response = await fetch(`/api/data-core/files/${encodeURIComponent(id)}`, {
+        const response = await fetch(path, {
           credentials: 'same-origin', cache: 'no-cache', signal: job.controller.signal,
         });
         if (!response.ok) {
@@ -110,12 +116,22 @@ class AwardImageCache {
     try { return await job.promise; }
     finally { if (this.pending.get(id) === job) this.pending.delete(id); }
   }
-  async getThumbnail(id) {
+  async getThumbnail(id, thumbnailUrl) {
     if (this.blocked) throw new Error('접근 권한을 확인해 주세요.');
     if (this.peekPreview(id)) return this.peekPreview(id);
     if (this.previewPending.has(id)) return this.previewPending.get(id);
     const generation = this.generation;
     const task = (async () => {
+      if(/^\/api\/data-core\/files\/[^/?#]+$/.test(thumbnailUrl||'')) {
+        try {
+          const key=`thumbnail:${id}`, entry=await this.resource(key,false,thumbnailUrl);
+          if(entry.size>256*1024||this.previews.size>=100||this.previewBytes+entry.size>32*1024*1024)throw Error('Invalid thumbnail size');
+          if(generation!==this.generation)throw new DOMException('Cancelled','AbortError');
+          const url=URL.createObjectURL(entry.blob);
+          this.previews.set(id,{url,size:entry.size});this.previewBytes+=entry.size;this.removeOriginal(key);
+          return url;
+        } catch(error){if(this.blocked||error.name==='AbortError')throw error;}
+      }
       const entry = await this.resource(id, false);
       const bitmap = await createImageBitmap(entry.blob, { resizeWidth: 480, resizeQuality: 'medium' });
       const canvas = document.createElement('canvas');
@@ -134,6 +150,14 @@ class AwardImageCache {
         }
         const url = URL.createObjectURL(blob);
         this.previews.set(id, { url, size: blob.size }); this.previewBytes += blob.size;
+        // Reuse bytes already decoded for the visible tile; never scan/backfill a whole bucket.
+        if (this.onPreview && this.persistCount < 5) {
+          this.persistCount++;
+          const signal = this.previewController.signal;
+          this.persistQueue = this.persistQueue.then(() => {
+            if (!signal.aborted) return this.onPreview(id, blob, signal);
+          }).catch(() => {});
+        }
         return url;
       } finally { bitmap.close(); canvas.width = canvas.height = 0; }
     })();

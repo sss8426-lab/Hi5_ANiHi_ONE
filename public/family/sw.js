@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'kkumeum-family-shell-';
-const CACHE_NAME = `${CACHE_PREFIX}v6`;
+const CACHE_NAME = `${CACHE_PREFIX}v7`;
 const STATIC_SHELL = [
   '/family/',
   '/family/index.html',

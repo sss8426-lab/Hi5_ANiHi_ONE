@@ -8,16 +8,17 @@
   let dispose = () => {}, sequence = 0;
   async function mount(host, family, stage, rerender) {
     const current = ++sequence, controller = new AbortController(), query = new URLSearchParams(location.search), lesson = query.get('lesson');
-    let removed = false, printing = false, dialog, printRoot, prefetched = [], keyHandler;
+    let removed = false, printing = false, dialog, printRoot, keyHandler, slideRevision=0;
+    const imageCache=window.DataCoreImageGallery.createCache();
     const clearPrint=()=>{printRoot?.remove();printRoot=null;document.body.classList.remove('curriculum-printing');};
     window.addEventListener('afterprint',clearPrint);
-    dispose = () => { removed = true; controller.abort(); document.removeEventListener('keydown',keyHandler); window.removeEventListener('afterprint',clearPrint); dialog?.close(); clearPrint(); prefetched = []; };
+    dispose = () => { removed = true; controller.abort(); document.removeEventListener('keydown',keyHandler); window.removeEventListener('afterprint',clearPrint); dialog?.close(); clearPrint(); imageCache.dispose(); };
     const active = () => !removed && sequence === current && host.classList.contains('active');
     const get = async url => { const r = await fetch(url,{credentials:'same-origin',cache:'no-store',signal:controller.signal}); if(!r.ok) { const error = new Error(r.status===401?'로그인이 필요합니다.':'수업자료를 불러오지 못했습니다.'); error.status=r.status;throw error; } return r.json(); };
     const navigate = url => { history.pushState({},'',url); rerender(); };
     const lessonUrl = id => `${root}/${stage}?lesson=${encodeURIComponent(id)}`;
     const decode = img => img.decode ? img.decode() : new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;});
-    const image = (url,alt) => {const img = new Image();img.src=safeUrl(url);img.alt=alt;return img;};
+    const image = (url,alt) => {const img = new Image();img.src=url?.startsWith(`blob:${location.origin}/`)?url:safeUrl(url);img.alt=alt;return img;};
     host.innerHTML = '<p role="status">수업자료를 불러오는 중입니다.</p>';
     try {
       const data = await get(lesson ? `${api}/folders/${encodeURIComponent(lesson)}` : `${api}?family=${family}&stage=${stage}`);
@@ -62,15 +63,21 @@
       strip.innerHTML=pages.map((p,i)=>`<button data-slide="${i}" aria-label="${i+1} 페이지"><img src="${escape(safeUrl(p.thumbnailUrl))}" alt="" width="80" height="64" loading="lazy"><span>${i+1}</span></button>`).join('');
       function show(next,push=true){
         index=Math.max(0,Math.min(pages.length-1,next));const p=pages[index];
+        const stamp=++slideRevision;
+        if(!dialog?.isOpen)imageCache.retain(new Set([pages[index-1],p,pages[index+1]].filter(Boolean).flatMap(page=>[page.previewUrl,page.originalUrl])));
         if(push){const u=new URL(location.href);u.searchParams.set('slide',String(index+1));history.pushState({},'',u.pathname+u.search);}
-        const img=image(p.previewUrl,`${data.folder.title} 수업자료 ${index+1}`);img.fetchPriority='high';img.decoding='async';img.draggable=false;
-        img.onerror=()=>{if(active()&&img.isConnected){canvas.textContent='이미지를 불러오지 못했습니다.';const retry=document.createElement('span');retry.textContent='다시 시도';canvas.append(retry);canvas.dataset.failed='true';}};
+        const img=image(imageCache.peek(p.previewUrl)||p.thumbnailUrl,`${data.folder.title} 수업자료 ${index+1}`);img.fetchPriority='high';img.decoding='async';img.draggable=false;
+        img.onerror=()=>{img.hidden=true;};
         delete canvas.dataset.failed;canvas.replaceChildren(img);
         host.querySelector('.lesson-counter').textContent=`${index+1} / ${pages.length}`;
         host.querySelector('[data-prev]').disabled=index===0;host.querySelector('[data-next]').disabled=index===pages.length-1;
         strip.querySelectorAll('button').forEach((b,i)=>b.setAttribute('aria-current',i===index?'true':'false'));
-        const neighbors=[pages[index-1],pages[index+1]].filter(Boolean);
-        prefetched=neighbors.map(p=>prefetched.find(img=>img.getAttribute('src')===p.previewUrl)||image(p.previewUrl,''));
+        void imageCache.get(p.previewUrl).then(src=>{
+          if(!active()||stamp!==slideRevision)return;
+          img.hidden=false;img.src=src;
+          if(!navigator.connection?.saveData&&!/^(slow-)?2g$/.test(navigator.connection?.effectiveType||''))
+            for(const page of [pages[index+1],pages[index-1]].filter(Boolean))void imageCache.get(page.previewUrl,{priority:'low'}).catch(()=>{});
+        }).catch(()=>{if(active()&&stamp===slideRevision){canvas.textContent='이미지를 불러오지 못했습니다. 다시 시도';canvas.dataset.failed='true';}});
       }
       strip.querySelectorAll('button').forEach(b=>b.onclick=()=>show(Number(b.dataset.slide)));
       host.querySelector('[data-prev]').onclick=()=>show(index-1);host.querySelector('[data-next]').onclick=()=>show(index+1);
@@ -82,8 +89,8 @@
       canvas.addEventListener('pointerup',e=>{if(start&&Math.abs(e.clientX-start.x)>50&&Math.abs(e.clientX-start.x)>Math.abs(e.clientY-start.y)){swiped=true;show(index+(e.clientX<start.x?1:-1));}start=null;});
       canvas.onclick=()=>{
         if(swiped){swiped=false;return;}if(canvas.dataset.failed){show(index,false);return;}
-        dialog=window.DataCoreImageGallery.open({scope:'curriculum',title:data.folder.title,anchor:canvas,index,
-          items:pages.map((p,i)=>({src:safeUrl(p.originalUrl),previewSrc:safeUrl(p.previewUrl),title:`${data.folder.title} ${i+1}`})),
+        dialog=window.DataCoreImageGallery.open({scope:'curriculum',title:data.folder.title,anchor:canvas,index,cache:imageCache,
+          items:pages.map((p,i)=>({src:safeUrl(p.originalUrl),displaySrc:safeUrl(p.previewUrl),previewSrc:imageCache.peek(p.previewUrl)||safeUrl(p.thumbnailUrl),title:`${data.folder.title} ${i+1}`})),
           onChange:next=>show(next)});
       };
       show(index,false);

@@ -18,6 +18,7 @@ import { canReadRegisteredFile, derivativeMetadata, DERIVATIVE_CATEGORY, DERIVAT
 import { curriculumFile, curriculumRecord } from './data-core-curriculum';
 import { libraryUploadTarget, libraryCanDelete, LIBRARY_FOLDER, LIBRARY_SOURCE } from './data-core-library-policy';
 import { privateImageResponse } from './private-image-response';
+import { thumbnailUrls } from './data-core-thumbnails';
 import { THUMBNAIL_CATEGORY, THUMBNAIL_RECORD_TYPE, thumbnailSource } from './data-core-derivative-policy';
 
 const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024;
@@ -417,11 +418,12 @@ export async function listDataCoreFiles(
     .bind(...bindings, limit)
     .all<Record<string, unknown>>();
 
-  const visible = [];
+  const visible = [], sourceRows:Record<string,unknown>[]=[];
   for (const row of result.results || []) {
-    if (await canReadRegisteredFile(db, context, row)) visible.push({ ...fileRowToResponse(row), metadata:await derivativeMetadata(db, row) });
+    if (await canReadRegisteredFile(db, context, row)) {sourceRows.push(row);visible.push({ ...fileRowToResponse(row), metadata:await derivativeMetadata(db, row) });}
   }
-  return visible;
+  const thumbnails=await thumbnailUrls(db,sourceRows);
+  return visible.map(file=>({...file,thumbnailUrl:thumbnails.get(String(file.id))||null}));
 }
 
 export async function listDeletedDataCoreFiles(

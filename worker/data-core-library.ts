@@ -1,8 +1,8 @@
 import { DEFAULT_ORGANIZATION_ID as ORG } from './data-core';
 import { DataCoreAccessContext, DataCoreAccessError } from './data-core-access';
 import { uploadDataCoreFile, deleteDataCoreFile } from './data-core-files';
-import { THUMBNAIL_CATEGORY, THUMBNAIL_RECORD_TYPE, thumbnailSource, validThumbnail } from './data-core-derivative-policy';
-import { createLibraryThumbnail } from './data-core-thumbnails';
+import { THUMBNAIL_CATEGORY, thumbnailSource } from './data-core-derivative-policy';
+import { createLibraryThumbnail, thumbnailUrls } from './data-core-thumbnails';
 import { privateImageResponse } from './private-image-response';
 import { LibraryTree, LibraryFolder, LIBRARY_FOLDER, HQ_FOLDER, LIBRARY_SOURCE, LIBRARY_CATEGORIES, HQ_DEFAULTS,
   libraryMetadata, libraryCanWrite, libraryCanDelete, libraryCanDeleteFolder, libraryFolderScope, requireLibraryWrite, libraryFileReadable } from './data-core-library-policy';
@@ -149,24 +149,6 @@ async function fileRow(tree: LibraryTree, id: string) {
   return { row, folder, source };
 }
 
-async function thumbnailUrls(tree:LibraryTree, sources:Record<string,any>[]) {
-  const urls = new Map<string,string>();
-  if (!sources.length) return urls;
-  const byId = new Map(sources.map(row=>[row.id,row]));
-  const rows = (await tree.db.prepare(`SELECT fo.*, dr.metadata_json FROM file_objects fo JOIN data_records dr ON dr.id=fo.data_record_id
-    WHERE fo.organization_id=? AND dr.organization_id=? AND fo.category=? AND dr.record_type=?
-    AND fo.deleted_at IS NULL AND dr.deleted_at IS NULL
-    AND CASE WHEN json_valid(dr.metadata_json) THEN json_extract(dr.metadata_json,'$.derivedFromFileId') END
-      IN (${sources.map(()=>'?').join(',')}) ORDER BY fo.created_at DESC, fo.id`)
-    .bind(ORG,ORG,THUMBNAIL_CATEGORY,THUMBNAIL_RECORD_TYPE,...byId.keys()).all<Record<string,any>>()).results || [];
-  for (const row of rows) {
-    let metadata; try { metadata=JSON.parse(row.metadata_json); } catch { continue; }
-    const source=byId.get(metadata?.derivedFromFileId);
-    if (source && !urls.has(source.id) && validThumbnail(row,metadata,source)) urls.set(source.id,`/api/data-core/library/files/${encodeURIComponent(row.id)}`);
-  }
-  return urls;
-}
-
 async function listFiles(tree: LibraryTree, folder: LibraryFolder, url: URL) {
   if (!folder.category) return { files: [], hasMore: false };
   const q = text(url.searchParams.get('q')).slice(0,120), page = Math.max(1, Math.min(100000, Number(url.searchParams.get('page')) || 1));
@@ -190,7 +172,7 @@ async function listFiles(tree: LibraryTree, folder: LibraryFolder, url: URL) {
         downloadUrl: `/api/data-core/library/files/${encodeURIComponent(row.id)}/download` });
     } catch (e) { if (!(e instanceof DataCoreAccessError)) throw e; }
   }
-  const thumbnails = await thumbnailUrls(tree,visible);
+  const thumbnails = await thumbnailUrls(tree.db,visible,'/api/data-core/library/files/');
   return { files:files.map(file=>({...file,thumbnailUrl:thumbnails.get(file.id) || null})), hasMore: rows.length > 50 };
 }
 
