@@ -1,0 +1,90 @@
+# 원본 Excel 출석부 양식 보존
+
+## 범위와 기준
+
+- 기준 `origin/main`: `2efc64d0f816d3625999401b50e29214bb0a3efa` (#208).
+- 해당 main에는 출석부 자동생성 코드가 없고 꿈이음 출석 메뉴는 미연결 상태였다.
+- 기존 꿈이음 `/data-core/kkumeum?view=attendance`에 월 변경 도구를 연결한다. 새 출석 기록 DB/API나 독립 파일 저장소를 만들지 않는다.
+- 학생 명단의 원본은 사용자가 선택한 XLSX다. 서버 학생/캠퍼스 자료를 자동 수정하지 않으며 새 문서를 DATA CORE에 자동 업로드하지 않는다.
+- 파일은 현재 브라우저 메모리에서만 읽고 별도 XLSX로 다운로드한다. 탭/캠퍼스를 바꾸거나 화면을 떠나면 작업 내용을 폐기한다. localStorage/IndexedDB/AI/원격 변환 서비스에 파일을 보내지 않는다.
+- 기존 관리자/교사 역할 판정으로 진입한다. 서버 API/인증/권한 변경은 없다. 로컬 변환용 정적 JS 자체는 권한 보안 경계가 아니며 서버 자료를 읽거나 쓰지 않는다.
+
+## 원본 중심 처리
+
+1. ZIP 엔트리/원본 bytes 복사. sheet relationship으로 실제 시트를 찾는다.
+2. 출석 시트, 연속 날짜, 학생명/수업요일, 요일 행, 제목 및 printArea를 분석한다.
+3. 사용자가 선택 시트와 셀 위치를 확인한다. 감지가 애매하면 자동 확정하지 않으며 위치 입력을 제공한다.
+4. 선택 시트의 값과 필요한 XF/fill만 수정한다. 나머지 ZIP 엔트리는 그대로 전달한다.
+5. 연도/월 제목과 날짜/요일을 계산한다. 공유 문자열의 rich-text 제목은 해당 셀에 복사하여 run 서식을 유지한다. 원본 sharedStrings는 바꾸지 않는다.
+6. 학생 순서, 빈 행, 날짜 31열, 열 너비, 행 높이, merge, font, border, alignment, number format을 유지한다.
+7. 학생의 원래 수업요일/원본 월로 수업일 채우기를 샘플링한다. 명확한 샘플이 없을 때만 `#E8F0EC`를 사용한다. 수동 색상 샘플 셀도 지정 가능하다.
+8. 2월/30일 월의 나머지 날짜는 공백/비활성 처리한다. 열 삭제는 하지 않는다. 짧은 달 결과를 다시 열어 긴 달을 생성하는 경우 비활성 fill을 복구한다.
+9. 휴원일/학생별 보강일은 기존 셀에 fill만 적용하며 보강이 휴원보다 우선한다. 출석 체크 값 초기화는 별도 선택 옵션이며 기본적으로 기존 값을 보존한다.
+10. 다운로드명: `<캠퍼스>_<연도>년_<월>월_출석부.xlsx`. 원본 파일에 쓰기 권한을 요청하지 않는다.
+
+## 인쇄
+
+- 원본 A4 방향, 여백, pageSetup/scale/fit, printArea, 반복 행/열을 우선 유지한다.
+- 설정이 없으면 A4 가로 기본값을 사용한다. 날짜 영역의 가로 분할이 예상될 때만 fitToWidth=1로 보정한다. 명시적 열 page break는 제거하여 날짜 분할을 금지한다.
+- 기존 수용 행수 안에서는 원본 한 장 설정을 존중한다. 늘어난 학생은 마지막 학생 행의 서식을 복사한다. 필요한 경우 printArea를 세로로 확장하고 학생 행만 나눈다.
+- 여러 페이지면 원본 제목/날짜/요일 헤더 및 기존 반복 열을 유지하고 fitToHeight=0과 세로 row break를 설정한다.
+- 웹 미리보기는 원본 열/행/merge/style을 그리는 읽기 전용 표현이다. Excel 다운로드는 HTML 표에서 역생성하지 않는다.
+- 화면 맞춤/실제 크기 및 가로 스크롤, 원본 미리보기, 출력 예상 장수, 별도 sandbox iframe의 A4 print stylesheet를 제공한다.
+- Chromium 반올림/외곽선 여유를 둬 세로형에서도 마지막 날짜 열이 잘리지 않게 한다. 웹 글자 줄바꿈은 원본 wrapText를 따른다.
+- 행/열에 상속된 셀 스타일, indexed 색상과 원본 가로/세로 인쇄 가운데 맞춤도 반영한다.
+- 비 A4 원본은 Excel 설정을 보존하고 브라우저 인쇄는 비활성화한다. Excel에서 해당 용지 설정을 확인해야 한다.
+
+## 안전 한계
+
+- 실제 학원 Excel이 첨부되지 않아 **실제 사용자 양식 및 물리 프린터 검증은 미완료**다. 브라우저/Excel 글꼴 렌더러와 프린터 드라이버 차이를 완전 동일하다고 주장하지 않는다.
+- 암호화/매크로/서명/XLS, 비연속 printArea, 숨겨진 필수 열, 보호 시트, 병합된 날짜/학생 블록, 조건부 서식은 안전하게 거절하고 추가 양식 검수를 안내한다.
+- 도형/머리글/바닥글은 원본 XLSX에 보존하지만 웹에서 동일하게 그리지 못하므로 해당 양식은 Excel 다운로드 후 인쇄한다.
+- 수식 값은 실행하지 않고 저장된 값만 미리보기한다. Excel 재계산을 요청한다. 복잡한 number format, rich text의 웹 표현, 도형, 프린터별 글꼴/폭은 Excel과 차이가 있을 수 있다.
+- 행 추가 시 수식, 연결된 차트/외부 참조/이름 정의, drawing/table/validation 등이 있으면 참조를 임의 변환하지 않는다. Excel에서 빈 행을 확장한 복사본을 사용하도록 안내한다.
+- 이전 생성 결과에 추가된 휴원/보강 강조와 사용자 수동 강조는 구분할 메타데이터가 없다. 매월 원본 양식에서 생성하는 흐름을 우선한다. 수동 강조를 임의 삭제하지 않는다.
+- ZIP 최대 20MB, 압축 해제 100MB/2,048엔트리, 분석 1,000행/128열, 학생 500행. XML DTD/entities 금지, 외부 시트 경로 거절, HTML escape, 수식 문자열을 일반 문자열로 저장한다.
+
+## 검증
+
+합성 `SYNTHETIC_` 자료만 사용한다. 운영 API를 쓰지 않는다.
+
+| 항목 | 로컬 결과 |
+|---|---|
+| 20명/30명 A4 가로 31일 월 | 각각 한 장 |
+| 30행 원본에 60명 | 세로 두 장, 두 장 모두 학생명/요일/1~31 |
+| A4 세로/날짜 시작 열 이동 | 한 장, 마지막 날짜 표시 |
+| 2027년 2월/2028년 윤년 | 31열 유지, 미존재 날짜 공백 |
+| 2월 결과를 3월로 생성 | 29~31 복구 |
+| 원본 bytes/hash/비대상 ZIP part | 변경 없음 |
+| 열/행/병합/인쇄영역/여백/서식 | 보존 assertion 통과 |
+| 공유 문자열 제목 run 서식/수식 문자열/XSS | 통과 |
+| 휴원/보강/빈 행/추가 행/제거 | 통과 |
+| 1920/1440/1280/1024/768/390/320 | 실제 Chromium 업로드/생성/맞춤/스크롤/다운로드 통과 |
+| 캠퍼스 변경/화면 이탈 | 메모리 작업 초기화 |
+| 교사/관리자/STAFF/비로그인 | 기존 진입 정책 유지 |
+| Chromium PDF | 5종 6페이지 생성, A4 가로/세로 media box 및 페이지 수 독립 확인 |
+
+기존 꿈이음 합성 browser regression 807개도 통과했다. 출력 XLSX는 별도 openpyxl 파서로 열어 시트/제목/31일/요일/A4 방향/fit/printArea/merge를 다시 확인했다. 이 검증은 실제 Excel 앱에서의 인쇄 검수와 다르다.
+
+전체 lint는 이번 작업 밖의 기존 추적 파일 69개 오류와 로컬 산출물/생성 코드 21개 오류로 실패했다. 오류가 있는 추적 파일은 이번 수정 대상이 아니며, 변경 JS/테스트/스크립트 대상 lint는 0개다. `npm audit`는 기존 패키지의 12건(높음 8, 보통 4)을 보고한다. 신규 xmldom은 해당 목록에 없으며 강제 의존성 업그레이드는 하지 않는다.
+
+실행:
+
+```sh
+node --test tests/attendance-template.test.mjs
+node scripts/check-attendance-browser.mjs
+node scripts/check-kkumeum-mobile-browser.mjs
+```
+
+Playwright를 따로 설치하지 않는 환경은 기존 `PLAYWRIGHT_MODULE`을 지정한다. `ATTENDANCE_ORIGIN`/`KK_VISUAL_ORIGIN`으로 Preview 자산을 검사할 수 있다. 이 경우도 모든 API는 합성 응답으로 격리하며 production 로그인 검증으로 표현하지 않는다. 전체 build/typecheck/test/CI/Preview/운영 배포 증거는 PR 최종 코멘트에서 확정한다.
+
+## 주요 파일/참고
+
+- `public/data-core/work/attendance-template.js`: 원본 OOXML 복사/달력/스타일/print adapter.
+- `public/data-core/work/attendance.js`, `attendance.css`: 꿈이음 내 로컬 UI.
+- `tests/helpers/attendance-fixture.mjs`, `tests/attendance-template.test.mjs`: 실제 개인정보 없는 워크북 fixture 및 계약.
+- `scripts/check-attendance-browser.mjs`: 실제 브라우저/다운로드/PDF 검사.
+- ZIP: 기존 lockfile의 [fflate](https://github.com/101arrowz/fflate) ESM/MIT 재사용. Node XML 테스트만 [xmldom](https://github.com/xmldom/xmldom) 사용.
+- 인쇄 속성: [Microsoft Open XML PageSetup](https://learn.microsoft.com/en-us/dotnet/api/documentformat.openxml.spreadsheet.pagesetup).
+
+DB migration: 없음. D1/R2/FAMILY/학생/계정/비밀번호/원본 파일 수정: 없음.

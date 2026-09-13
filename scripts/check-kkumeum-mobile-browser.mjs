@@ -75,7 +75,8 @@ let notices=[{id:'notice-a',campusId:'campus-a',announcementType:'campus-news',t
   await page.locator('[data-menu=news]').click();if(await page.locator('[data-expand=class-a]').getAttribute('aria-expanded')==='false')await page.locator('[data-expand=class-a]').click();await page.locator('[data-student=student-a]').click();await page.locator('#kkReportForm:visible').waitFor();await geometry(width);
   await page.locator('[data-kk-artwork]').first().click();await page.waitForFunction(()=>document.querySelector('.cig-feedback')?.hidden&&document.querySelector('.cig-image')?.naturalWidth);await page.locator('[data-cig-next]').click();assert.equal(await page.locator('.cig-counter').textContent(),'2 / 3');await page.keyboard.press('Escape');
   await page.locator('#kmLegacyBack').click();
-  for(const menu of ['attendance','answers','inquiries']){await page.locator(`[data-menu=${menu}]`).click();await page.getByText(/아직 전용 API가 구현되지 않았습니다/).waitFor();}
+  await page.locator('[data-menu=attendance]').click();await page.locator('#atFile').waitFor();
+  for(const menu of ['answers','inquiries']){await page.locator(`[data-menu=${menu}]`).click();await page.getByText(/아직 전용 API가 구현되지 않았습니다/).waitFor();}
   await page.locator('[data-menu=more]').click();await page.locator('#kmMoreClose').click();assert.equal(await page.locator('#kmMore').evaluate(e=>e.open),false);checks+=10;
  }
  // Synthetic selection -> exact target payload -> persisted draft -> actual detail route.
