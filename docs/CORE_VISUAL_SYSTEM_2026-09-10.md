@@ -1,5 +1,13 @@
 # CORE visual system
 
+## Current extension (2026-09-13)
+
+`CORE_SOFT_PREMIUM_WORK_VISUALS_2026-09-13.md` supersedes the home-only scope below.
+Soft Premium tokens now apply across internal screens and FAMILY's separate presentation
+stylesheet. Occupation cards use 35 work-focused lightweight covers; five newly generated
+page photographs show tools and outputs. Old files remain available, not overwritten.
+The following sections retain the original release history and test counts.
+
 ## Scope and approval
 
 The user approved the bright natural-light photorealistic previews and requested

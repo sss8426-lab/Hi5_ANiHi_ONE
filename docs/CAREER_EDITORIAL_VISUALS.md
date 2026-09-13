@@ -1,5 +1,9 @@
 # Career Detail Editorial Visuals
 
+2026-09-13 follow-up: the 105 detail files remain unchanged. The selection card/detail
+cover now uses a 640x480 copy of its own portfolio scene instead of the legacy portrait.
+See `CORE_SOFT_PREMIUM_WORK_VISUALS_2026-09-13.md`. The history below describes the earlier release.
+
 ## Scope and provenance
 
 The 35 existing D001-D035 occupations receive three dedicated public educational

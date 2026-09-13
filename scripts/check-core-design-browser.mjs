@@ -7,6 +7,7 @@ const {chromium}=await import(process.env.PLAYWRIGHT_MODULE?pathToFileURL(proces
 const publicRoot=path.resolve('public');
 const mime={'.html':'text/html','.css':'text/css','.js':'text/javascript','.json':'application/json','.svg':'image/svg+xml','.webp':'image/webp','.png':'image/png','.ico':'image/x-icon'};
 const shells={'/data-core':'index','/data-core/':'index','/data-core/counseling':'index','/data-core/counseling/competitions':'index','/data-core/work':'index','/data-core/work/library':'index','/data-core/content/blog':'content','/data-core/content/instagram':'content','/data-core/accounts':'accounts','/data-core/operations':'operations','/data-core/readiness':'readiness','/data-core/kkumeum':'work/kkumeum','/data-core/login':'login','/data-core/roadmap':'roadmap'};
+for (const suffix of ['', '/content', '/design', '/content/basic', '/content/advanced', '/content/admission', '/design/basic']) shells['/data-core/curriculum' + suffix] = 'index';
 const server=http.createServer(async(req,res)=>{
   const u=new URL(req.url,'http://localhost');
   const file=path.resolve(publicRoot,'.'+decodeURIComponent(u.pathname));
@@ -22,7 +23,7 @@ const browser=await chromium.launch({headless:true,channel:'chrome'});
 const errors=[],consoleErrors=[],broken=[],mutations=[];let authenticated=true,checks=0;
 const hq=['class-artwork','director-only','resources','production'].map((key,i)=>({id:`synthetic-hq-${i}`,title:`Synthetic folder ${i}`,recordType:'hq-library-folder',sourceApp:'data-core-library',campusId:null,metadata:{folderKey:key,sortOrder:i+1}}));
 try{
- const context=await browser.newContext();
+ const context=await browser.newContext({serviceWorkers:'block'});
  await context.route('**/*',async route=>{
   const req=route.request(),u=new URL(req.url()),p=u.pathname;
   if(u.origin!==base)return route.abort();
@@ -37,7 +38,15 @@ try{
   if(req.method()==='POST'&&p.includes('/competition-sources/')&&p.endsWith('/preview'))return route.fulfill({json:{pages:[],items:[]}});
   if(req.method()!=='GET'){mutations.push(`${req.method()} ${p}`);return route.fulfill({status:403,json:{error:'Read-only synthetic fixture'}});}
   const auth=authenticated&&!req.headers().referer?.includes('/login');
+  if(p==='/api/family/auth/session')return route.fulfill({json:{authenticated:auth,displayName:'Synthetic guardian',mustChangePassword:false}});
+  if(p==='/api/family/children')return route.fulfill({json:{children:[{studentId:'synthetic-child',displayName:'Synthetic child',campusName:'Synthetic campus'}]}});
+  if(p.startsWith('/api/family/'))return route.fulfill({json:{reports:[],artworks:[],notices:[],unreadCount:0,configured:false,subscriptionReady:false}});
   if(p==='/api/data-core/context'||p==='/api/auth/session')return route.fulfill({json:{authenticated:auth,isSuperAdmin:auth,canWrite:auth,user:auth?{name:'Synthetic admin',displayName:'Synthetic admin',internalUserId:'local:synthetic'}:null,memberships:[]}});
+  if(p==='/api/auth/campuses')return route.fulfill({json:{summary:{total:10,online:2,today:4},campuses:Array.from({length:10},(_,i)=>({campusName:`Synthetic campus ${i+1}`,loginId:`synthetic-${i}`,accountId:`synthetic-${i}`,status:'active',online:i<2,lastLoginAt:'2026-09-13T00:00:00Z',lastSeenAt:'2026-09-13T00:05:00Z'})),recentLogins:[{campusName:'Synthetic campus 1',loginAt:'2026-09-13T00:00:00Z'}]}});
+  if(p==='/api/kkumeum/analytics/preview')return route.fulfill({json:{analytics:{activeStudentCount:0,reports:{completionRate:0,missing:0,draft:0,ready:0,sent:0},artworks:{count:0,averagePerActiveStudent:0},stageBreakdown:{suppressed:false,buckets:[]},growthSkills:{suppressed:false,buckets:[]},minimumCohortSize:5},syncEnabled:false}});
+  if(p==='/api/data-core/curriculum')return route.fulfill({json:{folders:[],lessons:[],totalFolders:0,totalPages:0}});
+  if(p==='/api/data-core/library/folders')return route.fulfill({json:{folder:{id:'root',title:'자료보관함',canWrite:true,canDelete:false},breadcrumbs:[{id:'root',title:'자료보관함'}],folders:Array.from({length:4},(_,i)=>({id:`synthetic-folder-${i}`,title:`Synthetic folder ${i+1}`,canWrite:true,canDelete:false}))}});
+  if(p==='/api/data-core/library/files')return route.fulfill({json:{files:[],hasMore:false}});
   if(p.endsWith('/health'))return route.fulfill({json:{ok:true,bindings:{database:true,files:true},status:{ok:true,database:true,files:true}}});
   if(p==='/api/data')return route.fulfill({json:{students:[],universities:[],cases:[],awardFolders:[],settings:{}}});
   if(p==='/api/kkumeum/dashboard')return route.fulfill({json:{dashboard:{students:0,classes:0,yearMonth:'2026-09',reports:{missing:0,draft:0,ready:0,sent:0},artworks:0,guardians:{linked:0}}}});
@@ -51,7 +60,7 @@ try{
  page.on('console',m=>{if(m.type()==='error')consoleErrors.push(m.text());});
  page.on('response',r=>{if(r.status()>=400&&!new URL(r.url()).pathname.startsWith('/api/'))broken.push(new URL(r.url()).pathname);});
  const routes=[...Object.keys(shells).filter(p=>p!=='/data-core/'),'/admissions-web/renderer/index.html','/admissions-web/renderer/index.html#page=susi','/admissions-web/renderer/index.html#page=jungsi'];
- for(const width of [1920,1440,1024,820,390,320]){
+ for(const width of [1920,1440,1280,1024,768,390,320]){
   await page.setViewportSize({width,height:1000});
   for(const route of routes){
    console.log(`visual ${width} ${route}`);
@@ -60,11 +69,17 @@ try{
    assert.equal(detail.overflow,false,`${width} ${route} ${JSON.stringify(detail.offenders)}`);
    const clipped=await page.locator('button:visible').evaluateAll(nodes=>nodes.filter(e=>e.scrollWidth>e.clientWidth+2||e.scrollHeight>e.clientHeight+2).map(e=>e.id||e.className));
    assert.deepEqual(clipped,[],`${width} ${route} clipped buttons`);
+   assert.doesNotMatch(await page.locator('body').innerText(),/Cannot read properties|TypeError|ReferenceError/);
+   if(route==='/data-core/accounts')assert.equal(await page.locator('.presence-item').count(),10);
+   if(route==='/admissions-web/renderer/index.html'){
+    for(const label of await page.locator('.summary-metrics b').all())assert.ok(await label.evaluate(e=>e.clientWidth>=80),'Admission metric labels retain readable width');
+    checks+=4;
+   }
    const visibleImages=page.locator('img:visible');
    for(const img of await visibleImages.all())await img.evaluate(i=>i.decode());
    if(route!=='/data-core/login'){
     assert.equal(await page.locator('link[href*="design-system.css"]').count(),1);
-    const background=route==='/data-core/counseling'?'rgb(248, 248, 245)':route==='/data-core/accounts'?'rgb(27, 28, 28)':'rgb(246, 247, 245)';
+    const background='rgb(248, 248, 245)';
     assert.equal(await page.locator('body').evaluate(e=>getComputedStyle(e).backgroundColor),background);
    }
    const toggle=page.locator('.core-menu-toggle');
@@ -88,7 +103,7 @@ try{
     assert.equal(await modal.evaluate(e=>e.scrollWidth>e.clientWidth+1),false);
     await page.keyboard.press('Escape');assert.equal(await page.locator('dialog[open]').count(),0);checks+=2;
    }
-   if([1440,820,390].includes(width))await page.screenshot({path:`${out}/${width}-${route.replace(/[^a-z0-9]/gi,'-')}.png`,fullPage:true});
+   if([1440,1024,768,390].includes(width))await page.screenshot({path:`${out}/${width}-${route.replace(/[^a-z0-9]/gi,'-')}.png`,fullPage:true});
    checks+=4;
   }
   for(const family of ['story','design']){
@@ -96,7 +111,7 @@ try{
    await page.goto(base+`/data-core/roadmap#family=${family}`);await page.locator('.dream-card').first().waitFor();
    for(const img of await page.locator('.dream-card img').all())await img.evaluate(i=>{i.loading='eager';return i.decode();});
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
-   if([1440,820,390].includes(width))await page.screenshot({path:`${out}/${width}-jobs-${family}.png`,fullPage:true});
+   if([1440,1024,768,390].includes(width))await page.screenshot({path:`${out}/${width}-jobs-${family}.png`,fullPage:true});
    await page.locator('.dream-card').first().click();await page.locator('#roadmapResult:not([hidden])').waitFor();
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
    await page.goBack();await page.locator('.dream-card').first().waitFor();checks+=4;
@@ -110,11 +125,28 @@ try{
  assert.equal(await page.locator('#coreNavigation').evaluate(e=>e.open),false);
  await page.setViewportSize({width:1440,height:1000});await page.locator('.app-shell > .sidebar').waitFor();
  await page.locator('.sidebar [data-view=counseling-home]').click();await page.waitForURL('**/data-core/counseling');checks+=4;
+ for(const width of [1920,1440,1280,1024,768,390,320]){
+  await page.setViewportSize({width,height:1000});
+  await page.goto(base+'/family/index.html');await page.locator('#familyView:visible').waitFor();
+  await page.locator('#homeChildName').getByText('Synthetic child',{exact:true}).waitFor();
+  assert.equal(await page.locator('#latestArtworks > .empty-inline').evaluate(e=>getComputedStyle(e).gridColumn),'1 / -1');
+  assert.equal(await page.locator('#guardianName').evaluate(e=>getComputedStyle(e.parentElement).wordBreak),'keep-all');
+  checks+=2;
+  for(const button of await page.locator('#bottomNav button').all()){
+   await button.click();
+   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
+   assert.equal(await page.locator('body').evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(248, 248, 245)');
+   checks+=2;
+  }
+  await page.locator('#bottomNav button').first().click();
+  if([1440,1024,390].includes(width))await page.screenshot({path:`${out}/${width}-family.png`,fullPage:true});
+ }
  authenticated=false;
+ await page.goto(base+'/family/index.html');await page.locator('#loginView:visible').waitFor();checks++;
  for(const route of ['/data-core','/data-core/counseling','/data-core/roadmap','/data-core/login']){
   await page.goto(base+route);await page.waitForLoadState('networkidle');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);checks++;
  }
  assert.deepEqual(errors,[]);assert.deepEqual(consoleErrors,[]);assert.deepEqual(broken,[]);assert.deepEqual(mutations,[]);
- const report={checks,viewports:[1920,1440,1024,820,390,320],pageErrors:errors,consoleErrors,brokenAssets:broken,mutations,syntheticOnly:true,assetsOrigin:base,protectedShells:'checked-out HTML, mocked APIs; no production data'};
+ const report={checks,viewports:[1920,1440,1280,1024,768,390,320],pageErrors:errors,consoleErrors,brokenAssets:broken,mutations,syntheticOnly:true,assetsOrigin:base,protectedShells:'checked-out HTML, mocked APIs; no production data'};
  await fs.writeFile(`${out}/results.json`,JSON.stringify(report,null,2));console.log(JSON.stringify(report));
 }catch(error){console.error(error.message);throw error;}finally{await browser.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));}

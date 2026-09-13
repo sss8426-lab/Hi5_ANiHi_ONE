@@ -13,7 +13,7 @@ const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const slugFor = id => {
   const concept = occupationImageConcepts.find(item => item.occupationId === id);
   if (!concept) throw Error(`Unknown occupation ${id}`);
-  return path.posix.basename(concept.asset, '.webp');
+  return concept.slug;
 };
 
 export async function buildVisuals() {
