@@ -48,8 +48,8 @@ const server = createServer(async (req, res) => {
       const response = await fetch(preview + path);
       assert.equal(response.status, 200, path);
       const remote = Buffer.from(await response.arrayBuffer());
-      if (path.startsWith('/data-core/accounts')) {
-        // The deployed master shell and its assets intentionally serve login to anonymous requests.
+      if (path === '/data-core/accounts.html') {
+        // The deployed master HTML shell intentionally serves login to anonymous requests.
         assert.match(remote.toString('utf8'), /<title>DATA CORE 로그인<\/title>/);
         assert.doesNotMatch(remote.toString('utf8'), /id="accountsBody"/);
         protectedAssets.add(path);
