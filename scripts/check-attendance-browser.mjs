@@ -14,12 +14,23 @@ const server=http.createServer(async(req,res)=>{try{let p=new URL(req.url,'http:
 await new Promise(r=>server.listen(0,'127.0.0.1',r));
 const base=process.env.ATTENDANCE_ORIGIN||`http://127.0.0.1:${server.address().port}`;
 assert.match(base,/^https?:\/\/(?:127\.0\.0\.1:\d+|[a-z0-9.-]+\.workers\.dev)$/);
+let previewShell=null;
+if(process.env.ATTENDANCE_ORIGIN){
+  for(const asset of ['data-core/work/kkumeum.html','data-core/work/kkumeum-mobile.js','data-core/work/attendance.js','data-core/work/attendance-template.js','data-core/work/attendance.css','data-core/vendor/fflate-0.8.3.js']){
+    const response=await fetch(`${base}/${asset}`);assert.equal(response.status,200,asset);
+    const deployed=await response.text();assert.equal(deployed.replace(/\r\n/g,'\n'),(await fs.readFile(path.join(root,asset),'utf8')).replace(/\r\n/g,'\n'),asset);
+    if(asset.endsWith('.html'))previewShell=deployed;
+  }
+}
 const browser=await chromium.launch({channel:'chrome',headless:true});
 const errors=[],requests=[],checks=[];let role='CAMPUS_ADMIN';
 try {
   const context=await browser.newContext({serviceWorkers:'block'});
   await context.route('**/*',r=>{
     const req=r.request(),u=new URL(req.url());if(u.origin!==base)return r.abort();
+    // The staff route requires a real server session. Use its verified deployed shell
+    // with synthetic context, never a production login or a forged server cookie.
+    if(previewShell&&req.isNavigationRequest()&&u.pathname==='/data-core/kkumeum')return r.fulfill({contentType:'text/html',body:previewShell});
     if(!u.pathname.startsWith('/api/'))return r.continue();
     requests.push({path:u.pathname,method:req.method()});
     if(req.method()!=='GET')return r.fulfill({status:403,json:{error:'Synthetic test forbids writes'}});
@@ -67,5 +78,5 @@ try {
     checks.push({pdf:id,pages:result.plan.pages.length});await printed.close();
   }
   assert.equal(requests.some(r=>r.method!=='GET'),false);assert.deepEqual(errors,[]);
-  const result={base,checks,errors,mutations:0,realStudentData:false};await fs.writeFile(path.join(out,'results.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result));
+  const result={base,checks,errors,mutations:0,realStudentData:false,authentication:'synthetic context; not a live account login'};await fs.writeFile(path.join(out,'results.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result));
 }finally{await browser.close();await new Promise(r=>server.close(r));}
