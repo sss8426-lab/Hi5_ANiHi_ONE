@@ -2,12 +2,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import http from 'node:http';
+import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { encode, decode } from 'fast-png';
 import { libraryHarness, users, A } from '../tests/support/library-harness.mjs';
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE?pathToFileURL(process.env.PLAYWRIGHT_MODULE).href:'playwright');
 const previewOrigin=process.argv.includes('--preview')?new URL(process.argv[process.argv.indexOf('--preview')+1]).origin:null;
-const checked=new Set();
+const checked=new Set(),assetErrors=[];
 const root=path.resolve('public'), out=path.resolve('outputs/content-ai-browser'+(previewOrigin?'-preview':''));
 await fs.mkdir(out,{recursive:true});
 const h=await libraryHarness(), originalFetch=globalThis.fetch;
@@ -44,11 +45,12 @@ const server=http.createServer(async(req,res)=>{
     if(previewOrigin&&!checked.has(pathname)) {
       const remote=await originalFetch(previewOrigin+pathname);
       assert.equal(remote.status,200,pathname);
-      assert.deepEqual(Buffer.from(await remote.arrayBuffer()),bytes,'deployed asset mismatch '+pathname);
+      const hash=value=>createHash('sha256').update(/\.(html|js|css|svg|json)$/.test(pathname)?value.toString('utf8').replace(/\r\n/g,'\n'):value).digest('hex');
+      assert.equal(hash(Buffer.from(await remote.arrayBuffer())),hash(bytes),'deployed asset mismatch '+pathname);
       checked.add(pathname);
     }
     res.writeHead(200,{'content-type':types[path.extname(file)]||'application/octet-stream'}).end(bytes);
-  }catch(error){if(previewOrigin)console.error(error.message);res.writeHead(404).end();}
+  }catch(error){if(previewOrigin&&error.code!=='ENOENT'){assetErrors.push(pathname);console.error('Deployed asset check failed:',pathname);}res.writeHead(404).end();}
 });
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 const origin='http://127.0.0.1:'+server.address().port;
@@ -126,6 +128,7 @@ try {
   await page.locator('#manualWork summary').click();await page.locator('#manualDraft').click();
   assert.equal(await page.locator('#draftContent').isVisible(),true);
   assert.deepEqual(errors,[]);
+  assert.deepEqual(assetErrors,[]);
   await fs.writeFile(path.join(out,'result.json'),JSON.stringify({scope:'isolated synthetic adapter, NOT live OpenAI',previewOrigin,verifiedAssets:checked.size,widths:[1920,1440,1280,1024,768,390,320],textCalls,imageCalls,errors},null,2));
   console.log('PASS: synthetic browser workflow; no production writes or live provider requests');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));globalThis.fetch=originalFetch;await h.mf.dispose();}
