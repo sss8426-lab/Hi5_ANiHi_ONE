@@ -4,7 +4,9 @@
 
 - 기준 `origin/main`: `2efc64d0f816d3625999401b50e29214bb0a3efa` (#208).
 - 해당 main에는 출석부 자동생성 코드가 없고 꿈이음 출석 메뉴는 미연결 상태였다.
-- 기존 꿈이음 `/data-core/kkumeum?view=attendance`에 월 변경 도구를 연결한다. 새 출석 기록 DB/API나 독립 파일 저장소를 만들지 않는다.
+- **업무홈 → 꿈이음 바로 아래 출석부**에서 `/data-core/work/attendance` 독립 업무 화면을 연다. 왼쪽 업무 메뉴에서도 꿈이음 바로 다음에 출석부를 배치한다. 꿈이음 모바일 프레임에는 도구를 삽입하지 않는다.
+- 기존 `/data-core/kkumeum?view=attendance` 링크와 출석체크 바로가기는 독립 업무 화면으로 이동한다. 새 출석 기록 DB/API나 독립 파일 저장소를 만들지 않는다.
+- 기존 DATA CORE 로그인/context/campuses와 업무 화면 shell을 재사용한다. 관리자·교사 사용 범위를 유지하며 캠퍼스 변경/화면 이동 시 메모리의 Excel 작업을 해제한다.
 - 학생 명단의 원본은 사용자가 선택한 XLSX다. 서버 학생/캠퍼스 자료를 자동 수정하지 않으며 새 문서를 DATA CORE에 자동 업로드하지 않는다.
 - 파일은 현재 브라우저 메모리에서만 읽고 별도 XLSX로 다운로드한다. 탭/캠퍼스를 바꾸거나 화면을 떠나면 작업 내용을 폐기한다. localStorage/IndexedDB/AI/원격 변환 서비스에 파일을 보내지 않는다.
 - 기존 관리자/교사 역할 판정으로 진입한다. 서버 API/인증/권한 변경은 없다. 로컬 변환용 정적 JS 자체는 권한 보안 경계가 아니며 서버 자료를 읽거나 쓰지 않는다.
@@ -78,10 +80,15 @@ node scripts/check-kkumeum-mobile-browser.mjs
 
 Playwright를 따로 설치하지 않는 환경은 기존 `PLAYWRIGHT_MODULE`을 지정한다. `ATTENDANCE_ORIGIN`/`KK_VISUAL_ORIGIN`으로 Preview 자산을 검사할 수 있다. 이 경우도 모든 API는 합성 응답으로 격리하며 production 로그인 검증으로 표현하지 않는다. 전체 build/typecheck/test/CI/Preview/운영 배포 증거는 PR 최종 코멘트에서 확정한다.
 
+## 위치 이동 검증
+
+1920/1440/1280/1024/768/390/320에서 업무홈 진입, 꿈이음 다음 메뉴 순서, 독립 화면/active 표시, Excel 생성·다운로드, 화면 맞춤·실제 크기를 확인했다. 기존 주소 이동, 뒤로가기, 새로고침, MASTER 캠퍼스 전환 시 작업 해제, 관리자/교사 사용과 STAFF/미로그인 제한도 합성 context로 검사했다. 실제 운영 로그인이나 물리 프린터 검증으로 간주하지 않는다. 꿈이음 9개 폭 회귀 검사 807개와 공통 화면 회귀 검사 1,444개도 통과했다. 배포 증거는 해당 PR에서 별도로 기록한다.
+
 ## 주요 파일/참고
 
 - `public/data-core/work/attendance-template.js`: 원본 OOXML 복사/달력/스타일/print adapter.
-- `public/data-core/work/attendance.js`, `attendance.css`: 꿈이음 내 로컬 UI.
+- `public/data-core/work/attendance-page.js`: 독립 업무 화면 및 접근 가능한 캠퍼스 선택 adapter.
+- `public/data-core/work/attendance.js`, `attendance.css`: 원본 양식 기반 로컬 UI. Excel 처리 엔진 변경 없음.
 - `tests/helpers/attendance-fixture.mjs`, `tests/attendance-template.test.mjs`: 실제 개인정보 없는 워크북 fixture 및 계약.
 - `scripts/check-attendance-browser.mjs`: 실제 브라우저/다운로드/PDF 검사.
 - ZIP: 기존 lockfile의 [fflate](https://github.com/101arrowz/fflate) ESM/MIT 재사용. Node XML 테스트만 [xmldom](https://github.com/xmldom/xmldom) 사용.

@@ -7,7 +7,6 @@
   const labels = ['아이소식','반소식','전체공지','선택전달'];
   const state = { context:null, campusId:'', campuses:[], classes:[], students:[], notices:[], selected:new Set(), expanded:new Set(), q:'', sort:'name', loading:true, error:'', version:0, composer:null, busy:false };
   const content = $('kmContent');
-  let attendanceCleanup = null, renderEpoch = 0;
   const name = item => item.display_name || item.displayName || item.name || '';
   const date = value => value ? new Date(value).toLocaleDateString('ko-KR',{timeZone:'Asia/Seoul'}) : '';
   const roles = () => (state.context?.memberships || []).filter(m=>m.campusId===state.campusId).map(m=>m.role);
@@ -158,18 +157,11 @@
     content.innerHTML=`<button type="button" class="km-back" data-back>${icon('ArrowLeft')}소식으로 돌아가기</button><h2>${h(title)}</h2>${body}`;
   }
   function render() {
-    attendanceCleanup?.();attendanceCleanup=null;const epoch=++renderEpoch;
+    if(route().view==='attendance') { location.replace('/data-core/work/attendance'); return; }
     renderNav();content.hidden=false;$('kmLegacy').hidden=true;
     if(state.loading){content.innerHTML=empty('불러오는 중...');return;}
     if(state.error){content.innerHTML=empty(state.error)+'<button type="button" class="km-primary" data-retry>다시 시도</button>';return;}
     const {view,id}=route();
-    if(view==='attendance'){
-      if(!writer()){content.innerHTML=empty('출석부 생성은 캠퍼스 관리자와 교사만 사용할 수 있습니다.');return;}
-      content.innerHTML=empty('불러오는 중...');
-      import('./attendance.js?v=20260914').then(({mountAttendance})=>{
-        if(epoch===renderEpoch)attendanceCleanup=mountAttendance(content,{campusName:state.campuses.find(c=>c.id===state.campusId)?.name||''});
-      }).catch(()=>{if(epoch===renderEpoch)content.innerHTML=empty('출석부 도구를 불러오지 못했습니다. 다시 시도해주세요.')+'<button type="button" data-retry>다시 시도</button>';});return;
-    }
     if(['members','student','analytics'].includes(view)){if(view!=='student'&&!manager()){content.innerHTML=empty('관리 권한이 없습니다.');return;}void showLegacy(view,id);return;}
     if(view==='notice'){void detail(id);return;}
     if(view==='calendar'){void calendar();return;}

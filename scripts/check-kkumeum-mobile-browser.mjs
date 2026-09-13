@@ -29,6 +29,7 @@ let notices=[{id:'notice-a',campusId:'campus-a',announcementType:'campus-news',t
   const req=r.request(),u=new URL(req.url()),p=u.pathname;
   if(u.origin!==base)return r.abort();
   if(req.isNavigationRequest()&&p==='/data-core/kkumeum')return r.fulfill({contentType:'text/html',body:await fs.readFile(path.join(root,'data-core/work/kkumeum.html'),'utf8')});
+  if(req.isNavigationRequest()&&p==='/data-core/work/attendance')return r.fulfill({contentType:'text/html',body:'<main>출석부 독립 업무 화면 (별도 attendance browser 검사)</main>'});
   if(!p.startsWith('/api/'))return r.continue();
   const reply=(json,status=200)=>r.fulfill({json,status});
   if(p.startsWith('/api/synthetic-gallery/'))return r.fulfill({contentType:'image/webp',body:image});
@@ -75,7 +76,7 @@ let notices=[{id:'notice-a',campusId:'campus-a',announcementType:'campus-news',t
   await page.locator('[data-menu=news]').click();if(await page.locator('[data-expand=class-a]').getAttribute('aria-expanded')==='false')await page.locator('[data-expand=class-a]').click();await page.locator('[data-student=student-a]').click();await page.locator('#kkReportForm:visible').waitFor();await geometry(width);
   await page.locator('[data-kk-artwork]').first().click();await page.waitForFunction(()=>document.querySelector('.cig-feedback')?.hidden&&document.querySelector('.cig-image')?.naturalWidth);await page.locator('[data-cig-next]').click();assert.equal(await page.locator('.cig-counter').textContent(),'2 / 3');await page.keyboard.press('Escape');
   await page.locator('#kmLegacyBack').click();
-  await page.locator('[data-menu=attendance]').click();await page.locator('#atFile').waitFor();
+  await page.locator('[data-menu=attendance]').click();await page.waitForURL('**/data-core/work/attendance');assert.equal(await page.locator('#kkMobileApp').count(),0);await page.goBack();await page.locator('#kmGroups').waitFor();
   for(const menu of ['answers','inquiries']){await page.locator(`[data-menu=${menu}]`).click();await page.getByText(/아직 전용 API가 구현되지 않았습니다/).waitFor();}
   await page.locator('[data-menu=more]').click();await page.locator('#kmMoreClose').click();assert.equal(await page.locator('#kmMore').evaluate(e=>e.open),false);checks+=10;
  }
