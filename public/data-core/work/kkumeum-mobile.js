@@ -150,9 +150,10 @@
   function auxiliary(view) {
     const titles={attendance:'출석체크',answers:'답변모음',inquiries:'문의모음',help:'도움말',suggest:'비트에게 건의/문의',consents:'신청/동의서',payments:'수납관리',teachers:'선생님 관리',settings:'설정'};
     const title=titles[view]||'더보기';
-    let body=empty(`${title}은 아직 연결된 운영 기능이 없습니다.`);
+    let body=empty(`${title}은 아직 전용 API가 구현되지 않았습니다. 기존 학생·반·작품 API 연결 문제와는 별개입니다.`);
     if(view==='help')body='<p class="km-detail-body">아이소식에서 반과 학생을 선택하면 작품과 월간 평가를 볼 수 있습니다. 소식은 임시저장 후 내용을 확인하고 발행하세요. 보호자는 기존 꿈이음 보호자 로그인에서 연결된 자녀의 기록만 확인합니다.</p>';
     if(view==='settings')body=`<p class="km-detail-body">${h(state.campuses.find(c=>c.id===state.campusId)?.name||'')}<br>${manager()?'관리자':'교직원'}</p><button type="button" class="km-tool-link" data-view="analytics">${icon('BookOpen')}성장 통계</button><button type="button" class="km-tool-link" data-view="members">${icon('Users')}학생 · 보호자 연결</button>`;
+    if(view==='settings'&&state.context?.isSuperAdmin)body+='<a class="km-tool-link" href="/data-core/accounts">캠퍼스 계정 · 접속 현황 관리</a>';
     content.innerHTML=`<button type="button" class="km-back" data-back>${icon('ArrowLeft')}소식으로 돌아가기</button><h2>${h(title)}</h2>${body}`;
   }
   function render() {
@@ -186,7 +187,7 @@
       if(version!==state.version)return;
       state.classes=classes.classes||[];state.students=students.students||[];state.notices=(notices.announcements||[]).filter(n=>!n.campusId||n.campusId===state.campusId);
       const old=window.KkumeumStaff;if(old){old.state.campusId=state.campusId;old.state.classes=state.classes;old.state.students=state.students;}
-    }catch(error){if(version===state.version){state.error=error.status===401?'로그인이 필요합니다.':'데이터를 불러오지 못했습니다. 다시 시도해주세요.';state.classes=[];state.students=[];state.notices=[];}}
+    }catch(error){if(version===state.version){state.error=error.status===401?'로그인이 필요합니다. 다시 로그인해주세요.':error.status===403?error.message:error.status===503?'꿈이음 저장소 연결을 확인해주세요. 관리자는 FAMILY_DB와 FAMILY_FILES 연결 상태를 확인해야 합니다.':'데이터를 불러오지 못했습니다. 다시 시도해주세요.';state.classes=[];state.students=[];state.notices=[];}}
     finally{if(version===state.version){state.loading=false;render();}}
   }
   $('kmCampus').onchange=async e=>{if(state.busy){e.target.value=state.campusId;return;}if(state.composer?.dirty&&!confirm('저장하지 않은 내용을 닫을까요?')){e.target.value=state.campusId;return;}state.composer=null;state.campusId=e.target.value;state.expanded.clear();go(route().tab,'','',true);await load();};
@@ -225,6 +226,7 @@
   function legacyHash(){const key=location.hash.slice(1);if(Object.hasOwn(hashes,key))go(key==='kkAnnouncements'?'notices':'kids-news',hashes[key],'',true);}
   window.addEventListener('hashchange',legacyHash);
   window.addEventListener('kkumeum:ready',()=>{if(['members','student','analytics'].includes(route().view))render();});
+  window.addEventListener('kkumeum:student-transferred',()=>{go('kids-news','','',true);void load();});
   window.addEventListener('kkumeum:select-student',e=>{if(route().view==='members')go('kids-news','student',e.detail.studentId);});
   legacyHash();void load();
 })();

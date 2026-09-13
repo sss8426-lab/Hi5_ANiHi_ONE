@@ -10,7 +10,7 @@ function text(value: unknown, maximum = 160): string {
 function manager(context: DataCoreAccessContext, campusId: string): void {
   requireAuthenticatedAccess(context);
   if (context.isSuperAdmin) return;
-  if (context.memberships.some((membership) => membership.campusId === campusId && membership.role === "CAMPUS_DIRECTOR")) return;
+  if (context.memberships.some((membership) => membership.campusId === campusId && ['CAMPUS_DIRECTOR', 'CAMPUS_ADMIN'].includes(membership.role))) return;
   throw new DataCoreAccessError(403, "보호자 연결 정보는 최고관리자 또는 해당 캠퍼스 원장만 관리할 수 있습니다.");
 }
 
@@ -18,7 +18,14 @@ async function studentInCampus(familyDb: D1Database, campusId: string, studentId
   const student = await familyDb.prepare(
     "SELECT id FROM family_students WHERE id = ? AND campus_id = ? LIMIT 1",
   ).bind(studentId, campusId).first<{ id: string }>();
-  if (!student) throw new DataCoreAccessError(404, "해당 캠퍼스의 학생을 찾을 수 없습니다.");
+  if (!student) throw new DataCoreAccessError(403, "이 학생의 보호자 정보를 관리할 권한이 없습니다.");
+}
+
+async function requireGuardianAccountScope(db: D1Database, context: DataCoreAccessContext, campusId: string, guardianId: string) {
+  if (context.isSuperAdmin) return;
+  const outside = await db.prepare(`SELECT 1 FROM student_guardians sg JOIN family_students s ON s.id = sg.student_id
+    WHERE sg.guardian_id = ? AND s.campus_id != ? LIMIT 1`).bind(guardianId, campusId).first();
+  if (outside) throw new DataCoreAccessError(403, '여러 캠퍼스에 연결된 보호자의 계정 변경은 마스터 관리자만 할 수 있습니다.');
 }
 
 async function audit(
@@ -55,12 +62,14 @@ export async function listKkumeumGuardians(
   await studentInCampus(familyDb, campusId, studentId);
   const result = await familyDb.prepare(
     `SELECT g.id, g.login_id, g.display_name, g.status, g.must_change_password,
-            sg.relationship_label, sg.can_view_reports, sg.can_view_photos, sg.created_at
+            sg.relationship_label, sg.can_view_reports, sg.can_view_photos, sg.created_at,
+            EXISTS (SELECT 1 FROM student_guardians other_link JOIN family_students other_student ON other_student.id = other_link.student_id
+              WHERE other_link.guardian_id = g.id AND other_student.campus_id != ?) AS shared_campus
      FROM student_guardians sg
      JOIN family_guardians g ON g.id = sg.guardian_id
      WHERE sg.student_id = ?
      ORDER BY sg.created_at ASC`,
-  ).bind(studentId).all();
+  ).bind(campusId, studentId).all();
   return (result.results || []).map((row) => ({
     id: row.id,
     loginId: row.login_id,
@@ -71,6 +80,7 @@ export async function listKkumeumGuardians(
     canViewReports: Boolean(row.can_view_reports),
     canViewPhotos: Boolean(row.can_view_photos),
     linkedAt: row.created_at,
+    canManageAccount: context.isSuperAdmin || !row.shared_campus,
   }));
 }
 
@@ -134,6 +144,7 @@ export async function updateKkumeumGuardianLink(
   if (!link) throw new DataCoreAccessError(404, "보호자 연결을 찾을 수 없습니다.");
   const status = input.status === undefined ? null : text(input.status, 20);
   if (status && !["active", "disabled"].includes(status)) throw new DataCoreAccessError(400, "보호자 상태값이 올바르지 않습니다.");
+  if (status) await requireGuardianAccountScope(familyDb, context, campusId, guardianId);
   const statements: D1PreparedStatement[] = [
     familyDb.prepare(
       `UPDATE student_guardians SET relationship_label = ?, can_view_reports = ?, can_view_photos = ?
@@ -173,6 +184,7 @@ export async function resetKkumeumGuardianPassword(
   const linked = await familyDb.prepare("SELECT guardian_id FROM student_guardians WHERE guardian_id = ? AND student_id = ?").bind(guardianId, studentId).first();
   if (!linked) throw new DataCoreAccessError(404, "보호자 연결을 찾을 수 없습니다.");
   const password = temporaryPassword();
+  await requireGuardianAccountScope(familyDb, context, campusId, guardianId);
   const record = await createKkumeumGuardianPasswordRecord(password);
   await familyDb.batch([
     familyDb.prepare(
@@ -198,6 +210,7 @@ export async function revokeKkumeumGuardianSessions(
   await studentInCampus(familyDb, campusId, studentId);
   const linked = await familyDb.prepare("SELECT guardian_id FROM student_guardians WHERE guardian_id = ? AND student_id = ?").bind(guardianId, studentId).first();
   if (!linked) throw new DataCoreAccessError(404, "보호자 연결을 찾을 수 없습니다.");
+  await requireGuardianAccountScope(familyDb, context, campusId, guardianId);
   await familyDb.prepare("UPDATE guardian_sessions SET revoked_at = ? WHERE guardian_id = ? AND revoked_at IS NULL")
     .bind(new Date().toISOString(), guardianId).run();
   await revokeGuardianPushSubscriptions(familyDb, guardianId);

@@ -73,13 +73,17 @@ body.kk-mobile { margin: 0; background: var(--core-bg, #f8f8f5); color: #273b3b;
 .kk-mobile #kmLegacyMount .kk-main > .km-tool-active:not([hidden]) { display: block !important; }
 .kk-mobile #kmLegacyMount .kk-panel, .kk-mobile #kmLegacyMount .kk-grid { border: 0 !important; padding: 0 !important; margin: 16px 0 !important; background: #fff !important; box-shadow: none !important; }
 .kk-mobile #kmLegacyMount .kk-grid .kk-flow { display: none; }
-.kk-mobile #kmLegacyMount :is(.kk-toolbar,.kk-class-grid,.kk-student-list,.kk-artwork-grid,.kk-report-form,.kk-growth-skill-groups,.kk-status-grid,.kk-announcement-layout) { display: grid !important; grid-template-columns: minmax(0,1fr) !important; width: 100%; }
+.kk-mobile #kmLegacyMount .km-tool-active:is(.kk-toolbar,.kk-class-grid,.kk-student-list,.kk-artwork-grid,.kk-report-form,.kk-growth-skill-groups,.kk-status-grid,.kk-announcement-layout),
+.kk-mobile #kmLegacyMount .km-tool-active :is(.kk-toolbar,.kk-class-grid,.kk-student-list,.kk-artwork-grid,.kk-report-form,.kk-growth-skill-groups,.kk-status-grid,.kk-announcement-layout) { display: grid !important; grid-template-columns: minmax(0,1fr) !important; width: 100%; }
 .kk-mobile #kmLegacyMount :is(input,select,textarea) { min-width: 0; width: 100%; }
 .kk-mobile #kmLegacyMount :is(.kk-panel-head,.kk-operation-head,.kk-month-row,.kk-guardian-row,.kk-report-actions,.kk-announcement-actions) { flex-wrap: wrap; }
 .kk-mobile #kmLegacyMount .kk-panel-head h3 { font-size: 18px; }
 .kk-mobile #kmLegacyMount .kk-panel-head span { display: none; }
 .kk-mobile #kmLegacyMount .kk-artwork-card img { width: 100%; object-fit: contain; max-height: 400px; }
 .kk-mobile .kk-dialog { width: min(440px, calc(100vw - 24px)); max-width: calc(100vw - 24px); max-height: 90dvh; overflow: auto; }
+.kk-mobile .kk-dialog label:has(> input[type="checkbox"]) { display: flex; align-items: center; gap: 10px; line-height: 1.6; }
+.kk-mobile .kk-dialog input[type="checkbox"] { width: 20px; height: 20px; flex: 0 0 20px; margin: 0; }
+.kk-mobile #kmLegacyMount [hidden] { display: none !important; }
 .kk-mobile #kmLegacyMount .kk-delivery-history { overflow-x: auto; }
 @keyframes km-in { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .km-more[open] { animation: none; } }

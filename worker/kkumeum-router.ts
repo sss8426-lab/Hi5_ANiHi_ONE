@@ -1,3 +1,4 @@
+import { transferKkumeumStudent, listKkumeumTransfers } from './kkumeum-transfer';
 import {
   DataCoreAccessContext,
   DataCoreAccessError,
@@ -479,6 +480,17 @@ export async function handleKkumeumApi(
       );
     }
     return respond({ error: "지원하지 않는 꿈이음 학생 요청입니다." }, { status: 405 });
+  }
+
+  const transferMatch = url.pathname.match(/^\/api\/kkumeum\/students\/([^/]+)\/transfer$/);
+  if (transferMatch) {
+    const studentId = decodeURIComponent(transferMatch[1]);
+    if (request.method === 'GET') return respond({ transfers: await listKkumeumTransfers(familyDb, context, studentId) });
+    if (request.method === 'POST') {
+      assertSameOrigin(request);
+      return respond({ transfer: await transferKkumeumStudent(familyDb, context, studentId, await readJson(request)) });
+    }
+    return respond({ error: '지원하지 않는 캠퍼스 이동 요청입니다.' }, {status:405});
   }
 
   const moveMatch = url.pathname.match(/^\/api\/kkumeum\/students\/([^/]+)\/move-class$/);

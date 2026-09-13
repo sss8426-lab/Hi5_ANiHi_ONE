@@ -15,12 +15,12 @@ const browser=await chromium.launch({headless:true,channel:'chrome'});
 const errors=[],badAssets=[],writes=[];let checks=0,role='MASTER',fail=false;
 try{
 if(process.env.KK_VISUAL_ORIGIN){
- for(const file of ['data-core/work/kkumeum.html','data-core/work/kkumeum-mobile.js','family/kkumeum-mobile.css','family/index.html','family/family-mobile.js','family/family-mobile.css','family/sw.js']){
+ for(const file of ['data-core/work/kkumeum.html','data-core/work/kkumeum.js','data-core/work/kkumeum-operations.js','data-core/work/kkumeum-mobile.js','family/kkumeum-mobile.css','family/index.html','family/family-mobile.js','family/family-mobile.css','family/sw.js']){
   const remote=await fetch(`${base}/${file}`);assert.equal(remote.status,200,file);assert.equal((await remote.text()).replace(/\r\n/g,'\n'),(await fs.readFile(path.join(root,file),'utf8')).replace(/\r\n/g,'\n'),`Deployed asset ${file}`);
  }
 }
 const classes=[{id:'class-a',name:'SYNTHETIC 기초반',updated_at:'2026-09-10'},{id:'class-b',name:'SYNTHETIC 심화반',updated_at:'2026-09-12'}];
-const students=[{id:'student-a',name:'SYNTHETIC 학생 A',current_class_id:'class-a',status:'active'},{id:'student-b',name:'SYNTHETIC 학생 B',current_class_id:'class-a',status:'active'}];
+const students=[{id:'student-a',name:'SYNTHETIC 학생 A',current_class_id:'class-a',status:'active',updated_at:'2026-09-13T00:00:00.000Z'},{id:'student-b',name:'SYNTHETIC 학생 B',current_class_id:'class-a',status:'active'}];
 let notices=[{id:'notice-a',campusId:'campus-a',announcementType:'campus-news',title:'SYNTHETIC 공지 제목',body:'합성 공지 본문입니다.',status:'draft',readCount:0,createdAt:'2026-09-13',targets:[{targetType:'campus',targetId:'campus-a'}]},{id:'class-notice',campusId:'campus-a',announcementType:'class-news',title:'SYNTHETIC 반소식',body:'합성 반소식',status:'published',readCount:2,createdAt:'2026-09-12',targets:[{targetType:'class',targetId:'class-a'}]}];
  const context=await browser.newContext({serviceWorkers:'block'});
  await context.route('**/*',async r=>{
@@ -30,11 +30,12 @@ let notices=[{id:'notice-a',campusId:'campus-a',announcementType:'campus-news',t
   if(!p.startsWith('/api/'))return r.continue();
   const reply=(json,status=200)=>r.fulfill({json,status});
   if(p==='/api/data-core/context')return reply({authenticated:true,isSuperAdmin:role==='MASTER',canWrite:true,user:{displayName:'SYNTHETIC',internalUserId:'synthetic-actor'},campusIds:['campus-a'],memberships:role==='MASTER'?[]:[{role,campusId:'campus-a'}]});
-  if(p==='/api/data-core/campuses')return reply({campuses:[{id:'campus-a',name:'SYNTHETIC 캠퍼스'}]});
+  if(p==='/api/data-core/campuses')return reply({campuses:[{id:'campus-a',name:'SYNTHETIC 캠퍼스'},...(role==='MASTER'?[{id:'campus-b',name:'SYNTHETIC 도착 캠퍼스'}]:[])]});
   if(p==='/api/kkumeum/health')return reply({status:{ok:true,database:true,files:true}});
   if(p==='/api/kkumeum/announcement-capabilities')return reply({canPublishCampus:['MASTER','STAFF'].includes(role)});
-  if(p==='/api/kkumeum/classes')return fail?reply({error:'synthetic failure'},503):reply({classes});
+  if(p==='/api/kkumeum/classes')return fail?reply({error:'synthetic failure'},503):reply({classes:u.searchParams.get('campusId')==='campus-b'?[{id:'destination-class',name:'SYNTHETIC 도착 반',active:1}]:classes});
   if(p==='/api/kkumeum/students')return reply({students});
+  if(p.endsWith('/transfer')){if(req.method()==='GET')return reply({transfers:[]});writes.push(req.postDataJSON());return reply({transfer:{studentId:'student-a',toCampusId:'campus-b'}});}
   if(p.startsWith('/api/kkumeum/students/'))return reply({student:students[0]});
   if(p==='/api/kkumeum/announcements'&&req.method()==='POST'){const body=req.postDataJSON();writes.push(body);const n={...body,id:`saved-${writes.length}`,status:'draft',canEdit:true,readCount:0,createdAt:'2026-09-13'};notices.push(n);return reply({announcement:n},201);}
   if(p==='/api/kkumeum/announcements')return reply({announcements:notices});
@@ -68,7 +69,7 @@ let notices=[{id:'notice-a',campusId:'campus-a',announcementType:'campus-news',t
   await page.locator('[data-km-tab=kids-news]').click();await page.locator('#kmSearch').fill('존재하지않음');assert.equal(await page.locator('#kmGroups .km-group').count(),0);await page.locator('#kmSearch').fill('');await page.locator('#kmSort').click();assert.equal(await page.locator('#kmSort').innerText(),'최신순');
   await page.locator('[data-menu=more]').click();await page.getByRole('dialog',{name:'더보기'}).waitFor();await page.getByRole('button',{name:'반관리',exact:true}).click();await page.locator('#kkAddClassBtn:visible').waitFor();await page.locator('#kkAddClassBtn').click();await page.getByRole('dialog',{name:'더보기'}).waitFor({state:'hidden'});assert.equal(await page.locator('dialog[open]').count(),1);await geometry(width);await page.keyboard.press('Escape');await page.locator('#kmLegacyBack').click();
   await page.locator('[data-menu=news]').click();if(await page.locator('[data-expand=class-a]').getAttribute('aria-expanded')==='false')await page.locator('[data-expand=class-a]').click();await page.locator('[data-student=student-a]').click();await page.locator('#kkReportForm:visible').waitFor();await geometry(width);await page.locator('#kmLegacyBack').click();
-  for(const menu of ['attendance','answers','inquiries']){await page.locator(`[data-menu=${menu}]`).click();await page.getByText(/아직 연결된 운영 기능이 없습니다/).waitFor();}
+  for(const menu of ['attendance','answers','inquiries']){await page.locator(`[data-menu=${menu}]`).click();await page.getByText(/아직 전용 API가 구현되지 않았습니다/).waitFor();}
   await page.locator('[data-menu=more]').click();await page.locator('#kmMoreClose').click();assert.equal(await page.locator('#kmMore').evaluate(e=>e.open),false);checks+=10;
  }
  // Synthetic selection -> exact target payload -> persisted draft -> actual detail route.
@@ -79,6 +80,16 @@ let notices=[{id:'notice-a',campusId:'campus-a',announcementType:'campus-news',t
  role='TEACHER';await page.goto(base+'/data-core/kkumeum?tab=notices');await page.locator('#kmNotices').waitFor();assert.equal(await page.locator('[data-write-notice]').count(),0);await page.locator('[data-menu=more]').click();assert.equal(await page.getByRole('button',{name:'반관리',exact:true}).count(),0);await page.keyboard.press('Escape');checks+=2;
  role='STAFF';await page.reload();await page.locator('[data-write-notice]').waitFor();await page.locator('[data-write-notice]').click();await page.locator('#kmComposer').waitFor();checks++;role='TEACHER';
  fail=true;await page.reload();await page.locator('[data-retry]').waitFor();fail=false;await page.locator('[data-retry]').click();await page.locator('#kmNotices').waitFor();checks++;
+ for(const width of [1920,1440,1024,820,768,430,390,375,320]){
+  role='MASTER';await page.setViewportSize({width,height:900});await page.goto(base+'/data-core/kkumeum?view=student&item=student-a');await page.locator('#kkTransferStudent').waitFor();await page.locator('#kkTransferStudent').click();
+  assert.equal(await page.locator('#kkToolbar').isVisible(),false);assert.equal(await page.locator('#kmLegacyMount .kk-main > .kk-status-grid').isVisible(),false);checks+=2;
+  const form=page.locator('dialog[open] form');await form.locator('[name=toCampusId]').selectOption('campus-b');await form.locator('[name=classId] option[value=destination-class]').waitFor({state:'attached'});await form.locator('[name=classId]').selectOption('destination-class');
+  assert.equal(await form.locator('[type=submit]').isEnabled(),true);
+  assert.equal(await page.locator('dialog[open]').evaluate(e=>e.scrollWidth>e.clientWidth+1),false);
+  await page.screenshot({path:`${out}/${width}-campus-transfer.png`,fullPage:true});await page.keyboard.press('Escape');checks+=2;
+ }
+ await page.locator('#kkTransferStudent').click();await page.locator('dialog[open] [name=toCampusId]').selectOption('campus-b');await page.locator('dialog[open] [name=classId] option[value=destination-class]').waitFor({state:'attached'});await page.locator('dialog[open] [name=classId]').selectOption('destination-class');await page.locator('dialog[open] [type=checkbox]').check();await page.locator('dialog[open] [type=submit]').click();await page.locator('#kmGroups').waitFor();assert.deepEqual(writes[3],{fromCampusId:'campus-a',toCampusId:'campus-b',classId:'destination-class',expectedUpdatedAt:'2026-09-13T00:00:00.000Z'});checks++;
+ role='CAMPUS_ADMIN';await page.goto(base+'/data-core/kkumeum?view=student&item=student-a');await page.locator('#kkEditStudent').waitFor();assert.equal(await page.locator('#kkTransferStudent').count(),0);assert.equal(await page.locator('#kmCampus').isEnabled(),false);checks+=2;
  for(const width of [1920,1440,1024,820,768,430,390,375,320]){
   await page.setViewportSize({width,height:900});await page.goto(base+'/family/');await page.locator('.km-tabs:visible').waitFor();await geometry(width);
   for(let i=0;i<4;i++){await page.locator(`[data-family-news="${i}"]`).click();assert.equal(await page.locator(`[data-family-news="${i}"]`).getAttribute('aria-selected'),'true');await geometry(width);}

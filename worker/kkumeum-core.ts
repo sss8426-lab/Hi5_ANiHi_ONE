@@ -90,6 +90,8 @@ export async function requireKkumeumStudentAccess(
     throw new DataCoreAccessError(403, "해당 캠퍼스의 꿈이음 데이터에 접근할 권한이 없습니다.");
   }
 
+  const student = await familyDb.prepare('SELECT id FROM family_students WHERE id = ? AND campus_id = ?').bind(studentId, campusId).first();
+  if (!student) throw new DataCoreAccessError(403, '이 학생 정보를 볼 권한이 없습니다.');
   if (hasCampusRole(context, campusId, "CAMPUS_DIRECTOR")) return;
 
   if (hasCampusRole(context, campusId, "TEACHER")) {
@@ -132,6 +134,8 @@ export async function requireKkumeumClassAccess(
     throw new DataCoreAccessError(403, "해당 캠퍼스의 꿈이음 데이터에 접근할 권한이 없습니다.");
   }
 
+  const classroom = await familyDb.prepare('SELECT id FROM family_classes WHERE id = ? AND campus_id = ?').bind(classId, campusId).first();
+  if (!classroom) throw new DataCoreAccessError(403, '이 반 정보를 볼 권한이 없습니다.');
   if (hasCampusRole(context, campusId, "CAMPUS_DIRECTOR")) return;
 
   if (hasCampusRole(context, campusId, "TEACHER")) {

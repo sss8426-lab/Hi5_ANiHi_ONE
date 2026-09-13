@@ -39,7 +39,7 @@
       const d = summary.dashboard; const published = (notices.announcements || []).filter((item) => item.status === 'published').length;
       const grid = document.querySelector('.kk-status-grid'); if (!grid) return;
       grid.innerHTML = `<article><span>학생·반</span><strong>${d.students} · ${d.classes}</strong><small>재원 학생 · 활성 반</small></article><article><span>${escapeHtml(d.yearMonth)} 평가</span><strong>${d.reports.missing}</strong><small>미작성 · 임시 ${d.reports.draft} · 검토 ${d.reports.ready} · 전달 ${d.reports.sent}</small></article><article><span>이번 달 작품</span><strong>${d.artworks}</strong><small>private 작품 파일</small></article><article><span>보호자·소식</span><strong>${d.guardians.linked} · ${published}</strong><small>연결 학생 · 발행 소식</small></article>`;
-    } catch (_) { /* setup-required UI remains visible */ }
+    } catch { /* setup-required UI remains visible */ }
   }
 
   function renderDetail() {
@@ -50,6 +50,62 @@
     root.innerHTML = `<div class="kk-panel-head"><div><span>STUDENT DETAIL</span><h3>${escapeHtml(s.display_name || s.displayName || s.name)}</h3><p class="kk-subline">${escapeHtml([s.class_name || s.className || '반 미지정', s.grade, s.school_name || s.schoolName, s.status].filter(Boolean).join(' · '))}</p></div>${manager() ? '<button id="kkEditStudent" type="button">학생 정보 수정</button>' : ''}</div><div class="kk-month-row"><label>기준 월 <input id="kkYearMonth" type="month" value="${state.yearMonth}"></label><span>전달 완료 평가는 개정으로만 수정합니다.</span></div>`;
     $('kkYearMonth').onchange = async (event) => { state.yearMonth = event.target.value || state.yearMonth; await load(state.student.id); };
     $('kkEditStudent')?.addEventListener('click', editStudent);
+    if (app()?.state?.context?.isSuperAdmin) {
+      const button = document.createElement('button');
+      button.type = 'button'; button.id = 'kkTransferStudent'; button.textContent = '캠퍼스 이동';
+      button.onclick = () => transferStudent(s);
+      root.querySelector('.kk-panel-head').append(button);
+      const history = document.createElement('details');
+      history.innerHTML = '<summary>캠퍼스 이동 이력</summary><p>불러오는 중...</p>';
+      root.append(history);
+      history.addEventListener('toggle', async () => {
+        if (!history.open || history.dataset.loaded) return;
+        try {
+          const result = await api(`/api/kkumeum/students/${encodeURIComponent(s.id)}/transfer`);
+          const campusName = id => app().state.campuses.find(c => c.id === id)?.name || '이전 캠퍼스';
+          history.querySelector('p').textContent = result.transfers.map(t => `${new Date(t.transferredAt).toLocaleString('ko-KR', {timeZone:'Asia/Seoul'})} · ${campusName(t.fromCampusId)} → ${campusName(t.toCampusId)}`).join('\n') || '이동 이력이 없습니다.';
+          history.dataset.loaded = 'true';
+        } catch { history.querySelector('p').textContent = '이동 이력을 불러오지 못했습니다.'; }
+      });
+    }
+  }
+
+  function transferStudent(student) {
+    if (!app()?.state?.context?.isSuperAdmin) return;
+    const source = campusId();
+    const campuses = app().state.campuses.filter(c => c.id !== source);
+    const options = campuses.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`).join('');
+    const modal = document.createElement('dialog'); modal.className = 'kk-dialog';
+    modal.innerHTML = `<form><div class="kk-dialog-head"><h3>캠퍼스 이동</h3><button type="button" data-cancel aria-label="닫기">×</button></div><p>${escapeHtml(student.name)} · ${escapeHtml(app().state.campuses.find(c=>c.id===source)?.name)}</p><label>도착 캠퍼스<select name="toCampusId" required><option value="">선택</option>${options}</select></label><label>도착 반<select name="classId" disabled><option value="">반 미지정</option></select></label><p>학생·작품·평가의 관리 권한이 새 캠퍼스로 이동합니다. 원본 파일과 보호자 연결, 과거 기록은 보존됩니다.</p><label><input type="checkbox" required> 이동 대상과 도착 캠퍼스를 확인했습니다.</label><p data-feedback role="status"></p><div class="kk-dialog-actions"><button type="button" data-cancel>취소</button><button type="submit" class="primary" disabled>이동 확정</button></div></form>`;
+    document.body.append(modal);
+    const form = modal.querySelector('form'), target = form.elements.toCampusId, classes = form.elements.classId, submit = form.querySelector('[type=submit]'), feedback = form.querySelector('[data-feedback]');
+    let busy = false, version = 0;
+    modal.querySelectorAll('[data-cancel]').forEach(b=>b.onclick=()=>{if(!busy)modal.close();});
+    modal.addEventListener('cancel', e=>{if(busy)e.preventDefault();});
+    target.onchange = async () => {
+      const current = ++version, destination = target.value;
+      classes.innerHTML = '<option value="">반 미지정</option>'; classes.disabled = true; submit.disabled = true; feedback.textContent = '';
+      if (!destination) return;
+      try {
+        const result = await api(`/api/kkumeum/classes?campusId=${encodeURIComponent(destination)}`);
+        if (version !== current) return;
+        classes.innerHTML += (result.classes || []).filter(c=>c.active).map(c=>`<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`).join('');
+        classes.disabled = false; submit.disabled = false;
+      } catch (error) { if(version===current)feedback.textContent = error.message; }
+    };
+    form.onsubmit = async e => {
+      e.preventDefault(); if (busy || submit.disabled) return;
+      const body = {fromCampusId:source, toCampusId:target.value, classId:classes.value || null, expectedUpdatedAt:student.updated_at || student.updatedAt};
+      busy = true; [...form.elements].forEach(el=>el.disabled=true);
+      try {
+        await api(`/api/kkumeum/students/${encodeURIComponent(student.id)}/transfer`, {method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify(body)});
+        window.dispatchEvent(new Event('kkumeum:student-transferred')); modal.close();
+      } catch (error) {
+        feedback.textContent = `${error.message} 학생 정보를 새로 확인한 뒤 다시 진행해주세요.`;
+        modal.querySelectorAll('[data-cancel]').forEach(b=>b.disabled=false);
+      } finally { busy = false; }
+    };
+    modal.onclose = () => modal.remove(); modal.showModal();
   }
 
   function editStudent() {
@@ -150,6 +206,10 @@
     const root=$('kkGuardianOperations'); if(!root||!state.student||!manager())return;
     const rows=state.guardians.map((item)=>`<article class="kk-guardian-row"><div><strong>${escapeHtml(item.displayName)}</strong><small>${escapeHtml(item.loginId)} · ${escapeHtml(item.relationshipLabel||'관계 미지정')} · ${item.status==='active'?'활성':'중지'}</small></div><div><button data-reset="${escapeHtml(item.id)}" type="button">비밀번호 재설정</button><button data-revoke="${escapeHtml(item.id)}" type="button">세션 종료</button>${item.status==='active'?`<button data-disable="${escapeHtml(item.id)}" type="button">중지</button>`:''}<button data-unlink="${escapeHtml(item.id)}" type="button">연결 해제</button></div></article>`).join('')||'<div class="kk-empty"><strong>연결된 보호자가 없습니다.</strong><p>실제 보호자 정보를 입력할 때만 연결을 만드세요.</p></div>';
     root.innerHTML=`<div class="kk-operation-head"><div><strong>${escapeHtml(state.student.name)} 보호자 연결</strong><small>원장·최고관리자만 관리할 수 있습니다.</small></div><button id="kkAddGuardian" type="button">보호자 연결</button></div>${rows}<p data-feedback class="kk-inline-feedback"></p>`;
+    root.querySelectorAll('[data-reset], [data-revoke], [data-disable]').forEach(button=>{
+      const id = button.dataset.reset || button.dataset.revoke || button.dataset.disable;
+      button.hidden = state.guardians.find(g=>g.id===id)?.canManageAccount === false;
+    });
     $('kkAddGuardian').onclick=addGuardian; root.querySelectorAll('[data-reset]').forEach((button)=>button.onclick=()=>resetGuardian(button.dataset.reset));root.querySelectorAll('[data-revoke]').forEach((button)=>button.onclick=()=>revokeGuardian(button.dataset.revoke));root.querySelectorAll('[data-disable]').forEach((button)=>button.onclick=()=>disableGuardian(button.dataset.disable));root.querySelectorAll('[data-unlink]').forEach((button)=>button.onclick=()=>unlinkGuardian(button.dataset.unlink));
   }
   function addGuardian(){dialog('보호자 연결','<label><span>보호자 표시 이름</span><input name="displayName" required maxlength="100"></label><label><span>로그인 ID</span><input name="loginId" required pattern="[a-z0-9._-]{3,120}" maxlength="120"></label><label><span>관계</span><input name="relationshipLabel" maxlength="80" placeholder="예: 부모"></label><label><span><input type="checkbox" name="canViewReports" checked> 평가 열람 허용</span></label><label><span><input type="checkbox" name="canViewPhotos" checked> 작품 열람 허용</span></label>',async(form)=>{const result=await api('/api/kkumeum/guardians',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({campusId:campusId(),studentId:state.student.id,displayName:form.get('displayName'),loginId:form.get('loginId'),relationshipLabel:form.get('relationshipLabel'),canViewReports:form.get('canViewReports')==='on',canViewPhotos:form.get('canViewPhotos')==='on'})});await load(state.student.id);note('kkGuardianOperations',`임시 비밀번호: ${result.temporaryPassword} (새로고침하면 다시 표시되지 않습니다.)`);});}

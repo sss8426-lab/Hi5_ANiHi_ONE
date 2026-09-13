@@ -14,7 +14,7 @@ test('staff and guardian share one 480px app geometry, without desktop navigatio
 test('mobile adapters preserve private family routes, legacy tools, and explicitly mark unavailable operations',async()=>{
  const [staff,guardian,docs]=await Promise.all([read('public/data-core/work/kkumeum-mobile.js'),read('public/family/family-mobile.js'),read('docs/KKUMEUM_MOBILE_APP_2026-09-13.md')]);
  assert.match(staff,/selected-delivery/);assert.match(staff,/window\.KkumeumStaff/);assert.match(staff,/kkReportsSection/);assert.match(staff,/kkArtworkSection/);
- assert.match(staff,/자동 예약발송은 지원하지 않습니다/);assert.match(staff,/아직 연결된 운영 기능이 없습니다/);
+ assert.match(staff,/자동 예약발송은 지원하지 않습니다/);assert.match(staff,/아직 전용 API가 구현되지 않았습니다/);
  assert.doesNotMatch(guardian,/\/api\/kkumeum|\/api\/data-core|MASTER|CAMPUS_ADMIN/);
  assert.match(docs,/새 테이블, migration, D1\/R2 binding 없음/);
 });

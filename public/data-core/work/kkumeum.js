@@ -18,6 +18,8 @@
   const studentArea = document.querySelector('.kk-empty');
   const addStudentBtn = studentPanel?.querySelector('.kk-panel-head button');
   const heroBadge = document.querySelector('.kk-hero-badge');
+  let studentRequest = 0, classRequest = 0;
+  window.addEventListener('kkumeum:scope-changing', () => { studentRequest++; classRequest++; state.students = []; state.classes = []; });
 
   function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
@@ -104,6 +106,7 @@
       <label class="kk-search"><span>학생 검색</span><input id="kkSearch" placeholder="이름·학교 검색"></label>
       <button id="kkSearchBtn" type="button">검색</button>`;
     grid.parentNode.insertBefore(toolbar, grid);
+    if ($('kkMobileApp')) $('kkCampus').closest('label').hidden = true;
 
     $('kkCampus').onchange = async (event) => {
       state.campusId = event.target.value;
@@ -185,17 +188,20 @@
 
   async function loadStudents() {
     if (!state.health?.ok || !state.campusId) return;
+    const version = ++studentRequest, campus = state.campusId;
     const params = new URLSearchParams({ campusId: state.campusId });
     if (state.classId) params.set('classId', state.classId);
     if (state.status) params.set('status', state.status);
     if (state.q) params.set('q', state.q);
     try {
       const result = await api(`/api/kkumeum/students?${params}`);
+      if (version !== studentRequest || campus !== state.campusId) return;
       state.students = result.students || [];
       renderStudents();
       renderClasses();
       window.dispatchEvent(new CustomEvent('kkumeum:students-updated', { detail: state }));
     } catch (error) {
+      if (version !== studentRequest || campus !== state.campusId) return;
       state.students = [];
       renderStudents();
       if (studentArea) studentArea.innerHTML = `<strong>${escapeHtml(error.message)}</strong><p>권한 또는 꿈이음 연결 상태를 확인하세요.</p>`;
@@ -204,13 +210,16 @@
 
   async function loadClassesAndStudents() {
     if (!state.health?.ok || !state.campusId) return;
+    const version = ++classRequest, campus = state.campusId;
     try {
       const result = await api(`/api/kkumeum/classes?campusId=${encodeURIComponent(state.campusId)}`);
+      if (version !== classRequest || campus !== state.campusId) return;
       state.classes = result.classes || [];
       renderClassFilter();
       wireManagerActions();
       await loadStudents();
     } catch (error) {
+      if (version !== classRequest || campus !== state.campusId) return;
       state.classes = [];
       renderClassFilter();
       if (studentArea) studentArea.innerHTML = `<strong>${escapeHtml(error.message)}</strong><p>현재 계정의 캠퍼스·반 권한을 확인하세요.</p>`;
