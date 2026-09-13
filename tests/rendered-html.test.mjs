@@ -214,8 +214,8 @@ test("wires the DATA CORE blog and Instagram automation routes", async () => {
   assert.match(dataCoreIndex, /href="\/data-core\/content\/blog"/);
   assert.match(dataCoreIndex, /href="\/data-core\/content\/instagram"/);
   assert.doesNotMatch(dataCoreIndex, /콘텐츠 허브/);
-  assert.match(contentHtml, /data-source-tab="blog"/);
-  assert.match(contentHtml, /data-source-tab="instagram"/);
+  assert.match(contentHtml, /data-content-nav="blog"/);
+  assert.match(contentHtml, /data-content-nav="instagram"/);
   assert.match(contentHtml, /블로그 자동화/);
   assert.match(contentHtml, /인스타 자동화/);
   assert.doesNotMatch(contentHtml, /콘텐츠 허브/);

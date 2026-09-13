@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>블로그 자동화 · HI5·ANiHi DATA CORE</title>
   <link rel="stylesheet" href="/data-core/styles.css">
-  <link rel="stylesheet" href="/data-core/content.css?v=20260909-derivative-v1">
+  <link rel="stylesheet" href="/data-core/content.css?v=20260913-ai">
+  <link rel="stylesheet" href="/data-core/content-workflow.css?v=20260913-ai">
   <link rel="stylesheet" href="/data-core/layout-theme.css?v=20260909-bright-layout">
   <link rel="stylesheet" href="/data-core/design-tokens.css?v=20260913-soft-premium">
   <link rel="stylesheet" href="/data-core/design-system.css?v=20260913-soft-premium">
@@ -13,235 +14,75 @@
 <body class="data-core-layout">
   <div class="app-shell">
     <aside class="sidebar">
-      <div class="brand">
-        <span class="brand-mark">H5</span>
-        <div>
-          <strong>HI5·ANiHi</strong>
-          <small>DATA CORE</small>
-        </div>
-      </div>
-
+      <div class="brand"><span class="brand-mark">H5</span><div><strong>HI5·ANiHi</strong><small>DATA CORE</small></div></div>
       <nav class="nav">
-        <a class="nav-item" href="/data-core/work/library">
-          <span class="nav-icon">▦</span>
-          <span>자료보관함</span>
-        </a>
-        <a class="nav-item active" href="/data-core/content/blog" data-content-nav="blog">
-          <span class="nav-icon">✎</span>
-          <span>블로그 자동화</span>
-        </a>
-        <a class="nav-item" href="/data-core/content/instagram" data-content-nav="instagram">
-          <span class="nav-icon">▧</span>
-          <span>인스타 자동화</span>
-        </a>
-        <a class="nav-item hidden" href="/data-core/operations" data-super-admin-nav>
-          <span class="nav-icon">↺</span>
-          <span>운영관리</span>
-        </a>
-        <a class="nav-item hidden" href="/data-core/accounts" data-super-admin-nav>
-          <span class="nav-icon">⚙</span>
-          <span>계정관리</span>
-        </a>
+        <a class="nav-item" href="/data-core/work/library"><span class="nav-icon">▦</span><span>자료보관함</span></a>
+        <a class="nav-item active" href="/data-core/content/blog" data-content-nav="blog"><span class="nav-icon">✎</span><span>블로그 자동화</span></a>
+        <a class="nav-item" href="/data-core/content/instagram" data-content-nav="instagram"><span class="nav-icon">▧</span><span>인스타 자동화</span></a>
+        <a class="nav-item hidden" href="/data-core/operations" data-super-admin-nav><span class="nav-icon">↺</span><span>운영관리</span></a>
+        <a class="nav-item hidden" href="/data-core/accounts" data-super-admin-nav><span class="nav-icon">⚙</span><span>계정관리</span></a>
       </nav>
-
-      <div class="sidebar-bottom">
-        <div class="connection-card" id="connectionCard">
-          <span class="status-dot"></span>
-          <div>
-            <strong>연결 확인 중</strong>
-            <small>DATA CORE</small>
-          </div>
-        </div>
-        <a class="back-link" href="/data-core/work">업무용 홈으로 돌아가기</a>
-      </div>
+      <div class="sidebar-bottom"><div class="connection-card" id="connectionCard"><span class="status-dot"></span><div><strong>연결 확인 중</strong><small>DATA CORE</small></div></div><a class="back-link" href="/data-core/work">업무용 홈으로 돌아가기</a></div>
     </aside>
-
     <main class="main">
-      <header class="topbar">
-        <div>
-          <p class="eyebrow">공통 파일을 재사용하는 자동화 작업실</p>
-          <h1 id="contentPageTitle">블로그 자동화</h1>
-        </div>
-        <div class="user-chip" id="userChip">
-          <div class="avatar">H</div>
-          <div>
-            <strong>사용자 확인 중</strong>
-            <small>로그인 정보를 불러오고 있습니다</small>
-          </div>
-        </div>
+      <header class="topbar"><div><p class="eyebrow">HI5·ANiHi DATA CORE</p><h1 id="contentPageTitle">블로그 자동화</h1></div>
+        <div class="user-chip" id="userChip"><div class="avatar">H</div><div><strong>사용자 확인 중</strong><small>로그인 정보 확인 중</small></div></div>
       </header>
-
-      <section class="notice hidden" id="globalNotice"></section>
-
+      <section class="notice hidden" id="globalNotice" role="status"></section>
       <section class="view active content-workspace">
-        <div class="hero-row content-hero">
-          <div>
-            <h2 id="contentHeroTitle">블로그 자동화</h2>
-            <p>캠퍼스와 주제를 정하고 DATA CORE 원본을 연결해 콘텐츠 초안을 한 화면에서 정리합니다.</p>
+        <section class="workflow-section" aria-labelledby="photoHeading">
+          <div class="workflow-heading"><h2 id="photoHeading">사진 선택</h2><span id="photoCount" role="status">사진 0장 선택</span></div>
+          <div class="photo-toolbar"><label><span class="sr-only">캠퍼스</span><select id="draftCampus"></select></label>
+            <label class="photo-search"><span class="sr-only">현재 폴더 검색</span><input id="fileSearchInput" type="search" placeholder="현재 폴더 검색" maxlength="120"></label>
+            <button class="ghost-btn icon-command" id="fileSearchBtn" type="button" aria-label="검색" title="검색"><svg><use href="/data-core/assets/core-icons.svg#Search"></use></svg></button>
           </div>
-          <div class="source-tabs" role="tablist" aria-label="콘텐츠 종류">
-            <button class="source-tab active" data-source-tab="blog" type="button">블로그</button>
-            <button class="source-tab" data-source-tab="instagram" type="button">인스타그램</button>
-          </div>
-        </div>
-
-        <div class="content-grid">
-          <section class="panel editor-panel">
-            <div class="panel-head">
-              <div>
-                <h3 id="editorTitle">블로그 초안</h3>
-                <p id="editorHint">수업 흐름, 피드백, 성장 포인트를 본문으로 남깁니다.</p>
-              </div>
-              <button class="ghost-btn hidden" id="newDraftBtn" type="button">새 초안</button>
-            </div>
-
-            <form id="draftForm" class="form-stack">
-              <label>
-                <span>캠퍼스</span>
-                <select id="draftCampus"></select>
-              </label>
-              <label>
-                <span>콘텐츠 목적</span>
-                <select id="contentPurpose">
-                  <option value="class-story">수업 성장 스토리</option>
-                  <option value="student-artwork">학생작품 소개</option>
-                  <option value="academy-news">학원 소식</option>
-                  <option value="competition-result">공모전·수상</option>
-                  <option value="admission-info">입시 정보</option>
-                </select>
-              </label>
-              <label>
-                <span>제목</span>
-                <input id="draftTitle" required placeholder="내부에서 찾기 쉬운 제목">
-              </label>
-              <label>
-                <span>주제·핵심 메시지</span>
-                <input id="draftSummary" placeholder="이 글에서 꼭 전달할 핵심 내용을 짧게 적으세요">
-              </label>
-              <label>
-                <span id="contentLabel">본문</span>
-                <textarea id="draftContent" rows="12" placeholder="초안 내용을 적어두세요."></textarea>
-              </label>
-              <label>
-                <span>키워드·해시태그</span>
-                <input id="draftTags" placeholder="웹툰, 고2, 상황표현 처럼 쉼표로 구분">
-              </label>
-              <label>
-                <span>게시 상태</span>
-                <select id="publishStatus">
-                  <option value="draft">초안</option>
-                  <option value="review">검토</option>
-                  <option value="ready">게시 준비</option>
-                  <option value="published">게시 완료</option>
-                  <option value="archived">보관</option>
-                </select>
-              </label>
-
-              <div class="instagram-spec hidden" id="instagramSpec">
-                <strong>인스타 기본 규격</strong>
-                <span>2160 × 2700px · 4:5</span>
-              </div>
-
-              <div class="selected-files">
-                <div class="selected-files-head">
-                  <strong>연결된 DATA CORE 원본</strong>
-                  <button class="ghost-btn" id="clearFilesBtn" type="button">비우기</button>
-                </div>
-                <div id="selectedFiles" class="selected-file-list"></div>
-              </div>
-
-              <section id="instagramDerivative" class="derivative-editor" hidden aria-label="인스타 이미지 편집">
-                <h3>인스타용 이미지</h3>
-                <label><span>원본 이미지</span><select id="derivativeSource"></select></label>
-                <button id="makeInstagramImage" class="secondary-btn" type="button" disabled>인스타용 이미지 만들기</button>
-                <div id="derivativePreview" hidden>
-                  <div class="derivative-media">
-                    <figure><figcaption>원본 이미지</figcaption><img id="derivativeOriginal" alt="선택한 원본 이미지"></figure>
-                    <figure><figcaption>인스타 미리보기 · 2160 × 2700px</figcaption><canvas id="instagramCanvas" width="2160" height="2700" aria-label="4:5 파생 이미지 미리보기"></canvas></figure>
-                  </div>
-                  <div class="derivative-position">
-                    <label><span>좌우 위치</span><input id="derivativeX" type="range" min="0" max="100" value="50"></label>
-                    <label><span>상하 위치</span><input id="derivativeY" type="range" min="0" max="100" value="50"></label>
-                  </div>
-                  <button id="saveDerivative" class="secondary-btn" type="button" disabled>파생 이미지 저장</button>
-                </div>
-                <p id="derivativeStatus" role="status"></p>
-              </section>
-              <div id="selectedDerivatives" class="selected-file-list" aria-label="연결된 인스타 파생 이미지"></div>
-
-              <div class="form-actions">
-                <button class="danger-btn hidden" id="deleteDraftBtn" type="button">삭제</button>
-                <button class="primary-btn" id="saveDraftBtn" type="submit">초안 저장</button>
-              </div>
-            </form>
-          </section>
-
-          <section class="panel file-picker-panel">
-            <div class="panel-head">
-              <div>
-                <h3>DATA CORE 원본 선택</h3>
-                <p>파일을 복제하지 않고 기존 fileId를 그대로 연결합니다.</p>
-              </div>
-            </div>
-            <div class="filters content-filters">
-              <label>
-                <span>캠퍼스</span>
-                <select id="fileCampusFilter"></select>
-              </label>
-              <label>
-                <span>분류</span>
-                <select id="fileCategoryFilter">
-                  <option value="">전체 분류</option>
-                  <option value="class-photo">수업사진</option>
-                  <option value="student-artwork">학생그림</option>
-                  <option value="academy-photo">학원사진</option>
-                  <option value="competition-material">공모전·실기대회</option>
-                  <option value="admission-material">입시자료</option>
-                  <option value="counseling-material">상담자료</option>
-                  <option value="blog-source">블로그소스</option>
-                  <option value="instagram-source">인스타소스</option>
-                  <option value="instagram-derived">인스타 파생 이미지</option>
-                  <option value="promotion-material">홍보자료</option>
-                </select>
-              </label>
-              <label class="search-field">
-                <span>검색</span>
-                <input id="fileSearchInput" placeholder="파일명 검색">
-              </label>
-              <button class="secondary-btn filter-button" id="fileSearchBtn" type="button">검색</button>
-            </div>
-            <div class="file-pick-list" id="filePickList"></div>
-          </section>
-        </div>
-
-        <section class="panel draft-list-panel">
-          <div class="panel-head">
-            <div>
-              <h3>저장된 초안</h3>
-              <p>블로그와 인스타 초안을 불러와 다시 수정할 수 있습니다.</p>
-            </div>
-            <div class="draft-tools">
-              <select id="draftStatusFilter">
-                <option value="">전체 상태</option>
-                <option value="draft">초안</option>
-                <option value="review">검토</option>
-                <option value="ready">게시 준비</option>
-                <option value="published">게시 완료</option>
-                <option value="archived">보관</option>
-              </select>
-              <input id="draftSearchInput" placeholder="초안 검색">
-              <button class="ghost-btn" id="refreshDraftsBtn" type="button">새로고침</button>
-            </div>
-          </div>
-          <div class="draft-list" id="draftList"></div>
+          <nav id="photoBreadcrumb" aria-label="사진 폴더 경로"></nav>
+          <div id="photoFolders" class="photo-folders"></div>
+          <p id="pickerStatus" role="status"></p>
+          <div id="filePickList" class="photo-grid"></div>
+          <nav id="photoPages" class="form-actions" aria-label="사진 페이지"></nav>
+          <div class="selected-files-head"><div id="selectedFiles" class="photo-selection"></div><button class="ghost-btn" id="clearFilesBtn" type="button">선택 해제</button></div>
         </section>
+        <section class="workflow-section">
+          <label class="workflow-command"><span id="commandLabel">어떤 글을 만들까요?</span><textarea id="aiCommand" rows="5" maxlength="4000" placeholder="고1 칸만화 수업 사진입니다. 학생들이 인체와 장면 연출을 연습한 내용을 중심으로 학부모가 이해하기 쉽게 홍보 글을 작성해줘."></textarea></label>
+          <div class="defaults-grid"><label><span>기본 해시태그</span><textarea id="defaultHashtags" rows="2" maxlength="2000"></textarea></label><label><span>하단 고정 문구</span><textarea id="defaultFooter" rows="2" maxlength="3000"></textarea></label></div>
+          <div class="defaults-actions"><span id="defaultsStatus" role="status"></span><button class="ghost-btn" id="saveDefaults" type="button">기본 문구 저장</button></div>
+          <p id="aiPrivacy">선택한 사진과 입력한 명령만 OpenAI에 전송됩니다.</p>
+          <div class="form-actions ai-actions"><button class="primary-btn" id="generateAi" type="button">AI로 블로그 글 작성</button><button class="ghost-btn" id="cancelAi" type="button" hidden>취소</button></div>
+          <p id="aiStatus" role="status" aria-live="polite"></p>
+          <button id="retryCaption" class="ghost-btn" type="button" hidden>홍보 문구만 다시 작성</button>
+        </section>
+        <section class="workflow-section" id="aiResult" hidden>
+          <div class="workflow-heading"><h2 id="resultHeading">AI 작성 결과</h2><button class="ghost-btn hidden" id="newDraftBtn" type="button">새 초안</button></div>
+          <div id="aiImageResult" hidden><div class="ai-image-comparison"><figure id="aiOriginalFigure" hidden><figcaption>원본</figcaption><img id="aiOriginal" alt="선택한 원본 사진"></figure><figure><figcaption>AI 편집</figcaption><img id="aiOutput" alt="AI로 편집한 인스타 홍보 이미지"></figure></div>
+            <p id="aiImageSaved" role="status"></p><div class="form-actions"><button class="ghost-btn" id="compareImage" type="button" aria-pressed="false">원본과 비교</button><button class="secondary-btn" id="downloadImage" type="button">다운로드</button></div></div>
+          <form id="draftForm" class="form-stack">
+            <label id="titleField"><span>제목</span><input id="draftTitle" required maxlength="300"></label>
+            <label><span id="contentLabel">본문</span><textarea id="draftContent" rows="12"></textarea></label>
+            <label><span>해시태그</span><input id="draftTags"></label>
+            <label><span>하단 고정 문구</span><textarea id="resultFooter" rows="2"></textarea></label>
+            <div class="form-actions"><button class="secondary-btn" id="regenerateAi" type="button">다시 작성</button><button class="secondary-btn" id="copyContent" type="button">전체 복사</button><button class="primary-btn" id="saveDraftBtn" type="submit">초안 저장</button><button class="danger-btn hidden" id="deleteDraftBtn" type="button">삭제</button></div>
+            <details class="workflow-details"><summary>초안 세부 정보</summary><div id="selectedDerivatives" class="selected-file-list" aria-label="연결된 인스타 파생 이미지"></div><label><span>주제</span><input id="draftSummary"></label><label><span>콘텐츠 목적</span><select id="contentPurpose"><option value="class-story">수업 성장 스토리</option><option value="student-artwork">학생작품 소개</option><option value="academy-news">학원 소식</option><option value="competition-result">공모전·수상</option><option value="admission-info">입시 정보</option></select></label><label><span>게시 상태</span><select id="publishStatus"><option value="draft">초안</option><option value="review">검토</option><option value="ready">게시 준비</option><option value="published">게시 완료</option><option value="archived">보관</option></select></label></details>
+          </form>
+        </section>
+        <details class="workflow-details" id="manualWork"><summary>직접 작성·이미지 크기 조정</summary>
+          <button class="secondary-btn" id="manualDraft" type="button">직접 작성</button>
+          <section id="instagramDerivative" class="derivative-editor" hidden aria-label="인스타 이미지 편집">
+            <h3>인스타용 이미지</h3><label><span>원본 이미지</span><select id="derivativeSource"></select></label>
+            <button id="makeInstagramImage" class="secondary-btn" type="button" disabled>인스타용 이미지 만들기</button>
+            <div id="derivativePreview" hidden><div class="derivative-media"><figure><figcaption>원본 이미지</figcaption><img id="derivativeOriginal" alt="선택한 원본 이미지"></figure><figure><figcaption>인스타 미리보기 · 2160 × 2700px</figcaption><canvas id="instagramCanvas" width="2160" height="2700" aria-label="4:5 파생 이미지 미리보기"></canvas></figure></div><div class="derivative-position"><label><span>좌우 위치</span><input id="derivativeX" type="range" min="0" max="100" value="50"></label><label><span>상하 위치</span><input id="derivativeY" type="range" min="0" max="100" value="50"></label></div><button id="saveDerivative" class="secondary-btn" type="button" disabled>파생 이미지 저장</button></div><p id="derivativeStatus" role="status"></p>
+          </section>
+        </details>
+        <details class="workflow-details" id="pastWork"><summary>지난 작업</summary><div class="draft-tools"><select id="draftStatusFilter" aria-label="초안 상태"><option value="">전체 상태</option><option value="draft">초안</option><option value="review">검토</option><option value="ready">게시 준비</option><option value="published">게시 완료</option><option value="archived">보관</option></select><input id="draftSearchInput" placeholder="초안 검색" aria-label="초안 검색"><button class="ghost-btn" id="refreshDraftsBtn" type="button">새로고침</button></div><div class="draft-list" id="draftList"></div></details>
+        <details class="workflow-details" id="aiDiagnostics" hidden><summary>AI 연결 상태</summary><p id="aiDiagnosticStatus"></p></details>
       </section>
     </main>
   </div>
-
+  <dialog id="photoViewer"><button id="closePhotoViewer" class="ghost-btn" type="button" aria-label="미리보기 닫기">닫기</button><img id="photoViewerImage" alt="선택 사진 확대보기"></dialog>
   <div class="toast hidden" id="toast"></div>
+  <script src="/data-core/library-client.js?v=20260913-ai"></script>
   <script src="/data-core/instagram-derivative.js?v=20260909-derivative-v1"></script>
-  <script src="/data-core/content.js?v=20260912-campus"></script>
+  <script src="/data-core/content.js?v=20260913-ai"></script>
   <script src="/data-core/content-admin-nav.js?v=20260908-work-v1"></script>
   <script type="module" src="/data-core/design-shell.js?v=20260912-campus"></script>
 </body>

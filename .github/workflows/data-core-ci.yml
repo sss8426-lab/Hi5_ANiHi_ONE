@@ -52,6 +52,7 @@ jobs:
           node --check public/data-core/library-thumbnail.js
           node --check public/data-core/work/hq-library.js
           node --check public/data-core/content.js
+          node --check public/data-core/library-client.js
           node --check public/data-core/instagram-derivative.js
           node --check public/data-core/operations.js
           node --check public/data-core/roadmap.js

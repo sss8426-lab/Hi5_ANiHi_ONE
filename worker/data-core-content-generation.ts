@@ -1,4 +1,6 @@
 import { DEFAULT_ORGANIZATION_ID } from "./data-core";
+import { canReadRegisteredFile } from './data-core-derivative-policy';
+import { AI_PHOTO_LIMIT } from './content-ai-images';
 import {
   DataCoreAccessContext,
   DataCoreAccessError,
@@ -16,6 +18,7 @@ export type ContentGenerationInput = {
   coreMessage?: string | null;
   selectedFileIds?: string[];
   brandContext?: string | null;
+  requestId?: string;
 };
 
 export type ContentGenerationOutput = {
@@ -24,6 +27,9 @@ export type ContentGenerationOutput = {
   content: string;
   keywords: string[];
   callToAction: string;
+  body?: string;
+  hashtags?: string[];
+  cta?: string;
 };
 
 export type ContentGenerationProviderRequest = {
@@ -87,19 +93,11 @@ function normalizeSourceApp(value: unknown): ContentGenerationSourceApp {
 
 function normalizeFileIds(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
-  return Array.from(
+  const ids = Array.from(
     new Set(value.map((item) => cleanText(item, 120)).filter(Boolean)),
-  ).slice(0, 30);
-}
-
-function canReadFileRow(context: DataCoreAccessContext, row: Record<string, unknown>) {
-  if (context.isSuperAdmin) return true;
-  if (!context.user || !context.memberships.length) return false;
-  if (row.visibility === "organization" || row.visibility === "public") return true;
-  if (row.visibility === "campus") {
-    return typeof row.campus_id === "string" && context.campusIds.includes(row.campus_id);
-  }
-  return context.user.internalUserId === row.owner_user_id;
+  );
+  if (ids.length > AI_PHOTO_LIMIT) throw new DataCoreAccessError(400, 'AI가 분석할 사진을 조금 줄여주세요.');
+  return ids;
 }
 
 async function selectedFileDescriptors(
@@ -112,8 +110,7 @@ async function selectedFileDescriptors(
   const placeholders = selectedFileIds.map(() => "?").join(", ");
   const result = await db
     .prepare(
-      `SELECT id, campus_id, owner_user_id, visibility, deleted_at,
-              category, source_app, original_file_name, mime_type
+      `SELECT *
        FROM file_objects
        WHERE organization_id = ? AND id IN (${placeholders})`,
     )
@@ -122,26 +119,28 @@ async function selectedFileDescriptors(
   const rows = result.results || [];
   const rowMap = new Map(rows.map((row) => [String(row.id), row]));
 
-  return selectedFileIds.map((fileId) => {
+  const descriptors = [];
+  for (const fileId of selectedFileIds) {
     const row = rowMap.get(fileId);
     if (!row || row.deleted_at) {
       throw new DataCoreAccessError(400, "선택한 DATA CORE 파일을 찾을 수 없습니다.");
     }
-    if (!canReadFileRow(context, row)) {
+    if (!await canReadRegisteredFile(db, context, row)) {
       throw new DataCoreAccessError(403, "볼 수 있는 DATA CORE 파일만 생성 요청에 사용할 수 있습니다.");
     }
     const fileCampusId = typeof row.campus_id === "string" ? row.campus_id : null;
     if (campusId && fileCampusId && campusId !== fileCampusId) {
       throw new DataCoreAccessError(400, "다른 캠퍼스의 파일은 같은 생성 요청에 사용할 수 없습니다.");
     }
-    return {
+    descriptors.push({
       id: fileId,
       category: cleanText(row.category, 80),
       sourceApp: cleanText(row.source_app, 80),
       fileName: cleanText(row.original_file_name, 180),
       mimeType: cleanText(row.mime_type, 120),
-    };
-  });
+    });
+  }
+  return descriptors;
 }
 
 export async function generateContentDraft(

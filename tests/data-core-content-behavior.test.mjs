@@ -326,6 +326,7 @@ async function createHarness() {
 
   async function request(method, pathname, user, body, extraHeaders = {}) {
     const headers = new Headers(user ? authHeaders(user) : undefined);
+    if (pathname.startsWith('/api/data-core/content')) headers.set('origin', 'http://localhost');
     if (pathname.includes('awardFolderId=')) headers.set('origin', 'http://localhost');
     for (const [name, value] of Object.entries(extraHeaders)) headers.set(name, value);
     let requestBody;

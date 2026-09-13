@@ -2,6 +2,8 @@
 
 기준일: 2026-09-07
 
+2026-09-13 확장: [OpenAI 콘텐츠 워크플로](CONTENT_OPENAI_WORKFLOW.md). 기존 파일/초안/파생 계약을 유지하며 실제 provider adapter, 자료보관함 공통 picker, 캠퍼스 기본 문구를 추가한다. 실제 provider 운영 검증은 secret 연결 전 미완료다.
+
 이 문서는 블로그 자동화와 인스타 자동화가 DATA CORE를 사용하는 공통 계약이다.
 
 ## 1. 핵심 원칙

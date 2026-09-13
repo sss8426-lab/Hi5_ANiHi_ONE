@@ -185,7 +185,7 @@ function hasMembership(context: DataCoreAccessContext) {
 
 function canReadRow(context: DataCoreAccessContext, row: Record<string, unknown>) {
   if (row.record_type === LIBRARY_FOLDER) return false;
-  if ([DERIVATIVE_RECORD_TYPE,THUMBNAIL_RECORD_TYPE].includes(String(row.record_type))) return false;
+  if ([DERIVATIVE_RECORD_TYPE,THUMBNAIL_RECORD_TYPE,'content-ai-request'].includes(String(row.record_type))) return false;
   if (context.isSuperAdmin) return true;
   if (isCampusAdmin(context) && row.campus_id && !managesCampus(context, row.campus_id)) return false;
   if (managesCampus(context, row.campus_id)) return true;

@@ -19,7 +19,7 @@ test('generation request preserves authorization and DATA CORE file reuse bounda
   assert.match(generationSource, /requireWriteAccess\(context\)/);
   assert.match(generationSource, /requireCampusAccess\(context, campusId\)/);
   assert.match(generationSource, /FROM file_objects/);
-  assert.match(generationSource, /canReadFileRow\(context, row\)/);
+  assert.ok(generationSource.includes('canReadRegisteredFile(db, context, row)'));
   assert.match(generationSource, /다른 캠퍼스의 파일은 같은 생성 요청에 사용할 수 없습니다/);
   assert.doesNotMatch(generationSource, /\.put\(/);
   assert.doesNotMatch(generationSource, /r2_key/);

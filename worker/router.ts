@@ -56,8 +56,11 @@ import {
 } from "./data-core-auth";
 import { campusPresence } from './campus-presence';
 import { handleKkumeumApi } from "./kkumeum-router";
+import { aiModels, boundedJson, ContentAiError, editInstagramImage, openAiContentProvider, unavailable, type OpenAiEnv } from './content-openai-provider';
+import { contentDefaults, contentScope, withAiRequest } from './content-ai-settings';
+import { AI_PHOTO_LIMIT } from './content-ai-images';
 
-interface Env {
+interface Env extends OpenAiEnv {
   ASSETS?: Fetcher;
   DB?: D1Database;
   FILES?: R2Bucket;
@@ -407,6 +410,14 @@ async function handleCompetitionSourceApi(request: Request, env: Env) {
   return jsonResponse(body, { headers: { "cache-control": "private, no-store" } });
 }
 
+async function contentJson(request: Request) {
+  try {
+    const value = await boundedJson(new Response(request.body), 16384);
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error();
+    return value;
+  } catch { throw new DataCoreAccessError(400, 'AI 요청 형식과 길이를 확인해주세요.'); }
+}
+
 async function handleContentApi(request: Request, env: Env) {
   const url = new URL(request.url);
   if (!url.pathname.startsWith("/api/data-core/content")) return null;
@@ -419,6 +430,18 @@ async function handleContentApi(request: Request, env: Env) {
     env.DB,
     env.DATA_CORE_SUPER_ADMIN_EMAILS,
   );
+  if (!['GET','HEAD'].includes(request.method) && (request.headers.get('origin') !== url.origin || request.headers.get('sec-fetch-site') === 'cross-site')) {
+    throw new DataCoreAccessError(context.authenticated ? 403 : 401, '같은 사이트에서만 요청할 수 있습니다.');
+  }
+  if (url.pathname === '/api/data-core/content/ai-status' && request.method === 'GET') {
+    if (!context.authenticated) throw new DataCoreAccessError(401, '로그인이 필요합니다.');
+    if (!context.isSuperAdmin) throw new DataCoreAccessError(403, '마스터 관리자만 확인할 수 있습니다.');
+    return jsonResponse({ configured: Boolean(env.OPENAI_API_KEY), models: aiModels(env), photoLimit: AI_PHOTO_LIMIT });
+  }
+  if (url.pathname === '/api/data-core/content/defaults') {
+    if (request.method === 'GET') return jsonResponse({ defaults: await contentDefaults(env.DB, context, Object.fromEntries(url.searchParams)) });
+    if (request.method === 'PUT') return jsonResponse({ defaults: await contentDefaults(env.DB, context, await contentJson(request), true) });
+  }
 
   if (url.pathname === "/api/data-core/content") {
     if (request.method === "GET") {
@@ -442,12 +465,30 @@ async function handleContentApi(request: Request, env: Env) {
     if (request.method !== "POST") {
       return jsonResponse({ error: "지원하지 않는 콘텐츠 생성 API 요청입니다." }, { status: 405 });
     }
-    const generation = await generateContentWithProvider(
-      env.DB,
-      context,
-      await readJson<ContentGenerationInput>(request),
-    );
-    return jsonResponse(generation, { status: generation.available ? 200 : 503 });
+    const input = await contentJson(request) as ContentGenerationInput;
+    const scope = contentScope(context, input);
+    const provider = env.FILES ? openAiContentProvider(env, env.DB, env.FILES, context, request.signal) : undefined;
+    try {
+      const run = () => generateContentWithProvider(env.DB!, context, input, provider);
+      const generation = provider ? await withAiRequest(env.DB, context, input.requestId, scope.campusId, run) : await run();
+      return jsonResponse(generation, { status: generation.available ? 200 : 503 });
+    } catch (error) {
+      if (error instanceof ContentAiError) return jsonResponse({ error: error.message, code: error.code }, { status: error.status });
+      throw error;
+    }
+  }
+  if (url.pathname === '/api/data-core/content/image-edit' && request.method === 'POST') {
+    const input = await contentJson(request);
+    const { campusId, sourceApp } = contentScope(context, input);
+    if (sourceApp !== 'instagram' || typeof input.sourceFileId !== 'string' || input.sourceFileId.length > 120 || typeof input.direction !== 'string' || !input.direction.trim() || input.direction.length > 4000) throw new DataCoreAccessError(400, '대표 사진 1장과 홍보 방향을 입력하세요.');
+    try {
+      if (!env.FILES || !env.OPENAI_API_KEY) throw unavailable();
+      const file = await withAiRequest(env.DB, context, input.requestId, campusId, () => editInstagramImage(env, env.DB!, env.FILES!, context, input.sourceFileId, campusId, input.direction, request.signal));
+      return jsonResponse({ file }, { status: 201 });
+    } catch (error) {
+      if (error instanceof ContentAiError) return jsonResponse({ error: error.message, code: error.code }, { status: error.status });
+      throw error;
+    }
   }
 
   const draftMatch = url.pathname.match(/^\/api\/data-core\/content\/([^/]+)$/);
@@ -585,7 +626,8 @@ const worker = {
       if (error instanceof DataCoreAccessError) {
         return jsonResponse({ error: error.message }, { status: error.status });
       }
-      console.error("DATA CORE domain router error", error);
+      if (url.pathname.startsWith('/api/data-core/content')) console.error('DATA CORE content error', { code: 'internal_error' });
+      else console.error("DATA CORE domain router error", error);
       return jsonResponse(
         { error: "DATA CORE 요청을 처리하는 중 오류가 발생했습니다." },
         { status: 500 },

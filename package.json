@@ -24,6 +24,7 @@
     "fast-png": "8.0.0",
     "htmlparser2": "10.0.0",
     "image-size": "2.0.2",
+    "pica": "10.0.3",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-loading-skeleton": "3.5.0"
