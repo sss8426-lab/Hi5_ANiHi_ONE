@@ -50,3 +50,15 @@ Service worker는 UI 정적 파일만 캐시하며 `/api/` 이미지는 계속 n
 - `node --test tests/image-gallery.test.mjs`: 소비자 HTML 로딩, 자녀 변경/로그아웃 race, private 파일 SW 보호.
 - API 테스트는 합성 데이터와 임시 D1/R2 또는 intercepted fixtures만 사용. 실 운영 학생·사진 수정 없음.
 - 배포 검증 시 `GALLERY_PREVIEW_ORIGIN`은 배포된 정적 자산 바이트를 비교한다. 합성 UI 검증을 실 계정 운영 승인 테스트로 표현하지 않는다.
+
+### 실행 결과 (2026-09-13, PR #206)
+
+- `npm ci`, build, typecheck, public JS 60개 `node --check`, Wrangler dry-run 성공.
+- `npm test`: 363/363 통과. 신규 JS/검증 script/unit test ESLint 오류 0.
+- 공통 갤러리 219개 검증: 1920/1440/1280/1024/820/768/430/390/375/320px.
+- 공모전 76개, 상담 UX 330개, 공통 화면 1,444개 검증 통과.
+- 커리큘럼 3개 과정 × 6개 화면폭, 인쇄/원본 URL/뒤로가기 통과.
+- 학생 썸네일/표/상세/legacy 수상작/입시요강, 자료보관함, 콘텐츠 사진 선택, 꿈이음/FAMILY 갤러리 통과.
+- Preview `8e1fd4e8-e365-498a-8293-cf9ee644527e`의 정적 자산 바이트 일치와 합성 브라우저 검증 통과. 실제 운영 로그인/데이터 쓰기 테스트가 아님.
+- 기존 전체 lint 정리/의존성 변경은 하지 않음. `npm ci`는 기존 12개 의존성 경고(중간 4, 높음 8)를 보고함.
+- GitHub CI/main 병합/운영 배포는 해당 PR의 최종 체크와 Worker 버전 기록을 확인할 것.
