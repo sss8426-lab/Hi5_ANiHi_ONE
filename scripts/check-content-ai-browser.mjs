@@ -70,6 +70,11 @@ try {
     assert.equal(await page.locator('#aiResult').isVisible(),false);
     assert.equal(await page.locator('[data-super-admin-nav]:visible').count(),0);
     await page.locator('[data-pick-file]').nth(0).click();await page.locator('[data-pick-file]').nth(1).click();
+    await page.locator('[data-preview]').first().click();
+    assert.equal(await page.locator('.cig-counter').textContent(),'1 / 7');
+    await page.locator('[data-cig-next]').click();await page.locator('.cig-image').evaluate(i=>i.decode());
+    assert.equal(await page.locator('.cig-counter').textContent(),'2 / 7');await page.keyboard.press('Escape');
+    assert.equal(await page.locator('[data-pick-file][aria-pressed="true"]').count(),2);
     await page.locator('#aiCommand').fill('합성 그림의 수업 기록을 써줘.');
     await page.locator('#defaultHashtags').fill('#칸만화 #합성');
     await page.locator('#defaultFooter').fill('합성 고정 문구');
@@ -90,6 +95,8 @@ try {
     await page.screenshot({path:path.join(out,'blog-result-'+width+'.png'),fullPage:true});
     await open('instagram');await page.locator('[data-pick-file]').first().click();
     await page.locator('[data-pick-file]').nth(1).click();assert.equal(await page.locator('[data-pick-file][aria-pressed="true"]').count(),1);
+    await page.locator('[data-preview]').nth(1).click();await page.locator('[data-cig-next]').click();await page.keyboard.press('Escape');
+    assert.equal(await page.locator('[data-pick-file][aria-pressed="true"]').count(),1);
     await page.locator('#aiCommand').fill('원본을 유지하며 밝게 보정해줘.');
     const old=imageCalls;await page.locator('#generateAi').click();
     await page.waitForFunction(()=>document.querySelector('#aiStatus').textContent==='작성이 완료되었습니다.');

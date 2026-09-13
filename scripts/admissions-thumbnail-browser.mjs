@@ -10,6 +10,9 @@ const {chromium}=await import(pathToFileURL(process.env.PLAYWRIGHT_MODULE).href)
 const h=await libraryHarness(),out='outputs/admissions-thumbnails';await mkdir(out,{recursive:true});
 const original=await sharp({create:{width:1200,height:900,channels:3,background:'#73a99c'}}).withMetadata({orientation:6}).jpeg().toBuffer();
 const state={students:[{id:1,name:'SYNTHETIC student',campusId:A,studentType:'result',artworks:Array.from({length:6},(_,i)=>({path:`artworks/SYNTHETIC-${i}.jpg`,name:`SYNTHETIC ${i}`}))}],universities:[],cases:[],awardFolders:[],settings:{}};
+state.students.push({id:2,name:'SYNTHETIC other student',campusId:A,studentType:'result',artworks:[{path:'artworks/SYNTHETIC-0.jpg',name:'Other student image'}]});
+state.universities.push({id:10,name:'SYNTHETIC university',admissionImages:Array.from({length:3},(_,i)=>({id:`synthetic-guideline-${i}`,url:`/synthetic-guideline/${i}`,fileName:`SYNTHETIC guideline ${i}`}))});
+state.awardFolders.push({id:'synthetic-awards',universityName:'SYNTHETIC award',years:{'2024':state.universities[0].admissionImages}});
 const before=JSON.stringify(state);await h.env.FILES.put('state/admissions-data.json',before);
 for(let i=0;i<6;i++)await h.env.FILES.put(`artworks/SYNTHETIC-${i}.jpg`,original,{httpMetadata:{contentType:'image/jpeg'}});
 const preview=process.argv.includes('--preview')?new URL(process.argv[process.argv.indexOf('--preview')+1]).origin:null;
@@ -18,6 +21,7 @@ const server=createServer(async(req,res)=>{
   try{
     const url=new URL(req.url,'http://localhost');
     if(url.pathname==='/favicon.ico'){res.writeHead(204);res.end();return;}
+    if(url.pathname.startsWith('/synthetic-guideline/')){res.writeHead(200,{'content-type':'image/jpeg'});res.end(original);return;}
     if(url.pathname.startsWith('/api/')){
       const chunks=[];for await(const chunk of req)chunks.push(chunk);
       const body=chunks.length?req.headers['content-type']?.includes('multipart/form-data')?await new Response(Buffer.concat(chunks),{headers:req.headers}).formData():JSON.parse(Buffer.concat(chunks).toString()):undefined;
@@ -54,9 +58,21 @@ try{
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
     await page.screenshot({path:`${out}/students-${width}.png`,fullPage:true});
     await page.locator('.student-detail-row [data-open-artwork]').first().click();
-    assert.match(await page.locator('.artwork-viewer img').getAttribute('src'),/\/artworks\/0$/);
-    await page.keyboard.press('Escape');assert.equal(await page.locator('.artwork-viewer').count(),0);
+    assert.match(await page.locator('.cig-image').getAttribute('src'),/\/artworks\/0$/);
+    assert.equal(await page.locator('.cig-counter').textContent(),'1 / 6');
+    await page.locator('[data-cig-next]').click();
+    await page.locator('.cig-image').evaluate(i=>i.decode());
+    assert.match(await page.locator('.cig-image').getAttribute('src'),/\/artworks\/1$/);
+    if([1440,1024,390].includes(width))await page.screenshot({path:`${out}/enlarged-${width}.png`});
+    await page.keyboard.press('Escape');assert.equal(await page.locator('.core-image-gallery').count(),0);
+    await page.locator('[data-artwork-student="1"]').click();assert.equal(await page.locator('.cig-counter').textContent(),'1 / 6');await page.keyboard.press('Escape');
   }
+  await page.evaluate(()=>window.desktopAPI.openAdmissionImages(10));
+  await page.locator('.cig-image').evaluate(i=>i.decode());assert.equal(await page.locator('.cig-counter').textContent(),'1 / 3');
+  await page.locator('[data-cig-next]').click();assert.equal(await page.locator('.cig-counter').textContent(),'2 / 3');await page.keyboard.press('Escape');
+  await page.goto(base+'/admissions-web/renderer/index.html#page=awards');
+  await page.locator('[data-award-image]').first().click();await page.locator('[data-cig-next]').click();
+  assert.equal(await page.locator('.cig-counter').textContent(),'2 / 3');await page.keyboard.press('Escape');
   const result=await page.evaluate(async({bytes,campus})=>{
     const file=new File([Uint8Array.from(atob(bytes),c=>c.charCodeAt(0))],'SYNTHETIC-new.jpg',{type:'image/jpeg'});
     const f=new FormData();f.set('file',file);f.set('purpose','student-artwork');f.set('campusId',campus);

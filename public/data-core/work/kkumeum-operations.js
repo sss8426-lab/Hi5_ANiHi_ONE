@@ -119,11 +119,14 @@
 
   function renderArtworks() {
     const root = $('kkArtworkOperations'); if (!root || !state.student) return;
-    const cards = state.artworks.map((item) => `<article class="kk-artwork-card"><img loading="lazy" src="${escapeHtml(item.fileUrl)}" alt="${escapeHtml(item.title || item.fileName)}"><div><strong>${escapeHtml(item.title || item.fileName)}</strong><small>${escapeHtml(item.lessonDate || '')}</small>${manager() ? `<button data-trash="${escapeHtml(item.id)}" type="button">휴지통</button>` : ''}</div></article>`).join('') || '<div class="kk-empty"><strong>선택한 월의 작품이 없습니다.</strong><p>예시 작품은 만들지 않습니다.</p></div>';
+    const cards = state.artworks.map((item) => `<article class="kk-artwork-card"><button type="button" class="gallery-image-button" data-kk-artwork="${escapeHtml(item.id)}" aria-label="${escapeHtml(item.title || item.fileName)} 크게 보기"><img loading="lazy" src="${escapeHtml(item.fileUrl)}" alt="${escapeHtml(item.title || item.fileName)}"></button><div><strong>${escapeHtml(item.title || item.fileName)}</strong><small>${escapeHtml(item.lessonDate || '')}</small>${manager() ? `<button data-trash="${escapeHtml(item.id)}" type="button">휴지통</button>` : ''}</div></article>`).join('') || '<div class="kk-empty"><strong>선택한 월의 작품이 없습니다.</strong><p>예시 작품은 만들지 않습니다.</p></div>';
     root.innerHTML = `<div class="kk-operation-head"><div><strong>${escapeHtml(state.student.name)} 작품 갤러리</strong><small>${state.yearMonth} · private FAMILY_FILES</small></div>${manager() ? '<label class="kk-upload"><input id="kkArtworkUpload" hidden type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple>이미지 추가</label>' : ''}</div>${manager() ? '<div id="kkArtworkDrop" class="kk-dropzone">이미지를 이곳에 놓거나 이미지 추가를 선택하세요.</div>' : ''}<div class="kk-artwork-grid">${cards}</div><p data-feedback class="kk-inline-feedback"></p>`;
     $('kkArtworkUpload')?.addEventListener('change', (event) => upload(event.target.files));
     const drop = $('kkArtworkDrop'); drop?.addEventListener('dragover', (event) => { event.preventDefault(); drop.classList.add('dragging'); }); drop?.addEventListener('dragleave', () => drop.classList.remove('dragging')); drop?.addEventListener('drop', (event) => { event.preventDefault(); drop.classList.remove('dragging'); upload(event.dataTransfer.files); });
     root.querySelectorAll('[data-trash]').forEach((button) => button.onclick = () => trash(button.dataset.trash));
+    root.querySelectorAll('[data-kk-artwork]').forEach(button=>button.onclick=()=>window.DataCoreImageGallery.open({
+      scope:'kkumeum-artworks',title:'학생 작품',anchor:button,index:state.artworks.findIndex(item=>item.id===button.dataset.kkArtwork),
+      items:state.artworks.map(item=>({src:item.fileUrl,title:item.title||item.fileName}))}));
   }
 
   async function upload(files) {
@@ -219,6 +222,7 @@
   async function unlinkGuardian(id){if(!id||!window.confirm('이 학생과 보호자의 연결을 해제할까요?'))return;await api(`/api/kkumeum/guardians/${encodeURIComponent(id)}/unlink`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({campusId:campusId(),studentId:state.student.id})});await load(state.student.id);}
 
   async function load(studentId) {
+    window.DataCoreImageGallery.close('kkumeum-artworks');
     const version=++studentRequest, campus=campusId();
     const student = await api(`/api/kkumeum/students/${encodeURIComponent(studentId)}?campusId=${encodeURIComponent(campus)}`);
     if(version!==studentRequest||campus!==campusId())return;
@@ -227,7 +231,7 @@
     if(version!==studentRequest||campus!==campusId())return;
     state.student=student.student;state.artworks=(artworks.artworks||[]).filter((item)=>String(item.lessonDate||item.createdAt||'').slice(0,7)===state.yearMonth);state.reports=reports.reports||[];state.growthSkillCatalog=catalog;state.guardians=guardianResult?.guardians||[];renderDetail();renderArtworks();reportForm();guardians();
   }
-  window.addEventListener('kkumeum:scope-changing',()=>{studentRequest++;state.student=null;state.artworks=[];state.reports=[];state.guardians=[];['kkStudentDetail','kkReportOperations','kkArtworkOperations','kkGuardianOperations'].forEach(id=>$(id)?.replaceChildren());});
+  window.addEventListener('kkumeum:scope-changing',()=>{window.DataCoreImageGallery.close('kkumeum-artworks');studentRequest++;state.student=null;state.artworks=[];state.reports=[];state.guardians=[];['kkStudentDetail','kkReportOperations','kkArtworkOperations','kkGuardianOperations'].forEach(id=>$(id)?.replaceChildren());});
   function ready(){if(!app())return;const nav=document.querySelector('.kk-manager-nav');if(nav)nav.hidden=!manager();const guardianSection=$('kkGuardiansSection');if(guardianSection)guardianSection.hidden=!manager();overview();}
   window.addEventListener('kkumeum:ready',ready);window.addEventListener('kkumeum:students-updated',overview);window.addEventListener('kkumeum:select-student',(event)=>load(event.detail.studentId).catch((error)=>{const root=$('kkStudentDetail');root.hidden=false;root.textContent=error.message||'학생 정보를 불러오지 못했습니다.';}));if(app())ready();
 })();

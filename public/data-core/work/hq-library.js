@@ -10,6 +10,7 @@
   const sheet = document.createElement('link'); sheet.rel = 'stylesheet'; sheet.href = '/data-core/work/library-browser.css?v=20260911-thumbnails'; document.head.append(sheet);
   let imageCache=null, observer=null, imageGeneration=0;
   function clearImages() {
+    window.DataCoreImageGallery.close('library');
     imageGeneration++;
     observer?.disconnect(); observer=null; imageCache?.clear();
     for(const img of host.querySelectorAll('.lb-thumbnail img')){img.removeAttribute('src');img.hidden=true;img.parentElement.classList.remove('lb-image-ready');}
@@ -104,11 +105,11 @@
     $('libraryFiles').innerHTML = files.length ? `<ul class="lb-file-list">${files.map(f => {
       const preview = /^(image\/(jpeg|png|webp|gif|avif)|application\/pdf|text\/plain)$/.test(f.mimeType);
       const image = /^image\/(jpeg|png|webp|gif|avif)$/.test(f.mimeType);
-      const visual = image ? `<a class="lb-thumbnail" href="${h(f.previewUrl)}" target="_blank" rel="noopener" aria-label="${h(f.fileName)} 미리보기">${icon('Image')}<img hidden data-original="${h(f.previewUrl)}" data-thumbnail="${h(f.thumbnailUrl||'')}" alt="" width="112" height="84" loading="lazy" decoding="async"></a>` : icon('BookOpen');
+      const visual = image ? `<a class="lb-thumbnail" data-lb-image="${h(f.id)}" href="${h(f.previewUrl)}" target="_blank" rel="noopener" aria-label="${h(f.fileName)} 미리보기">${icon('Image')}<img hidden data-original="${h(f.previewUrl)}" data-thumbnail="${h(f.thumbnailUrl||'')}" alt="" width="112" height="84" loading="lazy" decoding="async"></a>` : icon('BookOpen');
       return `<li class="lb-file" data-library-file="${h(f.id)}"><div class="lb-file-main">${visual}
         <div><strong>${h(f.fileName)}</strong><small>${h(f.mimeType)} · ${h(size(f.sizeBytes))} · ${h(new Date(f.createdAt).toLocaleDateString('ko-KR'))}</small>
         <small>${h(state.breadcrumbs.find(b=>b.id.startsWith('campus:'))?.title || '본원·조직 공통')} · ${h(f.ownerName || '')}</small></div></div>
-        <div class="lb-file-actions">${preview ? `<a class="lb-button" href="${h(f.previewUrl)}" target="_blank" rel="noopener">미리보기</a>` : ''}
+        <div class="lb-file-actions">${preview ? `<a class="lb-button" ${image ? `data-lb-image="${h(f.id)}"` : ''} href="${h(f.previewUrl)}" target="_blank" rel="noopener">미리보기</a>` : ''}
         <a class="lb-button" href="${h(f.downloadUrl)}" download>다운로드</a>${f.canDelete ? `<button class="lb-button lb-danger" data-lb-delete="${h(f.id)}">삭제</button>` : ''}</div></li>`;
     }).join('')}</ul>` : '';
     observeImages();
@@ -149,6 +150,14 @@
     } finally { if (generation === state.generation) $('libraryContents').setAttribute('aria-busy','false'); }
   }
   host.addEventListener('click', e => {
+    const image = e.target.closest('[data-lb-image]');
+    if (image && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey && e.button === 0) {
+      e.preventDefault();
+      const files=state.files.filter(f=>/^image\/(jpeg|png|webp|gif|avif)$/.test(f.mimeType));
+      window.DataCoreImageGallery.open({scope:'library',title:state.folder.title,anchor:image,
+        index:files.findIndex(f=>f.id===image.dataset.lbImage),
+        items:files.map(f=>({title:f.fileName,previewSrc:f.thumbnailUrl,load:()=>imageCache.get(f.previewUrl)}))});
+    }
     const folder = e.target.closest('[data-lb-folder]');
     if (folder && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.button === 0) { e.preventDefault(); navigate(folder.dataset.lbFolder); }
     const page = e.target.closest('[data-lb-page]'); if (page && !page.disabled) { const s=locationState(); navigate(s.id,s.q,Number(page.dataset.lbPage)); }

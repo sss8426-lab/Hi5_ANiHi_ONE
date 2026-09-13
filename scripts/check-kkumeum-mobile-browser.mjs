@@ -21,6 +21,8 @@ if(process.env.KK_VISUAL_ORIGIN){
 }
 const classes=[{id:'class-a',name:'SYNTHETIC 기초반',updated_at:'2026-09-10'},{id:'class-b',name:'SYNTHETIC 심화반',updated_at:'2026-09-12'}];
 const students=[{id:'student-a',name:'SYNTHETIC 학생 A',current_class_id:'class-a',status:'active',updated_at:'2026-09-13T00:00:00.000Z'},{id:'student-b',name:'SYNTHETIC 학생 B',current_class_id:'class-a',status:'active'}];
+const artworks=Array.from({length:3},(_,i)=>({id:`synthetic-art-${i}`,title:`SYNTHETIC 작품 ${i}`,fileUrl:`/api/synthetic-gallery/${i}`,lessonDate:new Date().toISOString().slice(0,7)+'-01'}));
+const image=await fs.readFile(path.join(root,'data-core/assets/mode-counseling.webp'));
 let notices=[{id:'notice-a',campusId:'campus-a',announcementType:'campus-news',title:'SYNTHETIC 공지 제목',body:'합성 공지 본문입니다.',status:'draft',readCount:0,createdAt:'2026-09-13',targets:[{targetType:'campus',targetId:'campus-a'}]},{id:'class-notice',campusId:'campus-a',announcementType:'class-news',title:'SYNTHETIC 반소식',body:'합성 반소식',status:'published',readCount:2,createdAt:'2026-09-12',targets:[{targetType:'class',targetId:'class-a'}]}];
  const context=await browser.newContext({serviceWorkers:'block'});
  await context.route('**/*',async r=>{
@@ -29,6 +31,8 @@ let notices=[{id:'notice-a',campusId:'campus-a',announcementType:'campus-news',t
   if(req.isNavigationRequest()&&p==='/data-core/kkumeum')return r.fulfill({contentType:'text/html',body:await fs.readFile(path.join(root,'data-core/work/kkumeum.html'),'utf8')});
   if(!p.startsWith('/api/'))return r.continue();
   const reply=(json,status=200)=>r.fulfill({json,status});
+  if(p.startsWith('/api/synthetic-gallery/'))return r.fulfill({contentType:'image/webp',body:image});
+  if(p==='/api/kkumeum/artworks'||p==='/api/family/children/synthetic-child/artworks')return reply({artworks});
   if(p==='/api/data-core/context')return reply({authenticated:true,isSuperAdmin:role==='MASTER',canWrite:true,user:{displayName:'SYNTHETIC',internalUserId:'synthetic-actor'},campusIds:['campus-a'],memberships:role==='MASTER'?[]:[{role,campusId:'campus-a'}]});
   if(p==='/api/data-core/campuses')return reply({campuses:[{id:'campus-a',name:'SYNTHETIC 캠퍼스'},...(role==='MASTER'?[{id:'campus-b',name:'SYNTHETIC 도착 캠퍼스'}]:[])]});
   if(p==='/api/kkumeum/health')return reply({status:{ok:true,database:true,files:true}});
@@ -68,7 +72,9 @@ let notices=[{id:'notice-a',campusId:'campus-a',announcementType:'campus-news',t
   }
   await page.locator('[data-km-tab=kids-news]').click();await page.locator('#kmSearch').fill('존재하지않음');assert.equal(await page.locator('#kmGroups .km-group').count(),0);await page.locator('#kmSearch').fill('');await page.locator('#kmSort').click();assert.equal(await page.locator('#kmSort').innerText(),'최신순');
   await page.locator('[data-menu=more]').click();await page.getByRole('dialog',{name:'더보기'}).waitFor();await page.getByRole('button',{name:'반관리',exact:true}).click();await page.locator('#kkAddClassBtn:visible').waitFor();await page.locator('#kkAddClassBtn').click();await page.getByRole('dialog',{name:'더보기'}).waitFor({state:'hidden'});assert.equal(await page.locator('dialog[open]').count(),1);await geometry(width);await page.keyboard.press('Escape');await page.locator('#kmLegacyBack').click();
-  await page.locator('[data-menu=news]').click();if(await page.locator('[data-expand=class-a]').getAttribute('aria-expanded')==='false')await page.locator('[data-expand=class-a]').click();await page.locator('[data-student=student-a]').click();await page.locator('#kkReportForm:visible').waitFor();await geometry(width);await page.locator('#kmLegacyBack').click();
+  await page.locator('[data-menu=news]').click();if(await page.locator('[data-expand=class-a]').getAttribute('aria-expanded')==='false')await page.locator('[data-expand=class-a]').click();await page.locator('[data-student=student-a]').click();await page.locator('#kkReportForm:visible').waitFor();await geometry(width);
+  await page.locator('[data-kk-artwork]').first().click();await page.locator('.cig-image').evaluate(i=>i.decode());await page.locator('[data-cig-next]').click();assert.equal(await page.locator('.cig-counter').textContent(),'2 / 3');await page.keyboard.press('Escape');
+  await page.locator('#kmLegacyBack').click();
   for(const menu of ['attendance','answers','inquiries']){await page.locator(`[data-menu=${menu}]`).click();await page.getByText(/아직 전용 API가 구현되지 않았습니다/).waitFor();}
   await page.locator('[data-menu=more]').click();await page.locator('#kmMoreClose').click();assert.equal(await page.locator('#kmMore').evaluate(e=>e.open),false);checks+=10;
  }
@@ -95,6 +101,7 @@ let notices=[{id:'notice-a',campusId:'campus-a',announcementType:'campus-news',t
   for(let i=0;i<4;i++){await page.locator(`[data-family-news="${i}"]`).click();assert.equal(await page.locator(`[data-family-news="${i}"]`).getAttribute('aria-selected'),'true');await geometry(width);}
   await page.locator('[data-family-news="1"]').click();await page.getByText('SYNTHETIC 보호자 반소식',{exact:true}).click();await page.locator('.news-body:not(.hidden)').waitFor();
   await page.locator('[data-family-menu=more]').click();assert.equal(await page.getByRole('button',{name:'반관리',exact:true}).count(),0);await page.getByRole('button',{name:'작품',exact:true}).click();await geometry(width);
+  await page.locator('#artworkGallery .gallery-image-button').first().click();await page.locator('.cig-image').evaluate(i=>i.decode());await page.locator('[data-cig-next]').click();assert.equal(await page.locator('.cig-counter').textContent(),'2 / 3');await page.keyboard.press('Escape');
   if([1440,390,320].includes(width))await page.screenshot({path:`${out}/${width}-guardian.png`,fullPage:true});checks+=2;
  }
  assert.deepEqual(errors,[]);assert.deepEqual(badAssets,[]);console.log(JSON.stringify({ok:true,checks,writes:writes.length,scope:'Synthetic UI fixtures; no production API writes',base}));

@@ -5,7 +5,7 @@ import test from 'node:test';
 
 const origin = 'https://synthetic.example';
 const source = await readFile(new URL('../public/family/sw.js', import.meta.url), 'utf8');
-const currentCache = 'kkumeum-family-shell-v5';
+const currentCache = 'kkumeum-family-shell-v6';
 
 function response(body, status = 200) {
   const result = new Response(body, { status });
@@ -53,10 +53,10 @@ test('PWA install includes every deployed guardian script, including report conf
   const h = harness();
   await h.dispatch('install');
   const html = await readFile(new URL('../public/family/index.html', import.meta.url), 'utf8');
-  const scripts = [...html.matchAll(/<script[^>]+src="([^"]+)"/g)].map((m) => m[1]);
+  const scripts = [...html.matchAll(/<script[^>]+src="([^"]+)"/g)].map((m) => new URL(m[1],origin).pathname);
   assert.ok(scripts.includes('/family/family-growth-labels.js'));
   for (const script of scripts) assert.ok(h.installed.includes(script), script);
-  const sharedShell = ['/data-core/design-tokens.css','/data-core/assets/core-icons.svg'];
+  const sharedShell = ['/data-core/design-tokens.css','/data-core/assets/core-icons.svg','/data-core/image-gallery.js','/data-core/image-gallery.css'];
   assert.ok(h.installed.every((path) => (path.startsWith('/family/') || sharedShell.includes(path)) && !path.includes('/api/')));
   assert.ok(h.installed.includes('/family/family-theme.css'));
 });
@@ -70,7 +70,7 @@ test('activation removes obsolete FAMILY shell caches only', async () => {
 
 test('online HTML and scripts replace stale shell responses without changing cached query identities', async () => {
   const h = harness();
-  for (const path of ['/family/', '/family/family.js', '/family/family-growth-labels.js']) {
+  for (const path of ['/family/', '/family/family.js', '/family/family-growth-labels.js', '/data-core/image-gallery.js', '/data-core/image-gallery.css']) {
     h.store(currentCache).set(origin + path, response('old shell without confirmation'));
     const result = await h.dispatch('fetch', new Request(origin + path + '?openNotice=synthetic-notice'));
     assert.equal(await result.text(), 'new shell');

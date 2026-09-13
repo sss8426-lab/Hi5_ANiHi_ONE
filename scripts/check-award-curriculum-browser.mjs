@@ -60,14 +60,14 @@ try {
   assert.ok(maxActive<=3);checks+=43;
   await page.screenshot({path:`${out}/gallery-1280.png`,fullPage:true});
   await page.locator('[data-award-image="synthetic-0"]').click();
-  await page.locator('#awardLightbox[open]').waitFor();
+  await page.locator('.core-image-gallery[open]').waitFor();
   // The retained small preview appears immediately, then the uncached original replaces it.
-  assert.match(await page.locator('#awardLightboxImage').getAttribute('src'),/^blob:/);
-  await page.waitForFunction(()=>document.getElementById('awardLightboxImage').naturalWidth===2400);
+  assert.match(await page.locator('.cig-image').getAttribute('src'),/^blob:/);
+  await page.waitForFunction(()=>document.querySelector('.cig-image').naturalWidth===2400);
   const count=requests.get('/api/data-core/files/synthetic-0');
   await page.keyboard.press('Escape');await page.locator('[data-award-image="synthetic-0"]').click();
-  await page.locator('#awardLightboxImage').evaluate(i=>i.decode());assert.equal(requests.get('/api/data-core/files/synthetic-0'),count);
-  await page.locator('#closeAwardLightboxBtn').click();checks+=3;
+  await page.locator('.cig-image').evaluate(i=>i.decode());assert.equal(requests.get('/api/data-core/files/synthetic-0'),count);
+  await page.locator('[data-cig-close]').click();checks+=3;
   const widths=[1920,1440,1280,1024,768,390,320], assets=new Set();
   for(const width of widths){
     await page.setViewportSize({width,height:1000});

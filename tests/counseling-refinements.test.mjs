@@ -37,7 +37,8 @@ test('public table details exclude member-only hidden JSON columns and malformed
 test('counseling UI removes only manual competition surfaces and keeps safe gallery controls',()=>{
   const html=fs.readFileSync('public/data-core/index.html','utf8');
   assert.doesNotMatch(html,/id="openCompetitionBtn"|id="competitionList"|id="competitionDetail"|DATA CORE 대회 목록/);
-  for(const id of ['openAwardFolderBtn','openAwardUploadBtn','deleteSelectedAwardsBtn','awardDeleteDialog','awardLightbox','refreshCompetitionSourcesBtn'])assert.ok(html.includes(`id="${id}"`));
+  for(const id of ['openAwardFolderBtn','openAwardUploadBtn','deleteSelectedAwardsBtn','awardDeleteDialog','refreshCompetitionSourcesBtn'])assert.ok(html.includes(`id="${id}"`));
+  assert.ok(html.includes('/data-core/image-gallery.js'));
   assert.match(html,/counseling-image-cards/);assert.match(html,/competition-hero/);
   for(const file of ['competition-challenge','admission-roadmap'])assert.ok(fs.statSync(`public/data-core/assets/counseling/${file}.webp`).size<300000);
 });
