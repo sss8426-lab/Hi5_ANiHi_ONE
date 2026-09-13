@@ -1,8 +1,8 @@
 (() => {
   const root = '/data-core/curriculum';
   const families = {
-    content: { title: '웹툰 · 게임 · 애니메이션', description: '웹툰, 게임그래픽, 애니메이션 전공을 준비하는 성장 과정', image: 'family-story-photo-v1.webp', alt: '드로잉 모니터와 스토리보드를 함께 검토하는 창작자들' },
-    design: { title: '디자이너', description: '디자인 계열 진학과 진로를 준비하는 성장 과정', image: 'family-design-photo-v1.webp', alt: '색채와 패키지 시안을 검토하는 디자이너들' },
+    content: { title: '웹툰 · 게임 · 애니메이션', description: '웹툰, 게임그래픽, 애니메이션 전공을 준비하는 성장 과정', image: 'story-v1.webp', alt: '웹툰 원고와 애니메이션 화면, 스토리보드가 놓인 작업대' },
+    design: { title: '디자이너', description: '디자인 계열 진학과 진로를 준비하는 성장 과정', image: 'design-v1.webp', alt: '패키지 시제품, 편집물과 색상표를 펼친 디자인 작업대' },
   };
   const stages = { basic: '기초과정', advanced: '심화과정', admission: '입시과정' };
   const stageImages = {
@@ -37,7 +37,7 @@
     const title = stage ? stages[stage] : selected ? `${selected.title} 커리큘럼` : '꿈을 향한 커리큘럼';
     const back = stage ? `${root}/${family}` : selected ? root : '/data-core/counseling';
     host.innerHTML = `<div class="curriculum-heading"><a class="curriculum-back" href="${back}" aria-label="${stage ? '과정 선택' : selected ? '커리큘럼 선택' : '상담용 홈'}으로 돌아가기">${icon('ArrowLeft')}</a><div>${stage ? `<p>${selected.title} 커리큘럼</p>` : ''}<h2>${title}</h2></div></div>` +
-      (!selected ? `<div class="curriculum-cards">${Object.entries(families).map(([key, item]) => `<a class="curriculum-card" href="${root}/${key}"><img src="/data-core/assets/roadmap/${item.image}" alt="${item.alt}" width="1440" height="960" decoding="async"><div><h3>${item.title}</h3><p>${item.description}</p>${icon('ArrowRight')}</div></a>`).join('')}</div>`
+      (!selected ? `<div class="curriculum-cards">${Object.entries(families).map(([key, item]) => `<a class="curriculum-card" href="${root}/${key}"><img src="/data-core/assets/work-visuals/${item.image}" alt="${item.alt}" width="1440" height="960" decoding="async"><div><h3>${item.title}</h3><p>${item.description}</p>${icon('ArrowRight')}</div></a>`).join('')}</div>`
         : !stage ? `<div class="curriculum-folders">${Object.entries(stages).map(([key, label]) => {
           const art = stageImages[family][key];
           return `<a class="curriculum-card curriculum-stage-card" href="${root}/${family}/${key}"><img src="/data-core/assets/curriculum/${art.image}" alt="${art.alt}" width="1200" height="800" decoding="async"><div><h3>${label}</h3><p>${art.description}</p>${family==='content'?`<p data-stage-count="${key}" aria-live="polite">수업 수 확인 중</p>`:''}${icon('ArrowRight')}</div></a>`;

@@ -52,7 +52,7 @@ try{
    assert.equal(await page.locator('#majorGrid .major-item').count(),c.majors.length);
    assert.equal(await page.locator('.university-item').count(),4);
    await page.locator('#resultPortrait img').evaluate(e=>e.decode());
-   assert.equal(await page.locator('#resultPortrait img').evaluate(e=>getComputedStyle(e).objectFit),'cover');
+   assert.equal(await page.locator('#resultPortrait img').evaluate(e=>getComputedStyle(e).objectFit),'contain');
    assert.equal(await page.locator('#resultPortrait img').getAttribute('loading'),'eager');
    assert.equal(await page.locator('.career-visual-section').count(),3);
    for(const key of ['learning','competencies','portfolio']){

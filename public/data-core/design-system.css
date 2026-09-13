@@ -164,19 +164,41 @@ body:is(.data-core-layout, .admissions-counseling) .core-nav-dialog :is(.sidebar
 @media (prefers-reduced-motion: reduce) { :is(.data-core-layout, .roadmap-page, .admissions-counseling) * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
 @media print { .core-menu-toggle, .core-nav-dialog { display: none !important; } }
 
-/* The home is a brand-facing variant of the same shell, cards and calendar. */
-body.data-core-layout.brand-home { background: var(--core-bg); }
-body.data-core-layout.brand-home :is(.sidebar, .core-nav-dialog) { background: var(--core-sidebar); border-color: var(--core-sidebar-line); color: var(--core-sidebar-text); }
-body.data-core-layout.brand-home .sidebar :is(.brand strong, .nav-item) { color: var(--core-sidebar-text); }
-body.data-core-layout.brand-home .sidebar :is(.brand small, .back-link, .connection-card small) { color: var(--core-sidebar-muted); }
-body.data-core-layout.brand-home .sidebar .brand-mark { background: transparent; color: var(--core-sidebar-text); border-color: var(--core-sidebar-line); box-shadow: none; }
-body.data-core-layout.brand-home .sidebar .nav-item:is(:hover, :focus-visible) { background: var(--core-sidebar-line); color: var(--core-surface); }
-body.data-core-layout.brand-home .sidebar .nav-item.active { color: var(--core-surface); background: var(--core-brand); border-color: var(--core-sidebar-muted); }
-body.data-core-layout.brand-home .sidebar .nav-admin { border-color: var(--core-sidebar-line); }
-body.data-core-layout.brand-home .sidebar .connection-card { background: transparent; border-color: var(--core-sidebar-line); color: var(--core-sidebar-text); }
-body.data-core-layout.brand-home .sidebar .connection-card strong { color: var(--core-sidebar-text); }
-body.data-core-layout.brand-home .sidebar :is(a, button):focus-visible { outline-color: var(--core-sidebar-text); }
-body.data-core-layout.brand-home .core-nav-close button { background: var(--core-sidebar); color: var(--core-sidebar-text); border-color: var(--core-sidebar-line); }
+/* The same quiet shell surrounds both brand and operational screens. */
+body:is(.data-core-layout.data-core-layout, .admissions-counseling.admissions-counseling) :is(.sidebar, .kk-sidebar, .core-nav-dialog) { background: var(--core-sidebar); border-color: var(--core-sidebar-line); color: var(--core-sidebar-text); }
+body:is(.data-core-layout.data-core-layout, .admissions-counseling.admissions-counseling) :is(.sidebar, .kk-sidebar) :is(.brand, .brand strong, .kk-brand, .kk-brand strong, .core-brand, .core-brand strong, .nav-item, .kk-nav a, .kk-nav button, #nav button) { color: var(--core-sidebar-text); }
+body:is(.data-core-layout.data-core-layout, .admissions-counseling.admissions-counseling) :is(.sidebar, .kk-sidebar) :is(.brand small, .kk-brand small, .core-brand small, .back-link, .connection-card small) { color: var(--core-sidebar-muted); }
+body:is(.data-core-layout.data-core-layout, .admissions-counseling.admissions-counseling) :is(.sidebar, .kk-sidebar) :is(.brand-mark, .kk-brand-mark, .core-brand > span) { background: transparent; color: var(--core-sidebar-text); border-color: var(--core-sidebar-line); box-shadow: none; }
+body:is(.data-core-layout.data-core-layout, .admissions-counseling.admissions-counseling) :is(.nav-item, .kk-nav a, .kk-nav button, #nav button):is(:hover, :focus-visible) { background: var(--core-sidebar-line); color: var(--core-surface); }
+body:is(.data-core-layout.data-core-layout, .admissions-counseling.admissions-counseling) :is(.nav-item.active, .kk-nav .active, #nav button.active) { color: var(--core-surface); background: var(--core-brand); border-color: var(--core-sidebar-muted); }
+body.data-core-layout.data-core-layout .nav-admin { border-color: var(--core-sidebar-line); }
+body.data-core-layout.data-core-layout .sidebar .connection-card { background: transparent; border-color: var(--core-sidebar-line); color: var(--core-sidebar-text); }
+body.data-core-layout.data-core-layout .sidebar .connection-card strong { color: var(--core-sidebar-text); }
+body:is(.data-core-layout, .admissions-counseling) :is(.sidebar, .kk-sidebar) :is(a, button):focus-visible { outline-color: var(--core-sidebar-text); }
+body:is(.data-core-layout, .admissions-counseling) .core-nav-close button { background: var(--core-sidebar); color: var(--core-sidebar-text); border-color: var(--core-sidebar-line); }
+body.admissions-counseling .sidebar > a:last-child { background: var(--core-sidebar-line) !important; color: var(--core-sidebar-text) !important; }
+body.admissions-counseling .summary-metrics { grid-template-columns:repeat(auto-fit, minmax(min(100%, 200px), 1fr)); border-color:var(--core-line); border-radius:8px; }
+body.admissions-counseling .summary-metrics > div { min-width:0; border-color:var(--core-line); border-bottom:1px solid var(--core-line); }
+body.admissions-counseling .summary-metrics b { color:var(--core-ink); word-break:keep-all; }
+body.admissions-counseling .summary-metrics p { color:var(--core-ink-secondary); }
+body.admissions-counseling .summary-metrics .metric-icon { border-color:var(--core-line-strong); color:var(--core-brand); }
+.roadmap-page .roadmap-header { background: var(--core-sidebar); color: var(--core-sidebar-text); border-color: var(--core-sidebar-line); }
+.roadmap-page .roadmap-header :is(a, strong) { color: var(--core-sidebar-text); }
+.roadmap-page .roadmap-header small { color: var(--core-sidebar-muted); }
+.roadmap-page .roadmap-header .brand-mark { background: transparent; border-color: var(--core-sidebar-line); color: var(--core-sidebar-text); }
+.roadmap-page .job-image, .roadmap-page .dream-card img.job-image { aspect-ratio: 4 / 3; height: auto; object-fit: contain; background: var(--core-surface-soft); }
+.roadmap-page .result-portrait { aspect-ratio: 4 / 3; }
+.roadmap-page :is(.career-visual-copy h2, .career-visual-items h3) { color: var(--core-ink); }
+.roadmap-page :is(.career-visual-intro, .career-visual-items p) { color: var(--core-ink-secondary); }
+body.data-core-layout.data-core-layout .curriculum-stage-card { background: var(--core-surface); border-color: var(--core-line); box-shadow: none; }
+body.data-core-layout.data-core-layout :is(.kk-hero h2, .kk-panel h2, .kk-status-grid strong) { color: var(--core-ink); }
+body.data-core-layout.data-core-layout .kk-toolbar button { background: var(--core-brand); color: var(--core-surface); }
+body.data-core-layout.data-core-layout #kkAnalyticsToolbar { display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px; }
+body.data-core-layout.data-core-layout #kkAnalyticsToolbar label { flex:0 1 200px; min-width:0; }
+body.data-core-layout.data-core-layout #kkAnalyticsToolbar button { width:auto; height:auto; min-height:40px; padding:10px 14px; font-size:13px; line-height:1.5; white-space:normal; }
+body.data-core-layout.data-core-layout :is(.kk-empty, .kk-announcement-form) { background: var(--core-surface); color: var(--core-ink-secondary); border-color: var(--core-line); border-radius: 8px; }
+body.data-core-layout.data-core-layout :is(.kk-empty p, .kk-empty small, .kk-status-grid small, .kk-subline) { color: var(--core-ink-secondary); }
+/* Home retains its editorial hierarchy; forms and operational headings stay compact. */
 body.data-core-layout.brand-home .topbar { min-height: 138px; padding-block: 24px; border-bottom: 0; gap: 16px; }
 body.data-core-layout.brand-home .topbar > div:first-child { min-width: 0; }
 body.data-core-layout.brand-home #pageTitle { font-size: 46px; font-weight: 650; line-height: 1.3; word-break: keep-all; overflow-wrap: anywhere; letter-spacing: 0; }

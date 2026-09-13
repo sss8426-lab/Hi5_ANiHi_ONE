@@ -108,9 +108,11 @@ test('new browser session starts in normal mode and lost role restores normal UI
   assert.equal(h.saved(), null);
 });
 
-test('home tokens, crop and reduced-motion handling stay isolated from other pages', () => {
+test('brand tokens are shared while editorial crop and presentation stay scoped', () => {
   const tokens = readFileSync('public/data-core/design-tokens.css', 'utf8');
-  assert.match(tokens, /\.brand-home \{/);
+  assert.match(tokens, /:root \{/);
+  assert.match(tokens, /--core-sidebar: #151715/);
+  assert.match(tokens, /--core-bg: #f8f8f5/);
   const css = readFileSync('public/data-core/design-system.css', 'utf8');
   assert.match(css, /object-position: var\(--card-focus, 50% 50%\)/);
   assert.match(css, /aspect-ratio: 3 \/ 2/);

@@ -57,8 +57,8 @@ test("wires the DATA CORE counseling and work mode split", async () => {
     readFile(new URL("../public/data-core/app.js", import.meta.url), "utf8"),
     readFile(new URL("../public/data-core/styles.css", import.meta.url), "utf8"),
     readFile(new URL("../worker/router.ts", import.meta.url), "utf8"),
-    readFile(new URL("../public/data-core/assets/mode-counseling-photo-v1.webp", import.meta.url)),
-    readFile(new URL("../public/data-core/assets/mode-work-photo-v1.webp", import.meta.url)),
+    readFile(new URL("../public/data-core/assets/work-visuals/story-v1.webp", import.meta.url)),
+    readFile(new URL("../public/data-core/assets/work-visuals/operations-v1.webp", import.meta.url)),
   ]);
 
   assert.match(dataCoreIndex, /data-mode-card="counseling"/);
@@ -68,8 +68,8 @@ test("wires the DATA CORE counseling and work mode split", async () => {
   assert.match(dataCoreIndex, /data-nav-scope="counseling"/);
   assert.match(dataCoreIndex, /data-nav-scope="work"/);
   assert.match(dataCoreIndex, /data-nav-scope="admin"/);
-  assert.match(dataCoreIndex, /data-core\/assets\/mode-counseling-photo-v1\.webp/);
-  assert.match(dataCoreIndex, /data-core\/assets\/mode-work-photo-v1\.webp/);
+  assert.match(dataCoreIndex, /data-core\/assets\/work-visuals\/story-v1\.webp/);
+  assert.match(dataCoreIndex, /data-core\/assets\/work-visuals\/operations-v1\.webp/);
   assert.ok(counselingAsset.byteLength > 1_000);
   assert.ok(workAsset.byteLength > 1_000);
   assert.equal(counselingAsset.subarray(0, 4).toString("ascii"), "RIFF");

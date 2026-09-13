@@ -36,8 +36,12 @@ export const occupationImageConcepts = [
   ['D034','furniture-designer','가구·리빙 디자이너','산업·제품','의자 모형의 결합부를 조정하고 치수 확인','의자 프로토타입, 목재 샘플, 치수 도면','작은 모형과 실물 목재 의자','정돈된 가구 디자인 목공 작업실'],
   ['D035','ai-convergence-designer','AI·융합 콘텐츠 디자이너','디지털·융합','여러 생성 시안을 고르고 인터랙티브 전시를 시험','시안 격자 화면, 소형 프로젝터, 센서 보드','손의 움직임에 반응하는 실제 투사 디자인','현실적인 밝은 미디어 프로토타입 랩'],
 ].map(([occupationId, slug, title, category, action, tools, visualFocus, environment]) => ({
-  occupationId, title, category, action, tools: tools.split(', '), visualFocus, environment,
+  occupationId, slug, title, category, action, tools: tools.split(', '), visualFocus, environment,
   concept: `${action}. ${visualFocus}.`,
   avoid: ['다른 직업 이미지 재사용', '직업명 텍스트', '워터마크', '로고', '도구 없는 인물 초상'],
-  asset: `/data-core/assets/roadmap/jobs/${slug}.webp`, version: '20260910-photo-v2',
+  asset: `/data-core/assets/roadmap/covers/${slug}.webp`, version: '20260913-work-v1',
+  sourceAsset: `/data-core/assets/roadmap/detail/${slug}/portfolio.webp`,
+  legacyAsset: `/data-core/assets/roadmap/jobs/${slug}.webp`,
+  width: 640, height: 480,
+  alt: `${title}: ${visualFocus}`,
 }));
