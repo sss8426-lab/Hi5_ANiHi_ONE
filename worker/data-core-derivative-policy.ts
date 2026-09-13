@@ -8,7 +8,7 @@ export const DERIVATIVE_CATEGORY = 'instagram-derived';
 export const THUMBNAIL_RECORD_TYPE = 'image-thumbnail';
 export const THUMBNAIL_CATEGORY = 'image-thumbnail';
 export function assertMutableRecordType(type: unknown) {
-  if ([DERIVATIVE_RECORD_TYPE, THUMBNAIL_RECORD_TYPE,'admissions-legacy-thumbnail'].includes(String(type).trim())) throw new DataCoreAccessError(403, '파생 이미지 원본 관계는 변경할 수 없습니다.');
+  if ([DERIVATIVE_RECORD_TYPE, THUMBNAIL_RECORD_TYPE,'admissions-legacy-thumbnail','content-ai-request','content-defaults'].includes(String(type).trim())) throw new DataCoreAccessError(403, '보호된 데이터는 전용 기능에서만 변경할 수 있습니다.');
 }
 
 export function validThumbnail(row: Record<string, any>, metadata: any, source: Record<string, any>) {
@@ -50,8 +50,9 @@ export async function derivativeMetadata(db: D1Database, row: Record<string, unk
   try {
     const value = JSON.parse(record?.metadata_json || 'null');
     if (value?.schemaVersion !== 1 || value.derivativeFileId !== row.id || typeof value.derivedFromFileId !== 'string'
-      || value.derivativeType !== 'instagram-4x5' || value.width !== 2160 || value.height !== 2700
+      || !['instagram-4x5','instagram-ai-edit'].includes(value.derivativeType) || value.width !== 2160 || value.height !== 2700
       || value.aspectRatio !== '4:5' || value.createdBy !== 'instagram-editor') return null;
+    if (value.derivativeType === 'instagram-ai-edit' && (value.provider !== 'openai' || value.aiEdited !== true || typeof value.model !== 'string' || !value.model || !Number.isFinite(Date.parse(value.generatedAt)))) return null;
     return value as {schemaVersion:number; derivativeFileId:string; derivedFromFileId:string; derivativeType:string;
       width:number; height:number; aspectRatio:string; createdBy:string};
   } catch { return null; }

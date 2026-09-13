@@ -15,26 +15,15 @@ test('work content sidebar stays work-only and hides admin links by default', ()
   assert.match(adminNavScript, /context\?\.authenticated && context\?\.isSuperAdmin/);
 });
 
-test('work content file picker preserves nine library categories and adds derived output filtering', () => {
-  const expected = [
-    'class-photo',
-    'student-artwork',
-    'academy-photo',
-    'competition-material',
-    'admission-material',
-    'counseling-material',
-    'blog-source',
-    'instagram-source',
-    'instagram-derived',
-    'promotion-material',
-  ];
-  const select = contentHtml.match(/<select id="fileCategoryFilter">([\s\S]*?)<\/select>/)?.[1] || '';
-  const values = [...select.matchAll(/<option value="([^"]*)">/g)]
-    .map((match) => match[1])
-    .filter(Boolean);
-  assert.deepEqual(values, expected);
+test('work content picker uses actual library folders instead of duplicated category lists', () => {
+  assert.ok(contentHtml.includes('/data-core/library-client.js'));
+  assert.ok(contentHtml.includes('id="photoFolders"'));
+  assert.ok(contentHtml.includes('id="photoBreadcrumb"'));
+  assert.ok(!contentHtml.includes('fileCategoryFilter'));
+  assert.ok(contentHtml.indexOf('id="photoHeading"') < contentHtml.indexOf('id="aiCommand"'));
+  assert.ok(contentHtml.includes('지난 작업'));
 });
 
 test('Instagram work route keeps the fixed 2160x2700 4:5 specification', () => {
-  assert.match(contentHtml, /2160 × 2700px · 4:5/);
+  assert.match(contentHtml, /width="2160" height="2700"/);
 });

@@ -42,6 +42,7 @@ async function harness() {
   async function post(user, body) {
     const headers = new Headers(user ? authHeaders(user) : undefined);
     headers.set('content-type', 'application/json');
+    headers.set('origin', 'http://localhost');
     const response = await worker.fetch(
       new Request('http://localhost/api/data-core/content/generate', {
         method: 'POST',

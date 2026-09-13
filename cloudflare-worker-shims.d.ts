@@ -19,6 +19,8 @@ interface D1Database {
 }
 
 interface R2ObjectBody {
+  size: number;
+  arrayBuffer(): Promise<ArrayBuffer>;
   httpMetadata?: R2PutOptions['httpMetadata'];
   body: ReadableStream;
   httpEtag: string;

@@ -126,8 +126,7 @@
     $('libraryQuery').value = current.q;
     try {
       const options = { signal: state.controller.signal };
-      const view = await api(`/api/data-core/library/folders?parentId=${encodeURIComponent(current.id)}`, options);
-      const listing = await api(`/api/data-core/library/files?folderId=${encodeURIComponent(current.id)}&q=${encodeURIComponent(current.q)}&page=${current.page}`, options);
+      const { view, listing } = await window.DataCoreLibraryClient.browse(api, current, options);
       if (generation !== state.generation) return;
       state.folder = view.folder; state.folders = view.folders; state.files = listing.files; state.breadcrumbs = view.breadcrumbs;
       $('libraryTitle').textContent = presentation(view.folder).title;

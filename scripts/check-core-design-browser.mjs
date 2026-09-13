@@ -47,6 +47,8 @@ try{
   if(p==='/api/data-core/curriculum')return route.fulfill({json:{folders:[],lessons:[],totalFolders:0,totalPages:0}});
   if(p==='/api/data-core/library/folders')return route.fulfill({json:{folder:{id:'root',title:'자료보관함',canWrite:true,canDelete:false},breadcrumbs:[{id:'root',title:'자료보관함'}],folders:Array.from({length:4},(_,i)=>({id:`synthetic-folder-${i}`,title:`Synthetic folder ${i+1}`,canWrite:true,canDelete:false}))}});
   if(p==='/api/data-core/library/files')return route.fulfill({json:{files:[],hasMore:false}});
+  if(p==='/api/data-core/content/defaults')return route.fulfill({json:{defaults:{hashtags:'',footer:''}}});
+  if(p==='/api/data-core/content/ai-status')return route.fulfill({json:{configured:false,models:{text:'configured-model',image:'configured-model'}}});
   if(p.endsWith('/health'))return route.fulfill({json:{ok:true,bindings:{database:true,files:true},status:{ok:true,database:true,files:true}}});
   if(p==='/api/data')return route.fulfill({json:{students:[],universities:[],cases:[],awardFolders:[],settings:{}}});
   if(p==='/api/kkumeum/dashboard')return route.fulfill({json:{dashboard:{students:0,classes:0,yearMonth:'2026-09',reports:{missing:0,draft:0,ready:0,sent:0},artworks:0,guardians:{linked:0}}}});

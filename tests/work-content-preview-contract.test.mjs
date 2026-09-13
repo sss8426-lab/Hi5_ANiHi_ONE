@@ -14,18 +14,10 @@ test('work content automation keeps latest navigation filters and adds CTA previ
   assert.doesNotMatch(html, /꿈·전공 로드맵/);
   assert.match(html, /data-super-admin-nav/);
 
-  const categories = [
-    'class-photo',
-    'student-artwork',
-    'academy-photo',
-    'competition-material',
-    'admission-material',
-    'counseling-material',
-    'blog-source',
-    'instagram-source',
-    'promotion-material',
-  ];
-  for (const category of categories) assert.match(html, new RegExp(`value="${category}"`));
+  assert.ok(html.includes('id="resultFooter"'));
+  assert.ok(html.includes('id="aiResult"'));
+  assert.ok(html.includes('id="photoFolders"'));
+  assert.ok(html.includes('id="manualWork"'));
 
   assert.match(helper, /draftCta/);
   assert.match(helper, /renderDraftPreview/);

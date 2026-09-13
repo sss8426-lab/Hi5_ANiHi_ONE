@@ -102,7 +102,7 @@ async function assertFilesCanBeLinked(
   const placeholders = fileIds.map(() => "?").join(", ");
   const result = await db
     .prepare(
-      `SELECT id, campus_id, owner_user_id, visibility, deleted_at, category, data_record_id
+      `SELECT *
        FROM file_objects
        WHERE organization_id = ? AND id IN (${placeholders})`,
     )

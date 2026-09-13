@@ -16,6 +16,8 @@
 
 ## API
 
+Blog/Instagram photo selection now shares `public/data-core/library-client.js` with this browser. Both call the existing folder/file endpoints below. No alternate folder registry, category copy, default initializer or folder ID rewrite was introduced.
+
 All routes require an authenticated DATA CORE organization membership. Mutations require exact same-origin. Responses are private/no-store.
 
 | Method | Route | Contract |
