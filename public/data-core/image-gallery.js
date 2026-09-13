@@ -35,7 +35,8 @@
     const observer = new MutationObserver(() => { if (anchor && !anchor.isConnected) finish(); });
     function setZoom(actual) {
       modal.classList.toggle('cig-actual', actual);
-      zoom.querySelector('use').setAttribute('href', `/data-core/assets/core-icons.svg?v=20260913-gallery#${actual ? 'ZoomOut' : 'ZoomIn'}`);
+      const use=zoom.querySelector('use'), href=`/data-core/assets/core-icons.svg?v=20260913-gallery#${actual ? 'ZoomOut' : 'ZoomIn'}`;
+      if(use.getAttribute('href')!==href)use.setAttribute('href',href);
       zoom.title = actual ? '화면에 맞추기' : '원본 크기로 확대'; zoom.setAttribute('aria-label', zoom.title);
       canvas.scrollTo(0, 0); gesture = null;
     }

@@ -44,6 +44,7 @@ jobs:
           node --check public/family/family-news.js
           node --check public/family/family-mobile.js
           node --check public/data-core/app.js
+          node --check public/data-core/image-gallery.js
           node --check public/data-core/brand-home.js
           node --check public/data-core/award-image-cache.js
           node --check public/data-core/curriculum.js
