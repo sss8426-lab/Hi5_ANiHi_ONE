@@ -28,11 +28,15 @@
       host.innerHTML = `<nav class="lesson-breadcrumb" aria-label="현재 위치">${crumbs.map((c,i)=>`<a href="${escape(c.url)}" ${i===crumbs.length-1?'aria-current="page"':''}>${escape(c.title)}</a>`).join('<span aria-hidden="true">/</span>')}</nav>
         <header class="lesson-heading"><div><h2>${escape(data.folder?.title||titles[stage])}</h2><p>${data.folder?`${data.pages.length}장의 수업자료`:descriptions[stage]}</p></div><button type="button" data-print ${!(lesson?data.pages.length||data.folders.length:data.totalPages)?'disabled':''}>${icon('Printer')}<span>${lesson?'이 수업 인쇄':'전체 인쇄'}</span></button></header>
         <p class="lesson-status" role="status" aria-live="polite"></p>
-        <div class="lesson-grid">${data.folders.map(f=>`<a class="lesson-card" href="${escape(lessonUrl(f.id))}"><div class="lesson-card-media">${safeUrl(f.representativeUrl)?`<img src="${escape(f.representativeUrl)}" alt="${escape(f.title)} 대표 수업자료" loading="lazy" decoding="async" width="640" height="480">`:icon('Folder')}</div><div class="lesson-card-copy"><h3>${escape(f.title)}</h3><p>${f.pageCount}장의 수업자료</p><span aria-hidden="true">→</span></div></a>`).join('')}</div>
+        <div class="lesson-grid">${data.folders.map((f,i)=>`<a class="lesson-card" href="${escape(lessonUrl(f.id))}"><div class="lesson-card-media">${safeUrl(f.representativeUrl)?`<img src="${escape(f.representativeUrl)}" data-fallback="${escape(safeUrl(f.fallbackRepresentativeUrl))}" alt="${escape(f.coverAlt||`${f.title} 대표 수업자료`)}" loading="${i<4?'eager':'lazy'}" fetchpriority="${i<4?'high':'auto'}" decoding="async" width="640" height="480">`:icon('Folder')}</div><div class="lesson-card-copy"><h3>${escape(f.title)}</h3><p>${f.pageCount}장의 수업자료</p><span aria-hidden="true">→</span></div></a>`).join('')}</div>
         ${lesson&&data.pages.length?'<section class="lesson-reader" aria-label="수업자료 슬라이드"><div class="lesson-reader-toolbar"><button data-prev aria-label="이전 페이지" title="이전 페이지">←</button><output class="lesson-counter" aria-live="polite"></output><button data-next aria-label="다음 페이지" title="다음 페이지">→</button></div><button class="lesson-canvas" aria-label="원본 크게 보기" title="원본 크게 보기"></button><div class="lesson-pages" aria-label="전체 페이지 목록"></div></section>':''}
         ${!data.pages.length&&!data.folders.length?'<p class="lesson-empty">등록된 수업자료가 없습니다.</p>':''}`;
       host.querySelectorAll('a').forEach(a=>a.addEventListener('click',e=>{if(e.button||e.ctrlKey||e.metaKey||e.shiftKey||e.altKey)return;e.preventDefault();navigate(a.getAttribute('href'));}));
-      host.querySelectorAll('.lesson-card img').forEach(img=>img.addEventListener('error',()=>{img.replaceWith(Object.assign(document.createElement('span'),{textContent:'표지 확인 필요'}));}));
+      host.querySelectorAll('.lesson-card img').forEach(img=>img.addEventListener('error',()=>{
+        const fallback=safeUrl(img.dataset.fallback);delete img.dataset.fallback;
+        if(fallback&&img.getAttribute('src')!==fallback){img.src=fallback;return;}
+        img.replaceWith(Object.assign(document.createElement('span'),{textContent:'표지 확인 필요'}));
+      }));
       const status = host.querySelector('.lesson-status');
       async function print() {
         if (printing) return;

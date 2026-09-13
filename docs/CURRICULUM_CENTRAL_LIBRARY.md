@@ -1,5 +1,7 @@
 # 중앙 커리큘럼 수업자료
 
+2026-09-13 폴더 표지 확장: 기존 curriculum-folder의 coverFileId/cover metadata와 FILES의 curriculum-cover 파일을 사용한다. 교재 페이지/원본/인쇄는 그대로이며 대표 thumbnail fallback을 유지한다. [전용 표지 운영 문서](CURRICULUM_FOLDER_COVERS_2026-09-13.md)를 참고한다.
+
 기준: 2026-09-12, 작업 시작 main `1ddf3cdd858035e7541f973ff375615787999632`.
 배포 및 운영 import 증거는 PR 최종 코멘트로 구분한다. PR #195/#196에서 실제 45폴더/825페이지와 원본·preview·thumbnail·print 3,300파일의 중앙 등록 및 원본 전수 SHA256 검증을 완료했다. 이 후속 작업에서는 운영 자료를 재수입하지 않는다.
 
