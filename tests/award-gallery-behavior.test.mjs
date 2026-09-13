@@ -15,6 +15,7 @@ function harness() {
     return elements.get(id);
   };
   const context = vm.createContext({
+    window: {DataCoreImageGallery:{close(){}}},
     document: {getElementById: element, querySelectorAll: () => []},
     console, URLSearchParams, FormData, HTMLDialogElement: class {},
     AwardImageCache: class {clear() {} remove() {}},

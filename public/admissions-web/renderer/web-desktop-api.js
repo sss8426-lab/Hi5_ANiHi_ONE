@@ -374,6 +374,20 @@
   }
 
   function openImageViewer(universityId, universityName, images) {
+    if (window.DataCoreImageGallery) {
+      const anchor = document.activeElement;
+      const open = index => window.DataCoreImageGallery.open({scope:'admission-guidelines',title:`${universityName || '대학'} 입시요강 이미지`,anchor,index,
+        items:images.map(image=>({src:imageSrcForViewer(image.url),title:image.fileName})),
+        actions:[{label:'이미지 삭제',icon:'Trash2',run:async(selected,viewer)=>{
+          if(!confirm('선택한 입시요강 이미지를 삭제할까요?'))return;
+          try {
+            const result=await window.desktopAPI.deleteAdmissionImage(universityId,images[selected].id);
+            images=result.images || []; viewer.close();
+            if(images.length)open(Math.min(selected,images.length-1));
+          } catch { alert('이미지를 삭제하지 못했습니다. 다시 시도해주세요.'); }
+        }}]});
+      return open(0);
+    }
     const viewer = window.open('', '_blank', 'width=1280,height=860');
     if (!viewer) throw new Error('새 창이 차단되었습니다. 팝업 허용 후 다시 시도하세요.');
     const title = `${universityName || '대학'} 입시요강 이미지`;

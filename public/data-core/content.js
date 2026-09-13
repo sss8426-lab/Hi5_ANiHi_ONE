@@ -241,6 +241,7 @@ async function loadFiles() {
 function renderFilePicker() {
   const list = $('filePickList');
   if (!state.files.length) {
+    window.DataCoreImageGallery.close('content-photos');
     list.innerHTML = '';
     delete list.dataset.signature;
     return;
@@ -255,6 +256,7 @@ function renderFilePicker() {
     return;
   }
   list.dataset.signature = signature;
+  window.DataCoreImageGallery.close('content-photos');
   list.innerHTML = state.files.map((file, index) => {
     const selected = [...state.selectedFileIds, ...state.selectedDerivedFileIds].includes(String(file.id));
     return `<article class="photo-tile">
@@ -279,9 +281,9 @@ function renderFilePicker() {
   });
   list.querySelectorAll('img').forEach(img => { img.onerror = () => { if (img.src !== new URL(img.dataset.original, location.origin).href) img.src = img.dataset.original; }; });
   list.querySelectorAll('[data-preview]').forEach(button => { button.onclick = () => {
-    const file = state.knownFiles.get(button.dataset.preview);
-    $('photoViewerImage').src = file.previewUrl;
-    $('photoViewer').showModal();
+    window.DataCoreImageGallery.open({scope:'content-photos',title:'사진',anchor:button,
+      index:state.files.findIndex(file=>file.id===button.dataset.preview),
+      items:state.files.map((file,index)=>({src:file.previewUrl,previewSrc:file.thumbnailUrl,title:`사진 ${index+1}`}))});
   }; });
 }
 
@@ -479,11 +481,10 @@ function bindEvents() {
     if (!visible && state.aiSourceId) $('aiOriginal').src = '/api/data-core/files/' + encodeURIComponent(state.aiSourceId);
   };
   $('downloadImage').onclick = downloadImage;
-  $('closePhotoViewer').onclick = () => $('photoViewer').close();
-  $('photoViewer').onclose = () => $('photoViewerImage').removeAttribute('src');
   const clearPrivateImages = () => {
+    window.DataCoreImageGallery.close('content-photos');
     state.aiController?.abort(); state.knownFiles.clear();
-    document.querySelectorAll('.content-workspace img, #photoViewerImage').forEach(img => img.removeAttribute('src'));
+    document.querySelectorAll('.content-workspace img').forEach(img => img.removeAttribute('src'));
   };
   window.addEventListener('pagehide', clearPrivateImages);
   window.addEventListener('pageshow', event => { if (event.persisted) location.reload(); });

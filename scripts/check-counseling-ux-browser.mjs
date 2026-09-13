@@ -83,10 +83,10 @@ try {
     await p.locator('.student-detail-row [data-open-artwork]').first().scrollIntoViewIfNeeded();
     await p.waitForLoadState('networkidle');
     const loaded=await p.locator('#students img[data-student-artwork]').evaluateAll(images=>images.filter(i=>i.complete&&i.naturalWidth).map(i=>new URL(i.src).pathname));
-    const beforeOpen=new Map(requests);await p.locator('.student-detail-row [data-open-artwork]').first().click();await p.locator('.artwork-viewer img').evaluate(i=>i.decode());
+    const beforeOpen=new Map(requests);await p.locator('.student-detail-row [data-open-artwork]').first().click();await p.locator('.core-image-gallery img').evaluate(i=>i.decode());
     assert.equal(await thumb.getAttribute('data-synthetic-identity'),'retained');
     for(const key of loaded)if(key!==firstPath)assert.equal(requests.get(key),beforeOpen.get(key),`loaded image re-request ${key}`);
-    await p.keyboard.press('Escape');assert.equal(await p.locator('.artwork-viewer').count(),0);
+    await p.keyboard.press('Escape');assert.equal(await p.locator('.core-image-gallery').count(),0);
     assert.equal(await thumb.getAttribute('data-synthetic-identity'),'retained');
     assert.ok((requests.get(firstPath)||0)-countBefore<=2,'no duplicate rerender requests');
     await noOverflow(`students ${width}`);await p.screenshot({path:`${out}/students-${width}.png`,fullPage:true});checks+=35;

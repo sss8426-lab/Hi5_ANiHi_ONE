@@ -11,7 +11,7 @@
     let removed = false, printing = false, dialog, printRoot, prefetched = [], keyHandler;
     const clearPrint=()=>{printRoot?.remove();printRoot=null;document.body.classList.remove('curriculum-printing');};
     window.addEventListener('afterprint',clearPrint);
-    dispose = () => { removed = true; controller.abort(); document.removeEventListener('keydown',keyHandler); window.removeEventListener('afterprint',clearPrint); dialog?.remove(); clearPrint(); prefetched = []; };
+    dispose = () => { removed = true; controller.abort(); document.removeEventListener('keydown',keyHandler); window.removeEventListener('afterprint',clearPrint); dialog?.close(); clearPrint(); prefetched = []; };
     const active = () => !removed && sequence === current && host.classList.contains('active');
     const get = async url => { const r = await fetch(url,{credentials:'same-origin',cache:'no-store',signal:controller.signal}); if(!r.ok) { const error = new Error(r.status===401?'로그인이 필요합니다.':'수업자료를 불러오지 못했습니다.'); error.status=r.status;throw error; } return r.json(); };
     const navigate = url => { history.pushState({},'',url); rerender(); };
@@ -64,7 +64,7 @@
         index=Math.max(0,Math.min(pages.length-1,next));const p=pages[index];
         if(push){const u=new URL(location.href);u.searchParams.set('slide',String(index+1));history.pushState({},'',u.pathname+u.search);}
         const img=image(p.previewUrl,`${data.folder.title} 수업자료 ${index+1}`);img.fetchPriority='high';img.decoding='async';img.draggable=false;
-        img.onerror=()=>{if(active()){canvas.textContent='이미지를 불러오지 못했습니다.';const retry=document.createElement('span');retry.textContent='다시 시도';canvas.append(retry);canvas.dataset.failed='true';}};
+        img.onerror=()=>{if(active()&&img.isConnected){canvas.textContent='이미지를 불러오지 못했습니다.';const retry=document.createElement('span');retry.textContent='다시 시도';canvas.append(retry);canvas.dataset.failed='true';}};
         delete canvas.dataset.failed;canvas.replaceChildren(img);
         host.querySelector('.lesson-counter').textContent=`${index+1} / ${pages.length}`;
         host.querySelector('[data-prev]').disabled=index===0;host.querySelector('[data-next]').disabled=index===pages.length-1;
@@ -74,7 +74,7 @@
       }
       strip.querySelectorAll('button').forEach(b=>b.onclick=()=>show(Number(b.dataset.slide)));
       host.querySelector('[data-prev]').onclick=()=>show(index-1);host.querySelector('[data-next]').onclick=()=>show(index+1);
-      keyHandler=e=>{if(!active()||dialog?.open||printing||/INPUT|SELECT|TEXTAREA/.test(e.target.tagName))return;const next={ArrowLeft:index-1,ArrowRight:index+1,Home:0,End:pages.length-1}[e.key];if(next!==undefined){e.preventDefault();show(next);}};
+      keyHandler=e=>{if(!active()||dialog?.isOpen||printing||/INPUT|SELECT|TEXTAREA/.test(e.target.tagName))return;const next={ArrowLeft:index-1,ArrowRight:index+1,Home:0,End:pages.length-1}[e.key];if(next!==undefined){e.preventDefault();show(next);}};
       document.addEventListener('keydown',keyHandler);
       let start,swiped=false;
       canvas.addEventListener('pointerdown',e=>{start={x:e.clientX,y:e.clientY};swiped=false;canvas.setPointerCapture(e.pointerId);});
@@ -82,9 +82,9 @@
       canvas.addEventListener('pointerup',e=>{if(start&&Math.abs(e.clientX-start.x)>50&&Math.abs(e.clientX-start.x)>Math.abs(e.clientY-start.y)){swiped=true;show(index+(e.clientX<start.x?1:-1));}start=null;});
       canvas.onclick=()=>{
         if(swiped){swiped=false;return;}if(canvas.dataset.failed){show(index,false);return;}
-        dialog=document.createElement('dialog');dialog.className='lesson-zoom';dialog.innerHTML='<button data-close aria-label="닫기" title="닫기">×</button><button data-zoom aria-label="원본 크기로 확대" title="원본 크기로 확대">+</button><div></div>';
-        const img=image(pages[index].originalUrl,`${data.folder.title} 원본 ${index+1}`);dialog.querySelector('div').append(img);
-        dialog.querySelector('[data-close]').onclick=()=>dialog.close();dialog.querySelector('[data-zoom]').onclick=e=>{const zoom=dialog.classList.toggle('actual-size');e.currentTarget.textContent=zoom?'−':'+';e.currentTarget.setAttribute('aria-label',zoom?'화면에 맞추기':'원본 크기로 확대');};dialog.onclick=e=>{if(e.target===dialog)dialog.close();};dialog.onclose=()=>dialog.remove();document.body.append(dialog);dialog.showModal();
+        dialog=window.DataCoreImageGallery.open({scope:'curriculum',title:data.folder.title,anchor:canvas,index,
+          items:pages.map((p,i)=>({src:safeUrl(p.originalUrl),previewSrc:safeUrl(p.previewUrl),title:`${data.folder.title} ${i+1}`})),
+          onChange:next=>show(next)});
       };
       show(index,false);
     }catch(e){if(active()&&e.name!=='AbortError'){host.innerHTML=`<p role="alert">${escape(e.message)}</p>${e.status===401?`<a href="/data-core/login?next=${encodeURIComponent(location.pathname+location.search)}">로그인</a>`:'<button data-retry>다시 시도</button>'}`;host.querySelector('[data-retry]')?.addEventListener('click',rerender);}}

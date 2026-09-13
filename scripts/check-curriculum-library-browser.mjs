@@ -71,8 +71,10 @@ try{
         console.log(JSON.stringify(await page.evaluate(({x,y})=>({hit:document.elementFromPoint(x,y)?.outerHTML.slice(0,200),width:innerWidth}),{x:box.x+box.width*.8,y:box.y+80})));
       }
       assert.equal(await page.locator('.lesson-counter').textContent(),'2 / 4');
-      await page.locator('.lesson-canvas').click();await page.locator('.lesson-zoom[open] img').evaluate(i=>i.decode());assert.ok((await page.locator('.lesson-zoom img').getAttribute('src')).includes('original-'));
-      await page.getByRole('button',{name:'원본 크기로 확대'}).click();assert.equal(await page.locator('.lesson-zoom').evaluate(d=>d.classList.contains('actual-size')),true);await page.keyboard.press('Escape');
+      await page.locator('.lesson-canvas').click();await page.locator('.core-image-gallery[open] img').evaluate(i=>i.decode());assert.ok((await page.locator('.cig-image').getAttribute('src')).includes('original-'));
+      await page.locator('[data-cig-next]').click();assert.equal(await page.locator('.cig-counter').textContent(),'3 / 4');assert.ok(page.url().includes('slide=3'));
+      await page.locator('[data-cig-prev]').click();assert.equal(await page.locator('.cig-counter').textContent(),'2 / 4');
+      await page.getByRole('button',{name:'원본 크기로 확대'}).click();assert.equal(await page.locator('.core-image-gallery').evaluate(d=>d.classList.contains('cig-actual')),true);await page.keyboard.press('Escape');
       await noOverflow();await page.screenshot({path:`${out}/${stage}-${width}-lesson.png`,fullPage:true});
       await page.getByRole('button',{name:'이 수업 인쇄',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.lesson-status')?.textContent==='인쇄 준비가 완료되었습니다.');
       assert.equal(await page.locator('.curriculum-print-sheet').count(),4);
