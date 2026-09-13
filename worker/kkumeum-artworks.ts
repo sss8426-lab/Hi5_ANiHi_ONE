@@ -1,3 +1,4 @@
+import { privateImageResponse } from './private-image-response';
 import {
   DataCoreAccessContext,
   DataCoreAccessError,
@@ -394,6 +395,7 @@ export async function readKkumeumFamilyFile(
   familyFiles: R2Bucket,
   context: DataCoreAccessContext,
   fileId: string,
+  request?: Request,
 ): Promise<Response> {
   requireAuthenticatedAccess(context);
   await ensureKkumeumPhase2Schema(familyDb);
@@ -419,5 +421,5 @@ export async function readKkumeumFamilyFile(
     "content-disposition": `inline; filename*=UTF-8''${encodeURIComponent(String(row.file_name || "artwork"))}`,
   });
   if (object.httpEtag) headers.set("etag", object.httpEtag);
-  return new Response(object.body, { headers });
+  return privateImageResponse(request,object,headers,String(row.mime_type));
 }

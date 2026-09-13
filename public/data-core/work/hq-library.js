@@ -156,7 +156,7 @@
       const files=state.files.filter(f=>/^image\/(jpeg|png|webp|gif|avif)$/.test(f.mimeType));
       window.DataCoreImageGallery.open({scope:'library',title:state.folder.title,anchor:image,
         index:files.findIndex(f=>f.id===image.dataset.lbImage),
-        items:files.map(f=>({title:f.fileName,previewSrc:f.thumbnailUrl,load:()=>imageCache.get(f.previewUrl)}))});
+        items:files.map(f=>({title:f.fileName,previewSrc:imageCache.peek(f.thumbnailUrl||f.previewUrl)||f.thumbnailUrl,load:({priority})=>imageCache.get(f.previewUrl,{priority:priority!=='low'})}))});
     }
     const folder = e.target.closest('[data-lb-folder]');
     if (folder && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.button === 0) { e.preventDefault(); navigate(folder.dataset.lbFolder); }

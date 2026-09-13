@@ -72,7 +72,7 @@ try {
     await page.locator('[data-pick-file]').nth(0).click();await page.locator('[data-pick-file]').nth(1).click();
     await page.locator('[data-preview]').first().click();
     assert.equal(await page.locator('.cig-counter').textContent(),'1 / 7');
-    await page.locator('[data-cig-next]').click();await page.locator('.cig-image').evaluate(i=>i.decode());
+    await page.locator('[data-cig-next]').click();await page.waitForFunction(()=>document.querySelector('.cig-feedback')?.hidden&&document.querySelector('.cig-image')?.naturalWidth);
     assert.equal(await page.locator('.cig-counter').textContent(),'2 / 7');await page.keyboard.press('Escape');
     assert.equal(await page.locator('[data-pick-file][aria-pressed="true"]').count(),2);
     await page.locator('#aiCommand').fill('합성 그림의 수업 기록을 써줘.');

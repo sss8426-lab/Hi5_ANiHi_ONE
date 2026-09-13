@@ -1,4 +1,5 @@
 import { DataCoreAccessError } from "./data-core-access";
+import { privateImageResponse } from './private-image-response';
 import {
   ensureKkumeumGuardianAuthSchema,
   kkumeumGuardianSessionIdentity,
@@ -271,5 +272,5 @@ export async function readGuardianFamilyFile(
     "x-content-type-options": "nosniff",
   });
   if (object.httpEtag) headers.set("etag", object.httpEtag);
-  return new Response(object.body, { headers });
+  return privateImageResponse(request,object,headers,row.mime_type);
 }

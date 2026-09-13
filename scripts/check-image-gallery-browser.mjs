@@ -56,7 +56,7 @@ try {
    await page.setViewportSize({width,height:900});await page.goto(base+'/gallery');await open();await ready();await count('1 / 3');
    assert.equal(await page.locator('[data-cig-prev]').isDisabled(),true);
    await page.locator('[data-cig-next]').click();await ready();await count('2 / 3');
-   assert.match(await page.locator('.cig-image').getAttribute('src'),/synthetic\/1$/);
+   assert.match(await page.locator('.cig-image').getAttribute('data-source'),/synthetic\/1$/);
    await swipe(-70);await ready();await count('3 / 3');
    assert.equal(await page.locator('[data-cig-next]').isDisabled(),true);
    await swipe(70);await ready();await count('2 / 3');
@@ -91,7 +91,7 @@ try {
    window.DataCoreImageGallery.open({items:[{load:()=>new Promise(r=>setTimeout(()=>r('/synthetic/slow'),300))},{src:'/synthetic/2'}],anchor:document.querySelector('#open')});
    document.querySelector('[data-cig-next]').click();
  });
- await ready();await page.waitForTimeout(450);assert.match(await page.locator('.cig-image').getAttribute('src'),/synthetic\/2$/);checks++;
+ await ready();await page.waitForTimeout(450);assert.match(await page.locator('.cig-image').getAttribute('data-source'),/synthetic\/2$/);checks++;
  await open();assert.equal(await page.locator('.core-image-gallery').count(),1);
  await page.evaluate(()=>document.querySelector('#open').remove());await page.locator('.core-image-gallery').waitFor({state:'detached'});checks+=2;
  await page.goto(base+'/gallery');await open();await page.evaluate(()=>window.dispatchEvent(new PopStateEvent('popstate')));assert.equal(await page.locator('.core-image-gallery').count(),0);checks++;

@@ -274,6 +274,7 @@ function artworkCard(artwork) {
   figure.className = 'artwork-card';
   const image = document.createElement('img');
   image.loading = 'lazy';
+  image.decoding = 'async';
   image.alt = text(artwork.title, '학생 작품');
   image.src = artwork.fileUrl;
   image.referrerPolicy = 'same-origin';
@@ -289,7 +290,7 @@ function artworkCard(artwork) {
   enlarge.append(image);
   enlarge.onclick = () => window.DataCoreImageGallery.open({scope:'family-artworks',title:'학생 작품',anchor:enlarge,
     index:state.artworks.findIndex(item=>item.id===artwork.id),
-    items:state.artworks.map(item=>({src:item.fileUrl,title:text(item.title,'학생 작품')}))});
+    items:state.artworks.map(item=>({src:item.fileUrl,previewSrc:item.fileUrl,title:text(item.title,'학생 작품')}))});
   figure.append(enlarge, caption);
   return figure;
 }

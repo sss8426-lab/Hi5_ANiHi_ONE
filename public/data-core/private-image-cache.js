@@ -15,20 +15,26 @@ class DataCorePrivateImageCache {
     this.queue=[]; this.pending.clear();
     for(const key of this.entries.keys())this.evict(key);
   }
-  get(path) {
+  peek(path) {
+    const entry=this.entries.get(path);
+    if(entry&&Date.now()-entry.created<this.ttl)return entry.url;
+    this.evict(path);return '';
+  }
+  get(path, {priority=false} = {}) {
     if(this.blocked)return Promise.reject(Object.assign(new Error('Unauthorized'),{status:403}));
     if(!/^\/api\/data-core\/library\/files\/[^/?#]+$/.test(path))return Promise.reject(new Error('Invalid image path'));
     const now=Date.now();
     for(const [key,entry] of this.entries)if(now-entry.created>=this.ttl)this.evict(key);
     const entry=this.entries.get(path);
     if(entry){this.entries.delete(path);this.entries.set(path,entry);return Promise.resolve(entry.url);}
-    if(this.pending.has(path))return this.pending.get(path);
+    if(this.pending.has(path)){if(priority){const job=this.queue.find(job=>job.path===path);if(job)job.priority=true;this.pump();}return this.pending.get(path);}
     const generation=this.generation;
-    const promise=new Promise((resolve,reject)=>this.queue.push({path,generation,resolve,reject}));
+    const promise=new Promise((resolve,reject)=>this.queue.push({path,generation,resolve,reject,priority}));
     this.pending.set(path,promise); this.pump(); return promise;
   }
   pump() {
-    while(this.active<this.concurrency&&this.queue.length){const job=this.queue.shift();this.active++;void this.run(job);}
+    this.queue.sort((a,b)=>Number(b.priority)-Number(a.priority));
+    while(this.queue.length&&this.active<this.concurrency+(this.queue[0].priority?1:0)){const job=this.queue.shift();this.active++;void this.run(job);}
   }
   async run(job) {
     const controller=new AbortController();this.controllers.add(controller);

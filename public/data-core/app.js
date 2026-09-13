@@ -552,7 +552,7 @@ async function uploadFile(event) {
     recordId: $('uploadRecordId').value || '',
     sourceApp: 'data-core-library', ownerId: 'shared', year: String(new Date().getFullYear()),
   };
-  uploadQueue = new DataCoreUploadQueue(files, target, renderUploadProgress);
+  uploadQueue = new DataCoreUploadQueue(files, target, renderUploadProgress,window.DataCoreLibraryThumbnail?.send || DataCoreUploadQueue.send);
   await runUploadQueue();
 }
 async function runUploadQueue(retry = false) {
@@ -844,6 +844,22 @@ const awardImages = new AwardImageCache({ onDenied: () => {
   $('awardLibraryFiles').querySelectorAll('[data-award-thumbnail]').forEach(img => { img.removeAttribute('src'); img.dataset.loadState = 'denied'; });
   window.DataCoreImageGallery.close('awards');
   toast('이미지 접근 권한을 다시 확인해 주세요.', 'error');
+}, onPreview: async (id, blob, signal) => {
+  const file = state.awardFiles.find(file => file.id === id && file.recordId === state.selectedAwardFolderId);
+  if (!file || file.thumbnailUrl || !canDeleteAward(file) || signal.aborted) return;
+  const controller = new AbortController(), cancel = () => controller.abort();
+  signal.addEventListener('abort', cancel, {once:true});
+  const timer = setTimeout(cancel, 30000);
+  try {
+    const body = new FormData(); body.set('file', blob, 'thumbnail.webp');
+    const response = await fetch(`/api/data-core/library/files/${encodeURIComponent(id)}/thumbnail`, {
+      method:'POST', body, credentials:'same-origin', cache:'no-store', signal:controller.signal, priority:'low',
+    });
+    if (response.ok) {
+      const result = await response.json();
+      if (!signal.aborted && result.file?.id) file.thumbnailUrl = `/api/data-core/files/${encodeURIComponent(result.file.id)}`;
+    }
+  } finally { clearTimeout(timer); signal.removeEventListener('abort', cancel); }
 } });
 let awardImageObserver;
 let awardDeletePending = null;
@@ -957,7 +973,8 @@ function renderAwardLibraryFiles() {
     const retry = img.closest('.award-library-item').querySelector('[data-award-retry]');
     retry.classList.add('hidden');
     try {
-      const url = await awardImages.getThumbnail(img.dataset.awardThumbnail);
+      const file=state.awardFiles.find(file=>file.id===img.dataset.awardThumbnail);
+      const url = await awardImages.getThumbnail(img.dataset.awardThumbnail,file?.thumbnailUrl);
       if (folderId !== state.selectedAwardFolderId || !img.isConnected) return;
       img.src = url;
       await img.decode();
@@ -1000,8 +1017,8 @@ function renderAwardLibraryFiles() {
       window.DataCoreImageGallery.open({scope:'awards', title:'수상작', anchor:link,
         index:files.findIndex(item => item.id === file.id),
         items:files.map(item => ({title:item.fileName || '수상작',
-          previewSrc:awardImages.peek(item.id) || awardImages.peekPreview(item.id),
-          load:() => awardImages.get(item.id, {priority:true})}))});
+          previewSrc:awardImages.peek(item.id) || awardImages.peekPreview(item.id) || item.thumbnailUrl,
+          load:({priority}) => awardImages.get(item.id, {priority:priority!=='low'})}))});
     };
   });
 }

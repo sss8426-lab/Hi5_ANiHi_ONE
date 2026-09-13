@@ -45,6 +45,10 @@ try {
     }
     if (p==='/api/data-core/records') return route.fulfill({json:{records:url.searchParams.get('recordType')==='competition-award-folder'?folders:hqFolders}});
     if (p==='/api/data-core/files' && req.method()==='POST') return route.fulfill({status:201,json:{file:{id:'synthetic-upload'}}});
+    if (/^\/api\/data-core\/library\/files\/[^/]+\/thumbnail$/.test(p) && req.method()==='POST') {
+      assert.match(req.postData(),/filename="thumbnail.webp"/);
+      return route.fulfill({status:201,json:{file:{id:`thumb-${p.split('/').at(-2)}`}}});
+    }
     if (p==='/api/data-core/files') {
       const id=url.searchParams.get('recordId');
       if (id==='a' && slowA) await new Promise(r=>setTimeout(r,450));
@@ -89,6 +93,7 @@ try {
       const started=Date.now();
       await page.locator('[data-award-image="a-0"]').click();
       await page.locator('.core-image-gallery[open]').waitFor();
+      await page.waitForFunction(()=>document.querySelector('.cig-feedback')?.hidden&&document.querySelector('.cig-image')?.naturalWidth);
       assert.match(await page.locator('.cig-image').getAttribute('src'),/^blob:/);
       await page.locator('.cig-image').evaluate(img=>img.decode());
       assert.equal(imageRequests.get('/api/data-core/files/a-0'),before);
@@ -171,6 +176,7 @@ try {
   await page.getByText('로그인이 필요합니다',{exact:true}).waitFor({state:'attached'});
   assert.equal(await page.getByRole('link',{name:'DATA CORE 로그인 화면 열기'}).isVisible(),true);
   assert.equal(await page.locator('#openAwardFolderBtn').isDisabled(),true);checks++;
+  assert.ok(writes.some(w=>w.path.endsWith('/thumbnail')),'visible legacy previews use the existing central derivative endpoint');checks++;
   assert.deepEqual(errors,[]);
   console.log(JSON.stringify({passed:checks,pageErrors:0,syntheticOnly:true,screenshots:output}));
 } finally { await browser.close(); }
