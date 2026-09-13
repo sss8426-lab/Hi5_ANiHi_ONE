@@ -167,7 +167,8 @@ function switchView(view, options = {}) {
   state.currentMode = modeForView(view);
   document.body.classList.toggle('counseling-header', state.currentMode === 'counseling');
   document.body.classList.toggle('brand-home', view === 'counseling-home');
-  $('pageEyebrow').textContent = view === 'counseling-home' ? 'HI5·ANiHi DATA CORE' : 'HI5·ANiHi 통합 데이터 허브';
+  const eyebrow = $('pageEyebrow');
+  if (eyebrow) eyebrow.textContent = view === 'counseling-home' ? 'HI5·ANiHi DATA CORE' : 'HI5·ANiHi 통합 데이터 허브';
   if (view !== 'competitions') clearAwardImages();
   if (view !== 'curriculum') window.DataCoreCurriculumLibrary?.dispose();
   document.querySelectorAll('.view').forEach((section) => section.classList.remove('active'));

@@ -158,6 +158,16 @@ try{
     await page.emulateMedia({reducedMotion:'reduce'});
     assert.equal(await home.locator('.feature-card img').first().evaluate(e=>getComputedStyle(e).transitionDuration),'0s');
     checks.push('text contrast >= 4.5:1, reduced-motion');
+    await ctx.route('**/data-core/counseling',async route=>{
+      const response=await route.fetch();
+      await route.fulfill({response,body:(await response.text()).replace('id="pageEyebrow"','')});
+    });
+    await page.reload();
+    await page.locator('#userChip strong').getByText('로그인이 필요합니다',{exact:true}).waitFor();
+    assert.equal(await page.locator('#pageTitle').textContent(),'너와 나의 합격의 순간');
+    await home.locator('[data-view="competitions"]').click();
+    await page.waitForURL(base+'/data-core/counseling/competitions');
+    checks.push('older cached HTML without new eyebrow still initializes and navigates');
   }
   assert.deepEqual(errors,[]);
   await writeFile(`${out}/result.json`,JSON.stringify({base,pass,reports,checks,errors,syntheticWrites:writes,productionWrites:0},null,2));
