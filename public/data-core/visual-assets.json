@@ -2,6 +2,30 @@
   "schemaVersion": 1,
   "assets": [
     {
+      "key": "counseling-home-dream",
+      "title": "꿈·전공 로드맵",
+      "alt": "푸른 하늘을 바라보며 미래를 상상하는 학생",
+      "role": "home-card",
+      "asset": "/data-core/assets/counseling/dream-roadmap-field-v1.webp",
+      "version": "20260913-brand-home",
+      "width": 1440,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
+      "key": "counseling-home-admissions",
+      "title": "대학합격 로드맵",
+      "alt": "합격 소식을 가족과 함께 기뻐하는 학생",
+      "role": "home-card",
+      "asset": "/data-core/assets/counseling/university-success-family-v1.webp",
+      "version": "20260913-brand-home",
+      "width": 1440,
+      "height": 960,
+      "style": "bright-photorealistic",
+      "fictionalPeople": true
+    },
+    {
       "key": "roadmap-hero",
       "title": "꿈·전공 로드맵",
       "asset": "/data-core/assets/counseling/dream-roadmap-photo-v1.webp",

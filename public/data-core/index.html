@@ -9,8 +9,8 @@
   <link rel="stylesheet" href="/data-core/counseling-refinements.css?v=20260909-1">
   <link rel="stylesheet" href="/data-core/curriculum.css?v=20260912-central-library">
   <link rel="stylesheet" href="/data-core/curriculum-library.css?v=20260912-central-library">
-  <link rel="stylesheet" href="/data-core/design-tokens.css?v=20260910-1">
-  <link rel="stylesheet" href="/data-core/design-system.css?v=20260910-1">
+  <link rel="stylesheet" href="/data-core/design-tokens.css?v=20260913-brand-home">
+  <link rel="stylesheet" href="/data-core/design-system.css?v=20260913-brand-home">
 </head>
 <body class="data-core-layout">
   <div class="app-shell">
@@ -34,7 +34,7 @@
         <div class="nav-group hidden" data-nav-scope="counseling">
           <button class="nav-item active" data-view="counseling-home">
             <span class="nav-icon">⌂</span>
-            <span>상담용 홈</span>
+            <span>홈</span>
           </button>
           <button class="nav-item" data-view="competitions">
             <span class="nav-icon">☆</span>
@@ -51,7 +51,7 @@
           <button class="nav-item" data-view="curriculum"><span class="nav-icon">◫</span><span>꿈을 향한 커리큘럼</span></button>
           <button class="nav-item" data-view="mode-home">
             <span class="nav-icon">←</span>
-            <span>모드 선택으로 돌아가기</span>
+            <span>모드 선택</span>
           </button>
         </div>
 
@@ -103,14 +103,14 @@
             <small>DATA CORE</small>
           </div>
         </div>
-        <a class="back-link" href="/">입시 컨설팅으로 돌아가기</a>
+        <a class="back-link" href="/">처음으로</a>
       </div>
     </aside>
 
     <main class="main">
       <header class="topbar">
         <div>
-          <p class="eyebrow">HI5·ANiHi 통합 데이터 허브</p>
+          <p class="eyebrow" id="pageEyebrow">HI5·ANiHi 통합 데이터 허브</p>
           <h1 id="pageTitle">모드 선택</h1>
         </div>
         <div class="user-chip" id="userChip">
@@ -121,7 +121,12 @@
           </div>
         </div>
         <button class="ghost-btn hidden" id="logoutBtn" type="button">로그아웃</button>
+        <button class="brand-presentation-toggle" id="brandPresentationStart" type="button" aria-label="프레젠테이션" aria-pressed="false" hidden>
+          <svg class="core-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor"><use href="/data-core/assets/core-icons.svg#LayoutDashboard"></use></svg>
+          <span class="brand-button-tooltip" role="tooltip">프레젠테이션</span>
+        </button>
       </header>
+      <button class="brand-presentation-exit" id="brandPresentationExit" type="button" hidden>프레젠테이션 종료</button>
 
       <section class="notice hidden" id="globalNotice"></section>
 
@@ -148,26 +153,25 @@
 
       <section class="view" id="view-counseling-home">
         <div class="section-head">
-          <h2>상담용</h2>
-          <p>상담 중 바로 보여줄 수 있는 공개 정보와 입시 설계 흐름만 모았습니다.</p>
+          <h2>하이파이브.애니하이</h2>
         </div>
-        <div class="menu-card-grid exact-three counseling-image-cards" aria-label="상담용 메뉴">
+        <div class="menu-card-grid exact-three counseling-image-cards" aria-label="진로와 진학">
           <button class="feature-card" data-view="competitions">
             <img src="/data-core/assets/counseling/competition-challenge.webp?v=20260910-photo-v2" alt="밝은 미술실에서 실기대회 작품을 준비하는 학생" width="1440" height="960" decoding="async">
-            <span class="counseling-card-copy"><strong>공모전·실기대회</strong><small>대회 소식과 역대 수상작을 한눈에 확인합니다.</small><span class="counseling-card-arrow" aria-hidden="true">→</span></span>
+            <span class="counseling-card-copy"><strong>공모전·실기대회</strong><span class="counseling-card-arrow" aria-hidden="true">→</span></span>
           </button>
           <a class="feature-card" href="/data-core/roadmap">
-            <img src="/data-core/assets/counseling/dream-roadmap-photo-v1.webp" alt="학생과 선생님이 작품을 함께 보며 진로를 탐색하는 모습" width="1440" height="1080" decoding="async">
-            <span class="counseling-card-copy"><strong>꿈·전공 로드맵</strong><small>꿈에서 출발해 전공과 대학, 준비 과정을 찾아갑니다.</small><span class="counseling-card-arrow" aria-hidden="true">→</span></span>
+            <img data-brand-image="dream" src="/data-core/assets/counseling/dream-roadmap-field-v1.webp" alt="푸른 하늘을 바라보며 미래를 상상하는 학생" width="1440" height="960" decoding="async">
+            <span class="counseling-card-copy"><strong>꿈·전공 로드맵</strong><span class="counseling-card-arrow" aria-hidden="true">→</span></span>
           </a>
           <a class="feature-card" href="/">
-            <img src="/data-core/assets/counseling/admission-roadmap.webp?v=20260910-photo-v2" alt="학생과 상담 선생님이 함께 대학 지원전략을 설계하는 모습" width="1440" height="960" decoding="async">
-            <span class="counseling-card-copy"><strong>대학합격 로드맵</strong><small>학생의 성적과 실기를 바탕으로 지원 전략을 설계합니다.</small><span class="counseling-card-arrow" aria-hidden="true">→</span></span>
+            <img data-brand-image="admissions" src="/data-core/assets/counseling/university-success-family-v1.webp" alt="합격 소식을 가족과 함께 기뻐하는 학생" width="1440" height="960" decoding="async">
+            <span class="counseling-card-copy"><strong>대학합격 로드맵</strong><span class="counseling-card-arrow" aria-hidden="true">→</span></span>
           </a>
         </div>
         <section class="panel calendar-panel" data-calendar-home="counseling" aria-label="학원 공통 일정">
           <div class="calendar-head">
-            <div><h3>학원 공통 일정</h3><p>캠퍼스 일정과 조직 공통 일정을 함께 봅니다.</p></div>
+            <div><h3>학원 공통 일정</h3></div>
             <div class="calendar-controls">
               <button class="icon-btn" type="button" data-calendar-prev aria-label="이전 달">‹</button>
               <button class="ghost-btn" type="button" data-calendar-today>오늘</button>
@@ -512,7 +516,8 @@
   <script src="/data-core/work/hq-library.js?v=20260911-thumbnails"></script>
   <script src="/data-core/curriculum-library.js?v=20260912-admission-library"></script>
   <script src="/data-core/curriculum.js?v=20260912-admission-library"></script>
-  <script src="/data-core/app.js?v=20260912-campus"></script>
+  <script src="/data-core/brand-home.js?v=20260913-brand-home"></script>
+  <script src="/data-core/app.js?v=20260913-brand-home"></script>
   <script src="/data-core/mode-home-artwork.js?v=20260909-counseling"></script>
   <script type="module" src="/data-core/design-shell.js?v=20260912-campus"></script>
 </body>

@@ -27,3 +27,23 @@
   --core-space-3: 24px;
   --core-space-4: 32px;
 }
+
+/* Brand-home variant; operational screens retain the shared defaults. */
+.brand-home {
+  --core-bg: #f8f8f5;
+  --core-surface: #fff;
+  --core-surface-soft: #f1f3f0;
+  --core-ink: #171917;
+  --core-ink-secondary: #61675f;
+  --core-ink-muted: #687066;
+  --core-brand: #174f44;
+  --core-brand-deep: #123f37;
+  --core-brand-soft: #e8f0ec;
+  --core-line: #e1e3dc;
+  --core-line-strong: #b9c6bc;
+  --core-sidebar: #151715;
+  --core-sidebar-text: #e6e9e4;
+  --core-sidebar-muted: #b5bcb3;
+  --core-sidebar-line: #333a33;
+  --core-brand-card-radius: 12px;
+}

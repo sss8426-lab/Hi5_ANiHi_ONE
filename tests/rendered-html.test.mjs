@@ -75,7 +75,7 @@ test("wires the DATA CORE counseling and work mode split", async () => {
   assert.equal(counselingAsset.subarray(0, 4).toString("ascii"), "RIFF");
   assert.equal(workAsset.subarray(0, 4).toString("ascii"), "RIFF");
 
-  const counselingMenu = section(dataCoreIndex, 'aria-label="상담용 메뉴"');
+  const counselingMenu = section(dataCoreIndex, 'aria-label="진로와 진학"');
   assert.match(counselingMenu, /공모전·실기대회/);
   assert.match(counselingMenu, /꿈·전공 로드맵/);
   assert.match(counselingMenu, /대학합격 로드맵/);
@@ -96,7 +96,7 @@ test("wires the DATA CORE counseling and work mode split", async () => {
   assert.match(appScript, /부천 디자인 입시관/);
   assert.match(appScript, /서울 광진 입시관/);
   assert.match(appScript, /data-campus-group/);
-  assert.match(dataCoreIndex, /app\.js\?v=20260912-campus/);
+  assert.match(dataCoreIndex, /app\.js\?v=20260913-brand-home/);
   assert.match(appScript, /params\.set\('sourceApp', sourceApp\)/);
   assert.match(appScript, /fileCategoryFilter/);
   assert.match(appScript, /loadFiles\(\)/);

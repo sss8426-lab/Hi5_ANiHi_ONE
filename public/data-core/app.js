@@ -142,7 +142,7 @@ function modeForView(view) {
 function titleForView(view) {
   return ({
     'mode-home': '모드 선택',
-    'counseling-home': '상담용',
+    'counseling-home': '너와 나의 합격의 순간',
     'work-home': '업무용',
     library: '자료보관함',
     competitions: '공모전·실기대회',
@@ -166,12 +166,16 @@ function switchView(view, options = {}) {
   state.currentView = view;
   state.currentMode = modeForView(view);
   document.body.classList.toggle('counseling-header', state.currentMode === 'counseling');
+  document.body.classList.toggle('brand-home', view === 'counseling-home');
+  const eyebrow = $('pageEyebrow');
+  if (eyebrow) eyebrow.textContent = view === 'counseling-home' ? 'HI5·ANiHi DATA CORE' : 'HI5·ANiHi 통합 데이터 허브';
   if (view !== 'competitions') clearAwardImages();
   if (view !== 'curriculum') window.DataCoreCurriculumLibrary?.dispose();
   document.querySelectorAll('.view').forEach((section) => section.classList.remove('active'));
   $(`view-${view}`)?.classList.add('active');
   $('pageTitle').textContent = titleForView(view);
   updateSidebar();
+  updateBrandPresentation();
 
   if (options.push !== false) {
     const path = ({
@@ -227,7 +231,16 @@ function renderConnection() {
   }
 }
 
+function updateBrandPresentation() {
+  window.DataCoreBrandHome?.update({
+    active: state.currentView === 'counseling-home',
+    ready: state.context !== null,
+    master: Boolean(state.context?.authenticated && state.context?.isSuperAdmin),
+  });
+}
+
 function renderUser() {
+  updateBrandPresentation();
   const chip = $('userChip');
   const context = state.context;
   if (!context?.authenticated) {
@@ -1614,6 +1627,7 @@ function bindEvents() {
     try {
       const response = await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
       if (!response.ok) throw new Error('로그아웃에 실패했습니다.');
+      window.DataCoreBrandHome?.reset();
       location.assign('/data-core/counseling');
     } catch (error) {
       toast(error.message, 'error');
