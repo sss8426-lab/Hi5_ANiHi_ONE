@@ -42,6 +42,7 @@ jobs:
           node --check public/family/sw.js
           node --check public/family/family.js
           node --check public/data-core/app.js
+          node --check public/data-core/brand-home.js
           node --check public/data-core/award-image-cache.js
           node --check public/data-core/curriculum.js
           node --check public/data-core/curriculum-library.js

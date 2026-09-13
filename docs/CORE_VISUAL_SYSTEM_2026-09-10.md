@@ -11,6 +11,12 @@ The guardian FAMILY PWA is intentionally not restyled.
 
 ## Shared presentation
 
+2026-09-13 home-only extension: `.brand-home` uses the same shell/token system with
+an ink sidebar and Soft Premium warm-white main. See
+`COUNSELING_BRAND_HOME_2026-09-13.md` for two-pass screenshots, MASTER presentation
+UI, unchanged routes and pending new-photo approval. Other screens keep their
+existing themes; the campus account screen already has its own dark variant.
+
 - `design-tokens.css`: common surfaces, ink, brand, status colors, spacing, radius,
   shadows and existing Korean/system font stack. No remote fonts or CDN dependency.
 - `design-system.css`: scoped override of the existing app styles. Plain sidebar,

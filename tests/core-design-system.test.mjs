@@ -7,8 +7,9 @@ import {occupationImageConcepts} from '../public/data-core/occupation-image-conc
 test('shared design is versioned and scoped to CORE staff and counseling, not FAMILY',()=>{
   for(const name of ['index','content','accounts','operations','readiness','roadmap','work/kkumeum']){
     const html=fs.readFileSync(`public/data-core/${name}.html`,'utf8');
-    assert.match(html,/design-tokens\.css\?v=20260910-1/);
-    assert.match(html,/design-system\.css\?v=20260910-1/);
+    const version = name === 'index' ? '20260913-brand-home' : '20260910-1';
+    assert.ok(html.includes(`design-tokens.css?v=${version}`));
+    assert.ok(html.includes(`design-system.css?v=${version}`));
     assert.match(html,/design-shell\.js\?v=20260912-campus/);
   }
   const css=fs.readFileSync('public/data-core/design-system.css','utf8');

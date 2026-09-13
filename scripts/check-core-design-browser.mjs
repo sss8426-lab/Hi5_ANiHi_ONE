@@ -33,6 +33,7 @@ try{
    return route.fulfill({contentType:'text/html',body:html});
   }
   if(!p.startsWith('/api/'))return route.continue();
+  if(req.method()==='POST'&&p==='/api/auth/activity')return route.fulfill({json:{ok:true}});
   if(req.method()==='POST'&&p.includes('/competition-sources/')&&p.endsWith('/preview'))return route.fulfill({json:{pages:[],items:[]}});
   if(req.method()!=='GET'){mutations.push(`${req.method()} ${p}`);return route.fulfill({status:403,json:{error:'Read-only synthetic fixture'}});}
   const auth=authenticated&&!req.headers().referer?.includes('/login');
@@ -63,7 +64,8 @@ try{
    for(const img of await visibleImages.all())await img.evaluate(i=>i.decode());
    if(route!=='/data-core/login'){
     assert.equal(await page.locator('link[href*="design-system.css"]').count(),1);
-    assert.equal(await page.locator('body').evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(246, 247, 245)');
+    const background=route==='/data-core/counseling'?'rgb(248, 248, 245)':route==='/data-core/accounts'?'rgb(27, 28, 28)':'rgb(246, 247, 245)';
+    assert.equal(await page.locator('body').evaluate(e=>getComputedStyle(e).backgroundColor),background);
    }
    const toggle=page.locator('.core-menu-toggle');
    if(await toggle.count()){

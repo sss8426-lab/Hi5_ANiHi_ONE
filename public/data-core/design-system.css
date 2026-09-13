@@ -163,3 +163,67 @@ body:is(.data-core-layout, .admissions-counseling) .core-nav-dialog :is(.sidebar
 }
 @media (prefers-reduced-motion: reduce) { :is(.data-core-layout, .roadmap-page, .admissions-counseling) * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
 @media print { .core-menu-toggle, .core-nav-dialog { display: none !important; } }
+
+/* The home is a brand-facing variant of the same shell, cards and calendar. */
+body.data-core-layout.brand-home { background: var(--core-bg); }
+body.data-core-layout.brand-home :is(.sidebar, .core-nav-dialog) { background: var(--core-sidebar); border-color: var(--core-sidebar-line); color: var(--core-sidebar-text); }
+body.data-core-layout.brand-home .sidebar :is(.brand strong, .nav-item) { color: var(--core-sidebar-text); }
+body.data-core-layout.brand-home .sidebar :is(.brand small, .back-link, .connection-card small) { color: var(--core-sidebar-muted); }
+body.data-core-layout.brand-home .sidebar .brand-mark { background: transparent; color: var(--core-sidebar-text); border-color: var(--core-sidebar-line); box-shadow: none; }
+body.data-core-layout.brand-home .sidebar .nav-item:is(:hover, :focus-visible) { background: var(--core-sidebar-line); color: var(--core-surface); }
+body.data-core-layout.brand-home .sidebar .nav-item.active { color: var(--core-surface); background: var(--core-brand); border-color: var(--core-sidebar-muted); }
+body.data-core-layout.brand-home .sidebar .nav-admin { border-color: var(--core-sidebar-line); }
+body.data-core-layout.brand-home .sidebar .connection-card { background: transparent; border-color: var(--core-sidebar-line); color: var(--core-sidebar-text); }
+body.data-core-layout.brand-home .sidebar .connection-card strong { color: var(--core-sidebar-text); }
+body.data-core-layout.brand-home .sidebar :is(a, button):focus-visible { outline-color: var(--core-sidebar-text); }
+body.data-core-layout.brand-home .core-nav-close button { background: var(--core-sidebar); color: var(--core-sidebar-text); border-color: var(--core-sidebar-line); }
+body.data-core-layout.brand-home .topbar { min-height: 138px; padding-block: 24px; border-bottom: 0; gap: 16px; }
+body.data-core-layout.brand-home .topbar > div:first-child { min-width: 0; }
+body.data-core-layout.brand-home #pageTitle { font-size: 46px; font-weight: 650; line-height: 1.3; word-break: keep-all; overflow-wrap: anywhere; letter-spacing: 0; }
+body.data-core-layout.brand-home .eyebrow { margin-bottom: 12px; color: var(--core-ink-secondary); letter-spacing: 0; }
+body.data-core-layout.brand-home #view-counseling-home > .section-head { margin: 8px 0 24px; }
+body.data-core-layout.brand-home #view-counseling-home > .section-head h2 { margin: 0; font-size: 26px; font-weight: 650; line-height: 1.4; letter-spacing: 0; }
+body.data-core-layout.brand-home .counseling-image-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+body.data-core-layout.brand-home .counseling-image-cards .feature-card { min-width: 0; border-radius: var(--core-brand-card-radius); background: var(--core-surface); overflow: hidden; }
+body.data-core-layout.brand-home .counseling-image-cards .feature-card > img { display: block; width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: cover; object-position: var(--card-focus, 50% 50%); transition: transform .25s ease; }
+body.brand-home [data-brand-image="dream"] { --card-focus: 50% 50%; }
+body.brand-home [data-brand-image="admissions"] { --card-focus: 50% 50%; }
+body.data-core-layout.brand-home .counseling-card-copy { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; padding: 22px 20px; background: var(--core-surface); position: relative; }
+body.data-core-layout.brand-home .counseling-card-copy strong { min-width: 0; line-height: 1.5; word-break: keep-all; overflow-wrap: anywhere; }
+body.data-core-layout.brand-home .counseling-card-arrow { position: static; flex: 0 0 24px; width: 24px; height: 24px; background: none; color: var(--core-brand); transition: transform .2s ease; }
+body.data-core-layout.brand-home .calendar-panel { margin-top: 48px; padding-top: 28px; border-top: 1px solid var(--core-line); }
+body.data-core-layout.brand-home .calendar-head h3 { font-size: 19px; }
+body.data-core-layout.brand-home .calendar-month { font-size: 17px; font-weight: 600; }
+body.data-core-layout.brand-home .calendar-controls :is(.ghost-btn, .icon-btn) { background: transparent; color: var(--core-ink-secondary); border-color: var(--core-line); }
+.brand-presentation-toggle { position: relative; display: grid; place-items: center; flex: 0 0 36px; width: 36px; height: 36px; border: 1px solid var(--core-line); border-radius: var(--core-radius-sm); background: transparent; color: var(--core-ink-secondary); cursor: pointer; }
+.brand-button-tooltip { display: none; position: absolute; top: calc(100% + 8px); right: 0; z-index: 5; padding: 5px 9px; white-space: nowrap; border-radius: var(--core-radius-sm); background: var(--core-ink); color: var(--core-surface); font-size: 12px; }
+.brand-presentation-toggle:is(:hover, :focus-visible) .brand-button-tooltip { display: block; }
+.brand-presentation-exit { position: fixed; right: 20px; bottom: 18px; z-index: 10; min-height: 36px; max-width: calc(100% - 40px); padding: 7px 12px; border: 1px solid var(--core-line); border-radius: var(--core-radius-sm); background: var(--core-surface); color: var(--core-ink-secondary); font: 500 12px var(--core-font); cursor: pointer; }
+body.brand-home.brand-presenting :is([data-nav-scope="admin"], .sidebar-bottom, #userChip, #logoutBtn) { display: none !important; }
+@media print { .brand-presentation-toggle, .brand-presentation-exit { display: none !important; } }
+@media (hover: hover) and (pointer: fine) {
+  body.data-core-layout.brand-home .counseling-image-cards .feature-card:hover { transform: none; box-shadow: none; border-color: var(--core-line-strong); }
+  body.data-core-layout.brand-home .counseling-image-cards .feature-card:hover > img { transform: scale(1.02); }
+  body.data-core-layout.brand-home .feature-card:hover .counseling-card-arrow { transform: translateX(3px); }
+}
+@media (max-width: 1280px) {
+  body.data-core-layout.brand-home .topbar { min-height: 130px; padding-block: 22px; }
+  body.data-core-layout.brand-home #pageTitle { font-size: 42px; }
+  body.data-core-layout.brand-home .counseling-image-cards { gap: 18px; }
+  body.data-core-layout.brand-home .counseling-card-copy { padding: 18px 16px; }
+}
+@media (max-width: 1023px) {
+  body.data-core-layout.brand-home #pageTitle { font-size: 38px; }
+  body.data-core-layout.brand-home .counseling-image-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  body.data-core-layout.brand-home .topbar { min-height: 0; flex-wrap: wrap; padding-block: 24px; }
+  body.data-core-layout.brand-home .topbar > div:first-child { flex: 1 1 100%; }
+  body.data-core-layout.brand-home #pageTitle { font-size: 34px; }
+  body.data-core-layout.brand-home #view-counseling-home > .section-head { margin: 12px 0 20px; }
+  body.data-core-layout.brand-home #view-counseling-home > .section-head h2 { font-size: 24px; }
+  body.data-core-layout.brand-home .counseling-image-cards { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 390px) {
+  body.data-core-layout.brand-home #pageTitle { font-size: 28px; }
+}
