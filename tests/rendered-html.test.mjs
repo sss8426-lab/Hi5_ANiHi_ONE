@@ -93,10 +93,10 @@ test("wires the DATA CORE counseling and work mode split", async () => {
   assert.match(appScript, /data-folder-source/);
   assert.match(appScript, /data-folder-key/);
   assert.match(appScript, /LIBRARY_CATEGORIES/);
-  assert.match(appScript, /부천 디자인 입시관/);
-  assert.match(appScript, /서울 광진 입시관/);
+  assert.doesNotMatch(appScript, /CAMPUS_PRESENTATION/);
+  assert.match(appScript, /return state\.campuses/);
   assert.match(appScript, /data-campus-group/);
-  assert.match(dataCoreIndex, /app\.js\?v=20260914-attendance-work/);
+  assert.match(dataCoreIndex, /app\.js\?v=20260914-campuses/);
   assert.match(dataCoreIndex, /id="view-attendance"/);
   assert.match(dataCoreIndex, /class="at-work-link" data-view="attendance"/);
   assert.match(appScript, /params\.set\('sourceApp', sourceApp\)/);

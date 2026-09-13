@@ -214,13 +214,15 @@ async function loadFiles() {
   try {
     const { view, listing } = await window.DataCoreLibraryClient.browse(api, { id: state.folderId, page: state.page, q: $('fileSearchInput').value.trim() });
     if (token !== state.browseGeneration) return;
-    if (view.folder.campusId && $('draftCampus').value !== view.folder.campusId) {
-      $('draftCampus').value = view.folder.campusId;
+    const folderCampusId = view.folder.campusId || '';
+    if ([...$('draftCampus').options].some(option => option.value === folderCampusId) && $('draftCampus').value !== folderCampusId) {
+      $('draftCampus').value = folderCampusId;
       resetDraftForm();
       void loadDefaults();
     }
     $('photoBreadcrumb').innerHTML = (view.breadcrumbs || []).map(item => `<button type="button" data-folder="${h(item.id)}">${h(item.title)}</button>`).join('<span aria-hidden="true">/</span>');
-    $('photoFolders').innerHTML = (view.folders || []).map(folder => `<button type="button" data-folder="${h(folder.id)}"><svg aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Folder"></use></svg>${h(folder.title)}</button>`).join('');
+    $('photoFolders').innerHTML = window.DataCoreLibraryClient.folderGroups(view, $('fileSearchInput').value).map(([group, folders]) =>
+      `<section class="photo-folder-group"><h3>${h(group)}</h3><div class="photo-folder-grid">${folders.map(folder => `<button type="button" data-folder="${h(folder.id)}"><svg aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Folder"></use></svg><strong>${h(folder.title)}</strong></button>`).join('')}</div></section>`).join('');
     document.querySelectorAll('[data-folder]').forEach(button => { button.onclick = () => { if (state.busy) return; state.folderId = button.dataset.folder; state.page = 1; $('fileSearchInput').value = ''; void loadFiles(); }; });
     state.files = (listing.files || []).filter(file => ['image/jpeg','image/png','image/webp'].includes(file.mimeType));
     state.files.forEach((file) => state.knownFiles.set(String(file.id), file));

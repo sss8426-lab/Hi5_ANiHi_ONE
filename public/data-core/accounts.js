@@ -16,13 +16,16 @@ function password() {
 }
 
 let campuses = [];
+let accountRows = [];
 async function load() {
   try {
     const [session, campusData, accountData] = await Promise.all([api('/api/auth/session'), api('/api/data-core/campuses'), api('/api/auth/accounts')]);
     if (!session.isSuperAdmin) throw new Error('계정 관리는 마스터 관리자만 사용할 수 있습니다.');
     campuses = campusData.campuses || [];
     $('campusId').innerHTML = campuses.map((campus) => `<option value="${escapeHtml(campus.id)}">${escapeHtml(campus.name)}</option>`).join('');
-    render(accountData.accounts || []);
+    accountRows = accountData.accounts || [];
+    $('retiredAccountsFilter').hidden = !accountRows.some(account => account.retiredCampus);
+    render(accountRows);
     await loadPresence();
   } catch (error) {
     notice(error.message);
@@ -31,11 +34,13 @@ async function load() {
 }
 
 function render(accounts) {
+  accounts = accounts.filter(account => !account.retiredCampus || $('showRetiredAccounts').checked);
   $('accountsBody').innerHTML = accounts.map((account) => `<tr><td>${escapeHtml(account.display_name)}</td><td>${escapeHtml(account.login_id)}</td><td>${escapeHtml(account.campus_name || '조직 공통')} · ${escapeHtml(account.role)}</td><td><span class="status-${escapeHtml(account.status)}">${account.status === 'active' ? '사용 중' : '비활성'}</span></td><td>${account.last_login_at ? new Date(account.last_login_at).toLocaleString('ko-KR', {timeZone:'Asia/Seoul'}) : '-'}</td><td><div class="account-actions"><button class="ghost-btn" data-action="reset" data-id="${escapeHtml(account.id)}">비밀번호 초기화</button><button class="ghost-btn" data-action="sessions" data-id="${escapeHtml(account.id)}">세션 해제</button><button class="ghost-btn" data-action="status" data-status="${escapeHtml(account.status)}" data-id="${escapeHtml(account.id)}">${account.status === 'active' ? '비활성화' : '다시 사용'}</button></div></td></tr>`).join('');
   $('empty').classList.toggle('hidden', accounts.length > 0);
 }
 
 $('role').addEventListener('change', () => $('campusField').classList.toggle('hidden', ['MASTER','SUPER_ADMIN'].includes($('role').value)));
+$('showRetiredAccounts').addEventListener('change', () => render(accountRows));
 $('temporaryPassword').value = password();
 $('createForm').addEventListener('submit', async (event) => {
   event.preventDefault(); notice('');

@@ -75,9 +75,7 @@
     return body;
   }
   function presentation(folder) {
-    const code = folder.id.startsWith('campus:campus-') ? folder.id.slice('campus:campus-'.length) : '';
-    const info = typeof CAMPUS_PRESENTATION !== 'undefined' && CAMPUS_PRESENTATION[code];
-    return { title: info?.name || folder.title, group: folder.group || info?.group || '폴더', order: info?.order || 0 };
+    return { title: folder.title };
   }
   function locationState() {
     const params = new URLSearchParams(location.search);
@@ -91,12 +89,8 @@
     load(true);
   }
   function renderFolders(folders, q) {
-    const groups = new Map();
-    folders.filter(f => !q || presentation(f).title.toLocaleLowerCase().includes(q.toLocaleLowerCase())).forEach(f => {
-      const p = presentation(f), group = state.folder.id === 'root' ? p.group : '폴더';
-      if (!groups.has(group)) groups.set(group, []); groups.get(group).push({ ...f, ...p });
-    });
-    $('libraryFolders').innerHTML = [...groups].map(([group, rows]) => `<section class="lb-folder-group"><h3>${h(group)}</h3><div class="lb-folder-grid">${rows.sort((a,b)=>a.order-b.order).map(f =>
+    const groups = window.DataCoreLibraryClient.folderGroups({ folder: state.folder, folders }, q);
+    $('libraryFolders').innerHTML = groups.map(([group, rows]) => `<section class="lb-folder-group"><h3>${h(group)}</h3><div class="lb-folder-grid">${rows.map(f =>
       `<div class="lb-folder-item${f.canDelete && state.folder.id === 'root' ? ' lb-folder-editable' : ''}"><a class="lb-folder" href="${h(href(f.id))}" data-lb-folder="${h(f.id)}">${icon('Folder')}<strong>${h(f.title)}</strong></a>
       ${f.canDelete && state.folder.id === 'root' ? `<details class="lb-folder-menu"><summary aria-label="${h(f.title)} 폴더 메뉴" title="폴더 메뉴">${icon('Menu')}</summary><button type="button" data-lb-delete-folder="${h(f.id)}">폴더 삭제</button></details>` : ''}</div>`).join('')}</div></section>`).join('');
   }

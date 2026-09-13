@@ -10,19 +10,6 @@ const LIBRARY_CATEGORIES = [
   { key: 'promotion-material', label: '홍보자료' },
 ];
 
-const CAMPUS_PRESENTATION = {
-  'design-admission': { name: '부천 디자인 입시관', group: '입시관', order: 1 },
-  'anihi-admission': { name: '부천 애니 입시관', group: '입시관', order: 2 },
-  gwangjin: { name: '서울 광진 입시관', group: '입시관', order: 3 },
-  ulsan: { name: '울산 송정 입시관', group: '입시관', order: 4 },
-  ansan: { name: '안산 입시관', group: '입시관', order: 5 },
-  paju: { name: '파주 입시관', group: '입시관', order: 6 },
-  beombak: { name: '부천 범박 캠퍼스', group: '예비관', order: 1 },
-  wonjong: { name: '부천 원종 캠퍼스', group: '예비관', order: 2 },
-  jungdong: { name: '부천 중동 캠퍼스', group: '예비관', order: 3 },
-  okgil: { name: '부천 옥길 캠퍼스', group: '예비관', order: 4 },
-};
-
 const state = {
   health: null,
   context: null,
@@ -319,7 +306,7 @@ function fillCampusSelect(select, options = {}) {
 }
 
 function campusPresentation(campus) {
-  return CAMPUS_PRESENTATION[campus.code] || { name: campus.name, group: '기타', order: 999 };
+  return { name: campus.name, group: '캠퍼스' };
 }
 
 function campusDisplayName(campus) {
@@ -327,12 +314,7 @@ function campusDisplayName(campus) {
 }
 
 function orderedCampuses() {
-  const groupOrder = { 입시관: 1, 예비관: 2, 기타: 3 };
-  return [...state.campuses].sort((left, right) => {
-    const a = campusPresentation(left);
-    const b = campusPresentation(right);
-    return (groupOrder[a.group] - groupOrder[b.group]) || (a.order - b.order) || campusDisplayName(left).localeCompare(campusDisplayName(right), 'ko');
-  });
+  return state.campuses;
 }
 
 function folderButton(folder, campusId = '') {

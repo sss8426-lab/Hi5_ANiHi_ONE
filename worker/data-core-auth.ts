@@ -1,6 +1,6 @@
 import { DEFAULT_ORGANIZATION_ID } from "./data-core";
 import { DATA_CORE_ROLES, isMasterRole, DataCoreAccessError, requireAuthenticatedAccess, requireSignedInAccess, type DataCoreAccessContext, type DataCoreRole } from "./data-core-access";
-import { canonicalCampusId, HEARTBEAT_MINUTES } from './campus-directory';
+import { canonicalCampusId, HEARTBEAT_MINUTES, campusDisplayName, isSelectableCampus } from './campus-directory';
 
 export const AUTH_COOKIE_NAME = "data_core_session";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 8;
@@ -266,7 +266,10 @@ export async function listStandaloneAccounts(db: D1Database, context: DataCoreAc
        LEFT JOIN campuses c ON c.id = m.campus_id
        ORDER BY a.created_at DESC`,
   ).bind(DEFAULT_ORGANIZATION_ID).all();
-  return result.results || [];
+  return (result.results || []).map(row => ({ ...row,
+    campus_name: campusDisplayName(row.campus_id, row.campus_name),
+    retiredCampus: !isSelectableCampus(row.campus_id),
+  }));
 }
 
 export async function updateStandaloneAccount(

@@ -4,7 +4,7 @@ import {
   requestIdentity,
   syncRequestUser,
 } from "./data-core";
-import { CAMPUS_DIRECTORY, canonicalCampusId } from './campus-directory';
+import { CAMPUS_DIRECTORY, canonicalCampusId, campusDisplayName, presentCampuses } from './campus-directory';
 
 export const DATA_CORE_ROLES = [
   "MASTER",
@@ -224,7 +224,7 @@ export async function resolveDataCoreAccess(
     id: item.id,
     organizationId: item.organization_id,
     campusId: item.campus_id,
-    campusName: CAMPUS_DIRECTORY.find(c => c.id === item.campus_id)?.name || item.campus_name,
+    campusName: campusDisplayName(item.campus_id, item.campus_name),
     campusCode: CAMPUS_DIRECTORY.find(c => c.id === item.campus_id)?.code || null,
     role: item.role,
   }));
@@ -318,7 +318,7 @@ export async function listAccessibleCampuses(
       )
       .bind(DEFAULT_ORGANIZATION_ID)
       .all();
-    return (result.results || []).map(row => ({...row, code: CAMPUS_DIRECTORY.find(c => c.id === row.id)?.code || row.code, name: CAMPUS_DIRECTORY.find(c => c.id === row.id)?.name || row.name}));
+    return presentCampuses(result.results || []);
   }
 
   if (!context.campusIds.length) return [];
@@ -332,5 +332,5 @@ export async function listAccessibleCampuses(
     )
     .bind(DEFAULT_ORGANIZATION_ID, ...context.campusIds)
     .all();
-  return (result.results || []).map(row => ({...row, code: CAMPUS_DIRECTORY.find(c => c.id === row.id)?.code || row.code, name: CAMPUS_DIRECTORY.find(c => c.id === row.id)?.name || row.name}));
+  return presentCampuses(result.results || []);
 }

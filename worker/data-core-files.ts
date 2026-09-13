@@ -1,3 +1,4 @@
+import { campusDisplayName } from './campus-directory';
 import {
   DEFAULT_ORGANIZATION_ID,
   DataCoreFileArea,
@@ -212,7 +213,7 @@ function fileRowToResponse(row: Record<string, unknown>) {
   return {
     id: row.id,
     campusId: row.campus_id,
-    campusName: row.campus_name,
+    campusName: campusDisplayName(row.campus_id, row.campus_name ?? null),
     recordId: row.data_record_id,
     ownerUserId: row.owner_user_id,
     ownerName: row.owner_name,

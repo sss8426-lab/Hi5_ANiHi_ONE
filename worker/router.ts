@@ -125,7 +125,7 @@ async function dataCoreIndexResponse(request: Request, env: Env): Promise<Respon
   const type = response.headers.get("content-type") || "";
   if (!type.includes("text/html")) return response;
   const html = await response.text();
-  const scriptTag = '<script src="/data-core/work/kkumeum-nav.js?v=20260914-attendance-work"></script>';
+  const scriptTag = '<script src="/data-core/work/kkumeum-nav.js?v=20260914-campuses"></script>';
   const body = html.includes("/data-core/work/kkumeum-nav.js")
     ? html
     : html.replace("</body>", `${scriptTag}\n</body>`);
