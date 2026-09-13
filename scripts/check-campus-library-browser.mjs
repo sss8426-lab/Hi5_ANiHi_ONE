@@ -24,7 +24,7 @@ const child = await h.folder(created.body.folder.id, '장면 연출');
 assert.equal(child.status, 201);
 const expected = (await h.request('GET', '/api/data-core/campuses')).body.campuses;
 assert.equal(expected.length, 10);
-const checked = new Set(), errors = [];
+const checked = new Set(), protectedAssets = new Set(), errors = [];
 const root = resolve('public');
 const server = createServer(async (req, res) => {
   try {
@@ -47,8 +47,16 @@ const server = createServer(async (req, res) => {
     if (preview && !checked.has(path)) {
       const response = await fetch(preview + path);
       assert.equal(response.status, 200, path);
-      const hash = value => createHash('sha256').update(/\.(html|js|css|svg|json)$/.test(path) ? value.toString('utf8').replace(/\r\n/g, '\n') : value).digest('hex');
-      assert.equal(hash(Buffer.from(await response.arrayBuffer())), hash(bytes), 'deployed asset mismatch ' + path);
+      const remote = Buffer.from(await response.arrayBuffer());
+      if (path.startsWith('/data-core/accounts')) {
+        // The deployed master shell and its assets intentionally serve login to anonymous requests.
+        assert.match(remote.toString('utf8'), /<title>DATA CORE 로그인<\/title>/);
+        assert.doesNotMatch(remote.toString('utf8'), /id="accountsBody"/);
+        protectedAssets.add(path);
+      } else {
+        const hash = value => createHash('sha256').update(/\.(html|js|css|svg|json)$/.test(path) ? value.toString('utf8').replace(/\r\n/g, '\n') : value).digest('hex');
+        assert.equal(hash(remote), hash(bytes), 'deployed asset mismatch ' + path);
+      }
       checked.add(path);
     }
     const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.webp': 'image/webp', '.json': 'application/json' };
@@ -122,7 +130,8 @@ try {
     assert.equal(await page.locator('#draftCampus option').textContent(), '부천 애니 입시본원');
   }
   assert.deepEqual(errors, []);
-  result.deployedAssetsChecked = checked.size;
+  result.deployedAssetsChecked = checked.size - protectedAssets.size;
+  result.protectedAssetsVerified = protectedAssets.size;
   await writeFile(resolve(out, 'result.json'), JSON.stringify(result, null, 2));
   console.log(JSON.stringify(result));
 } finally {
