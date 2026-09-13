@@ -630,6 +630,8 @@ test("smoke checks admissions, competition, roadmap, knowledge, and readiness ro
       ]),
       "/data-core/work",
       "/data-core/work/library",
+      "/data-core/work/attendance",
+      "/data-core/work/attendance/",
       "/data-core/content",
       "/data-core/content/blog",
       "/data-core/content/instagram",
@@ -713,7 +715,7 @@ test("standalone accounts use secure sessions, enforce first password change, lo
       const blockedRead = await h.request("GET", route, undefined, undefined, auth);
       assert.equal(blockedRead.response.status, 403, `${route} should require a password change`);
     }
-    for (const route of ["/data-core/work/library", "/data-core/accounts", "/data-core/operations"]) {
+    for (const route of ["/data-core/work/library", "/data-core/work/attendance", "/data-core/accounts", "/data-core/operations"]) {
       const redirectedUi = await h.request("GET", route, undefined, undefined, auth);
       assert.match(String(redirectedUi.body), /비밀번호 변경/, `${route} should render the password-change login page`);
     }

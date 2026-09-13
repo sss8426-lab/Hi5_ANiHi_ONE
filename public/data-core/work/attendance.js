@@ -1,12 +1,12 @@
 import {openTemplate,analyzeSheet,templateStudents,generateAttendance,renderTable,printDocument,sourcePreview,TABLE_CSS,columnName,columnNumber,escapeHtml as h} from './attendance-template.js';
 
-const icon=name=>`<svg class="km-icon" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#${name}"/></svg>`;
+const icon=name=>`<svg class="at-icon" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#${name}"/></svg>`;
 const dayList=value=>String(value||'').trim()?String(value).split(/[\s,]+/).filter(Boolean).map(Number):[];
 export function mountAttendance(host,{campusName=''}) {
   let template=null,mapping=null,students=[],result=null,disposed=false,busy=false,ticket=0;
   const urls=new Set(),frames=new Set();
   const now=new Date();now.setMonth(now.getMonth()+1,1);
-  host.innerHTML=`<section class="at-app"><button type="button" class="km-back" data-back>${icon('ArrowLeft')}소식으로 돌아가기</button><h2>출석부 자동생성</h2>
+  host.innerHTML=`<section class="at-app">
     <label class="at-upload">기존 Excel 출석부<input id="atFile" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label>
     <p class="at-privacy">파일은 이 브라우저에서만 처리하며 서버에 업로드하지 않습니다.</p>
     <form id="atForm" hidden><div class="at-controls"><label>시트<select id="atSheet"></select></label><label>생성 월<input id="atMonth" type="month" min="1901-01" max="2100-12" required value="${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}"></label></div>
@@ -16,9 +16,9 @@ export function mountAttendance(host,{campusName=''}) {
     <label>휴원일<input id="atClosures" placeholder="예: 3, 9" inputmode="numeric"></label>
     <label class="at-check"><input type="checkbox" id="atClear">이전 출석 표시 비우기</label>
     <label class="at-check"><input type="checkbox" id="atConfirm" required>시트와 날짜·학생 영역을 확인했습니다.</label>
-    <button type="submit" class="km-primary">선택 월 출석부 만들기</button></form>
+    <button type="submit" class="at-primary">선택 월 출석부 만들기</button></form>
     <p id="atStatus" role="status" aria-live="polite"></p><section id="atResult" hidden><strong id="atEstimate"></strong><ul id="atWarnings"></ul>
-    <div class="at-actions"><div role="group" aria-label="미리보기 크기"><button type="button" id="atFit" aria-pressed="true">화면 맞춤</button><button type="button" id="atActual" aria-pressed="false">실제 크기</button></div><button type="button" id="atDownload">${icon('Download')}Excel 다운로드</button><button type="button" id="atPrint">${icon('Printer')}인쇄</button></div>
+    <div class="at-actions"><div role="group" aria-label="미리보기 크기"><button type="button" id="atFit" aria-pressed="true">화면 맞춤</button><button type="button" id="atActual" aria-pressed="false">실제 크기</button></div><button type="button" id="atDownload">Excel 다운로드</button><button type="button" id="atPrint">${icon('Printer')}인쇄</button></div>
     <div class="at-preview" id="atPreview" tabindex="0" aria-label="출석부 미리보기"><div id="atPaper"><div id="atTable"></div></div></div></section></section>`;
   const $=id=>host.querySelector(`#${id}`),status=text=>{if(!disposed)$('atStatus').textContent=text;};
   const fields=[['dateRow','날짜 행','row'],['dateStart','1일 열','col'],['weekdayRow','요일 행 (없으면 0)','row'],['nameCol','학생명 열','col'],['weekdayCol','수업요일 열','col'],['firstStudentRow','첫 학생 행','row'],['lastStudentRow','마지막 학생·빈 행','row'],['titleCell','연도·월 제목 셀','cell'],['yearCell','별도 연도 셀','cell'],['monthCell','별도 월 셀','cell'],['sourceYear','원본 연도 (미확인 0)','year'],['sourceMonth','원본 월 (미확인 0)','row'],['lessonStyleCell','수업일 색상 샘플 셀','cell'],['plainStyleCell','기본 색상 샘플 셀','cell']];

@@ -47,6 +47,32 @@ const state = {
 };
 
 const $ = (id) => document.getElementById(id);
+let attendanceCleanup = null;
+let attendanceEpoch = 0;
+
+async function renderAttendance() {
+  attendanceCleanup?.();
+  attendanceCleanup = null;
+  const epoch = ++attendanceEpoch;
+  const host = $('attendanceHost');
+  host.replaceChildren();
+  if (state.currentView !== 'attendance') return;
+  host.textContent = '불러오는 중...';
+  if (state.context === null) return;
+  try {
+    const { mountAttendancePage } = await import('./work/attendance-page.js?v=20260914-work');
+    if (epoch !== attendanceEpoch) return;
+    attendanceCleanup = mountAttendancePage(host, { context: state.context, campuses: state.campuses });
+  } catch {
+    if (epoch !== attendanceEpoch) return;
+    host.textContent = '출석부 도구를 불러오지 못했습니다. ';
+    const retry = document.createElement('button');
+    retry.type = 'button';
+    retry.textContent = '다시 시도';
+    retry.onclick = renderAttendance;
+    host.append(retry);
+  }
+}
 
 function h(value) {
   return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
@@ -135,7 +161,7 @@ function isSuperAdmin() {
 function modeForView(view) {
   if (view === 'mode-home') return 'mode';
   if (view === 'counseling-home' || view === 'competitions' || view === 'curriculum') return 'counseling';
-  if (view === 'work-home' || view === 'library') return 'work';
+  if (view === 'work-home' || view === 'library' || view === 'attendance') return 'work';
   return state.currentMode === 'mode' ? 'work' : state.currentMode;
 }
 
@@ -145,6 +171,7 @@ function titleForView(view) {
     'counseling-home': '너와 나의 합격의 순간',
     'work-home': '업무용',
     library: '자료보관함',
+    attendance: '출석부',
     competitions: '공모전·실기대회',
     curriculum: '꿈을 향한 커리큘럼',
     admin: '권한관리',
@@ -171,6 +198,7 @@ function switchView(view, options = {}) {
   if (eyebrow) eyebrow.textContent = view === 'counseling-home' ? 'HI5·ANiHi DATA CORE' : 'HI5·ANiHi 통합 데이터 허브';
   if (view !== 'competitions') clearAwardImages();
   if (view !== 'curriculum') window.DataCoreCurriculumLibrary?.dispose();
+  void renderAttendance();
   document.querySelectorAll('.view').forEach((section) => section.classList.remove('active'));
   $(`view-${view}`)?.classList.add('active');
   $('pageTitle').textContent = titleForView(view);
@@ -183,6 +211,7 @@ function switchView(view, options = {}) {
       'counseling-home': '/data-core/counseling',
       'work-home': '/data-core/work',
       library: '/data-core/work/library',
+      attendance: '/data-core/work/attendance',
       competitions: '/data-core/counseling/competitions',
       curriculum: '/data-core/curriculum',
     })[view];
@@ -209,6 +238,7 @@ function initialViewFromPath() {
   if (path === '/data-core/counseling') return 'counseling-home';
   if (path === '/data-core/counseling/competitions') return 'competitions';
   if (path === '/data-core/work/library') return 'library';
+  if (path === '/data-core/work/attendance') return 'attendance';
   if (path === '/data-core/work') return 'work-home';
   return 'mode-home';
 }
@@ -408,6 +438,9 @@ async function loadHealthAndContext() {
 
   if (!state.context?.authenticated) {
     renderCampusSelectors();
+    if (state.currentView === 'attendance') {
+      $('attendanceHost').textContent = '로그인 후 출석부를 사용할 수 있습니다.';
+    }
     return;
   }
   try {
@@ -418,6 +451,7 @@ async function loadHealthAndContext() {
   } catch (error) {
     toast(error.message, 'error');
   }
+  if (state.currentView === 'attendance') void renderAttendance();
 }
 
 async function loadFiles() {
@@ -1544,7 +1578,7 @@ async function deleteCalendarEvent(id) {
 }
 
 function bindEvents() {
-  document.querySelectorAll('.nav-item[data-view], .feature-card[data-view]').forEach((button) => {
+  document.querySelectorAll('.nav-item[data-view], .feature-card[data-view], .at-work-link[data-view], #view-attendance [data-view]').forEach((button) => {
     button.onclick = () => switchView(button.dataset.view);
   });
   $('refreshFilesBtn').onclick = loadFiles;

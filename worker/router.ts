@@ -125,7 +125,7 @@ async function dataCoreIndexResponse(request: Request, env: Env): Promise<Respon
   const type = response.headers.get("content-type") || "";
   if (!type.includes("text/html")) return response;
   const html = await response.text();
-  const scriptTag = '<script src="/data-core/work/kkumeum-nav.js?v=20260908-mode-home"></script>';
+  const scriptTag = '<script src="/data-core/work/kkumeum-nav.js?v=20260914-attendance-work"></script>';
   const body = html.includes("/data-core/work/kkumeum-nav.js")
     ? html
     : html.replace("</body>", `${scriptTag}\n</body>`);
@@ -550,7 +550,9 @@ const worker = {
         url.pathname === "/data-core/work" ||
         url.pathname === "/data-core/work/" ||
         url.pathname === "/data-core/work/library" ||
-        url.pathname === "/data-core/work/library/"
+        url.pathname === "/data-core/work/library/" ||
+        url.pathname === "/data-core/work/attendance" ||
+        url.pathname === "/data-core/work/attendance/"
       ) {
         return dataCoreIndexResponse(request, env);
       }

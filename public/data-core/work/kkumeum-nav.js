@@ -12,7 +12,7 @@
     link.href = KKUMEUM_HREF;
     link.dataset.kkumeumNav = 'true';
     link.innerHTML = '<span class="nav-icon">↗</span><span>꿈이음</span>';
-    workNav.insertBefore(link, returnButton || null);
+    workNav.insertBefore(link, workNav.querySelector('[data-view="attendance"]') || returnButton || null);
   }
 
   function addWorkHomeCard() {
