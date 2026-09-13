@@ -1,6 +1,7 @@
 import { DEFAULT_ORGANIZATION_ID as ORG } from './data-core';
 import { DataCoreAccessContext, DataCoreAccessError, requireWriteAccess, requireCampusAccess, managesCampus } from './data-core-access';
 import { canReadBaseFile } from './data-core-derivative-policy';
+import { presentCampuses } from './campus-directory';
 
 export const LIBRARY_FOLDER = 'library-folder';
 export const HQ_FOLDER = 'hq-library-folder';
@@ -55,7 +56,7 @@ export class LibraryTree {
   constructor(public db: D1Database, public context: DataCoreAccessContext) {}
   async init() {
     requireLibraryAccess(this.context);
-    this.campuses = (await this.db.prepare("SELECT id, code, name FROM campuses WHERE organization_id = ? AND status = 'active' ORDER BY name").bind(ORG).all<Row>()).results || [];
+    this.campuses = presentCampuses((await this.db.prepare("SELECT id, code, name FROM campuses WHERE organization_id = ? AND status = 'active' ORDER BY name").bind(ORG).all<Row>()).results || [], true);
     return this;
   }
   async row(id: string) {
@@ -74,7 +75,7 @@ export class LibraryTree {
     else if (id.startsWith('campus:')) {
       const campus = this.campuses.find(c => `campus:${c.id}` === id);
       if (!campus) fail(404, '캠퍼스를 찾을 수 없습니다.');
-      folder = { ...base, id, title: campus.name, campusId: campus.id, parentId: 'root', depth: 1 };
+      folder = { ...base, id, title: campus.name, campusId: campus.id, parentId: 'root', depth: 1, group: '캠퍼스' };
     } else if (id.startsWith('category:')) {
       const match = /^category:([^:]+):([^:]+)$/.exec(id);
       const category = LIBRARY_CATEGORIES.find(c => c[0] === match?.[2]);

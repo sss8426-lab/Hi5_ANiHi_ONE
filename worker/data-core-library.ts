@@ -4,6 +4,7 @@ import { uploadDataCoreFile, deleteDataCoreFile } from './data-core-files';
 import { THUMBNAIL_CATEGORY, thumbnailSource } from './data-core-derivative-policy';
 import { createLibraryThumbnail, thumbnailUrls } from './data-core-thumbnails';
 import { privateImageResponse } from './private-image-response';
+import { isSelectableCampus } from './campus-directory';
 import { LibraryTree, LibraryFolder, LIBRARY_FOLDER, HQ_FOLDER, LIBRARY_SOURCE, LIBRARY_CATEGORIES, HQ_DEFAULTS,
   libraryMetadata, libraryCanWrite, libraryCanDelete, libraryCanDeleteFolder, libraryFolderScope, requireLibraryWrite, libraryFileReadable } from './data-core-library-policy';
 
@@ -51,7 +52,7 @@ async function children(tree: LibraryTree, parent: LibraryFolder) {
     // Retire only this known legacy acceptance projection, not its campus, files or access policy.
     // Its three trashed file objects lack test-only provenance and must remain restorable.
     for (const campus of tree.campuses) {
-      if (campus.id === 'campus-synthetic-acceptance-20260909') continue;
+      if (!isSelectableCampus(campus.id)) continue;
       output.push(await tree.resolve(`campus:${campus.id}`));
     }
   }
