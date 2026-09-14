@@ -7,7 +7,7 @@
   const icon = name => `<svg class="lb-icon" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#${name}"></use></svg>`;
   const href = id => `/data-core/work/library${id === 'root' ? '' : `?folder=${encodeURIComponent(id)}`}`;
   const state = { folder: null, folders: [], files: [], breadcrumbs: [], controller: null, generation: 0, queue: null, pending: null };
-  const sheet = document.createElement('link'); sheet.rel = 'stylesheet'; sheet.href = '/data-core/work/library-browser.css?v=20260911-thumbnails'; document.head.append(sheet);
+  const sheet = document.createElement('link'); sheet.rel = 'stylesheet'; sheet.href = '/data-core/work/library-browser.css?v=20260914-recent-uploads'; document.head.append(sheet);
   let imageCache=null, observer=null, imageGeneration=0;
   function clearImages() {
     window.DataCoreImageGallery.close('library');
@@ -59,6 +59,9 @@
     <form id="librarySearch" class="lb-search"><label for="libraryQuery">현재 폴더 검색</label><input id="libraryQuery" type="search" maxlength="120"><button class="lb-button" type="submit">검색</button></form>
     <p id="libraryStatus" role="status"></p><div id="libraryContents" aria-busy="false"><div id="libraryFolders"></div><div id="libraryFiles"></div></div>
     <nav id="libraryPages" class="lb-toolbar" aria-label="파일 페이지"></nav>
+    <section id="libraryRecent" class="lb-recent" hidden><h3>최근 업로드</h3>
+      <ul id="libraryRecentList" class="lb-recent-list"></ul>
+      <p id="libraryRecentEmpty" hidden>최근 업로드된 파일이 없습니다.</p></section>
     <input id="libraryFileInput" type="file" multiple hidden>
     <dialog id="libraryFolderDialog" aria-labelledby="libraryFolderTitle"><form id="libraryFolderForm"><h3 id="libraryFolderTitle">새 폴더</h3>
       <label for="libraryFolderName">새 폴더 이름</label><input id="libraryFolderName" required maxlength="80" autocomplete="off">
@@ -111,6 +114,29 @@
     }).join('')}</ul>` : '';
     observeImages();
   }
+  function timeLabel(iso) {
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return '';
+    const minutes = Math.floor((Date.now() - date.getTime()) / 60000);
+    if (minutes < 1) return '방금 전';
+    if (minutes < 60) return `${minutes}분 전`;
+    if (date.toDateString() === new Date().toDateString()) return `오늘 ${date.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',hour12:false})}`;
+    return date.toLocaleDateString('ko-KR');
+  }
+  function renderRecent(files) {
+    $('libraryRecent').hidden = false;
+    $('libraryRecentEmpty').hidden = files.length > 0;
+    $('libraryRecentList').innerHTML = files.map(f => {
+      const image = !opaquePreview(f.fileName) && /^image\/(jpeg|png|webp|gif|avif)/.test(f.mimeType || '');
+      return `<li class="lb-recent-item"><a class="lb-recent-link" href="${h(href(f.folderId))}" data-lb-folder="${h(f.folderId)}">${icon(image ? 'Image' : 'BookOpen')}
+        <span class="lb-recent-text"><strong>${h(f.fileName)}</strong><small>${h(f.folderTitle)} · ${h(timeLabel(f.createdAt))}</small></span></a></li>`;
+    }).join('');
+  }
+  async function loadRecent(id, options) {
+    if (!(id === 'root' || id.startsWith('campus:'))) { $('libraryRecent').hidden = true; return; }
+    try { renderRecent((await api(`/api/data-core/library/recent?folderId=${encodeURIComponent(id)}`, options)).files); }
+    catch (e) { if (e.name !== 'AbortError') renderRecent([]); }
+  }
   async function load(focus = false) {
     clearImages();
     if (!/\/data-core\/work\/library\/?$/.test(location.pathname)) return;
@@ -120,6 +146,7 @@
     $('libraryUp').hidden = true; $('libraryPermission').textContent = '';
     $('libraryStatus').textContent = '불러오는 중…'; $('libraryContents').setAttribute('aria-busy','true');
     $('libraryFolders').replaceChildren(); $('libraryFiles').replaceChildren(); $('libraryPages').replaceChildren();
+    $('libraryRecent').hidden = true; $('libraryRecentList').replaceChildren();
     for (const id of ['libraryNew','libraryUpload','libraryDeleteFolder']) $(id).hidden = true;
     $('libraryQuery').value = current.q;
     try {
@@ -137,6 +164,8 @@
       renderFolders(view.folders, current.q); renderFiles(listing.files);
       $('libraryStatus').textContent = !listing.files.length && !$('libraryFolders').children.length ? (current.q ? '검색 결과가 없습니다.' : '이 폴더에 자료가 없습니다.') : '';
       if (current.page > 1 || listing.hasMore) $('libraryPages').innerHTML = `<button class="lb-button" data-lb-page="${current.page-1}" ${current.page===1?'disabled':''}>이전</button><span>${current.page} 페이지</span><button class="lb-button" data-lb-page="${current.page+1}" ${listing.hasMore?'':'disabled'}>다음</button>`;
+      await loadRecent(current.id, options);
+      if (generation !== state.generation) return;
       if (focus) $('libraryTitle').focus({ preventScroll: true });
     } catch (e) {
       if (e.name === 'AbortError' || generation !== state.generation) return;
