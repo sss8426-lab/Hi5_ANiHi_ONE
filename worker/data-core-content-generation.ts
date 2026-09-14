@@ -1,6 +1,6 @@
 import { DEFAULT_ORGANIZATION_ID } from "./data-core";
 import { canReadRegisteredFile } from './data-core-derivative-policy';
-import { AI_PHOTO_LIMIT } from './content-ai-images';
+import { AI_PHOTO_LIMIT, BLOG_AI_PHOTO_LIMIT } from './content-ai-images';
 import {
   DataCoreAccessContext,
   DataCoreAccessError,
@@ -49,7 +49,7 @@ export type ContentGenerationProviderRequest = {
 };
 
 export type ContentGenerationProvider = {
-  generate(input: ContentGenerationProviderRequest): Promise<ContentGenerationOutput>;
+  generate(input: ContentGenerationProviderRequest, photos?: Map<string, { bytes: Uint8Array; mime: string }>): Promise<ContentGenerationOutput>;
 };
 
 export type ContentGenerationResult =
@@ -91,12 +91,12 @@ function normalizeSourceApp(value: unknown): ContentGenerationSourceApp {
   throw new DataCoreAccessError(400, "sourceApp은 blog 또는 instagram이어야 합니다.");
 }
 
-function normalizeFileIds(value: unknown): string[] {
+function normalizeFileIds(value: unknown, limit: number): string[] {
   if (!Array.isArray(value)) return [];
   const ids = Array.from(
     new Set(value.map((item) => cleanText(item, 120)).filter(Boolean)),
   );
-  if (ids.length > AI_PHOTO_LIMIT) throw new DataCoreAccessError(400, 'AI가 분석할 사진을 조금 줄여주세요.');
+  if (ids.length > limit) throw new DataCoreAccessError(400, `AI 분석용 사진은 최대 ${limit}장까지 선택할 수 있습니다.`);
   return ids;
 }
 
@@ -148,13 +148,16 @@ export async function generateContentDraft(
   context: DataCoreAccessContext,
   input: ContentGenerationInput,
   provider?: ContentGenerationProvider,
+  photos?: Map<string, { bytes: Uint8Array; mime: string }>,
 ): Promise<ContentGenerationResult> {
   requireWriteAccess(context);
   const sourceApp = normalizeSourceApp(input.sourceApp);
   const campusId = cleanText(input.campusId, 120) || null;
   if (!context.isSuperAdmin || campusId) requireCampusAccess(context, campusId);
 
-  const selectedFileIds = normalizeFileIds(input.selectedFileIds);
+  // Instagram keeps its existing shared photo-count limit unchanged; only the blog path (and only
+  // when the browser actually sent optimized photo blobs) gets the higher, separate limit.
+  const selectedFileIds = normalizeFileIds(input.selectedFileIds, sourceApp === 'blog' && photos ? BLOG_AI_PHOTO_LIMIT : AI_PHOTO_LIMIT);
   const selectedFiles = await selectedFileDescriptors(db, context, campusId, selectedFileIds);
   const request: ContentGenerationProviderRequest = {
     sourceApp,
@@ -176,6 +179,6 @@ export async function generateContentDraft(
 
   return {
     available: true,
-    generated: await provider.generate(request),
+    generated: await provider.generate(request, photos),
   };
 }

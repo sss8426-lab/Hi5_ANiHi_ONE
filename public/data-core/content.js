@@ -18,7 +18,19 @@ const state = {
   aiFile: null,
   aiSourceId: null,
 };
-const PHOTO_LIMIT = 6;
+// Instagram never reaches this: it always replaces the selection with a single photo (see
+// renderFilePicker's pick handler), so this only ever gates the blog "AI로 글 작성" flow.
+const BLOG_PHOTO_LIMIT = 10;
+// Adaptive long-edge/quality ladder tried in order until the JPEG lands at or under the soft
+// target; the browser never upscales a smaller original past its own size.
+const AI_OPTIMIZE_STEPS = [
+  { edge: 2048, quality: 0.82 },
+  { edge: 1800, quality: 0.78 },
+  { edge: 1600, quality: 0.74 },
+  { edge: 1280, quality: 0.70 },
+];
+const AI_OPTIMIZE_TARGET_BYTES = 1.5 * 1024 * 1024;
+const AI_OPTIMIZE_HARD_CAP_BYTES = 2 * 1024 * 1024;
 
 let derivativeEditor;
 
@@ -156,7 +168,7 @@ function setSourceApp(sourceApp) {
   $('generateAi').textContent = instagram ? 'AI로 인스타 이미지 만들기' : 'AI로 블로그 글 작성';
   $('regenerateAi').textContent = instagram ? '다시 편집' : '다시 작성';
   $('copyContent').textContent = instagram ? '문구 복사' : '전체 복사';
-  $('aiPrivacy').textContent = instagram ? 'AI 이미지 편집은 선택한 대표 사진 1장에 대해 실행됩니다.' : '선택한 사진과 입력한 명령만 OpenAI에 전송됩니다.';
+  $('aiPrivacy').textContent = instagram ? 'AI 이미지 편집은 선택한 대표 사진 1장에 대해 실행됩니다.' : '선택한 사진은 AI 분석에 맞게 자동 최적화되어 전송됩니다. 자료보관함 원본 파일은 변경되지 않습니다.';
   resetDraftForm(false);
 }
 
@@ -176,7 +188,7 @@ function renderSelectedFiles() {
       renderSelectedFiles(); renderFilePicker();
     };
   });
-  $('photoCount').textContent = state.sourceApp === 'instagram' ? `대표 사진 ${rows.length}장 선택` : `사진 ${rows.length}장 선택`;
+  $('photoCount').textContent = state.sourceApp === 'instagram' ? `대표 사진 ${rows.length}장 선택` : `사진 ${rows.length}/${BLOG_PHOTO_LIMIT}장 선택`;
   $('selectedFiles').innerHTML = rows.map((file, index) => `<button data-remove-file="${h(file.id)}" type="button" aria-label="선택 사진 ${index + 1} 제외" title="선택 해제"><img src="${h(file.thumbnailUrl || file.previewUrl || '/api/data-core/files/' + encodeURIComponent(file.id))}" alt=""></button>`).join('');
   document.querySelectorAll('[data-remove-file]').forEach((button) => {
     button.onclick = () => {
@@ -275,7 +287,7 @@ function renderFilePicker() {
       const id = String(button.dataset.pickFile);
       if (state.selectedFileIds.includes(id)) state.selectedFileIds = state.selectedFileIds.filter(item => item !== id);
       else if (state.sourceApp === 'instagram') state.selectedFileIds = [id];
-      else if (state.selectedFileIds.length >= PHOTO_LIMIT) return toast('AI가 분석할 사진을 조금 줄여주세요.', 'error');
+      else if (state.selectedFileIds.length >= BLOG_PHOTO_LIMIT) return toast(`블로그 AI 분석은 최대 ${BLOG_PHOTO_LIMIT}장까지 선택할 수 있습니다.`, 'error');
       else state.selectedFileIds.push(id);
       renderFilePicker();
       renderSelectedFiles();
@@ -540,6 +552,52 @@ function setAiBusy(busy) {
   if (!busy) derivativeEditor?.update(selectedFiles(), state.sourceApp === 'instagram');
 }
 
+// Resizes/compresses one selected photo for the AI request in the browser; the R2 original itself
+// is never touched. Tries the ladder in order and keeps the smallest attempt as a fallback so a
+// stubborn photo still lands under the hard cap instead of failing outright.
+async function optimizeImageForAi(file) {
+  const name = file.fileName || '사진';
+  const url = file.previewUrl || '/api/data-core/files/' + encodeURIComponent(file.id);
+  let sourceBlob;
+  try {
+    const response = await fetch(url, { credentials: 'same-origin' });
+    if (!response.ok) throw new Error();
+    sourceBlob = await response.blob();
+  } catch { throw new Error(`${name} 사진을 불러오지 못했습니다.`); }
+  let bitmap;
+  try { bitmap = await createImageBitmap(sourceBlob); }
+  catch { throw new Error(`${name} 사진을 AI 분석용으로 준비하지 못했습니다.`); }
+  try {
+    let best = null;
+    for (const step of AI_OPTIMIZE_STEPS) {
+      const scale = Math.min(1, step.edge / Math.max(bitmap.width, bitmap.height));
+      const width = Math.max(1, Math.round(bitmap.width * scale));
+      const height = Math.max(1, Math.round(bitmap.height * scale));
+      const canvas = new OffscreenCanvas(width, height);
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(bitmap, 0, 0, width, height);
+      best = await canvas.convertToBlob({ type: 'image/jpeg', quality: step.quality });
+      if (best.size <= AI_OPTIMIZE_TARGET_BYTES) break;
+    }
+    if (!best || !best.size || best.size > AI_OPTIMIZE_HARD_CAP_BYTES) throw new Error(`${name} 사진을 AI 분석용으로 준비하지 못했습니다.`);
+    return best;
+  } finally {
+    bitmap.close();
+  }
+}
+
+// One photo at a time: decode, resize/compress, release, next. Never decodes more than one
+// original into memory at once (protects low-memory tablets from a 10-photo decode spike).
+async function prepareBlogPhotos(files, signal) {
+  const photos = new Map();
+  for (let i = 0; i < files.length; i++) {
+    if (signal.aborted) throw new DOMException('중단되었습니다.', 'AbortError');
+    $('aiStatus').textContent = `사진을 AI 분석에 맞게 준비하고 있습니다… ${i + 1}/${files.length}`;
+    photos.set(String(files[i].id), await optimizeImageForAi(files[i]));
+  }
+  return photos;
+}
+
 async function runAi(captionOnly = false) {
   if (state.busy || !canWrite()) return;
   const ids = captionOnly && state.aiSourceId ? [state.aiSourceId] : [...state.selectedFileIds], direction = $('aiCommand').value.trim();
@@ -549,10 +607,12 @@ async function runAi(captionOnly = false) {
   const campusId = $('draftCampus').value || null, sourceApp = state.sourceApp;
   state.aiController = new AbortController();
   state.browseGeneration++;
-  const signal = state.aiController.signal, timer = setTimeout(() => state.aiController?.abort(), instagram ? 290000 : 100000);
+  // Blog gets extra headroom over the old single-photo budget: up to 10 photos are resized/
+  // compressed in the browser before the request is even sent.
+  const signal = state.aiController.signal, timer = setTimeout(() => state.aiController?.abort(), instagram ? 290000 : 150000);
   setAiBusy(true);
   $('retryCaption').hidden = true;
-  $('aiStatus').textContent = captionOnly ? '홍보 문구를 작성하고 있습니다…' : instagram ? '사진을 분석하고 홍보 이미지를 편집하고 있습니다…' : '사진을 살펴보고 글을 작성하고 있습니다…';
+  $('aiStatus').textContent = captionOnly ? '홍보 문구를 작성하고 있습니다…' : instagram ? '사진을 분석하고 홍보 이미지를 편집하고 있습니다…' : '사진을 AI 분석에 맞게 준비하고 있습니다…';
   let imageSaved = false;
   const post = (path, body) => api('/api/data-core/content/' + path, { method: 'POST', headers: { 'content-type': 'application/json' }, signal, body: JSON.stringify({ ...body, sourceApp, campusId, requestId: crypto.randomUUID() }) });
   try {
@@ -571,7 +631,19 @@ async function runAi(captionOnly = false) {
       renderSelectedFiles();
       $('aiStatus').textContent = '이미지가 저장되었습니다. 홍보 문구를 작성하고 있습니다…';
     }
-    const result = await post('generate', { selectedFileIds: ids, notes: direction });
+    let result;
+    if (instagram) {
+      result = await post('generate', { selectedFileIds: ids, notes: direction });
+    } else {
+      const photoFiles = ids.map((id) => state.knownFiles.get(String(id))).filter(Boolean);
+      if (photoFiles.length !== ids.length) throw new Error('선택한 사진 정보를 확인할 수 없습니다. 사진을 다시 선택해주세요.');
+      const photos = await prepareBlogPhotos(photoFiles, signal);
+      $('aiStatus').textContent = '사진을 살펴보고 글을 작성하고 있습니다…';
+      const form = new FormData();
+      form.set('input', JSON.stringify({ selectedFileIds: ids, notes: direction, sourceApp, campusId, requestId: crypto.randomUUID() }));
+      for (const [id, blob] of photos) form.set(`photo:${id}`, blob, `${id}.jpg`);
+      result = await api('/api/data-core/content/generate', { method: 'POST', signal, body: form });
+    }
     const generated = result.generated;
     $('draftTitle').value = generated.title;
     $('draftContent').value = generated.body || generated.content;

@@ -140,6 +140,61 @@ test('sanitized JPEG/WebP retain orientation but never original EXIF; provider f
   }finally{globalThis.fetch=originalFetch;await h.mf.dispose();}
 });
 
+test('blog multipart path: 10 browser-optimized photos bypass R2 entirely, still enforce per-file/total hard caps and reject non-blog use',async()=>{
+  const h=await libraryHarness(),originalFetch=globalThis.fetch;
+  try {
+    const files=[];for(let i=0;i<10;i++)files.push(await fixture(h));
+    const originalRows=await Promise.all(files.map(f=>h.file(f.id)));
+    h.env.OPENAI_API_KEY='synthetic-test-only';
+    const optimized=await sharp({create:{width:40,height:30,channels:3,background:'#335577'}}).jpeg({quality:80}).toBuffer();
+    const multipart=(selected,bytesById)=>{
+      const form=new FormData();
+      form.set('input',JSON.stringify({sourceApp:'blog',campusId:A,selectedFileIds:selected.map(f=>f.id),notes:'합성 다중 사진',requestId:crypto.randomUUID()}));
+      for(const file of selected)form.set(`photo:${file.id}`,new Blob([bytesById.get(file.id)||optimized],{type:'image/jpeg'}),`${file.id}.jpg`);
+      return form;
+    };
+    let calls=0,sentImages=0;
+    globalThis.fetch=async(url,options)=>{
+      if(!String(url).startsWith('https://api.openai.com/'))return originalFetch(url,options);
+      calls++;const body=JSON.parse(options.body),images=body.input[0].content.filter(item=>item.type==='input_image');
+      sentImages=images.length;
+      // Every image sent to the provider must be the browser-optimized 40x30 JPEG, never the R2
+      // 64x80 PNG original (sanitizeAiImage rewrites JPEG markers, so compare decoded metadata).
+      for(const image of images){
+        const meta=await sharp(Buffer.from(image.image_url.split(',')[1],'base64')).metadata();
+        assert.equal(meta.format,'jpeg');assert.equal(meta.width,40);assert.equal(meta.height,30);
+      }
+      return textResponse(generated);
+    };
+    const result=await h.request('POST','/api/data-core/content/generate',users.staff,multipart(files,new Map()));
+    assert.equal(result.status,200,JSON.stringify(result.body));assert.equal(calls,1);assert.equal(sentImages,10);
+
+    // An 11th photo is rejected before any provider traffic (JSON-only requests keep the old 6-photo cap).
+    const eleventh=await fixture(h);
+    assert.equal((await h.request('POST','/api/data-core/content/generate',users.staff,multipart([...files,eleventh],new Map()))).status,400);
+    assert.equal(calls,1);
+
+    // A single optimized photo over the 2MiB hard cap is rejected before provider traffic.
+    const bigBytes=new Map([[files[0].id,new Uint8Array(3*1024*1024)]]);
+    assert.equal((await h.request('POST','/api/data-core/content/generate',users.staff,multipart([files[0]],bigBytes))).status,413);
+    assert.equal(calls,1);
+
+    // Several individually-under-cap photos can still add up past the 16MiB total safety cap.
+    const nine=files.slice(0,9), overTotal=new Map(nine.map(f=>[f.id,new Uint8Array(1.9*1024*1024)]));
+    assert.equal((await h.request('POST','/api/data-core/content/generate',users.staff,multipart(nine,overTotal))).status,413);
+    assert.equal(calls,1);
+
+    // Instagram never uses this multipart shape; sending one is rejected outright.
+    const instagramForm=new FormData();
+    instagramForm.set('input',JSON.stringify({sourceApp:'instagram',campusId:A,selectedFileIds:[files[0].id],notes:'x',requestId:crypto.randomUUID()}));
+    instagramForm.set(`photo:${files[0].id}`,new Blob([optimized],{type:'image/jpeg'}),'x.jpg');
+    assert.equal((await h.request('POST','/api/data-core/content/generate',users.staff,instagramForm)).status,400);
+    assert.equal(calls,1);
+    // None of this ever wrote to the R2 originals or their file_objects rows.
+    assert.deepEqual(await Promise.all(files.map(f=>h.file(f.id))),originalRows);
+  }finally{globalThis.fetch=originalFetch;await h.mf.dispose();}
+});
+
 test('six-photo budget and concurrent request lease prevent extra paid calls; byte limits fail before provider traffic',async()=>{
   const h=await libraryHarness(),originalFetch=globalThis.fetch,originalBucket=h.env.FILES;
   let release;
