@@ -1,10 +1,24 @@
 # Blog / Instagram OpenAI Workflow
 
-## Scope and Deployment Gate (2026-09-13)
+## Production Acceptance (2026-09-14)
+
+- Source baseline: `1ea3db84e1e0e12663c8cfbb57efe7ad2de3729d`. Worker tested: `58a9cc6c-783c-4091-b3e8-57b7fbe3c7e8` (100%, deployed 2026-09-14 05:33 UTC).
+- Credential presence: **yes**. `wrangler secret list --name hi5-anihi-one` and the MASTER diagnostic confirmed `OPENAI_API_KEY` is configured. No value, fragment, authorization header, or session token was retrieved or recorded. The administrator registered the secret; this check did not create or rotate it.
+- Configured models: text `gpt-5.6-luna`, image `gpt-image-2.5-flare`. Configuration is not proof of account/model access.
+- Exactly one Instagram image-edit action and one separate blog text action were executed through the authenticated production UI. Instagram failed before its automatic caption step, so the separate blog action did not duplicate a Responses call. No retry was performed.
+- Input was a new 256x320 synthetic PNG containing only a blue circle and red rectangle (1,963 bytes), plus a fictional academy announcement/edit instruction. No real student image, identifying text, existing default setting, folder, account, or business record was changed.
+- **Image smoke: failed. Text smoke: failed.** Both showed the safe provider-error message, not generated content. The deployed adapter maps that message to `provider_error` / Worker HTTP 502; the raw network status and upstream OpenAI status were not independently captured. Do not interpret this as a confirmed authentication, quota, or model-access error.
+- Read-only request-lease evidence: two failed requests, both automatically soft-trashed. Image job ran 05:43:05.437-05:43:05.901 UTC (about 0.46s); the two jobs averaged 0.76s. These are Worker job durations, not measured provider-only latency. Neither hit the configured 90s/180s timeout.
+- No generated image or draft was saved. Thus live normalization, 2160x2700 output, provenance, comparison and generated-file download remain **not accepted**. Existing isolated contract tests cover those paths, not live model behavior.
+- Synthetic source bytes were read back from R2 and SHA-256 matched the uploaded local PNG. The source was then moved to the normal recoverable trash; no R2 object was permanently deleted. No business data was used for cleanup.
+- Next diagnostic must distinguish provider transport, upstream status and output-validation failures using allowlisted codes only. Current safe error handling intentionally discards upstream details, so the cause remains **unconfirmed**. Do not reset the key or billing based on this generic message. Any new paid probe must respect the user's one-call-per-endpoint limit for this run.
+- Baseline: npm ci/build/typecheck, 382 tests, all 64 public JS syntax checks and Wrangler dry-run passed. Existing lint: 89 errors; audit: 12 findings (8 high, 4 moderate). No runtime/dependency/schema changes in this acceptance update.
+
+## Scope and Previous Gate (2026-09-13)
 
 Extends existing provider contract, drafts, library folders and Instagram derivatives. No migration, new bucket, account change, folder re-creation, original replacement or FAMILY modification.
 
-Two name-only production checks (default and explicit Worker `hi5-anihi-one`) returned five secret names, with **no OpenAI secret**. Values were not retrieved. No key was created, rotated, removed or committed. Until an administrator connects their existing key as `OPENAI_API_KEY`, model access, live generation, quality and billing remain **unverified**. Synthetic adapter tests are not production OpenAI acceptance.
+Historical state: two name-only production checks on September 13 returned five secret names, with **no OpenAI secret**. This missing-secret gate is superseded by the September 14 result above. Synthetic adapter tests are not production OpenAI acceptance.
 
 ## Teacher Workflow
 
@@ -57,4 +71,4 @@ Local gates: npm ci, build, typecheck, all 57 public JavaScript syntax checks, t
 
 `--preview <origin>` additionally checks deployed asset bytes against the checkout. All authenticated API fixtures and mutations remain isolated locally; this is not live Preview/provider or production data acceptance. Manual deterministic save is covered without OpenAI calls.
 
-Production smoke is credential-gated: new synthetic source only; verify text/image access, persisted derivative and download, then soft-trash exact synthetic draft/output/source. Never real student photos, existing folders or account changes. Missing Preview secrets must show genuine unavailability.
+Production smoke uses a new synthetic source only. Credential presence was confirmed September 14, but both live actions failed as recorded above. Future authorized verification must still check the persisted derivative and download, then soft-trash exact synthetic draft/output/source. Never use real student photos or change existing folders/accounts. Missing Preview secrets must show genuine unavailability.
