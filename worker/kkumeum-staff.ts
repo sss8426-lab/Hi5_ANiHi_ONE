@@ -339,7 +339,8 @@ export async function updateKkumeumStudent(
   const classId = input.classId === undefined ? (existing.current_class_id ? String(existing.current_class_id) : null) : (cleanText(input.classId, 120) || null);
   if (classId) await requireClassInCampus(familyDb, campusId, classId);
   const oldClassId = existing.current_class_id ? String(existing.current_class_id) : null;
-  const now = new Date().toISOString();
+  const now = new Date(Math.max(Date.now(), (Date.parse(String(existing.updated_at)) || 0) + 1)).toISOString();
+  const auditId = crypto.randomUUID();
   const statements: D1PreparedStatement[] = [
     familyDb
       .prepare(
@@ -360,43 +361,28 @@ export async function updateKkumeumStudent(
         campusId,
         existing.updated_at,
       ),
+    familyDb.prepare(`INSERT INTO family_audit_logs (
+      id, campus_id, actor_type, actor_id, action, resource_type, resource_id, metadata_json, created_at
+    ) SELECT ?, ?, 'staff', ?, 'student.update', 'family_student', ?, ?, ? WHERE changes() = 1`)
+      .bind(auditId, campusId, context.user?.internalUserId || null, studentId, JSON.stringify({oldClassId, classId, status}), now),
   ];
+  // Only this batch's successful student update may change enrollment history.
   if (classId !== oldClassId) {
     statements.push(
       familyDb
         .prepare(`UPDATE class_enrollments SET ended_at = ? WHERE student_id = ? AND ended_at IS NULL
-          AND EXISTS (SELECT 1 FROM family_students WHERE id = ? AND campus_id = ? AND updated_at = ?)`)
-        .bind(now, studentId, studentId, campusId, now),
+          AND EXISTS (SELECT 1 FROM family_audit_logs WHERE id = ?)`)
+        .bind(now, studentId, auditId),
     );
     if (classId) {
       statements.push(
         familyDb
           .prepare(`INSERT INTO class_enrollments (id, student_id, class_id, started_at, created_at) SELECT ?, ?, ?, ?, ?
-            WHERE EXISTS (SELECT 1 FROM family_students WHERE id = ? AND campus_id = ? AND updated_at = ?)`)
-          .bind(crypto.randomUUID(), studentId, classId, now, now, studentId, campusId, now),
+            WHERE EXISTS (SELECT 1 FROM family_audit_logs WHERE id = ?)`)
+          .bind(crypto.randomUUID(), studentId, classId, now, now, auditId),
       );
     }
   }
-  statements.push(
-    familyDb
-      .prepare(
-        `INSERT INTO family_audit_logs (
-           id, campus_id, actor_type, actor_id, action, resource_type, resource_id, metadata_json, created_at
-         ) SELECT ?, ?, 'staff', ?, 'student.update', 'family_student', ?, ?, ?
-         WHERE EXISTS (SELECT 1 FROM family_students WHERE id = ? AND campus_id = ? AND updated_at = ?)`,
-      )
-      .bind(
-        crypto.randomUUID(),
-        campusId,
-        context.user?.internalUserId || null,
-        studentId,
-        JSON.stringify({ oldClassId, classId, status }),
-        now,
-        studentId,
-        campusId,
-        now,
-      ),
-  );
   const results = await familyDb.batch(statements);
   if (!results[0]?.meta?.changes) throw new DataCoreAccessError(409, '학생 정보가 변경되었습니다. 새로고침 후 다시 수정해주세요.');
   return { id: studentId, campusId, name, status, currentClassId: classId, updatedAt: now };

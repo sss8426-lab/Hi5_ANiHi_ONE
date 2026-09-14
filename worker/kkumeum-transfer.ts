@@ -24,7 +24,7 @@ export async function transferKkumeumStudent(db: D1Database, context: DataCoreAc
   if (classId && !await db.prepare('SELECT id FROM family_classes WHERE id = ? AND campus_id = ? AND active = 1').bind(classId, to).first()) {
     throw new DataCoreAccessError(400, '도착 캠퍼스의 활성 반만 선택할 수 있습니다.');
   }
-  const id = crypto.randomUUID(), now = new Date().toISOString();
+  const id = crypto.randomUUID(), now = new Date(Math.max(Date.now(), (Date.parse(expected) || 0) + 1)).toISOString();
   const guard = 'EXISTS (SELECT 1 FROM family_audit_logs WHERE id = ?)';
   // D1 batch is atomic. A stale confirmation creates no audit marker and changes no related rows.
   const statements = [

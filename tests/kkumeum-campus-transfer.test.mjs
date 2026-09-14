@@ -101,3 +101,44 @@ test('ten isolated campuses; MASTER transfer preserves IDs, original bytes, rela
     assert.equal((await db.prepare("SELECT status FROM family_guardians WHERE id='synthetic-guardian'").first()).status,'active');
   } finally { await mf.dispose(); }
 });
+
+test('student update conflict cannot change enrollments; successful revisions advance with a fixed clock', async (t) => {
+  const {mf,db,request} = await harness();
+  try {
+    const campusId=campusIds[0], classes=[];
+    for (let i=0;i<3;i++) {
+      const result=await request('/api/kkumeum/classes',{method:'POST',body:{campusId,name:`SYNTHETIC_ATOMIC_${i}`}});
+      assert.equal(result.status,201); classes.push(result.body.class.id);
+    }
+    const created=await request('/api/kkumeum/students',{method:'POST',body:{campusId,name:'SYNTHETIC_ATOMIC',classId:classes[0]}});
+    assert.equal(created.status,201);
+    const id=created.body.student.id, path=`/api/kkumeum/students/${id}`;
+    const fixed=new Date('2030-01-01T00:00:00.000Z');
+    await db.prepare('UPDATE family_students SET updated_at=? WHERE id=?').bind(fixed.toISOString(),id).run();
+    t.mock.timers.enable({apis:['Date'],now:fixed});
+    const enrollmentRows=async()=> (await db.prepare('SELECT * FROM class_enrollments WHERE student_id=? ORDER BY id').bind(id).all()).results;
+    const auditRows=async()=> (await db.prepare("SELECT * FROM family_audit_logs WHERE resource_id=? AND action='student.update' ORDER BY id").bind(id).all()).results;
+    const beforeEnrollments=await enrollmentRows(), beforeAudits=await auditRows();
+    // Simulate a lost compare-and-swap at the exact timestamp another editor saved.
+    await db.prepare("CREATE TRIGGER synthetic_ignore_update BEFORE UPDATE ON family_students BEGIN SELECT RAISE(IGNORE); END").run();
+    assert.equal((await request(path,{method:'PATCH',body:{classId:classes[1]}})).status,409);
+    assert.deepEqual(await enrollmentRows(),beforeEnrollments);
+    assert.deepEqual(await auditRows(),beforeAudits);
+    await db.prepare('DROP TRIGGER synthetic_ignore_update').run();
+    let previous=fixed.toISOString();
+    for (const classId of [classes[1],classes[2],classes[0]]) {
+      const result=await request(path,{method:'PATCH',body:{classId}});
+      assert.equal(result.status,200,JSON.stringify(result.body));
+      const student=(await request(`${path}?campusId=${campusId}`)).body.student;
+      assert.ok(student.updated_at>previous,'revision must increase even within one millisecond');
+      previous=student.updated_at;
+      const active=(await enrollmentRows()).filter(row=>row.ended_at===null);
+      assert.equal(active.length,1); assert.equal(active[0].class_id,classId);
+    }
+    assert.equal((await auditRows()).length,beforeAudits.length+3);
+    const moved=await request(`${path}/transfer`,{method:'POST',body:{fromCampusId:campusId,toCampusId:campusIds[1],expectedUpdatedAt:previous}});
+    assert.equal(moved.status,200,JSON.stringify(moved.body));
+    const after=await db.prepare('SELECT updated_at FROM family_students WHERE id=?').bind(id).first();
+    assert.ok(after.updated_at>previous,'transfer revision must also advance');
+  } finally { t.mock.timers.reset(); await mf.dispose(); }
+});
