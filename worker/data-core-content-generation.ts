@@ -1,6 +1,7 @@
 import { DEFAULT_ORGANIZATION_ID } from "./data-core";
 import { canReadRegisteredFile } from './data-core-derivative-policy';
 import { AI_PHOTO_LIMIT, BLOG_AI_PHOTO_LIMIT } from './content-ai-images';
+import { campusDisplayName } from './campus-directory';
 import {
   DataCoreAccessContext,
   DataCoreAccessError,
@@ -9,6 +10,12 @@ import {
 } from "./data-core-access";
 
 export type ContentGenerationSourceApp = "blog" | "instagram";
+
+// The blog "글 방향" strategy modes from the homefeed/search-content-strategy spec. Instagram never
+// sets or reads this field.
+export type BlogStrategyMode = "search" | "homefeed" | "balanced";
+export type BlogStrategy = { primaryTopic: string; searchIntent: string; nextQuestion: string; readerProblem: string };
+export type BlogTitleCandidates = { search: string; homefeed: string; balanced: string };
 
 export type ContentGenerationInput = {
   sourceApp?: ContentGenerationSourceApp;
@@ -19,6 +26,8 @@ export type ContentGenerationInput = {
   selectedFileIds?: string[];
   brandContext?: string | null;
   requestId?: string;
+  strategyMode?: BlogStrategyMode;
+  recentTitles?: string[];
 };
 
 export type ContentGenerationOutput = {
@@ -30,15 +39,26 @@ export type ContentGenerationOutput = {
   body?: string;
   hashtags?: string[];
   cta?: string;
+  // Blog-only, additive: absent from the Instagram response shape.
+  strategy?: BlogStrategy;
+  titles?: BlogTitleCandidates;
+  selectedTitleKind?: BlogStrategyMode;
+  lead?: string;
+  nextTopics?: string[];
+  strategyMode?: BlogStrategyMode;
+  warnings?: string[];
 };
 
 export type ContentGenerationProviderRequest = {
   sourceApp: ContentGenerationSourceApp;
   campusId: string | null;
+  campusName: string | null;
   contentPurpose: string;
   notes: string;
   coreMessage: string;
   brandContext: typeof HI5_CONTENT_BRAND_CONTEXT;
+  strategyMode?: BlogStrategyMode;
+  recentTitles?: string[];
   selectedFiles: Array<{
     id: string;
     category: string;
@@ -48,8 +68,40 @@ export type ContentGenerationProviderRequest = {
   }>;
 };
 
+// Refine covers the two lightweight, photo-free follow-up calls: regenerating just the 3 title
+// candidates ("다른 제목 만들기"), or rewriting lead/body to fit a newly-picked title ("retitle").
+// Neither ever re-sends photos, keeping repeated user actions cheap per the spec's cost-control rule.
+export type ContentRefineInput = {
+  mode: "titles" | "retitle";
+  campusId?: string | null;
+  strategy: BlogStrategy;
+  notes?: string | null;
+  recentTitles?: string[];
+  selectedTitle?: string;
+  priorLead?: string;
+  priorBody?: string;
+  requestId?: string;
+};
+
+export type ContentRefineProviderRequest = {
+  mode: "titles" | "retitle";
+  campusId: string | null;
+  brandContext: typeof HI5_CONTENT_BRAND_CONTEXT;
+  strategy: BlogStrategy;
+  notes: string;
+  recentTitles: string[];
+  selectedTitle: string;
+  priorLead: string;
+  priorBody: string;
+};
+
+export type ContentRefineOutput =
+  | { mode: "titles"; titles: BlogTitleCandidates }
+  | { mode: "retitle"; lead: string; body: string };
+
 export type ContentGenerationProvider = {
   generate(input: ContentGenerationProviderRequest, photos?: Map<string, { bytes: Uint8Array; mime: string }>): Promise<ContentGenerationOutput>;
+  refine(input: ContentRefineProviderRequest): Promise<{ titles: BlogTitleCandidates } | { lead: string; body: string }>;
 };
 
 export type ContentGenerationResult =
@@ -61,6 +113,17 @@ export type ContentGenerationResult =
   | {
       available: true;
       generated: ContentGenerationOutput;
+    };
+
+export type ContentRefineResult =
+  | {
+      available: false;
+      code: "provider_not_configured";
+      message: string;
+    }
+  | {
+      available: true;
+      refined: ContentRefineOutput;
     };
 
 const CONTENT_SOURCE_APPS = new Set(["blog", "instagram"]);
@@ -89,6 +152,17 @@ function normalizeSourceApp(value: unknown): ContentGenerationSourceApp {
   const sourceApp = cleanText(value, 40);
   if (CONTENT_SOURCE_APPS.has(sourceApp)) return sourceApp as ContentGenerationSourceApp;
   throw new DataCoreAccessError(400, "sourceApp은 blog 또는 instagram이어야 합니다.");
+}
+
+const BLOG_STRATEGY_MODES = ["search","homefeed","balanced"] as const;
+function normalizeStrategyMode(value: unknown): BlogStrategyMode {
+  return (BLOG_STRATEGY_MODES as readonly string[]).includes(String(value)) ? (value as BlogStrategyMode) : "balanced";
+}
+// Only used to steer the AI away from exact repeats (see BLOG_STRATEGY_GUIDE's recentTitles rule);
+// never used for authorization or file lookups, so it is capped and trimmed rather than validated.
+function normalizeRecentTitles(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => cleanText(item, 300)).filter(Boolean).slice(0, 20);
 }
 
 function normalizeFileIds(value: unknown, limit: number): string[] {
@@ -162,10 +236,14 @@ export async function generateContentDraft(
   const request: ContentGenerationProviderRequest = {
     sourceApp,
     campusId,
+    // Grounds the blog "지역 키워드" rule in the caller's own selected campus, never a client-typed
+    // string — campusDisplayName() only resolves known campus ids/codes.
+    campusName: sourceApp === 'blog' ? campusDisplayName(campusId) : null,
     contentPurpose: cleanText(input.contentPurpose || "class-story", 80) || "class-story",
     notes: cleanText(input.notes, 4000),
     coreMessage: cleanText(input.coreMessage, 1200),
     brandContext: HI5_CONTENT_BRAND_CONTEXT,
+    ...(sourceApp === 'blog' ? { strategyMode: normalizeStrategyMode(input.strategyMode), recentTitles: normalizeRecentTitles(input.recentTitles) } : {}),
     selectedFiles,
   };
 
@@ -181,4 +259,50 @@ export async function generateContentDraft(
     available: true,
     generated: await provider.generate(request, photos),
   };
+}
+
+function normalizeStrategy(value: unknown): BlogStrategy {
+  const source = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
+  const strategy = {
+    primaryTopic: cleanText(source.primaryTopic, 600),
+    searchIntent: cleanText(source.searchIntent, 600),
+    nextQuestion: cleanText(source.nextQuestion, 600),
+    readerProblem: cleanText(source.readerProblem, 600),
+  };
+  if (!strategy.primaryTopic) throw new DataCoreAccessError(400, "핵심 주제 정보가 없습니다. 새로 생성해주세요.");
+  return strategy;
+}
+
+// Lightweight, photo-free follow-ups to generateContentDraft(): regenerate just the 3 title
+// candidates, or rewrite lead/body to fit a newly-picked title. Blog only — Instagram never calls
+// this path since it has no title-candidate step.
+export async function refineContentDraft(
+  db: D1Database,
+  context: DataCoreAccessContext,
+  input: ContentRefineInput,
+  provider?: ContentGenerationProvider,
+): Promise<ContentRefineResult> {
+  requireWriteAccess(context);
+  const campusId = cleanText(input.campusId, 120) || null;
+  if (!context.isSuperAdmin || campusId) requireCampusAccess(context, campusId);
+  const mode = input.mode === "retitle" ? "retitle" : input.mode === "titles" ? "titles" : null;
+  if (!mode) throw new DataCoreAccessError(400, "refine 모드는 titles 또는 retitle이어야 합니다.");
+  const strategy = normalizeStrategy(input.strategy);
+  const selectedTitle = cleanText(input.selectedTitle, 300);
+  const priorLead = cleanText(input.priorLead, 2000);
+  const priorBody = cleanText(input.priorBody, 20000);
+  if (mode === "retitle" && (!selectedTitle || !priorLead || !priorBody)) {
+    throw new DataCoreAccessError(400, "다시 쓸 제목과 기존 본문 정보가 필요합니다.");
+  }
+  const request: ContentRefineProviderRequest = {
+    mode, campusId, brandContext: HI5_CONTENT_BRAND_CONTEXT, strategy,
+    notes: cleanText(input.notes, 4000), recentTitles: normalizeRecentTitles(input.recentTitles),
+    selectedTitle, priorLead, priorBody,
+  };
+
+  if (!provider) {
+    return { available: false, code: "provider_not_configured", message: "AI 생성 연결 준비 중입니다. 현재는 초안을 직접 작성하고 저장할 수 있습니다." };
+  }
+  const refined = await provider.refine(request);
+  return { available: true, refined: { mode, ...refined } as ContentRefineOutput };
 }

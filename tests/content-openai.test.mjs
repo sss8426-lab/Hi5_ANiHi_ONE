@@ -5,7 +5,18 @@ import sharp from 'sharp';
 import { libraryHarness, users, A, B, ORG } from './support/library-harness.mjs';
 
 const png = () => encode({width:64,height:80,channels:4,depth:8,data:new Uint8Array(64*80*4).fill(180)});
-const generated = {title:'합성 수업 기록',body:'선택한 그림의 선과 색을 함께 살펴봅니다.',hashtags:['그림','성장'],cta:'수업 문의'};
+// Blog structured-output shape (strategy + 3 title candidates + lead/body). Every test in this file
+// that posts sourceApp:'blog' (the default from input()) mocks the provider with this object.
+const generated = {
+  strategy: {primaryTopic:'합성 수업 기록',searchIntent:'합성 수업 정보',nextQuestion:'다음엔 무엇을 배울까요',readerProblem:'그림이 늘지 않음'},
+  titles: {search:'합성 학원 그림 수업',homefeed:'그림이 늘지 않는 이유',balanced:'합성 수업 기록, 그림이 늘지 않는 이유'},
+  selectedTitleKind: 'balanced',
+  lead: '그림을 많이 그려도 늘지 않는 학생은 장면을 먼저 생각하지 않는 경우가 많습니다. 합성 수업에서는 선과 색을 함께 살펴봅니다.',
+  body: '선택한 그림의 선과 색을 함께 살펴봅니다.',
+  hashtags: ['그림','성장'],
+  cta: '수업 문의',
+  nextTopics: ['합성 다음 주제 1','합성 다음 주제 2','합성 다음 주제 3'],
+};
 const textResponse = value => Response.json({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(value)}]}]});
 async function fixture(h, user=users.staff, mime='image/png', bytes=png()) {
   const folder = await h.folder('category:'+user.campus+':class-photo','__synthetic_ai_'+crypto.randomUUID(),user);
@@ -42,7 +53,7 @@ test('Responses adapter sends selected sanitized pixels, structured output; defa
     assert.equal((await h.request('GET','/api/data-core/content/defaults?sourceApp=instagram&campusId='+A,users.staff)).body.defaults.footer,'');
     assert.equal((await h.request('GET','/api/data-core/content/defaults?sourceApp=blog&campusId='+A,users.foreign)).status,403);
     assert.equal((await h.request('PUT','/api/data-core/content/defaults',users.staff,{sourceApp:'blog',campusId:B,hashtags:'',footer:''})).status,403);
-    const draft=await h.request('POST','/api/data-core/content',users.staff,{sourceApp:'blog',campusId:A,title:generated.title,content:generated.body,relatedFileIds:[file.id],metadata:{footer:'합성 문의'}});
+    const draft=await h.request('POST','/api/data-core/content',users.staff,{sourceApp:'blog',campusId:A,title:generated.titles[generated.selectedTitleKind],content:generated.body,relatedFileIds:[file.id],metadata:{footer:'합성 문의'}});
     assert.equal(draft.status,201,JSON.stringify(draft.body));
     assert.equal((await h.request('DELETE','/api/data-core/content/'+draft.body.draft.id,users.staff)).status,200);
     assert.deepEqual(await h.file(file.id),original);
