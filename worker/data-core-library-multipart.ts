@@ -1,4 +1,4 @@
-import { DEFAULT_ORGANIZATION_ID as ORG, DataCoreFileArea, recordFileObject } from './data-core';
+import { DEFAULT_ORGANIZATION_ID as ORG, recordFileObject, type DataCoreFileArea } from './data-core';
 import { DataCoreAccessContext, DataCoreAccessError } from './data-core-access';
 import { LibraryFolder, LibraryTree, LIBRARY_FOLDER, LIBRARY_SOURCE, requireLibraryWrite } from './data-core-library-policy';
 
@@ -60,7 +60,8 @@ function safeFileName(name: string) {
 }
 
 function normalizeMime(value: unknown) {
-  return text(value).slice(0, 160) || 'application/octet-stream';
+  const mime = text(value).slice(0, 160);
+  return mime && /^[A-Za-z0-9!#$&^_.+\-]+\/[A-Za-z0-9!#$&^_.+\-]+$/.test(mime) ? mime : 'application/octet-stream';
 }
 
 function validateFile(fileName: string, sizeBytes: number) {
@@ -98,7 +99,7 @@ async function saveStatus(db: D1Database, sessionId: string, current: SessionMet
   return next;
 }
 
-async function loadSession(db: D1Database, tree: LibraryTree, context: DataCoreAccessContext, sessionId: string) {
+async function loadSession(db: D1Database, tree: LibraryTree, context: DataCoreAccessContext, sessionId: string, allowExpired = false) {
   if (!context.user) error(401, '로그인이 필요합니다.');
   const row = await db.prepare(`SELECT id, organization_id, campus_id, created_by_user_id, status, metadata_json, deleted_at
     FROM data_records WHERE id = ? AND organization_id = ? AND record_type = ? AND source_app = ? AND deleted_at IS NULL`)
@@ -111,7 +112,7 @@ async function loadSession(db: D1Database, tree: LibraryTree, context: DataCoreA
   const folder = await tree.resolve(current.folderId);
   requireLibraryWrite(context, folder);
   if (folder.campusId !== current.campusId || row.campus_id !== current.campusId) error(409, '업로드 폴더 상태가 변경되었습니다.');
-  if (Date.parse(current.expiresAt) <= Date.now() && !['completed','aborted'].includes(current.status)) {
+  if (!allowExpired && Date.parse(current.expiresAt) <= Date.now() && !['completed','aborted'].includes(current.status)) {
     error(410, '업로드 세션이 만료되었습니다. 파일을 다시 선택해 주세요.');
   }
   return { row, current, folder };
@@ -134,7 +135,7 @@ export async function startLibraryMultipartUpload(
 ) {
   if (!context.user) error(401, '로그인이 필요합니다.');
   requireLibraryWrite(context, folder);
-  const fileName = text(input.fileName);
+  const fileName = typeof input.fileName === 'string' ? input.fileName : '';
   const sizeBytes = Number(input.sizeBytes);
   validateFile(fileName, sizeBytes);
   const mimeType = normalizeMime(input.mimeType);
@@ -190,6 +191,7 @@ export async function uploadLibraryMultipartPart(
   const { current } = await loadSession(db, tree, context, sessionId);
   if (current.status === 'completed') error(409, '이미 완료된 업로드입니다.');
   if (current.status === 'aborted') error(409, '취소된 업로드입니다.');
+  if (current.status === 'failed') error(409, '실패한 업로드 세션입니다. 파일 업로드를 다시 시작해 주세요.');
   if (!Number.isInteger(partNumber) || partNumber < 1 || partNumber > current.partCount) error(400, '업로드 조각 번호를 확인해 주세요.');
   const expected = partNumber === current.partCount
     ? current.sizeBytes - current.chunkSize * (current.partCount - 1)
@@ -219,6 +221,7 @@ export async function completeLibraryMultipartUpload(
   const { current, folder } = await loadSession(db, tree, context, sessionId);
   if (current.status === 'completed') error(409, '이미 완료된 업로드입니다.');
   if (current.status === 'aborted') error(409, '취소된 업로드입니다.');
+  if (current.status === 'failed') error(409, '실패한 업로드 세션입니다. 파일 업로드를 다시 시작해 주세요.');
   if (!Array.isArray(parts) || parts.length !== current.partCount) error(400, '업로드 조각 목록을 확인해 주세요.');
   const normalized = parts.map(part => ({ partNumber: Number(part?.partNumber), etag: text(part?.etag) }))
     .sort((a,b) => a.partNumber - b.partNumber);
@@ -262,6 +265,8 @@ export async function completeLibraryMultipartUpload(
     if (completed) {
       await bucket.delete(current.r2Key);
       await db.prepare('DELETE FROM file_objects WHERE id = ? AND organization_id = ?').bind(current.fileId, ORG).run();
+    } else {
+      try { await bucket.resumeMultipartUpload(current.r2Key, current.uploadId).abort(); } catch {}
     }
     try { await saveStatus(db, sessionId, current, 'failed'); } catch {}
     if (cause instanceof DataCoreAccessError) throw cause;
@@ -293,7 +298,7 @@ export async function abortLibraryMultipartUpload(
   context: DataCoreAccessContext,
   sessionId: string,
 ) {
-  const { current } = await loadSession(db, tree, context, sessionId);
+  const { current } = await loadSession(db, tree, context, sessionId, true);
   if (current.status === 'completed') error(409, '완료된 파일은 업로드 취소할 수 없습니다.');
   if (current.status === 'aborted') return { ok: true, sessionId };
   try {
