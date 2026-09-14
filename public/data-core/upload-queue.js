@@ -145,9 +145,12 @@ class DataCoreUploadQueue {
       xhr.upload.onprogress = event => { if (event.lengthComputable) onPartProgress(Math.min(event.loaded, blob.size)); };
       const abort = () => xhr.abort();
       const finish = (error, value) => { signal.removeEventListener('abort', abort); error ? reject(error) : resolve(value); };
-      xhr.onload = () => xhr.status >= 200 && xhr.status < 300
-        ? finish(null, xhr.response)
-        : finish(new Error(xhr.response?.error || `업로드 조각 ${partNumber} 저장에 실패했습니다.`));
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) return finish(null, xhr.response);
+        const error = new Error(xhr.response?.error || `업로드 조각 ${partNumber} 저장에 실패했습니다.`);
+        error.status = xhr.status;
+        finish(error);
+      };
       xhr.onerror = () => finish(new Error(`네트워크 중단으로 업로드 조각 ${partNumber} 저장에 실패했습니다.`));
       xhr.ontimeout = () => finish(new Error(`업로드 조각 ${partNumber} 응답 시간이 초과되었습니다.`));
       xhr.onabort = () => finish(DataCoreUploadQueue.abortError());
@@ -223,7 +226,10 @@ class DataCoreUploadQueue {
         await DataCoreUploadQueue.abortMultipart(state);
         throw DataCoreUploadQueue.abortError();
       }
-      if (completing) item.multipart = null;
+      if ([409,410].includes(error?.status)) {
+        await DataCoreUploadQueue.abortMultipart(state);
+        item.multipart = null;
+      } else if (completing) item.multipart = null;
       throw error;
     }
   }
