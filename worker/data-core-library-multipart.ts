@@ -75,12 +75,13 @@ function validateFile(fileName: string, sizeBytes: number) {
 }
 
 function profile(folder: LibraryFolder) {
-  if (!folder.category) error(400, '파일을 저장할 폴더를 먼저 선택하세요.');
-  const area = (folder.category === 'student-artwork' ? 'student-private' : 'documents-private') as DataCoreFileArea;
-  const visibility = (folder.category === 'student-artwork' || folder.shareMode === 'restricted'
+  const category = folder.category;
+  if (!category) error(400, '파일을 저장할 폴더를 먼저 선택하세요.');
+  const area = (category === 'student-artwork' ? 'student-private' : 'documents-private') as DataCoreFileArea;
+  const visibility = (category === 'student-artwork' || folder.shareMode === 'restricted'
     ? 'private' : folder.campusId ? 'campus' : 'organization') as 'private' | 'campus' | 'organization';
   const sourceApp = folder.row?.record_type === LIBRARY_FOLDER ? LIBRARY_SOURCE : 'hq-library';
-  return { area, visibility, sourceApp, category: folder.category };
+  return { area, visibility, sourceApp, category };
 }
 
 function metadata(row: SessionRow): SessionMetadata {
@@ -100,13 +101,14 @@ async function saveStatus(db: D1Database, sessionId: string, current: SessionMet
 }
 
 async function loadSession(db: D1Database, tree: LibraryTree, context: DataCoreAccessContext, sessionId: string, allowExpired = false) {
-  if (!context.user) error(401, '로그인이 필요합니다.');
+  const user = context.user;
+  if (!user) throw new DataCoreAccessError(401, '로그인이 필요합니다.');
   const row = await db.prepare(`SELECT id, organization_id, campus_id, created_by_user_id, status, metadata_json, deleted_at
     FROM data_records WHERE id = ? AND organization_id = ? AND record_type = ? AND source_app = ? AND deleted_at IS NULL`)
     .bind(sessionId, ORG, LIBRARY_UPLOAD_SESSION, LIBRARY_SOURCE).first<SessionRow>();
-  if (!row) error(404, '업로드 세션을 찾을 수 없습니다.');
+  if (!row) throw new DataCoreAccessError(404, '업로드 세션을 찾을 수 없습니다.');
   const current = metadata(row);
-  if (current.ownerUserId !== context.user.internalUserId || row.created_by_user_id !== context.user.internalUserId) {
+  if (current.ownerUserId !== user.internalUserId || row.created_by_user_id !== user.internalUserId) {
     error(404, '업로드 세션을 찾을 수 없습니다.');
   }
   const folder = await tree.resolve(current.folderId);
@@ -133,7 +135,8 @@ export async function startLibraryMultipartUpload(
   folder: LibraryFolder,
   input: Record<string, unknown>,
 ) {
-  if (!context.user) error(401, '로그인이 필요합니다.');
+  const user = context.user;
+  if (!user) throw new DataCoreAccessError(401, '로그인이 필요합니다.');
   requireLibraryWrite(context, folder);
   const fileName = typeof input.fileName === 'string' ? input.fileName : '';
   const sizeBytes = Number(input.sizeBytes);
@@ -160,14 +163,14 @@ export async function startLibraryMultipartUpload(
   const partCount = Math.ceil(sizeBytes / MULTIPART_CHUNK_BYTES);
   const current: SessionMetadata = {
     schemaVersion: 1, folderId: folder.id, fileId, r2Key, uploadId: upload.uploadId, fileName, mimeType, sizeBytes,
-    chunkSize: MULTIPART_CHUNK_BYTES, partCount, campusId: folder.campusId, ownerUserId: context.user.internalUserId,
+    chunkSize: MULTIPART_CHUNK_BYTES, partCount, campusId: folder.campusId, ownerUserId: user.internalUserId,
     sourceApp, category, area, visibility, createdAt, expiresAt, status: 'pending',
   };
   try {
     await db.prepare(`INSERT INTO data_records
       (id, organization_id, campus_id, created_by_user_id, record_type, source_app, title, visibility, status, metadata_json, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, 'private', 'pending', ?, ?, ?)`)
-      .bind(sessionId, ORG, folder.campusId, context.user.internalUserId, LIBRARY_UPLOAD_SESSION, LIBRARY_SOURCE,
+      .bind(sessionId, ORG, folder.campusId, user.internalUserId, LIBRARY_UPLOAD_SESSION, LIBRARY_SOURCE,
         fileName, JSON.stringify(current), createdAt, createdAt).run();
   } catch (cause) {
     try { await upload.abort(); } catch {}
@@ -198,9 +201,9 @@ export async function uploadLibraryMultipartPart(
     : current.chunkSize;
   const lengthHeader = request.headers.get('content-length');
   if (lengthHeader && Number(lengthHeader) !== expected) error(400, '업로드 조각 크기가 올바르지 않습니다.');
-  let bytes: ArrayBuffer;
-  try { bytes = await request.arrayBuffer(); }
-  catch { error(400, '업로드 조각 데이터를 읽을 수 없습니다.'); }
+  const bytes = await request.arrayBuffer().catch(() => {
+    throw new DataCoreAccessError(400, '업로드 조각 데이터를 읽을 수 없습니다.');
+  });
   if (bytes.byteLength !== expected) error(400, '업로드 조각 크기가 올바르지 않습니다.');
   if (current.status === 'pending') await saveStatus(db, sessionId, current, 'uploading');
   try {
@@ -221,6 +224,8 @@ export async function completeLibraryMultipartUpload(
   sessionId: string,
   parts: UploadedPart[],
 ) {
+  const user = context.user;
+  if (!user) throw new DataCoreAccessError(401, '로그인이 필요합니다.');
   const { current, folder } = await loadSession(db, tree, context, sessionId);
   if (current.status === 'completed') error(409, '이미 완료된 업로드입니다.');
   if (current.status === 'aborted') error(409, '취소된 업로드입니다.');
@@ -248,7 +253,7 @@ export async function completeLibraryMultipartUpload(
       organizationId: ORG,
       campusId: current.campusId,
       dataRecordId: folder.id,
-      ownerUserId: context.user!.internalUserId,
+      ownerUserId: user.internalUserId,
       sourceApp: current.sourceApp,
       area: current.area,
       category: current.category,
