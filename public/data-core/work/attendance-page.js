@@ -1,4 +1,4 @@
-import { mountAttendance } from './attendance.js?v=20260914-month-controls';
+import { mountAttendance } from './attendance.js?v=20260914-auto';
 
 export function mountAttendancePage(host, { context, campuses }) {
   host.replaceChildren();
