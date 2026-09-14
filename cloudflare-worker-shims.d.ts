@@ -52,12 +52,27 @@ interface R2Objects {
   cursor?: string;
 }
 
+interface R2UploadedPart {
+  partNumber: number;
+  etag: string;
+}
+
+interface R2MultipartUpload {
+  key: string;
+  uploadId: string;
+  uploadPart(partNumber: number, value: unknown): Promise<R2UploadedPart>;
+  complete(uploadedParts: R2UploadedPart[]): Promise<R2Object>;
+  abort(): Promise<void>;
+}
+
 interface R2Bucket {
   head(key: string): Promise<R2Object | null>;
   put(key: string, value: unknown, options?: R2PutOptions): Promise<unknown>;
   get(key: string): Promise<R2ObjectBody | null>;
   list(options?: { cursor?: string }): Promise<R2Objects>;
   delete(keys: string | string[]): Promise<void>;
+  createMultipartUpload(key: string, options?: R2PutOptions): Promise<R2MultipartUpload>;
+  resumeMultipartUpload(key: string, uploadId: string): R2MultipartUpload;
 }
 
 interface Fetcher {
