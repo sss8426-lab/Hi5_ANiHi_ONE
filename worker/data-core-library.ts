@@ -14,6 +14,11 @@ function error(status: number, message: string): never { throw new DataCoreAcces
 const json = (value: unknown, status = 200) => Response.json(value, { status, headers: { 'cache-control': 'private, no-store' } });
 const text = (value: unknown) => typeof value === 'string' ? value.trim() : '';
 const OPAQUE_PREVIEW_EXTENSIONS = new Set(['ai','psd','psb','clip','eps','zip']);
+const RECENT_UPLOAD_LIMIT = 10;
+const RECENT_UPLOAD_SCAN_LIMIT = 200;
+// Only categories a library folder can ever resolve to (see LibraryTree/fileFolder); keeps the
+// recent-uploads scan from touching unrelated features' file_objects rows (admissions, kkumeum, etc).
+const LIBRARY_FILE_CATEGORIES = [...LIBRARY_CATEGORIES.map(c => c[0]), 'hq-workspace', 'library-material'];
 const fileExtension = (name: unknown) => { const value = text(name).toLowerCase(), index = value.lastIndexOf('.'); return index >= 0 ? value.slice(index + 1) : ''; };
 const previewableFile = (row: Record<string, any>) => !OPAQUE_PREVIEW_EXTENSIONS.has(fileExtension(row.original_file_name)) &&
   /^(image\/(jpeg|png|webp|gif|avif)|application\/pdf|text\/plain)$/.test(String(row.mime_type || ''));
@@ -183,6 +188,31 @@ async function listFiles(tree: LibraryTree, folder: LibraryFolder, url: URL) {
   return { files:files.map(file=>({...file,thumbnailUrl:thumbnails.get(file.id) || null})), hasMore: rows.length > 50 };
 }
 
+async function recentFiles(tree: LibraryTree, folder: LibraryFolder) {
+  const placeholders = LIBRARY_FILE_CATEGORIES.map(() => '?').join(',');
+  const rows = (folder.campusId
+    ? await tree.db.prepare(`SELECT * FROM file_objects WHERE organization_id = ? AND campus_id = ? AND deleted_at IS NULL
+        AND category IN (${placeholders}) ORDER BY created_at DESC, id DESC LIMIT ?`)
+        .bind(ORG, folder.campusId, ...LIBRARY_FILE_CATEGORIES, RECENT_UPLOAD_SCAN_LIMIT).all<Record<string, unknown>>()
+    : await tree.db.prepare(`SELECT * FROM file_objects WHERE organization_id = ? AND deleted_at IS NULL
+        AND category IN (${placeholders}) ORDER BY created_at DESC, id DESC LIMIT ?`)
+        .bind(ORG, ...LIBRARY_FILE_CATEGORIES, RECENT_UPLOAD_SCAN_LIMIT).all<Record<string, unknown>>()
+  ).results || [];
+  const campusNames = new Map(tree.campuses.map(c => [c.id, c.name]));
+  const files: Record<string, unknown>[] = [];
+  for (const row of rows) {
+    if (files.length >= RECENT_UPLOAD_LIMIT) break;
+    try {
+      const sourceFolder = await fileFolder(tree, row);
+      if (!libraryFileReadable(tree.context, sourceFolder, row)) continue;
+      files.push({ id: row.id, fileName: row.original_file_name, folderId: sourceFolder.id, folderTitle: sourceFolder.title,
+        campusId: row.campus_id, campusName: row.campus_id ? campusNames.get(row.campus_id) || null : null,
+        mimeType: row.mime_type, sizeBytes: row.size_bytes, createdAt: row.created_at });
+    } catch (e) { if (!(e instanceof DataCoreAccessError)) throw e; }
+  }
+  return { files };
+}
+
 export async function handleLibraryApi(request: Request, db: D1Database, bucket: R2Bucket, context: DataCoreAccessContext) {
   const url = new URL(request.url);
   if (!url.pathname.startsWith('/api/data-core/library/')) return null;
@@ -201,6 +231,11 @@ export async function handleLibraryApi(request: Request, db: D1Database, bucket:
   }
   const folderMatch = /^\/api\/data-core\/library\/folders\/([^/]+)$/.exec(url.pathname);
   if (folderMatch && request.method === 'DELETE') return json(await deleteFolder(tree, decodeURIComponent(folderMatch[1])));
+
+  if (url.pathname === '/api/data-core/library/recent' && request.method === 'GET') {
+    const folder = await tree.resolve(text(url.searchParams.get('folderId')) || 'root');
+    return json(await recentFiles(tree, folder));
+  }
 
   if (url.pathname === '/api/data-core/library/uploads' && request.method === 'POST') {
     let input; try { input = await request.json(); } catch { error(400, '업로드 요청을 확인하세요.'); }

@@ -781,3 +781,11 @@ Local validation: npm ci, build (through npm test), TypeScript noEmit, all 37 pu
 ## 22. Library folder browser (2026-09-11)
 
 Folder navigation, breadcrumb/history, nested-folder creation, shared upload queue, authenticated download and recoverable file trash now use one library browser. Existing HQ records and virtual campus categories are retained. Only verified shared library lineage grants cross-campus reads; generic #166 campus restrictions and private/FAMILY boundaries remain. No storage/schema/binding replacement or real data migration. See `docs/LIBRARY_FOLDER_BROWSER.md` for behavior/security tests and deployment evidence scope.
+
+## 23. Library recent uploads (2026-09-14)
+
+자료보관함 최상위와 캠퍼스 홈에 최근 업로드 10개 바로가기를 추가했다(`GET /api/data-core/library/recent`).
+기존 `file_objects`와 기존 자료보관함 폴더 해석·권한 함수(`fileFolder`/`libraryFileReadable`)만 재사용했고
+새 테이블·새 R2 구조·새 권한 규칙은 만들지 않았다. 썸네일·파생 이미지·휴지통 파일·완료되지 않은 multipart
+세션은 자동으로 제외된다. 프런트엔드는 기존 `navigate()`/`load()` 흐름을 그대로 재사용한다. 자료보관함 외
+다른 서비스는 변경하지 않았다. 계약과 테스트 목록은 `docs/LIBRARY_RECENT_UPLOADS_2026-09-14.md`를 따른다.
