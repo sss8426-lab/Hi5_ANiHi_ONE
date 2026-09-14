@@ -190,6 +190,10 @@ function mostCommon(values,fallback=0) { const counts=new Map();values.forEach(v
 function shiftRange(ref,at,delta) {
   return ref.split(' ').map(part=>{const p=range(part);return `${cellRef(p.c,p.r>=at?p.r+delta:p.r)}:${cellRef(p.end.c,p.end.r>=at?p.end.r+delta:p.end.r)}`;}).join(' ');
 }
+// Column analog of shiftRange, used when the calendar's physical width changes between months.
+export function shiftRangeColumns(ref,at,delta) {
+  return ref.split(' ').map(part=>{const p=range(part);return `${cellRef(p.c>=at?p.c+delta:p.c,p.r)}:${cellRef(p.end.c>=at?p.end.c+delta:p.end.c,p.end.r)}`;}).join(' ');
+}
 function growRows(doc,workbook,m,extra) {
   if(!extra)return;
   // Arbitrary formula/drawing references cannot be safely shifted by a table adapter.
