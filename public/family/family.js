@@ -10,6 +10,7 @@ const state = {
 };
 
 const $ = (id) => document.getElementById(id);
+let childFeedRequest = 0;
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -54,6 +55,8 @@ function setFormMessage(id, message = '') {
 }
 
 function clearPrivateUi() {
+  childFeedRequest++;
+  window.DataCoreImageGallery.close('family-artworks');
   state.children = [];
   state.selectedChildId = '';
   state.reports = [];
@@ -271,6 +274,7 @@ function artworkCard(artwork) {
   figure.className = 'artwork-card';
   const image = document.createElement('img');
   image.loading = 'lazy';
+  image.decoding = 'async';
   image.alt = text(artwork.title, '학생 작품');
   image.src = artwork.fileUrl;
   image.referrerPolicy = 'same-origin';
@@ -280,7 +284,14 @@ function artworkCard(artwork) {
   const date = document.createElement('small');
   date.textContent = artwork.lessonDate ? String(artwork.lessonDate).slice(0, 10) : '';
   caption.append(title, date);
-  figure.append(image, caption);
+  const enlarge = document.createElement('button');
+  enlarge.type = 'button'; enlarge.className = 'gallery-image-button';
+  enlarge.setAttribute('aria-label', `${text(artwork.title, '학생 작품')} 크게 보기`);
+  enlarge.append(image);
+  enlarge.onclick = () => window.DataCoreImageGallery.open({scope:'family-artworks',title:'학생 작품',anchor:enlarge,
+    index:state.artworks.findIndex(item=>item.id===artwork.id),
+    items:state.artworks.map(item=>({src:item.fileUrl,previewSrc:item.fileUrl,title:text(item.title,'학생 작품')}))});
+  figure.append(enlarge, caption);
   return figure;
 }
 
@@ -331,20 +342,24 @@ function renderCurrentChild() {
 }
 
 async function loadChildFeed(studentId) {
+  const request = ++childFeedRequest;
+  window.DataCoreImageGallery.close('family-artworks');
   state.selectedChildId = studentId;
   state.reports = [];
   state.artworks = [];
   renderChildSelector();
+  renderCurrentChild();
   try {
     const [reportResponse, artworkResponse] = await Promise.all([
       api(`/api/family/children/${encodeURIComponent(studentId)}/reports`),
       api(`/api/family/children/${encodeURIComponent(studentId)}/artworks`),
     ]);
+    if (request !== childFeedRequest || state.selectedChildId !== studentId) return;
     state.reports = Array.isArray(reportResponse.reports) ? reportResponse.reports : [];
     state.artworks = Array.isArray(artworkResponse.artworks) ? artworkResponse.artworks : [];
     renderCurrentChild();
   } catch (error) {
-    genericAccessMessage(error);
+    if (request === childFeedRequest) genericAccessMessage(error);
   }
 }
 

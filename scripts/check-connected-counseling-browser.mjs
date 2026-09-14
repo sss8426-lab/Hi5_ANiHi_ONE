@@ -49,8 +49,8 @@ try{
   try{await thumbnail.waitFor({timeout:5000});}catch(error){await page.screenshot({path:`${output}/student-failure.png`,fullPage:true});console.log(JSON.stringify({errors,body:(await page.locator('body').innerText()).slice(-1800)}));throw error;}
   await thumbnail.evaluate(e=>e.decode());
   assert.match(await thumbnail.getAttribute('src'),/\/api\/admissions\/students\/synthetic-student\/artworks\/0$/);
-  await page.locator('.thumb-wrap[data-open-artwork]').click();await page.locator('.artwork-viewer').waitFor();await page.locator('.artwork-viewer img').evaluate(e=>e.decode());
-  await page.locator('.artwork-viewer button[data-close-artwork-viewer]').click();await page.locator('.artwork-viewer').waitFor({state:'detached'});
+  await page.locator('.thumb-wrap[data-open-artwork]').click();await page.locator('.core-image-gallery').waitFor();await page.locator('.core-image-gallery img').evaluate(e=>e.decode());
+  await page.locator('[data-cig-close]').click();await page.locator('.core-image-gallery').waitFor({state:'detached'});
   await ctx.route('**/api/admissions/students/synthetic-student/artworks/0',route=>route.fulfill({status:404,body:'Missing synthetic image'}));
   await page.reload();await page.locator('.artwork-missing:visible').first().waitFor();assert.equal(await page.locator('img.student-thumb:visible').count(),0);checks+=5;
   await page.setContent(`<main style="display:grid;grid-template-columns:repeat(7,1fr);gap:12px">${universityLogos.map(l=>`<figure><img src="${base+l.src}" style="width:110px;height:42px;object-fit:contain"><figcaption>${l.name}</figcaption></figure>`).join('')}</main>`);

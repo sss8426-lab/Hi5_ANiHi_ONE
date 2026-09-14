@@ -157,6 +157,7 @@
     content.innerHTML=`<button type="button" class="km-back" data-back>${icon('ArrowLeft')}소식으로 돌아가기</button><h2>${h(title)}</h2>${body}`;
   }
   function render() {
+    if(route().view==='attendance') { location.replace('/data-core/work/attendance'); return; }
     renderNav();content.hidden=false;$('kmLegacy').hidden=true;
     if(state.loading){content.innerHTML=empty('불러오는 중...');return;}
     if(state.error){content.innerHTML=empty(state.error)+'<button type="button" class="km-primary" data-retry>다시 시도</button>';return;}

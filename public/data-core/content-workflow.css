@@ -17,9 +17,15 @@
 .icon-command svg, .photo-folders svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; }
 #photoBreadcrumb { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 18px 0; font-size: 13px; }
 #photoBreadcrumb button { background: transparent; border: 0; padding: 4px; color: inherit; cursor: pointer; }
-.photo-folders { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+.photo-folders { display: grid; gap: 20px; }
+.photo-folder-group { min-width: 0; }
+.photo-folder-group h3 { font-size: 14px; font-weight: 600; color: var(--core-ink-secondary); margin: 0 0 10px; }
+.photo-folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 170px), 1fr)); gap: 10px; }
+.photo-folders strong { font-size: inherit; font-weight: 600; }
 .photo-folders button { display: flex; gap: 10px; align-items: center; text-align: left; padding: 14px; border: 1px solid var(--core-line); border-radius: 6px; background: var(--core-surface); color: var(--core-ink); cursor: pointer; min-width: 0; overflow-wrap: anywhere; }
 .photo-folders svg { flex: 0 0 20px; color: var(--core-brand); }
+#photoPages { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+#photoPages > span { min-width: 24px; text-align: center; }
 .photo-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin: 18px 0; max-height: 340px; overflow-y: auto; overscroll-behavior: contain; padding: 2px; }
 .photo-tile { position: relative; min-width: 0; }
 .photo-tile > button:first-child { display: block; width: 100%; aspect-ratio: 1; padding: 0; background: var(--core-brand-soft); border: 2px solid transparent; border-radius: 6px; overflow: hidden; cursor: pointer; }
@@ -56,3 +62,20 @@
 @media (max-width: 1180px) { .photo-grid { grid-template-columns: repeat(4,minmax(0,1fr)); } }
 @media (max-width: 600px) { .photo-grid { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; } .defaults-grid { grid-template-columns: 1fr; } .photo-toolbar select { width: 180px; } .photo-search { margin-left: 0; flex: 1; min-width: 120px; } .workflow-section { padding-block: 18px; } }
 @media (prefers-reduced-motion: reduce) { #aiStatus.busy::before { animation: none; } }
+
+#strategyModeField { display: grid; gap: 9px; margin-top: 18px; max-width: 260px; }
+.title-options { display: grid; gap: 12px; }
+.title-option { display: grid; grid-template-columns: auto 1fr; column-gap: 10px; row-gap: 4px; align-items: start; padding: 14px; border: 1px solid var(--core-line); border-radius: 8px; cursor: pointer; min-width: 0; }
+.title-option:has(input:checked) { border-color: var(--core-brand); background: var(--core-brand-soft); }
+.title-option input { margin-top: 3px; }
+.title-option-label { font-size: 13px; font-weight: 650; color: var(--core-ink-secondary, #747872); grid-column: 2; }
+.title-option-text { grid-column: 2; font-size: 15px; overflow-wrap: anywhere; }
+.workflow-warning { color: #9a5b12; font-size: 13px; margin: 8px 0; }
+.next-topics, .publish-checklist { margin-top: 24px; }
+.next-topics h3, .publish-checklist h3 { font-size: 15px; font-weight: 650; margin: 0 0 10px; }
+.next-topics ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.next-topics button { width: 100%; text-align: left; padding: 10px 12px; border: 1px solid var(--core-line); border-radius: 6px; background: var(--core-surface); color: var(--core-ink); cursor: pointer; overflow-wrap: anywhere; }
+.publish-checklist ul { list-style: none; margin: 0 0 6px; padding: 0; display: grid; gap: 6px; font-size: 14px; }
+.publish-checklist li.ok { color: var(--core-ink); }
+.publish-checklist li.warn { color: #9a5b12; }
+@media (max-width: 600px) { .title-option { grid-template-columns: auto 1fr; } }

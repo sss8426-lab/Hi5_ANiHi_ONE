@@ -1,10 +1,31 @@
 import { WEBP } from 'image-size/types/webp';
 import { DataCoreAccessContext, DataCoreAccessError } from './data-core-access';
 import { boundedDerivativeForm, persistImageDerivative } from './data-core-derivatives';
-import { DERIVATIVE_CATEGORY, THUMBNAIL_CATEGORY, THUMBNAIL_RECORD_TYPE } from './data-core-derivative-policy';
+import { DERIVATIVE_CATEGORY, THUMBNAIL_CATEGORY, THUMBNAIL_RECORD_TYPE, validThumbnail } from './data-core-derivative-policy';
 import { PRIVATE_IMAGE_MIMES } from './private-image-response';
 
 const MAX_BYTES = 256 * 1024;
+
+// Sources have already passed the caller's current authorization. Returned files still recheck it on GET.
+export async function thumbnailUrls(db:D1Database, sources:Record<string,any>[], prefix='/api/data-core/files/') {
+  const urls=new Map<string,string>(), byId=new Map(sources.filter(s=>PRIVATE_IMAGE_MIMES.has(s.mime_type)).map(s=>[s.id,s]));
+  const values=[...byId.values()];
+  for(let offset=0;offset<values.length;offset+=50){
+    const batch=values.slice(offset,offset+50), org=batch[0].organization_id;
+    const rows=(await db.prepare(`SELECT fo.*, dr.metadata_json FROM file_objects fo JOIN data_records dr ON dr.id=fo.data_record_id
+      WHERE fo.organization_id=? AND dr.organization_id=? AND fo.category=? AND dr.record_type=?
+      AND fo.deleted_at IS NULL AND dr.deleted_at IS NULL
+      AND CASE WHEN json_valid(dr.metadata_json) THEN json_extract(dr.metadata_json,'$.derivedFromFileId') END
+      IN (${batch.map(()=>'?').join(',')}) ORDER BY fo.created_at DESC, fo.id`)
+      .bind(org,org,THUMBNAIL_CATEGORY,THUMBNAIL_RECORD_TYPE,...batch.map(s=>s.id)).all<Record<string,any>>()).results||[];
+    for(const row of rows){
+      let metadata;try{metadata=JSON.parse(row.metadata_json);}catch{continue;}
+      const source=byId.get(metadata?.derivedFromFileId);
+      if(source&&!urls.has(source.id)&&validThumbnail(row,metadata,source))urls.set(source.id,`${prefix}${encodeURIComponent(row.id)}`);
+    }
+  }
+  return urls;
+}
 
 export function thumbnailDimensions(bytes: Uint8Array) {
   try {

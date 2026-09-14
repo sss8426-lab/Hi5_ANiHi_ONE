@@ -2,7 +2,7 @@ import { DEFAULT_ORGANIZATION_ID } from './data-core';
 import { DataCoreAccessContext, DataCoreAccessError, requireAuthenticatedAccess } from './data-core-access';
 
 export const CURRICULUM_TYPES = ['curriculum-folder', 'curriculum-page'];
-export const CURRICULUM_CATEGORIES = ['curriculum-original', 'curriculum-preview', 'curriculum-thumbnail', 'curriculum-print'];
+export const CURRICULUM_CATEGORIES = ['curriculum-original', 'curriculum-preview', 'curriculum-thumbnail', 'curriculum-print', 'curriculum-cover'];
 type Row = {
   id: string; title: string; record_type: string; organization_id: string;
   campus_id: string | null; visibility: string; source_app: string;
@@ -27,16 +27,21 @@ const fileUrl = (id: string) => `/api/data-core/files/${encodeURIComponent(id)}`
 
 export async function curriculumFileReadable(db: D1Database, context: DataCoreAccessContext, file: Record<string, unknown>) {
   if (!context.user || (!context.isSuperAdmin && !context.memberships.length) || file.organization_id !== DEFAULT_ORGANIZATION_ID ||
-    file.campus_id !== null || file.visibility !== 'organization' || file.source_app !== 'curriculum' || file.area !== 'documents-private' || !CURRICULUM_CATEGORIES.includes(String(file.category))) return false;
+    file.campus_id !== null || file.visibility !== 'organization' || file.source_app !== 'curriculum' || file.area !== 'documents-private' || file.deleted_at || !CURRICULUM_CATEGORIES.includes(String(file.category))) return false;
   let row = await db.prepare('SELECT * FROM data_records WHERE id=? AND organization_id=?').bind(file.data_record_id, DEFAULT_ORGANIZATION_ID).first<Row>();
   const m = row && metadata(row);
-  if (!row || !valid(row) || row.record_type !== 'curriculum-page' || !m || m.schemaVersion !== 1 || !m.active ||
-    !['originalFileId','previewFileId','printFileId','thumbnailFileId'].some(key => m[key] === file.id)) return false;
-  const original = await db.prepare("SELECT id FROM file_objects WHERE id=? AND organization_id=? AND data_record_id=? AND source_app='curriculum' AND category='curriculum-original' AND campus_id IS NULL AND visibility='organization' AND deleted_at IS NULL")
-    .bind(m.originalFileId, DEFAULT_ORGANIZATION_ID, file.data_record_id).first();
-  if (!original) return false;
+  if (!row || !valid(row) || !m || m.schemaVersion !== 1 || !m.active) return false;
+  const cover = file.category === 'curriculum-cover';
+  if (cover) {
+    if (row.record_type !== 'curriculum-folder' || m.coverFileId !== file.id) return false;
+  } else {
+    if (row.record_type !== 'curriculum-page' || !['originalFileId','previewFileId','printFileId','thumbnailFileId'].some(key => m[key] === file.id)) return false;
+    const original = await db.prepare("SELECT id FROM file_objects WHERE id=? AND organization_id=? AND data_record_id=? AND source_app='curriculum' AND category='curriculum-original' AND campus_id IS NULL AND visibility='organization' AND deleted_at IS NULL")
+      .bind(m.originalFileId, DEFAULT_ORGANIZATION_ID, file.data_record_id).first();
+    if (!original) return false;
+  }
   const visited = new Set<string>();
-  let parent = m.curriculumFolderId;
+  let parent = cover ? row.id : m.curriculumFolderId;
   while (parent) {
     if (visited.has(parent) || visited.size >= 32) return false;
     visited.add(parent);
@@ -66,11 +71,21 @@ async function collection(db: D1Database, family: string, stage: string) {
   }
   const order = (a: CurriculumRow, b: CurriculumRow) => Number(a.m.order) - Number(b.m.order) || String(a.id).localeCompare(String(b.id));
   const activeFolders = folders.filter(f => live(f.id)).sort(order);
+  // Covers belong to folders, never to the printable page sequence. Resolve them in one query.
+  const coverFiles = activeFolders.some(f => f.m.coverFileId) ? await db.prepare(`SELECT f.id,f.data_record_id FROM file_objects f
+    JOIN data_records r ON r.id=f.data_record_id WHERE f.organization_id=? AND f.source_app='curriculum'
+    AND f.category='curriculum-cover' AND f.area='documents-private' AND f.visibility='organization'
+    AND f.campus_id IS NULL AND f.deleted_at IS NULL AND r.record_type='curriculum-folder'
+    AND json_valid(r.metadata_json) AND json_extract(r.metadata_json,'$.family')=? AND json_extract(r.metadata_json,'$.stage')=?`)
+    .bind(DEFAULT_ORGANIZATION_ID, family, stage).all<{id: string; data_record_id: string}>() : null;
+  const covers = new Map((coverFiles?.results || []).map(f => [f.id, f.data_record_id]));
   const pages = rows.filter(r => r.record_type === 'curriculum-page' && !r.m.supersededByPageId && live(r.m.curriculumFolderId)).sort(order);
   const viewPage = (p: CurriculumRow) => ({ id: p.id, folderId: p.m.curriculumFolderId, order: p.m.order, width: p.m.width, height: p.m.height,
     previewUrl: fileUrl(p.m.previewFileId), thumbnailUrl: fileUrl(p.m.thumbnailFileId), originalUrl: fileUrl(p.m.originalFileId), printUrl: fileUrl(p.m.printFileId) });
   const viewFolder = (f: CurriculumRow) => ({ id: f.id, title: f.title, order: f.m.order, parentFolderId: f.m.parentFolderId || null,
-    representativeUrl: f.m.representativeFileId ? fileUrl(f.m.representativeFileId) : null,
+    representativeUrl: covers.get(f.m.coverFileId) === f.id ? fileUrl(f.m.coverFileId) : f.m.representativeFileId ? fileUrl(f.m.representativeFileId) : null,
+    fallbackRepresentativeUrl: f.m.representativeFileId ? fileUrl(f.m.representativeFileId) : null,
+    coverAlt: covers.get(f.m.coverFileId) === f.id && typeof f.m.cover?.alt === 'string' ? f.m.cover.alt : null,
     pageCount: pages.filter(p => p.m.curriculumFolderId === f.id).length });
   function orderedPages(parent: string | null): CurriculumRow[] {
     return activeFolders.filter(f => (f.m.parentFolderId || null) === parent).flatMap(f => [

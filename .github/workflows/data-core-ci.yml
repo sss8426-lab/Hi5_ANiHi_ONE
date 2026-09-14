@@ -44,6 +44,7 @@ jobs:
           node --check public/family/family-news.js
           node --check public/family/family-mobile.js
           node --check public/data-core/app.js
+          node --check public/data-core/image-gallery.js
           node --check public/data-core/brand-home.js
           node --check public/data-core/award-image-cache.js
           node --check public/data-core/curriculum.js
@@ -73,6 +74,9 @@ jobs:
           node --check public/data-core/session-activity.js
           node --check public/data-core/work/kkumeum.js
           node --check public/data-core/work/kkumeum-mobile.js
+          node --check public/data-core/work/attendance.js
+          node --check public/data-core/work/attendance-template.js
+          node --check public/data-core/vendor/fflate-0.8.3.js
           node --check public/data-core/work/kkumeum-analytics.js
           node --check public/data-core/work/kkumeum-notices.js
           node --check public/data-core/work/kkumeum-operations.js

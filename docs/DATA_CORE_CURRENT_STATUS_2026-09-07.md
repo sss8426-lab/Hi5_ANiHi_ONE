@@ -1,18 +1,55 @@
 # HI5·ANiHi DATA CORE 현재 상태
 
-현재 구현 확인일: **2026-09-12**. 파일명은 기존 문서 링크 호환을 위해 유지한다.
+현재 구현 확인일: **2026-09-14** (아래 후속 항목 우선). 파일명은 기존 문서 링크 호환을 위해 유지한다.
+
+## 운영 마무리 재점검 (2026-09-14)
+
+이번 위치 보강의 기준 main은 `7eae58d117dee490a7add806e935391eb0bb8fe4` (PR #214 OpenAI 검증 기록, #215 캠퍼스 운영 검증 기록 포함)이다. 실제 AI/캠퍼스 확인은 Worker `58a9cc6c-783c-4091-b3e8-57b7fbe3c7e8`에서 수행했고, 이후 PR #214 production Worker `486ad903-0e3b-4a96-b8d7-dba493fbf067`의 100% 배포도 확인했다. 이 값은 검증 시점의 기준이며 후속 위치 PR의 최종 main/Worker는 해당 PR 배포 증거에서 확인한다.
+
+- **OpenAI:** 기존 adapter 배포됨, 사용자가 등록한 `OPENAI_API_KEY` 이름 존재 확인. 값은 읽거나 기록하지 않았다. 설정 모델은 text `gpt-5.6-luna`, image `gpt-image-2.5-flare`. 합성 사진만 사용해 text/image 각각 한 번 실행했으나 모두 안전한 provider 오류 안내로 종료했다. 실제 생성·모델 접근 권한·2160×2700 운영 결과 저장은 **미승인/미확인**이다. 재시도하지 않았고 원인도 키/과금/모델 문제로 단정하지 않는다. 상세 HTTP 관측 한계와 다음 진단 단계는 [OpenAI 운영 검증](CONTENT_OPENAI_WORKFLOW.md) 참조.
+- **캠퍼스:** 기존 10개 계정 모두 활성, 최초 변경 완료 **0**, 대기 **10**, 유효 캠퍼스 세션 **0**. 10개 합성 권한/격리/이동 테스트는 통과했다. 실제 2~3개 캠퍼스 CRUD는 담당자의 직접 최초 변경 전까지 **pending**이다. 실제 MASTER 접속 현황 10개·접속 0·오늘 로그인 0과 7개 화면폭을 읽기 전용으로 확인했다. 계정·비밀번호·역할은 바꾸지 않았다. [운영 acceptance](CAMPUS_OPERATION_ACCEPTANCE_2026-09-12.md) 참조.
+- **대학 위치:** 한국영상대 2027학년도 공식 전공 17개와 세종 장군면 실제 지도 표식 연결. 전체 3915행에서 verified **67** / needs_review **183** / unknown **3665**. 추천 후보 1616행은 **44 / 77 / 1495**이며 신규 verified는 전체 **47행**, 후보 **36행**이다. 검증 기관은 **3개**(저장 이름 alias 4개). 야간·다른 연도·불명확 전공은 검토 필요로 남긴다. 기존 후보 계산/확률/Haversine/동률 source order는 변경하지 않는다. [공식 위치 근거와 집계](ADMISSIONS_CAMPUS_LOCATIONS.md) 참조.
+- **회귀 확인:** Soft Premium/프레젠테이션, 꿈이음 모바일 앱, 중앙 커리큘럼·인쇄의 합성 브라우저 검증 통과. 학생 480px 썸네일·EXIF·원본 확대·신규 업로드 테스트에서 원본 바이트 무변경 확인. Windows Sync 기존 안전 동기화 테스트 **7개 통과**. 설치 프로그램 재설치, 운영 커리큘럼 재import, 물리 프린터 검수는 하지 않았다.
+- **보존:** DB migration 없음. 입시 원본의 students/universities/cases/awardFolders/settings 전후 fingerprint 동일. AI용 합성 파일 한 개만 별도 업로드 후 복구 가능한 휴지통으로 정리했고 R2 원본 hash 동일. 실제 학생/작품/MASTER/캠퍼스 계정/FAMILY는 수정하지 않았다.
+- **기술부채:** baseline 전체 테스트 **382개 통과**, 기존 lint **89개 오류**, npm audit **12개(높음 8/중간 4)**. 의존성 강제 업데이트나 unrelated lint 수정 없음. 위치 보강의 최종 검사와 신규 오류 비교는 PR evidence에 기록한다.
+
+사람이 해야 할 작업은 각 캠퍼스 담당자의 최소 12자 최초 비밀번호 변경이다. AI는 같은 버튼을 반복해서 누르기보다 비밀값 없는 서버 오류 단계/상태 분류를 먼저 확보하고, 별도로 허용된 제한 호출로 다시 확인해야 한다. 키 재발급·회전이나 과금 변경이 필요하다는 근거는 아직 없다.
+
+## 캠퍼스 표시·자료보관함 통일 (2026-09-14)
+
+캠퍼스 선택창은 서버의 단일 표시 사전을 사용한다. 디자인/애니/범박/원종/중동/옥길/광진/울산/안산/파주 순서이며 정확한 표시명과 보존 정책은 [캠퍼스 표시 정책](CAMPUS_LIBRARY_PRESENTATION_2026-09-14.md)에 기록했다. 자료보관함·블로그·인스타는 실제 폴더 API와 공통 그룹 함수를 사용하여 이름/순서/하위 폴더를 일치시킨다. 출석부 등 공통 캠퍼스 선택창에도 적용된다. 알려진 과거 테스트 캠퍼스는 선택 목록에서 제외하되 복구 가능한 자료와 ID/계정/권한/DB/R2는 변경하지 않는다.
+
+업무 자료보관함·블로그·인스타의 최상위 탐색에서 `본원 작업물`과 그 아래 수업그림/원장전용/자료/제작물 항목을 제거했다. 기존 본원 폴더와 파일은 삭제하지 않으며 권한이 있는 기존 직접 링크는 유지한다. 캠퍼스 내부 폴더 및 본원에 속하지 않는 사용자 생성 폴더는 이름이 같더라도 숨기지 않는다.
+
+## 원본 Excel 출석부 복사 생성 (2026-09-14)
+
+현재 흐름은 **지난달 Excel 업로드 → 다음 달 선택 → 만들기 → 결과 시트 탭 → 다운로드/인쇄**다. 수동 셀 위치·색상 샘플·원본 미리보기 UI는 제거하고, 기존 ZIP/XML 엔진을 재사용하는 자동 분석 adapter로 대체했다. 불확실한 학생만 이름/요일 확인을 받는다. 실제 파일의 입시 3행 블록, 심화 반복 날짜 열, 별도 연도/월을 읽기 전용으로 분석했으며 두 시트를 동시에 생성한다. 이전 실제 출결은 생성본의 날짜 영역에서만 지우고 예정일 스타일을 적용한다.
+
+**업무홈의 꿈이음 바로 아래 출석부**(`/data-core/work/attendance`) 위치와 기존 인증/캠퍼스 정책은 유지한다. 원본 31일 구조/반복 날짜 열/학생 순서/병합/인쇄 설정을 보존한다. 실제 원본 hash 무변경, 등록 학생 39명 입시/20명 심화의 메모리 생성, 8개 화면폭, 다운로드 재열기와 Chromium PDF를 검증했다. 한 장 양식은 한 장, 원래 큰 입시 양식은 학생 블록만 세로 분할한다. 반복 슬롯은 날짜별 기존 개수를 유지하며 요일별 새 열 재배치는 하지 않는다. 실제 교사의 요일 확인/Excel 앱/물리 프린터 검수와 배포 상태는 [출석부 양식 보존](ATTENDANCE_TEMPLATE_PRESERVATION_2026-09-14.md) 및 PR evidence에서 구분한다. 서버 업로드/외부 AI/새 API/DB migration/R2 변경은 없다.
+
+## 커리큘럼 폴더 전용 표지 (2026-09-13)
+
+기초 24·심화 21·입시 3개 폴더의 수업자료를 참고해 별도 표지 48개를 제작한다. 기존 FILES의 curriculum-cover와 폴더 coverFileId를 사용하며 교재/인쇄 926장과 representativeFileId fallback을 보존한다. 640×480 WebP와 첫 화면 우선 로딩, 인증 파일 API를 사용한다. 설계/검증/운영 적용 증거는 [폴더 표지 문서](CURRICULUM_FOLDER_COVERS_2026-09-13.md)와 해당 PR에서 구분한다.
+
+## 이미지 로딩 후속 (2026-09-13)
+
+공통 갤러리의 비차단 미리보기/인접 이미지 캐시, 커리큘럼 웹 미리보기 우선/원본 지연 요청, 중앙 공모전 썸네일 재사용과 신규 업로드 후처리, 자료보관함 클릭 우선순위, FAMILY 인증 후 ETag 재검증을 추가한다. 원본 및 운영 데이터 bulk 변환은 하지 않는다. 합성 측정과 cold 원본 한계는 [PRIVATE_IMAGE_LOADING_2026-09-13.md](PRIVATE_IMAGE_LOADING_2026-09-13.md)를 따른다. 운영 반영은 해당 PR 배포 증거와 구분한다.
+
+## 확대 이미지 연속 보기 (2026-09-13)
+
+공모전, 학생관리/사례, 커리큘럼, 자료보관함, 블로그·인스타 사진 미리보기, 꿈이음/FAMILY 작품과 기존 입시요강 이미지에 공통 확대 갤러리를 연결했다. 좌우 버튼·키보드·터치 스와이프를 지원하며 같은 학생/폴더/수업의 허용된 목록만 연결한다. 원본 확대·인쇄·다운로드·인증 파일 API는 유지하며 DB/R2 변경은 없다. 범위와 검증 절차는 [SHARED_IMAGE_GALLERY.md](SHARED_IMAGE_GALLERY.md)를 따른다. 배포 여부는 해당 PR/Worker 검증 결과와 구분한다.
 
 ## 꿈이음 단일 모바일 UI (2026-09-13)
 
 캠퍼스 격리 후속: CAMPUS_ADMIN 보호자 관리 역할 누락을 수정하고 학생/반의 실제 소유 캠퍼스 검사를 보강했다. MASTER 전용 학생 캠퍼스 이동은 기존 FAMILY_DB atomic batch와 audit를 재사용하며 R2 원본/학생 ID/보호자 관계/이력을 보존한다. 여러 캠퍼스에 연결된 보호자의 계정 전체 변경은 MASTER만 가능하다. 상단 캠퍼스 선택과 기존 관리 화면을 통일했다. API 미구현·인증·권한·binding·월간평가 AI adapter 미연결을 구분한 해결 절차는 [캠퍼스 격리 및 API 진단](KKUMEUM_CAMPUS_ISOLATION_AND_API_2026-09-13.md)에 기록했다. 운영 학생 이동은 수행하지 않는다.
 
-교직원/보호자 화면을 480px 모바일 앱 프레임, 네 개 소식 탭, 고정 하단 메뉴와 더보기로 정리한다. 기존 FAMILY 작품/평가/학생/보호자 기능과 인증은 유지한다. 공지 상세 및 draft soft archive를 기존 테이블에 추가하며 새 DB/migration은 없다. 출석/수납/문의 등 미연결 기능, 일정 안내와 실제 예약발송의 차이는 `KKUMEUM_MOBILE_APP_2026-09-13.md`에 명시한다. 운영 데이터 기반 쓰기 검증이나 Push 재발송은 하지 않으며 배포/실제 로그인 smoke는 PR evidence와 구분한다.
+교직원/보호자 화면을 480px 모바일 앱 프레임, 네 개 소식 탭, 고정 하단 메뉴와 더보기로 정리한다. 기존 FAMILY 작품/평가/학생/보호자 기능과 인증은 유지한다. 공지 상세 및 draft soft archive를 기존 테이블에 추가하며 새 DB/migration은 없다. 출석 기록 저장/수납/문의 등 미연결 기능, 일정 안내와 실제 예약발송의 차이는 `KKUMEUM_MOBILE_APP_2026-09-13.md`에 명시한다. 출석부 Excel 생성은 위 2026-09-14 후속 항목을 따른다. 운영 데이터 기반 쓰기 검증이나 Push 재발송은 하지 않으며 배포/실제 로그인 smoke는 PR evidence와 구분한다.
 
 ## 블로그·인스타 AI 작업실 후속 (2026-09-13)
 
 자료보관함 공통 폴더 API, 사진 중심 입력, 캠퍼스 기본 문구, Responses/Image Edit provider adapter를 기존 콘텐츠·파생 구조에 추가했다. 인스타 최종 출력은 2160×2700/4:5이며 원본 관계와 private 권한을 유지한다. 수동 작성·크롭과 지난 초안도 보존한다.
 
-운영 Worker의 secret 이름 확인에서 OpenAI secret은 발견되지 않았다. 값 조회·새 키 발급·기존 키 변경은 하지 않았다. **실제 OpenAI 운영 호출은 아직 검증되지 않았다.** 상세 계약과 검증 범위는 [CONTENT_OPENAI_WORKFLOW.md](CONTENT_OPENAI_WORKFLOW.md)를 따른다. 기존 D1/R2/FAMILY/계정 데이터는 변경 대상이 아니다.
+9월 13일 확인 때는 OpenAI secret이 없었다. **9월 14일 사용자 등록 후 이름 존재를 확인했지만 실제 text/image 각 1회 검증은 실패했다.** 현재 상태는 위 운영 재점검과 [CONTENT_OPENAI_WORKFLOW.md](CONTENT_OPENAI_WORKFLOW.md)를 따른다. 값 조회·새 키 발급·키 변경은 하지 않았으며 기존 D1/R2/FAMILY/계정 데이터는 변경 대상이 아니다.
 
 ## 전체 화면 비주얼 후속 (2026-09-13)
 
@@ -47,7 +84,7 @@ Windows 관리 PC용 `HI5·ANiHi Sync` 1.0.0: 기존 중앙 curriculum importer�
 - 꿈·전공은 D001~D035 stable ID, alias, 4개 대학/학과 페이지, 실기향상 로드맵을 사용한다. 애매한 guideline mapping은 review로 유지한다.
 - 대학 TOP30은 기존 후보 선별 후 검증된 캠퍼스 직선거리, 동률은 원래 순서다. 확률로 거리 동률을 재정렬하지 않는다. 미검증은 뒤에 둔다.
 - 합격/불합격 사례는 각각 3개 독립 페이지이고, 불합격은 기존 예비번호 내림차순이다. 학생 이미지 첫 5장 우선 로딩과 현재 화면의 decoded image 재사용이 구현되어 있다.
-- 자료보관함은 캠퍼스/본원 폴더 브라우저, 원본 파일명 유지, private 읽기, soft-trash 및 별도 WebP 썸네일을 지원한다. 공모전 수상작은 폴더별 표시, 선택/전체선택, 원본 lightbox를 유지한다.
+- 자료보관함은 캠퍼스 중심 폴더 브라우저, 원본 파일명 유지, private 읽기, soft-trash 및 별도 WebP 썸네일을 지원한다. 기존 본원 자료는 일반 진입 목록에서만 제외하고 보존한다. 공모전 수상작은 폴더별 표시, 선택/전체선택, 원본 lightbox를 유지한다.
 - 블로그/인스타는 공통 FILES와 content draft를 재사용한다. 인스타 2160×2700 deterministic 파생 이미지 및 `derivedFromFileId`가 있으며 AI 이미지 생성으로 표현하지 않는다. 외부 자동 게시의 완료를 뜻하지 않는다.
 - FAMILY는 별도 FAMILY_DB/FAMILY_FILES, 학생/보호자 관계 검사, 월간평가/공지/read receipt/Web Push/PWA를 사용한다. 전체 캠퍼스 자동 활성화 및 실제 개인정보 bulk import는 하지 않는다. analytics sync는 계속 비활성이다.
 
@@ -744,3 +781,29 @@ Local validation: npm ci, build (through npm test), TypeScript noEmit, all 37 pu
 ## 22. Library folder browser (2026-09-11)
 
 Folder navigation, breadcrumb/history, nested-folder creation, shared upload queue, authenticated download and recoverable file trash now use one library browser. Existing HQ records and virtual campus categories are retained. Only verified shared library lineage grants cross-campus reads; generic #166 campus restrictions and private/FAMILY boundaries remain. No storage/schema/binding replacement or real data migration. See `docs/LIBRARY_FOLDER_BROWSER.md` for behavior/security tests and deployment evidence scope.
+
+## 23. Library recent uploads (2026-09-14)
+
+자료보관함 최상위와 캠퍼스 홈에 최근 업로드 10개 바로가기를 추가했다(`GET /api/data-core/library/recent`).
+기존 `file_objects`와 기존 자료보관함 폴더 해석·권한 함수(`fileFolder`/`libraryFileReadable`)만 재사용했고
+새 테이블·새 R2 구조·새 권한 규칙은 만들지 않았다. 썸네일·파생 이미지·휴지통 파일·완료되지 않은 multipart
+세션은 자동으로 제외된다. 프런트엔드는 기존 `navigate()`/`load()` 흐름을 그대로 재사용한다. 자료보관함 외
+다른 서비스는 변경하지 않았다. 계약과 테스트 목록은 `docs/LIBRARY_RECENT_UPLOADS_2026-09-14.md`를 따른다.
+
+## 25. 블로그 자동화 네이버 홈피드형 콘텐츠 전략 및 발행 패키지 (2026-09-14)
+
+블로그 "AI로 글 작성"을 사진 선택 → 글 방향(검색형/홈피드형/균형형, 기본 균형형) →
+AI 전략 분석(핵심 주제 1개 + 제목 후보 3개 + 본문 초안 1회 생성) → 제목 선택 → 발행 패키지 완성
+흐름으로 확장했다. [바로 글 만들기]로 제목 선택을 건너뛰고 기존처럼 한 번에 생성할 수도 있다.
+제목을 strategyMode 추천과 다른 후보로 바꾸면 사진을 다시 보내지 않고 `POST /api/data-core/content/refine`
+(`mode:'retitle'`)로 lead/body만 최소 재작성하고, [다른 제목 만들기]도 같은 엔드포인트의
+`mode:'titles'`로 제목만 다시 만든다(비용 제어). 서버는 생성 직후 홈피드 품질검사(핵심주제·제목-도입부
+일치·키워드 반복·광고 비중)를 거쳐 문제가 있으면 정확히 한 번만 교정 재작성하고, 그래도 남는 문제는
+`warnings`로만 알린다(무한 재생성 없음). 최근 블로그 초안 제목을 함께 보내 중복 제목을 피하도록
+지시하고, 클라이언트도 근접 중복을 비차단 경고로 보여준다. 다음 콘텐츠 아이디어 3개, 발행 전 확인
+체크리스트, 네이버 발행용 복사(제목/본문/해시태그/CTA + 이미지 순서, plain text)를 추가했다.
+네이버 비공식 자동 로그인/자동 발행(쿠키 저장, 세션 탈취, CDP 제어, CAPTCHA 우회, RabbitWrite 직접
+호출 등)은 만들지 않았다 — Generation과 Publishing을 논리적으로 분리해 두었을 뿐이다. 기존
+draft(`title`/`content`/`hashtags`/`cta`)는 그대로 열리고, 새 필드는 metadata에 additive로만
+저장된다(DB migration 없음). 인스타 자동화는 코드 한 줄도 바뀌지 않았다. 세부 내용과 테스트는
+`docs/BLOG_HOMEFEED_CONTENT_STRATEGY_2026-09-14.md`를 따른다.

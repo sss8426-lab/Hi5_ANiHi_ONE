@@ -73,6 +73,9 @@ try {
   await visit();
   assert.equal(await page.locator('#legacyLibrary').isVisible(),false);
   const noCommon=async()=>{
+    assert.equal(await page.getByRole('heading',{name:'본원 작업물',exact:true}).count(),0);
+    assert.equal(await page.locator('#libraryFolders [data-lb-folder^="hq-default:"], #libraryFolders [data-lb-folder="hq"]').count(),0);
+    assert.equal(await page.locator(`#libraryFolders [data-lb-folder="${fixtures.hq}"]`).count(),0);
     assert.equal(await page.getByRole('heading',{name:'공통',exact:true}).count(),0);
     assert.equal(await page.locator('#libraryFolders [data-lb-folder="organization"]').count(),0);
     assert.equal(await page.locator('#libraryFolders [data-lb-folder="campus:campus-synthetic-acceptance-20260909"]').count(),0);
@@ -166,11 +169,18 @@ try {
   assert.ok(imageNetwork.length<15,'offscreen images must not all fetch at entry');assert.ok(peakImages<=3);
   result.imagePerformance={fixtureCount:10,originalBytes:jpeg.length,firstViewportRequests:imageNetwork.length,peakConcurrent:peakImages};
   const first=page.locator('.lb-thumbnail').first();
+  const firstPath=new URL(await first.getAttribute('href'),base).pathname;
+  let warmRequests;
   for(let n=0;n<2;n++){
-    const opened=page.waitForEvent('popup');await first.click();const imagePage=await opened;
-    await imagePage.waitForLoadState();await imagePage.waitForFunction(()=>document.querySelector('img')?.naturalWidth===1800);await imagePage.close();
+    await first.click();await page.waitForFunction(()=>document.querySelector('.cig-image')?.naturalWidth===1800);
+    assert.equal(await page.locator('.cig-counter').textContent(),'1 / 15');
+    await page.locator('[data-cig-next]').click();assert.equal(await page.locator('.cig-counter').textContent(),'2 / 15');
+    await page.waitForFunction(()=>document.querySelector('.cig-feedback')?.hidden);
+    await page.keyboard.press('Escape');
+    const count=imageNetwork.filter(r=>r.path===firstPath).length;
+    if(n===0)warmRequests=count;
+    else assert.equal(count,warmRequests,'decoded original reused in the same folder');
   }
-  assert.ok(imageNetwork.some(r=>r.status===304),'repeat image preview must revalidate');
   await page.locator('#libraryUp').click();await settled();await page.goBack();await settled();await page.waitForFunction(()=>document.querySelectorAll('.lb-image-ready').length>=2);
   assert.ok(imageNetwork.filter(r=>r.status===304).length>=2);
   // New local File produces its thumbnail without downloading the original again.

@@ -593,15 +593,6 @@ function artworkGalleryMarkup(artworks, mode='view'){
     ${mode === 'edit' ? `<button class="btn mini danger" type="button" data-remove-artwork="${index}">삭제</button>` : ''}
   </figure>`).join('');
 }
-function artworkViewerMarkup(){
-  if(!state.artworkViewer) return '';
-  return `<div class="artwork-viewer-backdrop" data-close-artwork-viewer>
-    <div class="artwork-viewer" role="dialog" aria-modal="true" aria-label="그림 크게 보기">
-      <div class="artwork-viewer-head"><b>${h(state.artworkViewer.name || '그림')}</b><button class="btn mini" type="button" data-close-artwork-viewer>닫기</button></div>
-      ${studentArtworkImage(imgSrc(state.artworkViewer.path),'',state.artworkViewer.name || '확대 그림',true)}
-    </div>
-  </div>`;
-}
 function bindArtworkViewer(){
   document.querySelectorAll('[data-student-artwork]').forEach(img=>{const fail=()=>{if(img.dataset.original&&img.getAttribute('src')!==img.dataset.original){img.src=img.dataset.original;return;}img.hidden=true;if(img.nextElementSibling)img.nextElementSibling.hidden=false;};img.onerror=fail;if(img.complete&&!img.naturalWidth)fail();});
   document.querySelectorAll('[data-generate-thumbnails]').forEach(btn=>btn.onclick=async()=>{
@@ -621,15 +612,13 @@ function bindArtworkViewer(){
     }catch{btn.textContent=`${ready}장 완료 · 다시 시도`;}finally{btn.disabled=false;}
   });
   document.querySelectorAll('[data-open-artwork]').forEach(btn=>btn.onclick=()=>{
-    state.artworkViewer={path:btn.dataset.openArtwork,name:btn.dataset.openArtworkName || '그림'};
-    const host=document.createElement('div');host.innerHTML=artworkViewerMarkup();document.body.append(host);
-    const closeButton=host.querySelector('button[data-close-artwork-viewer]');
-    const close=()=>{state.artworkViewer=null;closeArtworkViewer=null;host.remove();document.removeEventListener('keydown',keydown);if(btn.isConnected)btn.focus();};
-    const keydown=event=>{if(event.key==='Escape'){event.preventDefault();close();}else if(event.key==='Tab'){event.preventDefault();closeButton.focus();}};
-    host.addEventListener('click',event=>{if(event.target.hasAttribute('data-close-artwork-viewer'))close();});
-    const img=host.querySelector('img');img.onerror=()=>{img.hidden=true;img.nextElementSibling.hidden=false;};
-    document.addEventListener('keydown',keydown);closeButton.focus();
-    closeArtworkViewer=close;
+    const student=btn.dataset.artworkStudent && state.data.students.find(s=>String(s.id)===btn.dataset.artworkStudent);
+    const buttons=[...(btn.closest('.student-gallery')?.querySelectorAll('[data-open-artwork]') || [btn])];
+    const items=student ? studentArtworks(student).map(a=>({src:imgSrc(a.displayUrl),previewSrc:imgSrc(a.thumbnailUrl),title:a.name||'학생 그림'}))
+      : buttons.map(b=>({src:imgSrc(b.dataset.openArtwork),title:b.dataset.openArtworkName||'그림'}));
+    const viewer=window.DataCoreImageGallery.open({scope:'admissions-artwork',title:'학생 그림',anchor:btn,
+      items,index:student?0:buttons.indexOf(btn),onClose:()=>{closeArtworkViewer=null;}});
+    closeArtworkViewer=viewer?.close;
   });
 }
 function refreshTermGradeSummary(){
@@ -1689,7 +1678,7 @@ function renderStudents(){
       ? `<span class="student-status-chip">${h(s.enrollmentStatus || '재원중')}</span><span class="student-prep-text">${h(s.preparationStage || '관리중')}</span>`
       : admissionSummaryMarkup(s);
     const artworkCell = firstArtwork
-      ? `<button type="button" class="thumb-wrap artwork-open-btn" data-open-artwork="${h(firstArtwork.displayUrl || '')}" data-open-artwork-name="학생 그림">${studentArtworkImage(firstArtwork.thumbnailUrl||firstArtwork.displayUrl,'student-thumb','학생 그림',false,firstArtwork.displayUrl)}<span>${artworks.length}장</span></button>`
+      ? `<button type="button" class="thumb-wrap artwork-open-btn" data-artwork-student="${h(s.id)}" data-open-artwork="${h(firstArtwork.displayUrl || '')}" data-open-artwork-name="학생 그림">${studentArtworkImage(firstArtwork.thumbnailUrl||firstArtwork.displayUrl,'student-thumb','학생 그림',false,firstArtwork.displayUrl)}<span>${artworks.length}장</span></button>`
       : '<div class="student-thumb empty">없음</div>';
     const convertButton = isCurrentStudent(s)
       ? `<button class="btn mini" data-convert-student="${s.id}">결과 데이터로 전환</button>`
@@ -1731,7 +1720,7 @@ function renderStudents(){
     ${(query || (activeStudentTab === 'result' && (yearFilter || roundFilter))) ? `<div class="search-summary">${query ? `검색어 <b>${h(state.studentSearch)}</b> · ` : ''}${activeStudentTab === 'result' && (yearFilter || roundFilter) ? `분류 <b>${h([yearFilter, roundFilter].filter(Boolean).join(' · '))}</b> · ` : ''}${students.length}명</div>` : ''}
     <div class="student-table-scroll"><table><thead><tr><th>그림</th><th>학생명</th><th>내신</th><th>실기점수</th><th>실기능력</th><th>전공 계열</th><th>결과</th><th>등록일</th><th>관리</th></tr></thead><tbody>${students.length?students.map(renderStudentRow).join(''):`<tr><td colspan="9" class="muted">${query ? '검색 결과가 없습니다.' : '등록된 학생이 없습니다.'}</td></tr>`}</tbody></table></div>
   </div>
-  ${artworkViewerMarkup()}`);
+  `);
   document.querySelectorAll('[data-student-tab]').forEach(btn=>btn.onclick=()=>{
     syncStudentEditorDraft();
     state.studentTypeTab=btn.dataset.studentTab;
@@ -1875,7 +1864,7 @@ function renderCases(){
       <section data-case-column="pass"><div class="case-column-head pass"><h2>합격 사례</h2></div>${accepted.length?passPage.rows.map(renderCaseCard).join('')+pagination('pass',passPage,'합격 사례'):'<div class="empty-box">합격 사례가 없습니다.</div>'}</section>
       <section data-case-column="fail"><div class="case-column-head fail"><h2>불합격 사례</h2></div>${rejected.length?failPage.rows.map(renderCaseCard).join('')+pagination('fail',failPage,'불합격 사례'):'<div class="empty-box">불합격 사례가 없습니다.</div>'}</section>
     </div>` : ''}
-  </div>${artworkViewerMarkup()}`;
+  </div>`;
   document.querySelectorAll('[data-case-page]').forEach(button=>button.onclick=()=>{casePages[button.dataset.casePage]+=Number(button.dataset.step);state.caseDetail=null;renderCases();});
   $('caseSearchBtn').onclick=()=>{state.caseSearch=$('caseSearchInput').value.trim();casePages={pass:1,fail:1};state.caseDetail=null;renderCases();};
   $('caseSearchInput').onkeydown=(e)=>{if(e.key==='Enter')$('caseSearchBtn').click();};
@@ -2476,29 +2465,8 @@ function renderAwards(){
         <div class="award-gallery-grid">${gallery}</div>
       </section>
     </div>
-    ${awardViewerMarkup()}`;
+    `;
   bindAwards();
-}
-
-function awardViewerMarkup(){
-  if(!state.awardViewer) return '';
-  return `<div class="award-viewer-backdrop" data-close-award-viewer>
-    <div class="award-viewer" onclick="event.stopPropagation()">
-      <div class="award-viewer-head">
-        <div>
-          <h2>${h(state.awardViewer.fileName || state.awardViewer.name || '수상작 이미지')}</h2>
-          <p class="muted">${h(state.awardViewer.year)}년</p>
-        </div>
-        <div class="actions">
-          <button class="btn danger" id="deleteAwardImageBtn">이미지 삭제</button>
-          <button class="btn" data-close-award-viewer>닫기</button>
-        </div>
-      </div>
-      <div class="award-viewer-body">
-        <img src="${h(imgSrc(state.awardViewer.filePath || state.awardViewer.path || state.awardViewer.url))}" alt="${h(state.awardViewer.fileName || '수상작 이미지')}" decoding="async">
-      </div>
-    </div>
-  </div>`;
 }
 
 function updateAwardFolder(folder){
@@ -2549,28 +2517,20 @@ function bindAwards(){
   document.querySelectorAll('[data-award-image]').forEach(button => {
     button.onclick = () => {
       const folder = selectedAwardFolder();
-      const image = awardImages(folder, state.awardYear).find(item => String(item.id) === String(button.dataset.awardImage));
-      if(image){
-        state.awardViewer = { ...image, folderId: folder.id, year: state.awardYear };
-        renderAwards();
-      }
+      const images=awardImages(folder,state.awardYear), year=state.awardYear;
+      const index=images.findIndex(item=>String(item.id)===button.dataset.awardImage);
+      if(index<0)return;
+      window.DataCoreImageGallery.open({scope:'admissions-awards',title:'수상작',anchor:button,index,
+        items:images.map(image=>({src:imgSrc(image.filePath||image.path||image.url),title:image.fileName||image.name||'수상작 이미지'})),
+        actions:[{label:'이미지 삭제',icon:'Trash2',run:async(selected,viewer)=>{
+          if(!confirm('이 이미지를 삭제할까요?'))return;
+          try{const result=await window.desktopAPI.deleteAwardImage(folder.id,year,images[selected].id);
+            if(result?.ok&&result.folder)updateAwardFolder(result.folder);
+            viewer.close();renderAwards();
+          }catch{alert('이미지를 삭제하지 못했습니다. 다시 시도해주세요.');}
+        }}]});
     };
   });
-  document.querySelectorAll('[data-close-award-viewer]').forEach(button => {
-    button.onclick = () => {
-      state.awardViewer = null;
-      renderAwards();
-    };
-  });
-  const deleteBtn = $('deleteAwardImageBtn');
-  if(deleteBtn) deleteBtn.onclick = async () => {
-    const viewer = state.awardViewer;
-    if(!viewer || !confirm('이 이미지를 삭제할까요?')) return;
-    const result = await window.desktopAPI.deleteAwardImage(viewer.folderId, viewer.year, viewer.id);
-    if(result?.ok && result.folder) updateAwardFolder(result.folder);
-    state.awardViewer = null;
-    renderAwards();
-  };
 }
 
 function renderSettings(){

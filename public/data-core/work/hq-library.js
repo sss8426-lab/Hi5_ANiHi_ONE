@@ -7,9 +7,10 @@
   const icon = name => `<svg class="lb-icon" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#${name}"></use></svg>`;
   const href = id => `/data-core/work/library${id === 'root' ? '' : `?folder=${encodeURIComponent(id)}`}`;
   const state = { folder: null, folders: [], files: [], breadcrumbs: [], controller: null, generation: 0, queue: null, pending: null };
-  const sheet = document.createElement('link'); sheet.rel = 'stylesheet'; sheet.href = '/data-core/work/library-browser.css?v=20260911-thumbnails'; document.head.append(sheet);
+  const sheet = document.createElement('link'); sheet.rel = 'stylesheet'; sheet.href = '/data-core/work/library-browser.css?v=20260914-recent-uploads'; document.head.append(sheet);
   let imageCache=null, observer=null, imageGeneration=0;
   function clearImages() {
+    window.DataCoreImageGallery.close('library');
     imageGeneration++;
     observer?.disconnect(); observer=null; imageCache?.clear();
     for(const img of host.querySelectorAll('.lb-thumbnail img')){img.removeAttribute('src');img.hidden=true;img.parentElement.classList.remove('lb-image-ready');}
@@ -58,6 +59,9 @@
     <form id="librarySearch" class="lb-search"><label for="libraryQuery">현재 폴더 검색</label><input id="libraryQuery" type="search" maxlength="120"><button class="lb-button" type="submit">검색</button></form>
     <p id="libraryStatus" role="status"></p><div id="libraryContents" aria-busy="false"><div id="libraryFolders"></div><div id="libraryFiles"></div></div>
     <nav id="libraryPages" class="lb-toolbar" aria-label="파일 페이지"></nav>
+    <section id="libraryRecent" class="lb-recent" hidden><h3>최근 업로드</h3>
+      <ul id="libraryRecentList" class="lb-recent-list"></ul>
+      <p id="libraryRecentEmpty" hidden>최근 업로드된 파일이 없습니다.</p></section>
     <input id="libraryFileInput" type="file" multiple hidden>
     <dialog id="libraryFolderDialog" aria-labelledby="libraryFolderTitle"><form id="libraryFolderForm"><h3 id="libraryFolderTitle">새 폴더</h3>
       <label for="libraryFolderName">새 폴더 이름</label><input id="libraryFolderName" required maxlength="80" autocomplete="off">
@@ -74,9 +78,7 @@
     return body;
   }
   function presentation(folder) {
-    const code = folder.id.startsWith('campus:campus-') ? folder.id.slice('campus:campus-'.length) : '';
-    const info = typeof CAMPUS_PRESENTATION !== 'undefined' && CAMPUS_PRESENTATION[code];
-    return { title: info?.name || folder.title, group: folder.group || info?.group || '폴더', order: info?.order || 0 };
+    return { title: folder.title };
   }
   function locationState() {
     const params = new URLSearchParams(location.search);
@@ -90,28 +92,50 @@
     load(true);
   }
   function renderFolders(folders, q) {
-    const groups = new Map();
-    folders.filter(f => !q || presentation(f).title.toLocaleLowerCase().includes(q.toLocaleLowerCase())).forEach(f => {
-      const p = presentation(f), group = state.folder.id === 'root' ? p.group : '폴더';
-      if (!groups.has(group)) groups.set(group, []); groups.get(group).push({ ...f, ...p });
-    });
-    $('libraryFolders').innerHTML = [...groups].map(([group, rows]) => `<section class="lb-folder-group"><h3>${h(group)}</h3><div class="lb-folder-grid">${rows.sort((a,b)=>a.order-b.order).map(f =>
+    const groups = window.DataCoreLibraryClient.folderGroups({ folder: state.folder, folders }, q);
+    $('libraryFolders').innerHTML = groups.map(([group, rows]) => `<section class="lb-folder-group"><h3>${h(group)}</h3><div class="lb-folder-grid">${rows.map(f =>
       `<div class="lb-folder-item${f.canDelete && state.folder.id === 'root' ? ' lb-folder-editable' : ''}"><a class="lb-folder" href="${h(href(f.id))}" data-lb-folder="${h(f.id)}">${icon('Folder')}<strong>${h(f.title)}</strong></a>
       ${f.canDelete && state.folder.id === 'root' ? `<details class="lb-folder-menu"><summary aria-label="${h(f.title)} 폴더 메뉴" title="폴더 메뉴">${icon('Menu')}</summary><button type="button" data-lb-delete-folder="${h(f.id)}">폴더 삭제</button></details>` : ''}</div>`).join('')}</div></section>`).join('');
   }
-  function size(bytes) { return bytes < 1024 ? `${bytes} B` : bytes < 1048576 ? `${(bytes/1024).toFixed(1)} KB` : `${(bytes/1048576).toFixed(1)} MB`; }
+  function size(bytes) { return bytes < 1024 ? `${bytes} B` : bytes < 1048576 ? `${(bytes/1024).toFixed(1)} KB` : bytes < 1073741824 ? `${(bytes/1048576).toFixed(1)} MB` : `${(bytes/1073741824).toFixed(2)} GB`; }
+  const opaquePreview = fileName => /\.(ai|psd|psb|clip|eps|zip)$/i.test(fileName || '');
+  const previewable = file => !opaquePreview(file.fileName) && /^(image\/(jpeg|png|webp|gif|avif)|application\/pdf|text\/plain)$/.test(file.mimeType);
+  const imageFile = file => !opaquePreview(file.fileName) && /^image\/(jpeg|png|webp|gif|avif)$/.test(file.mimeType);
   function renderFiles(files) {
     $('libraryFiles').innerHTML = files.length ? `<ul class="lb-file-list">${files.map(f => {
-      const preview = /^(image\/(jpeg|png|webp|gif|avif)|application\/pdf|text\/plain)$/.test(f.mimeType);
-      const image = /^image\/(jpeg|png|webp|gif|avif)$/.test(f.mimeType);
-      const visual = image ? `<a class="lb-thumbnail" href="${h(f.previewUrl)}" target="_blank" rel="noopener" aria-label="${h(f.fileName)} 미리보기">${icon('Image')}<img hidden data-original="${h(f.previewUrl)}" data-thumbnail="${h(f.thumbnailUrl||'')}" alt="" width="112" height="84" loading="lazy" decoding="async"></a>` : icon('BookOpen');
+      const preview = previewable(f);
+      const image = imageFile(f);
+      const visual = image ? `<a class="lb-thumbnail" data-lb-image="${h(f.id)}" href="${h(f.previewUrl)}" target="_blank" rel="noopener" aria-label="${h(f.fileName)} 미리보기">${icon('Image')}<img hidden data-original="${h(f.previewUrl)}" data-thumbnail="${h(f.thumbnailUrl||'')}" alt="" width="112" height="84" loading="lazy" decoding="async"></a>` : icon('BookOpen');
       return `<li class="lb-file" data-library-file="${h(f.id)}"><div class="lb-file-main">${visual}
         <div><strong>${h(f.fileName)}</strong><small>${h(f.mimeType)} · ${h(size(f.sizeBytes))} · ${h(new Date(f.createdAt).toLocaleDateString('ko-KR'))}</small>
         <small>${h(state.breadcrumbs.find(b=>b.id.startsWith('campus:'))?.title || '본원·조직 공통')} · ${h(f.ownerName || '')}</small></div></div>
-        <div class="lb-file-actions">${preview ? `<a class="lb-button" href="${h(f.previewUrl)}" target="_blank" rel="noopener">미리보기</a>` : ''}
+        <div class="lb-file-actions">${preview ? `<a class="lb-button" ${image ? `data-lb-image="${h(f.id)}"` : ''} href="${h(f.previewUrl)}" target="_blank" rel="noopener">미리보기</a>` : ''}
         <a class="lb-button" href="${h(f.downloadUrl)}" download>다운로드</a>${f.canDelete ? `<button class="lb-button lb-danger" data-lb-delete="${h(f.id)}">삭제</button>` : ''}</div></li>`;
     }).join('')}</ul>` : '';
     observeImages();
+  }
+  function timeLabel(iso) {
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return '';
+    const minutes = Math.floor((Date.now() - date.getTime()) / 60000);
+    if (minutes < 1) return '방금 전';
+    if (minutes < 60) return `${minutes}분 전`;
+    if (date.toDateString() === new Date().toDateString()) return `오늘 ${date.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',hour12:false})}`;
+    return date.toLocaleDateString('ko-KR');
+  }
+  function renderRecent(files) {
+    $('libraryRecent').hidden = false;
+    $('libraryRecentEmpty').hidden = files.length > 0;
+    $('libraryRecentList').innerHTML = files.map(f => {
+      const image = !opaquePreview(f.fileName) && /^image\/(jpeg|png|webp|gif|avif)/.test(f.mimeType || '');
+      return `<li class="lb-recent-item"><a class="lb-recent-link" href="${h(href(f.folderId))}" data-lb-folder="${h(f.folderId)}">${icon(image ? 'Image' : 'BookOpen')}
+        <span class="lb-recent-text"><strong>${h(f.fileName)}</strong><small>${h(f.folderTitle)} · ${h(timeLabel(f.createdAt))}</small></span></a></li>`;
+    }).join('');
+  }
+  async function loadRecent(id, options) {
+    if (!(id === 'root' || id.startsWith('campus:'))) { $('libraryRecent').hidden = true; return; }
+    try { renderRecent((await api(`/api/data-core/library/recent?folderId=${encodeURIComponent(id)}`, options)).files); }
+    catch (e) { if (e.name !== 'AbortError') renderRecent([]); }
   }
   async function load(focus = false) {
     clearImages();
@@ -122,6 +146,7 @@
     $('libraryUp').hidden = true; $('libraryPermission').textContent = '';
     $('libraryStatus').textContent = '불러오는 중…'; $('libraryContents').setAttribute('aria-busy','true');
     $('libraryFolders').replaceChildren(); $('libraryFiles').replaceChildren(); $('libraryPages').replaceChildren();
+    $('libraryRecent').hidden = true; $('libraryRecentList').replaceChildren();
     for (const id of ['libraryNew','libraryUpload','libraryDeleteFolder']) $(id).hidden = true;
     $('libraryQuery').value = current.q;
     try {
@@ -139,6 +164,8 @@
       renderFolders(view.folders, current.q); renderFiles(listing.files);
       $('libraryStatus').textContent = !listing.files.length && !$('libraryFolders').children.length ? (current.q ? '검색 결과가 없습니다.' : '이 폴더에 자료가 없습니다.') : '';
       if (current.page > 1 || listing.hasMore) $('libraryPages').innerHTML = `<button class="lb-button" data-lb-page="${current.page-1}" ${current.page===1?'disabled':''}>이전</button><span>${current.page} 페이지</span><button class="lb-button" data-lb-page="${current.page+1}" ${listing.hasMore?'':'disabled'}>다음</button>`;
+      await loadRecent(current.id, options);
+      if (generation !== state.generation) return;
       if (focus) $('libraryTitle').focus({ preventScroll: true });
     } catch (e) {
       if (e.name === 'AbortError' || generation !== state.generation) return;
@@ -149,6 +176,14 @@
     } finally { if (generation === state.generation) $('libraryContents').setAttribute('aria-busy','false'); }
   }
   host.addEventListener('click', e => {
+    const image = e.target.closest('[data-lb-image]');
+    if (image && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey && e.button === 0) {
+      e.preventDefault();
+      const files=state.files.filter(imageFile);
+      window.DataCoreImageGallery.open({scope:'library',title:state.folder.title,anchor:image,
+        index:files.findIndex(f=>f.id===image.dataset.lbImage),
+        items:files.map(f=>({title:f.fileName,previewSrc:imageCache.peek(f.thumbnailUrl||f.previewUrl)||f.thumbnailUrl,load:({priority})=>imageCache.get(f.previewUrl,{priority:priority!=='low'})}))});
+    }
     const folder = e.target.closest('[data-lb-folder]');
     if (folder && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.button === 0) { e.preventDefault(); navigate(folder.dataset.lbFolder); }
     const page = e.target.closest('[data-lb-page]'); if (page && !page.disabled) { const s=locationState(); navigate(s.id,s.q,Number(page.dataset.lbPage)); }
@@ -188,7 +223,10 @@
   };
   function progress(p) {
     $('libraryProgressCount').textContent=`${p.count}개 파일 · ${p.percent}% · 완료 ${p.success}개 · 실패 ${p.failed}개`;
-    $('libraryProgress').value=p.percent; $('libraryProgressCurrent').textContent=p.current;
+    $('libraryProgress').value=p.percent;
+    const active=p.currentItems?.[0];
+    $('libraryProgressCurrent').textContent=active?`${active.name}\n${size(active.loaded)} / ${size(active.total)}`:p.current;
+    $('libraryProgressCurrent').style.whiteSpace='pre-line';
     $('libraryCancelUpload').hidden=!p.running; $('libraryCloseProgress').hidden=p.running; $('libraryRetry').hidden=p.running||!p.failed||p.cancelled;
     $('libraryUploadErrors').innerHTML=state.queue?.items.filter(i=>i.status==='failed').map(i=>`<li>${h(i.file.name)}: ${h(i.error)}</li>`).join('')||'';
   }

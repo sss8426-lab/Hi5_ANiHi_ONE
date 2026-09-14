@@ -57,3 +57,7 @@ Hashing reuses PBKDF2-HMAC-SHA256, 100,000 iterations, a random 16-byte salt and
 `scripts/check-campus-browser.mjs` uses synthetic local Worker bindings and browser login. It checks the master dashboard at 1920/1440/1280/1024/768, campus header, hidden master navigation and direct-route denial. It never uses production students or operator credentials. `scripts/check-campus-lint-baseline.mjs BASE_SHA` distinguishes new lint errors from inherited lint debt.
 
 The new migration `drizzle/0010_campus_accounts.sql` is additive and idempotent: one new table and presence/audit indexes. It contains no credentials or seeds. Runtime schema initialization is compatible with the current deployment mechanism.
+
+## 표시명 변경 (2026-09-14)
+
+현재 UI 표시명과 선택 순서는 [캠퍼스 표시 정책](CAMPUS_LIBRARY_PRESENTATION_2026-09-14.md)을 따른다. 위 기존 이름은 계정/DB의 역사적 식별 설명이며, `campus-directory.ts`의 `displayName`/`displayOrder`가 화면 표시의 단일 기준이다. 기존 ID, 공개 코드, 로그인 계정, 암호 및 권한은 변경하지 않는다. 접속 현황은 이름만 갱신하며 온라인/최근 활동 우선순위는 유지한다.

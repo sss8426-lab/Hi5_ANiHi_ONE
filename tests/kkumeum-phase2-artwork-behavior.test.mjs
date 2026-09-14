@@ -55,8 +55,9 @@ async function makeHarness() {
     DATA_CORE_SUPER_ADMIN_EMAILS: ADMIN.email,
   };
 
-  async function request(path, { user = ADMIN, method = 'GET', body, form } = {}) {
+  async function request(path, { user = ADMIN, method = 'GET', body, form, etag } = {}) {
     const headers = new Headers(user ? authHeaders(user) : undefined);
+    if(etag)headers.set('if-none-match',etag);
     let requestBody;
     if (form) {
       requestBody = form;
@@ -237,17 +238,20 @@ test('꿈이음 작품은 FAMILY_FILES에서만 저장·권한확인·휴지통�
 
     const fileRead = await request(`/api/kkumeum/files/${fileId}`, { user: TEACHER });
     assert.equal(fileRead.status, 200);
-    assert.equal(fileRead.headers.get('cache-control'), 'private, no-store');
+    assert.equal(fileRead.headers.get('cache-control'), 'private, no-cache');
     assert.equal(fileRead.headers.get('x-content-type-options'), 'nosniff');
     assert.equal(fileRead.headers.get('content-type'), 'image/png');
     assert.equal(new Uint8Array(fileRead.body)[0], 137);
+    const etag=fileRead.headers.get('etag');
+    const cached=await request(`/api/kkumeum/files/${fileId}`,{user:TEACHER,etag});
+    assert.equal(cached.status,304);assert.equal(cached.body.byteLength,0);
 
     const unauthRead = await request(`/api/kkumeum/files/${fileId}`, { user: null });
     assert.equal(unauthRead.status, 401);
 
     await request('/api/data-core/context', { user: OTHER });
     await addMembership(env.DB, OTHER, CAMPUS_B, 'CAMPUS_DIRECTOR');
-    const crossCampusRead = await request(`/api/kkumeum/files/${fileId}`, { user: OTHER });
+    const crossCampusRead = await request(`/api/kkumeum/files/${fileId}`, { user: OTHER, etag });
     assert.equal(crossCampusRead.status, 403);
 
     const wrongReport = await request(`/api/kkumeum/artworks/${artworkId}`, {

@@ -221,10 +221,13 @@ test('보호자 작품 목록/파일은 own-child + can_view_photos 경계를 �
 
     const ownFile = await request('/api/family/files/file-a', { cookie });
     assert.equal(ownFile.status, 200);
-    assert.equal(ownFile.headers.get('cache-control'), 'private, no-store');
+    assert.equal(ownFile.headers.get('cache-control'), 'private, no-cache');
+    const headers={'if-none-match':ownFile.headers.get('etag')};
+    assert.equal((await request('/api/family/files/file-a',{cookie,headers})).status,304);
+    assert.equal((await request('/api/family/files/file-a',{headers})).status,401);
     assert.match(ownFile.headers.get('content-type') || '', /image\/jpeg/);
 
-    const otherFile = await request('/api/family/files/file-b', { cookie });
+    const otherFile = await request('/api/family/files/file-b', { cookie, headers });
     assert.equal(otherFile.status, 403);
 
     await env.FAMILY_DB.prepare(
@@ -232,7 +235,7 @@ test('보호자 작품 목록/파일은 own-child + can_view_photos 경계를 �
     ).bind(GUARDIAN_ID, CHILD_A).run();
     const deniedGallery = await request(`/api/family/children/${CHILD_A}/artworks`, { cookie });
     assert.equal(deniedGallery.status, 403);
-    const deniedFile = await request('/api/family/files/file-a', { cookie });
+    const deniedFile = await request('/api/family/files/file-a', { cookie, headers });
     assert.equal(deniedFile.status, 403);
   } finally {
     await mf.dispose();

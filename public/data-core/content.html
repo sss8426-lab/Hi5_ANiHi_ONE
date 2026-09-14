@@ -6,10 +6,11 @@
   <title>블로그 자동화 · HI5·ANiHi DATA CORE</title>
   <link rel="stylesheet" href="/data-core/styles.css">
   <link rel="stylesheet" href="/data-core/content.css?v=20260913-ai">
-  <link rel="stylesheet" href="/data-core/content-workflow.css?v=20260913-ai">
+  <link rel="stylesheet" href="/data-core/content-workflow.css?v=20260914-strategy">
   <link rel="stylesheet" href="/data-core/layout-theme.css?v=20260909-bright-layout">
   <link rel="stylesheet" href="/data-core/design-tokens.css?v=20260913-soft-premium">
   <link rel="stylesheet" href="/data-core/design-system.css?v=20260913-soft-premium">
+  <link rel="stylesheet" href="/data-core/image-gallery.css?v=20260913-fast-images">
 </head>
 <body class="data-core-layout">
   <div class="app-shell">
@@ -45,12 +46,20 @@
         </section>
         <section class="workflow-section">
           <label class="workflow-command"><span id="commandLabel">어떤 글을 만들까요?</span><textarea id="aiCommand" rows="5" maxlength="4000" placeholder="고1 칸만화 수업 사진입니다. 학생들이 인체와 장면 연출을 연습한 내용을 중심으로 학부모가 이해하기 쉽게 홍보 글을 작성해줘."></textarea></label>
+          <label id="strategyModeField"><span>글 방향</span><select id="strategyMode"><option value="balanced" selected>균형형</option><option value="search">검색형</option><option value="homefeed">홈피드형</option></select></label>
           <div class="defaults-grid"><label><span>기본 해시태그</span><textarea id="defaultHashtags" rows="2" maxlength="2000"></textarea></label><label><span>하단 고정 문구</span><textarea id="defaultFooter" rows="2" maxlength="3000"></textarea></label></div>
           <div class="defaults-actions"><span id="defaultsStatus" role="status"></span><button class="ghost-btn" id="saveDefaults" type="button">기본 문구 저장</button></div>
           <p id="aiPrivacy">선택한 사진과 입력한 명령만 OpenAI에 전송됩니다.</p>
-          <div class="form-actions ai-actions"><button class="primary-btn" id="generateAi" type="button">AI로 블로그 글 작성</button><button class="ghost-btn" id="cancelAi" type="button" hidden>취소</button></div>
+          <div class="form-actions ai-actions"><button class="primary-btn" id="generateAi" type="button">AI로 블로그 글 작성</button><button class="ghost-btn" id="quickGenerateAi" type="button">바로 글 만들기</button><button class="ghost-btn" id="cancelAi" type="button" hidden>취소</button></div>
           <p id="aiStatus" role="status" aria-live="polite"></p>
           <button id="retryCaption" class="ghost-btn" type="button" hidden>홍보 문구만 다시 작성</button>
+        </section>
+        <section class="workflow-section" id="titlePicker" hidden aria-labelledby="titlePickerHeading">
+          <div class="workflow-heading"><h2 id="titlePickerHeading">제목을 선택하세요</h2></div>
+          <div id="titleOptions" class="title-options" role="radiogroup" aria-labelledby="titlePickerHeading"></div>
+          <p id="titleDuplicateWarning" class="workflow-warning" hidden role="status"></p>
+          <div class="form-actions"><button class="ghost-btn" id="regenerateTitles" type="button">다른 제목 만들기</button></div>
+          <p id="titlePickerStatus" role="status" aria-live="polite"></p>
         </section>
         <section class="workflow-section" id="aiResult" hidden>
           <div class="workflow-heading"><h2 id="resultHeading">AI 작성 결과</h2><button class="ghost-btn hidden" id="newDraftBtn" type="button">새 초안</button></div>
@@ -64,6 +73,8 @@
             <div class="form-actions"><button class="secondary-btn" id="regenerateAi" type="button">다시 작성</button><button class="secondary-btn" id="copyContent" type="button">전체 복사</button><button class="primary-btn" id="saveDraftBtn" type="submit">초안 저장</button><button class="danger-btn hidden" id="deleteDraftBtn" type="button">삭제</button></div>
             <details class="workflow-details"><summary>초안 세부 정보</summary><div id="selectedDerivatives" class="selected-file-list" aria-label="연결된 인스타 파생 이미지"></div><label><span>주제</span><input id="draftSummary"></label><label><span>콘텐츠 목적</span><select id="contentPurpose"><option value="class-story">수업 성장 스토리</option><option value="student-artwork">학생작품 소개</option><option value="academy-news">학원 소식</option><option value="competition-result">공모전·수상</option><option value="admission-info">입시 정보</option></select></label><label><span>게시 상태</span><select id="publishStatus"><option value="draft">초안</option><option value="review">검토</option><option value="ready">게시 준비</option><option value="published">게시 완료</option><option value="archived">보관</option></select></label></details>
           </form>
+          <div id="nextTopics" class="next-topics" hidden><h3>다음 콘텐츠 아이디어</h3><ul id="nextTopicsList"></ul></div>
+          <div id="publishChecklist" class="publish-checklist" hidden><h3>발행 전 확인</h3><ul id="checklistItems"></ul><p class="workflow-warning">⚠ 합격·수상 수치는 직접 확인해주세요.</p><div class="form-actions"><button class="secondary-btn" id="copyPublishPackage" type="button">네이버 발행용 복사</button></div></div>
         </section>
         <details class="workflow-details" id="manualWork"><summary>직접 작성·이미지 크기 조정</summary>
           <button class="secondary-btn" id="manualDraft" type="button">직접 작성</button>
@@ -78,11 +89,11 @@
       </section>
     </main>
   </div>
-  <dialog id="photoViewer"><button id="closePhotoViewer" class="ghost-btn" type="button" aria-label="미리보기 닫기">닫기</button><img id="photoViewerImage" alt="선택 사진 확대보기"></dialog>
   <div class="toast hidden" id="toast"></div>
-  <script src="/data-core/library-client.js?v=20260913-ai"></script>
+  <script src="/data-core/image-gallery.js?v=20260913-fast-images"></script>
+  <script src="/data-core/library-client.js?v=20260914-campus-only"></script>
   <script src="/data-core/instagram-derivative.js?v=20260909-derivative-v1"></script>
-  <script src="/data-core/content.js?v=20260913-ai"></script>
+  <script src="/data-core/content.js?v=20260914-strategy"></script>
   <script src="/data-core/content-admin-nav.js?v=20260908-work-v1"></script>
   <script type="module" src="/data-core/design-shell.js?v=20260912-campus"></script>
 </body>

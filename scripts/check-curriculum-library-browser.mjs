@@ -10,8 +10,8 @@ const browser=await chromium.launch({headless:true,channel:'chrome'});
 const image=await sharp({create:{width:900,height:1200,channels:3,background:'#bad7c4'}}).composite([{input:Buffer.from('<svg width="900" height="1200"><rect x="50" y="50" width="800" height="1100" fill="white" stroke="#247052" stroke-width="8"/><circle cx="450" cy="500" r="200" fill="#cee4d5"/><path d="M100 1000H800 M100 1050H800" stroke="#247052" stroke-width="8"/></svg>')}]).jpeg().toBuffer();
 const landscape=await sharp(image).rotate(90).jpeg().toBuffer();
 const stages={basic:'기초과정',advanced:'심화과정',admission:'입시과정'};
-let auth=true,admin=true,catalogRevision=0,failPrint=false,printCalls=0,mutations=0;const errors=[],missing=[],requests=[];
-const folders=stage=>Array.from({length:5+catalogRevision},(_,i)=>({id:`syn-${stage}-${i}`,title:`${i+1}-1 합성 수업`,order:i+1,parentFolderId:null,representativeUrl:`/api/data-core/files/thumb-${stage}-${i}-0`,pageCount:4}));
+let auth=true,admin=true,catalogRevision=0,failPrint=false,failCover=false,printCalls=0,mutations=0;const errors=[],missing=[],requests=[];
+const folders=stage=>Array.from({length:5+catalogRevision},(_,i)=>({id:`syn-${stage}-${i}`,title:`${i+1}-1 합성 수업`,order:i+1,parentFolderId:null,representativeUrl:`/api/data-core/files/cover-${stage}-${i}`,fallbackRepresentativeUrl:`/api/data-core/files/thumb-${stage}-${i}-0`,coverAlt:'수업 주제를 표현한 전용 표지',pageCount:4}));
 const pages=(stage,folder)=>Array.from({length:4},(_,i)=>({id:`page-${stage}-${folder}-${i}`,folderId:`syn-${stage}-${folder}`,order:i+1,width:stage==='admission'?1200:900,height:stage==='admission'?900:1200,
   previewUrl:`/api/data-core/files/view-${stage}-${folder}-${i}`,thumbnailUrl:`/api/data-core/files/thumb-${stage}-${folder}-${i}`,originalUrl:`/api/data-core/files/original-${stage}-${folder}-${i}`,printUrl:`/api/data-core/files/print-${stage}-${folder}-${i}`}));
 try{
@@ -33,6 +33,7 @@ try{
         pages:u.pathname.endsWith('/print')?(lesson?pages(stage,Number(lesson.split('-').at(-1))):list.flatMap((_,i)=>pages(stage,i))):folder?pages(stage,index):[]}});
     }
     if(u.pathname.startsWith('/api/data-core/files/')){
+      if(failCover&&u.pathname.includes('/cover-'))return route.fulfill({status:404,body:''});
       if(failPrint&&u.pathname.includes('print-')&&u.pathname.endsWith('-1'))return route.fulfill({status:503,body:''});
       return route.fulfill({body:u.pathname.includes('-admission-')?landscape:image,contentType:'image/jpeg',headers:{'cache-control':'private, no-cache'}});
     }
@@ -51,6 +52,8 @@ try{
       requests.length=0;await page.goto(`${base}/data-core/curriculum/content/${stage}`);
       await page.locator('.lesson-card').first().waitFor();assert.equal(await page.locator('.lesson-card').count(),5);
       for(const img of await page.locator('.lesson-card img').all()){await img.scrollIntoViewIfNeeded();await img.evaluate(i=>i.decode());}
+      assert.equal(await page.locator('.lesson-card img[loading="eager"]').count(),4);
+      assert.equal(await page.locator('.lesson-card img').first().getAttribute('alt'),'수업 주제를 표현한 전용 표지');
       assert.equal(requests.some(p=>/files\/(view|print|original)-/.test(p)),false);
       await noOverflow();await page.screenshot({path:`${out}/${stage}-${width}-folders.png`,fullPage:true});
       await page.locator('.lesson-card').first().click();await page.locator('.lesson-canvas img').evaluate(i=>i.decode());
@@ -71,8 +74,12 @@ try{
         console.log(JSON.stringify(await page.evaluate(({x,y})=>({hit:document.elementFromPoint(x,y)?.outerHTML.slice(0,200),width:innerWidth}),{x:box.x+box.width*.8,y:box.y+80})));
       }
       assert.equal(await page.locator('.lesson-counter').textContent(),'2 / 4');
-      await page.locator('.lesson-canvas').click();await page.locator('.lesson-zoom[open] img').evaluate(i=>i.decode());assert.ok((await page.locator('.lesson-zoom img').getAttribute('src')).includes('original-'));
-      await page.getByRole('button',{name:'원본 크기로 확대'}).click();assert.equal(await page.locator('.lesson-zoom').evaluate(d=>d.classList.contains('actual-size')),true);await page.keyboard.press('Escape');
+      await page.locator('.lesson-canvas').click();await page.waitForFunction(()=>document.querySelector('.cig-feedback')?.hidden&&document.querySelector('.cig-image')?.naturalWidth);
+      assert.ok((await page.locator('.cig-image').getAttribute('data-source')).includes('view-'));assert.equal(requests.some(p=>/files\/original-/.test(p)),false);
+      await page.locator('[data-cig-next]').click();assert.equal(await page.locator('.cig-counter').textContent(),'3 / 4');assert.ok(page.url().includes('slide=3'));
+      await page.locator('[data-cig-prev]').click();assert.equal(await page.locator('.cig-counter').textContent(),'2 / 4');
+      await page.getByRole('button',{name:'원본 크기로 확대'}).click();assert.equal(await page.locator('.core-image-gallery').evaluate(d=>d.classList.contains('cig-actual')),true);
+      await page.waitForFunction(()=>document.querySelector('.cig-image')?.dataset.source.includes('original-'));await page.keyboard.press('Escape');
       await noOverflow();await page.screenshot({path:`${out}/${stage}-${width}-lesson.png`,fullPage:true});
       await page.getByRole('button',{name:'이 수업 인쇄',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.lesson-status')?.textContent==='인쇄 준비가 완료되었습니다.');
       assert.equal(await page.locator('.curriculum-print-sheet').count(),4);
@@ -102,6 +109,9 @@ try{
   await page.locator('a.curriculum-stage-card[href$="/admission"]').click();await page.locator('.lesson-card').nth(5).waitFor();
   await page.goBack();await page.getByText('6개 수업',{exact:true}).nth(2).waitFor();
   catalogRevision=0;
+  failCover=true;await page.goto(`${base}/data-core/curriculum/content/basic`);
+  await page.waitForFunction(()=>document.querySelector('.lesson-card img')?.getAttribute('src').includes('/thumb-')&&document.querySelector('.lesson-card img')?.naturalWidth);
+  assert.equal(await page.getByText('표지 확인 필요',{exact:true}).count(),0);failCover=false;
   await page.goto(`${base}/data-core/curriculum/content/admission?lesson=syn-admission-0`);await page.locator('[data-print]').waitFor();failPrint=true;
   printCalls=await page.evaluate(()=>window.__printCalls||0);await page.locator('[data-print]').click();await page.getByRole('button',{name:'다시 시도',exact:true}).waitFor();
   assert.equal(await page.evaluate(()=>window.__printCalls||0),printCalls);assert.equal(await page.locator('.curriculum-print-root').count(),0);

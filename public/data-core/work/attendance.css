@@ -1,0 +1,29 @@
+.at-app{min-width:0;color:var(--core-text,#171917)}
+.at-app [hidden]{display:none!important}.at-app h2{font-size:20px;line-height:1.4;margin:0 0 20px}
+.at-app label{display:flex;flex-direction:column;gap:8px;font-size:14px;min-width:0}
+.at-app input,.at-campus select{box-sizing:border-box;min-width:0;max-width:100%;width:100%;min-height:44px;padding:10px;font:inherit;border:1px solid var(--core-border,#dedcd5);border-radius:6px;background:var(--core-surface,#fff);color:var(--core-text,#171917)}
+.at-app button{font:inherit;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:10px 14px;border:1px solid var(--core-border,#dedcd5);border-radius:6px;background:var(--core-surface,#fff);color:var(--core-green,#174f44);cursor:pointer}
+.at-app button:disabled{opacity:.5;cursor:not-allowed}.at-app :focus-visible{outline:2px solid var(--core-green,#174f44);outline-offset:3px}
+.at-app .at-primary{background:var(--core-green,#174f44);color:#fff;justify-self:start}
+.at-app #atForm{display:grid;gap:24px;max-width:520px}.at-app .at-period{max-width:260px}
+#atRecognized{display:grid;gap:6px;overflow-wrap:anywhere;font-size:13px;color:var(--core-text-secondary,#747872)}#atRecognized strong{color:var(--core-text,#171917);font-size:14px}
+#atReviewPrompt{font-size:13px;line-height:1.6}#atReviewPrompt button{margin-left:8px}
+#atStatus{font-size:14px;line-height:1.6;margin:16px 0}#atResult{margin-top:24px}
+#atTabs{display:flex;gap:4px;border-bottom:1px solid var(--core-border,#dedcd5);margin-bottom:12px;overflow:auto}
+#atTabs button{border:0;border-radius:0;border-bottom:2px solid transparent;color:var(--core-text-secondary,#747872);flex-shrink:0;background:transparent}
+#atTabs button[aria-selected=true]{border-bottom-color:var(--core-green,#174f44);color:var(--core-green,#174f44);font-weight:650}
+.at-result-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;font-size:13px}
+.at-app #atSize{width:44px;padding:10px;flex:none}.at-actions{display:flex;flex-wrap:wrap;gap:8px;margin:20px 0}
+.at-preview{overflow:auto;max-width:100%;max-height:70vh;border:1px solid var(--core-border,#dedcd5);background:#eceeeb;overscroll-behavior:contain}
+.at-preview #atTable{transform-origin:top left}.at-preview #atPaper{position:relative}.at-preview .at-sheet{margin:0}
+.at-print-frame{position:fixed;width:1px;height:1px;left:-10000px;top:0;border:0}
+.at-app dialog{box-sizing:border-box;width:min(480px,calc(100% - 24px));max-height:80dvh;overflow:auto;padding:24px;border:1px solid var(--core-border,#dedcd5);border-radius:8px;background:var(--core-surface,#fff);color:var(--core-text,#171917)}
+.at-app dialog::backdrop{background:#11131180}.at-app dialog fieldset{margin:0 0 20px;padding:0;border:0}.at-app dialog legend{margin-bottom:8px}.at-app dialog small{color:var(--core-text-secondary,#747872);margin-left:8px}
+.at-weekdays{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}.at-weekdays label{position:relative;cursor:pointer}.at-weekdays input{position:absolute;opacity:0;inset:0;cursor:pointer;margin:0}
+.at-weekdays span{display:grid;place-items:center;min-height:44px;border:1px solid var(--core-border,#dedcd5);border-radius:4px}.at-weekdays input:checked+span{background:var(--core-green,#174f44);color:#fff}.at-weekdays input:focus-visible+span{outline:2px solid var(--core-green,#174f44);outline-offset:2px}
+.at-icon{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.at-work-link{display:flex;align-items:center;gap:12px;width:100%;padding:16px 18px;margin:16px 0 24px;border:1px solid var(--core-border,#dedcd5);border-radius:8px;background:var(--core-surface,#fff);color:var(--core-text,#171917);font:inherit;text-align:left;cursor:pointer}
+.at-work-link>.at-icon:last-child{margin-left:auto;color:var(--core-green,#174f44)}.at-work-link:hover{border-color:var(--core-green,#174f44)}.at-work-link:focus-visible{outline:2px solid var(--core-green,#174f44);outline-offset:3px}
+#attendanceHost{min-width:0;margin-top:20px;max-width:1120px}.at-campus{display:flex;flex-direction:column;gap:6px;font-size:13px;margin-bottom:24px;max-width:320px}
+@media(max-width:430px){.at-app #atForm{gap:20px}.at-actions button{flex:1;font-size:13px;padding:8px}.at-app dialog{padding:18px}}
+@media print{.at-print-frame{display:none}}

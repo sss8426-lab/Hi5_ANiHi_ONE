@@ -17,6 +17,7 @@ const eslintConfig = defineConfig([
     "dist-sync/**",
     "tools/hi5-anihi-sync/.runtime/**",
     "tools/hi5-anihi-sync/node_modules/**",
+    "public/data-core/vendor/**",
   ]),
   eslint.configs.recommended,
   ...tseslint.configs.recommended,

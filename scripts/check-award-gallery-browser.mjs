@@ -45,6 +45,10 @@ try {
     }
     if (p==='/api/data-core/records') return route.fulfill({json:{records:url.searchParams.get('recordType')==='competition-award-folder'?folders:hqFolders}});
     if (p==='/api/data-core/files' && req.method()==='POST') return route.fulfill({status:201,json:{file:{id:'synthetic-upload'}}});
+    if (/^\/api\/data-core\/library\/files\/[^/]+\/thumbnail$/.test(p) && req.method()==='POST') {
+      assert.match(req.postData(),/filename="thumbnail.webp"/);
+      return route.fulfill({status:201,json:{file:{id:`thumb-${p.split('/').at(-2)}`}}});
+    }
     if (p==='/api/data-core/files') {
       const id=url.searchParams.get('recordId');
       if (id==='a' && slowA) await new Promise(r=>setTimeout(r,450));
@@ -84,19 +88,24 @@ try {
     }
     await page.evaluate(()=>scrollTo(0,0));
     await page.screenshot({path:path.join(output,`${name}.png`),fullPage:true});checks+=6;
-    for (const close of ['button','escape','overlay']) {
+    for (const close of (width>480?['button','escape','overlay']:['button','escape'])) {
       const before=imageRequests.get('/api/data-core/files/a-0');
       const started=Date.now();
       await page.locator('[data-award-image="a-0"]').click();
-      await page.locator('#awardLightbox[open]').waitFor();
-      assert.match(await page.locator('#awardLightboxImage').getAttribute('src'),/^blob:/);
-      await page.locator('#awardLightboxImage').evaluate(img=>img.decode());
+      await page.locator('.core-image-gallery[open]').waitFor();
+      await page.waitForFunction(()=>document.querySelector('.cig-feedback')?.hidden&&document.querySelector('.cig-image')?.naturalWidth);
+      assert.match(await page.locator('.cig-image').getAttribute('src'),/^blob:/);
+      await page.locator('.cig-image').evaluate(img=>img.decode());
       assert.equal(imageRequests.get('/api/data-core/files/a-0'),before);
+      await page.locator('[data-cig-next]').click();
+      assert.equal(await page.locator('.cig-counter').textContent(),'2 / 8');
+      await page.keyboard.press('ArrowLeft');
+      assert.equal(await page.locator('.cig-counter').textContent(),'1 / 8');
       console.log(JSON.stringify({viewport:name,close,warmOpenMs:Date.now()-started}));
-      if(close==='button') await page.locator('#closeAwardLightboxBtn').click();
+      if(close==='button') await page.locator('[data-cig-close]').click();
       if(close==='escape') await page.keyboard.press('Escape');
       if(close==='overlay') await page.mouse.click(2,2);
-      await page.locator('#awardLightbox[open]').waitFor({state:'hidden'});checks++;
+      await page.locator('.core-image-gallery[open]').waitFor({state:'hidden'});checks++;
     }
     await page.locator('[data-award-folder-id="b"]').click();
     await page.locator('[data-award-image="b-0"]').waitFor();
@@ -167,6 +176,7 @@ try {
   await page.getByText('로그인이 필요합니다',{exact:true}).waitFor({state:'attached'});
   assert.equal(await page.getByRole('link',{name:'DATA CORE 로그인 화면 열기'}).isVisible(),true);
   assert.equal(await page.locator('#openAwardFolderBtn').isDisabled(),true);checks++;
+  assert.ok(writes.some(w=>w.path.endsWith('/thumbnail')),'visible legacy previews use the existing central derivative endpoint');checks++;
   assert.deepEqual(errors,[]);
   console.log(JSON.stringify({passed:checks,pageErrors:0,syntheticOnly:true,screenshots:output}));
 } finally { await browser.close(); }

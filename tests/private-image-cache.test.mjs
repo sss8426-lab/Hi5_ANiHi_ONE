@@ -32,6 +32,18 @@ test('staff cache concurrency3 and abort remove pending work without stale repop
   assert.equal(peak,3);assert.equal(h.cache.queue.length,5);h.cache.clear();await results;
   assert.equal(h.cache.active,0);assert.equal(h.cache.entries.size,0);assert.equal(h.cache.pending.size,0);
 });
+
+test('clicked library image gets a reserved transfer slot ahead of queued thumbnails',async()=>{
+  const requests=[],release=new Map(),h=harness(url=>new Promise(resolve=>{requests.push(url);release.set(url,resolve);}));
+  const jobs=['a','b','c','d','clicked'].map(id=>h.cache.get(path(id)));
+  const clicked=h.cache.get(path('clicked'),{priority:true});
+  assert.deepEqual(requests,[path('a'),path('b'),path('c'),path('clicked')]);
+  release.get(path('clicked'))(response());await clicked;
+  assert.equal(h.cache.peek(path('clicked')).startsWith('blob:'),true);
+  for(const id of ['a','b','c'])release.get(path(id))(response());
+  await new Promise(r=>setTimeout(r,0));release.get(path('d'))(response());await Promise.all(jobs);
+  assert.equal(requests.length,5);h.cache.clear();
+});
 test('401/403 clear and block subsequent cache use; oversized images never allocate object URLs',async()=>{
   for(const status of [401,403]){
     const h=harness(async url=>url.endsWith('bad')?new Response('',{status}):response());await h.cache.get(path('good'));await assert.rejects(h.cache.get(path('bad')));

@@ -9,8 +9,10 @@
   <link rel="stylesheet" href="/data-core/counseling-refinements.css?v=20260909-1">
   <link rel="stylesheet" href="/data-core/curriculum.css?v=20260913-soft-premium">
   <link rel="stylesheet" href="/data-core/curriculum-library.css?v=20260913-soft-premium">
+  <link rel="stylesheet" href="/data-core/work/attendance.css?v=20260914-auto">
   <link rel="stylesheet" href="/data-core/design-tokens.css?v=20260913-soft-premium">
   <link rel="stylesheet" href="/data-core/design-system.css?v=20260913-soft-premium">
+  <link rel="stylesheet" href="/data-core/image-gallery.css?v=20260913-fast-images">
 </head>
 <body class="data-core-layout">
   <div class="app-shell">
@@ -72,6 +74,10 @@
             <span class="nav-icon">▧</span>
             <span>인스타 자동화</span>
           </a>
+          <button class="nav-item" data-view="attendance">
+            <svg class="at-icon nav-icon" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#BookOpen"/></svg>
+            <span>출석부</span>
+          </button>
           <button class="nav-item" data-view="mode-home">
             <span class="nav-icon">←</span>
             <span>모드 선택으로 돌아가기</span>
@@ -209,6 +215,11 @@
             <small>2160 x 2700px, 4:5 캡션 초안</small>
           </a>
         </div>
+        <button type="button" class="at-work-link" data-view="attendance">
+          <svg class="at-icon" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#BookOpen"/></svg>
+          <strong>출석부</strong>
+          <svg class="at-icon" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#ChevronRight"/></svg>
+        </button>
         <section class="panel calendar-panel" data-calendar-home="work" aria-label="학원 공통 일정">
           <div class="calendar-head">
             <div><h3>학원 공통 일정</h3><p>캠퍼스 일정과 조직 공통 일정을 함께 봅니다.</p></div>
@@ -224,6 +235,11 @@
           <div class="calendar-grid" data-calendar-grid></div>
           <div class="calendar-day-events" data-calendar-list></div>
         </section>
+      </section>
+
+      <section class="view" id="view-attendance">
+        <button type="button" class="ghost-btn" data-view="work-home">← 업무홈</button>
+        <div id="attendanceHost" aria-label="출석부 자동생성"></div>
       </section>
 
       <section class="view" id="view-library">
@@ -416,11 +432,6 @@
     </form>
   </dialog>
 
-  <dialog class="award-lightbox" id="awardLightbox" aria-label="수상작 크게 보기">
-    <button class="icon-btn" id="closeAwardLightboxBtn" type="button" aria-label="수상작 닫기">×</button>
-    <img id="awardLightboxImage" alt="" decoding="async">
-    <p id="awardLightboxCaption"></p>
-  </dialog>
 
   <div class="modal-backdrop hidden" id="uploadModal">
     <div class="modal">
@@ -509,16 +520,17 @@
 
   <dialog id="awardDeleteDialog" class="award-delete-dialog" aria-labelledby="awardDeleteTitle"><h3 id="awardDeleteTitle">선택한 수상작을 완전히 삭제할까요?</h3><p id="awardDeleteSummary"></p><p id="awardDeletePolicy">DATA CORE와 중앙 저장소에서도 제거되며 복원할 수 없습니다.</p><div class="row-actions"><button class="ghost-btn" id="cancelAwardDeleteBtn" type="button" autofocus>취소</button><button class="danger-btn" id="confirmAwardDeleteBtn" type="button">완전히 삭제</button></div></dialog>
   <div class="toast hidden" id="toast"></div>
-  <script src="/data-core/award-image-cache.js?v=20260912-preview"></script>
+  <script src="/data-core/image-gallery.js?v=20260913-fast-images"></script>
+  <script src="/data-core/award-image-cache.js?v=20260913-fast-images"></script>
   <script src="/data-core/upload-queue.js?v=20260911-library"></script>
-  <script src="/data-core/private-image-cache.js?v=20260911-thumbnails"></script>
+  <script src="/data-core/private-image-cache.js?v=20260913-fast-images"></script>
   <script src="/data-core/library-thumbnail.js?v=20260911-thumbnails"></script>
-  <script src="/data-core/library-client.js?v=20260913-ai"></script>
-  <script src="/data-core/work/hq-library.js?v=20260913-ai"></script>
-  <script src="/data-core/curriculum-library.js?v=20260912-admission-library"></script>
+  <script src="/data-core/library-client.js?v=20260914-campus-only"></script>
+  <script src="/data-core/work/hq-library.js?v=20260914-campuses"></script>
+  <script src="/data-core/curriculum-library.js?v=20260913-folder-covers"></script>
   <script src="/data-core/curriculum.js?v=20260913-work-v1"></script>
   <script src="/data-core/brand-home.js?v=20260913-brand-home"></script>
-  <script src="/data-core/app.js?v=20260913-brand-home"></script>
+  <script src="/data-core/app.js?v=20260914-month-controls"></script>
   <script src="/data-core/mode-home-artwork.js?v=20260909-counseling"></script>
   <script type="module" src="/data-core/design-shell.js?v=20260912-campus"></script>
 </body>

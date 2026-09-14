@@ -21,7 +21,7 @@ export async function campusPresence(db: D1Database, context: DataCoreAccessCont
   const campuses = CAMPUS_DIRECTORY.map(campus => {
     const row = rows.find(r => r.campus_id === campus.id && r.login_id === campus.loginId);
     const activity = Date.parse(row?.active_seen_at || '');
-    return { campusId: campus.id, campusCode: campus.code, campusName: campus.name, loginId: campus.loginId,
+    return { campusId: campus.id, campusCode: campus.code, campusName: campus.displayName, loginId: campus.loginId,
       accountId: row?.account_id || null, role: 'CAMPUS_ADMIN', status: row?.status || 'not-created',
       lastLoginAt: row?.last_login_at || null, lastSeenAt: row?.last_seen_at || null,
       online: row?.status === 'active' && Number.isFinite(activity) && activity <= now.getTime() && now.getTime() - activity <= ACTIVE_SESSION_MINUTES * 60_000 };

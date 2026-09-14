@@ -52,6 +52,46 @@ test('40 display previews survive original LRU eviction, stay small, and never r
   assert.equal(h.cache.previewBytes,0);
   assert.ok(previews.every(url=>h.revoked.includes(url)));
 });
+
+test('central thumbnails skip originals and survive original LRU eviction',async()=>{
+  const requests=[],h=harness(async url=>{requests.push(url);return response();}),previews=[];
+  for(let i=0;i<40;i++)previews.push(await h.cache.getThumbnail(String(i),`/api/data-core/files/thumb-${i}`));
+  assert.equal(requests.length,40);assert.ok(requests.every(url=>url.includes('/thumb-')));
+  assert.ok(previews.every(url=>!h.revoked.includes(url)));
+  assert.equal(await h.cache.getThumbnail('0','/api/data-core/files/thumb-0'),previews[0]);
+  assert.equal(requests.length,40);h.cache.clear();assert.ok(previews.every(url=>h.revoked.includes(url)));
+});
+
+test('lazy preview persistence is serial, limited to five, and never downloads an original twice', async () => {
+  const requests=[], saved=[];
+  let active=0, peak=0;
+  const h=harness(async url=>{requests.push(url);return response();},previewRuntime);
+  h.cache.onPreview=async(id,blob,signal)=>{
+    active++;peak=Math.max(peak,active);
+    assert.equal(blob.type,'image/webp');assert.equal(blob.size,1);assert.equal(signal.aborted,false);
+    await new Promise(resolve=>setTimeout(resolve,5));saved.push(id);active--;
+  };
+  for(let i=0;i<8;i++)await h.cache.getThumbnail(String(i));
+  await h.cache.persistQueue;
+  assert.equal(peak,1);assert.deepEqual(saved,['0','1','2','3','4']);assert.equal(requests.length,8);
+  await h.cache.getThumbnail('0');assert.equal(requests.length,8);
+  await h.cache.getThumbnail('central','/api/data-core/files/thumb-central');
+  assert.equal(saved.length,5);
+});
+
+test('lazy persistence failure cannot hide a preview and folder change cancels pending writes', async () => {
+  const h=harness(async()=>response(),previewRuntime), started=[];
+  h.cache.onPreview=(id,_blob,signal)=>new Promise((_,reject)=>{
+    started.push(id);signal.addEventListener('abort',()=>reject(new DOMException('Cancelled','AbortError')));
+  });
+  assert.match(await h.cache.getThumbnail('first'),/^blob:/);
+  assert.match(await h.cache.getThumbnail('second'),/^blob:/);
+  h.cache.clear();await h.cache.persistQueue;
+  assert.deepEqual(started,['first']);assert.equal(h.cache.persistCount,0);
+  h.cache.onPreview=async()=>{throw Error('Synthetic storage unavailable');};
+  const preview=await h.cache.getThumbnail('third');await h.cache.persistQueue;
+  assert.equal(h.cache.peekPreview('third'),preview);
+});
 test('clicked original bypasses gallery backlog using reserved slot without duplicate download', async () => {
   const started=[], release=new Map();
   const h=harness(url=>new Promise(resolve=>{started.push(url);release.set(url,resolve);}));

@@ -86,7 +86,7 @@ export async function applyTree(tree, remote, previewHash, {signal,onProgress,op
   }
   const after=await remote.records(tree.family,tree.stage),verified=diffInventory(tree,after);
   if(verified.newFolders||verified.newPages||!verified.canApply)throw Error('Import 후 중앙 count/fingerprint 확인 실패. 자동 삭제/덮어쓰기 없음.');
-  const count=(await remote.query("SELECT count(*) AS n FROM file_objects WHERE organization_id=? AND source_app='curriculum' AND data_record_id IN (SELECT id FROM data_records WHERE source_app='curriculum' AND status='active' AND deleted_at IS NULL AND json_extract(metadata_json,'$.family')=? AND json_extract(metadata_json,'$.stage')=?) AND deleted_at IS NULL",[ORG,tree.family,tree.stage])).results[0].n;
+  const count=(await remote.query("SELECT count(*) AS n FROM file_objects WHERE organization_id=? AND source_app='curriculum' AND data_record_id IN (SELECT id FROM data_records WHERE source_app='curriculum' AND record_type='curriculum-page' AND status='active' AND deleted_at IS NULL AND json_extract(metadata_json,'$.family')=? AND json_extract(metadata_json,'$.stage')=?) AND deleted_at IS NULL",[ORG,tree.family,tree.stage])).results[0].n;
   if(count!==after.filter(r=>r.record_type==='curriculum-page'&&r.status==='active'&&!r.deleted_at).length*4)throw Error('파일 등록 count 불일치. 재실행 전 점검이 필요합니다.');
   await remote.query("INSERT INTO audit_logs (id,organization_id,action,resource_type,resource_id,metadata_json,created_at) VALUES (?,?,'curriculum.import','curriculum',?,?,?)",
     [crypto.randomUUID(),ORG,`${tree.family}/${tree.stage}`,JSON.stringify({folders:tree.folders.length,pages:tree.files.length,newPages:created,newObjects:uploaded,operator:operator==='hi5-anihi-sync'?operator:'cloudflare-oauth-cli'}),now]);
@@ -100,10 +100,11 @@ export async function verifyTree(tree,remote,{signal,onProgress}={}){
   for(const e of entries){
     signal?.throwIfAborted();
     if(await remote.objectHash(e.r2_key)!==JSON.parse(e.metadata_json).fingerprint)throw Error('R2 original fingerprint 불일치.');
-    onProgress?.({phase:'verify',completed:++verified,total:entries.length});
+    verified++;
+    onProgress?.({phase:'verify',completed:verified,total:entries.length});
   }
   if(verified!==records.filter(r=>r.record_type==='curriculum-page'&&r.status==='active'&&!r.deleted_at).length)throw Error('R2 original count 불일치.');
-  const count=(await remote.query("SELECT count(*) AS n FROM file_objects WHERE organization_id=? AND source_app='curriculum' AND data_record_id IN (SELECT id FROM data_records WHERE source_app='curriculum' AND status='active' AND deleted_at IS NULL AND json_extract(metadata_json,'$.family')=? AND json_extract(metadata_json,'$.stage')=?) AND deleted_at IS NULL",[ORG,tree.family,tree.stage])).results[0].n;
+  const count=(await remote.query("SELECT count(*) AS n FROM file_objects WHERE organization_id=? AND source_app='curriculum' AND data_record_id IN (SELECT id FROM data_records WHERE source_app='curriculum' AND record_type='curriculum-page' AND status='active' AND deleted_at IS NULL AND json_extract(metadata_json,'$.family')=? AND json_extract(metadata_json,'$.stage')=?) AND deleted_at IS NULL",[ORG,tree.family,tree.stage])).results[0].n;
   if(count!==verified*4)throw Error('파일 등록 count 불일치.');
   return {originalsVerified:verified,registeredFiles:count,sourceWrites:0};
 }

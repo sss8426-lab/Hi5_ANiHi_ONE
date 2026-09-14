@@ -10,19 +10,6 @@ const LIBRARY_CATEGORIES = [
   { key: 'promotion-material', label: '홍보자료' },
 ];
 
-const CAMPUS_PRESENTATION = {
-  'design-admission': { name: '부천 디자인 입시관', group: '입시관', order: 1 },
-  'anihi-admission': { name: '부천 애니 입시관', group: '입시관', order: 2 },
-  gwangjin: { name: '서울 광진 입시관', group: '입시관', order: 3 },
-  ulsan: { name: '울산 송정 입시관', group: '입시관', order: 4 },
-  ansan: { name: '안산 입시관', group: '입시관', order: 5 },
-  paju: { name: '파주 입시관', group: '입시관', order: 6 },
-  beombak: { name: '부천 범박 캠퍼스', group: '예비관', order: 1 },
-  wonjong: { name: '부천 원종 캠퍼스', group: '예비관', order: 2 },
-  jungdong: { name: '부천 중동 캠퍼스', group: '예비관', order: 3 },
-  okgil: { name: '부천 옥길 캠퍼스', group: '예비관', order: 4 },
-};
-
 const state = {
   health: null,
   context: null,
@@ -47,6 +34,32 @@ const state = {
 };
 
 const $ = (id) => document.getElementById(id);
+let attendanceCleanup = null;
+let attendanceEpoch = 0;
+
+async function renderAttendance() {
+  attendanceCleanup?.();
+  attendanceCleanup = null;
+  const epoch = ++attendanceEpoch;
+  const host = $('attendanceHost');
+  host.replaceChildren();
+  if (state.currentView !== 'attendance') return;
+  host.textContent = '불러오는 중...';
+  if (state.context === null) return;
+  try {
+    const { mountAttendancePage } = await import('./work/attendance-page.js?v=20260914-auto');
+    if (epoch !== attendanceEpoch) return;
+    attendanceCleanup = mountAttendancePage(host, { context: state.context, campuses: state.campuses });
+  } catch {
+    if (epoch !== attendanceEpoch) return;
+    host.textContent = '출석부 도구를 불러오지 못했습니다. ';
+    const retry = document.createElement('button');
+    retry.type = 'button';
+    retry.textContent = '다시 시도';
+    retry.onclick = renderAttendance;
+    host.append(retry);
+  }
+}
 
 function h(value) {
   return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
@@ -135,7 +148,7 @@ function isSuperAdmin() {
 function modeForView(view) {
   if (view === 'mode-home') return 'mode';
   if (view === 'counseling-home' || view === 'competitions' || view === 'curriculum') return 'counseling';
-  if (view === 'work-home' || view === 'library') return 'work';
+  if (view === 'work-home' || view === 'library' || view === 'attendance') return 'work';
   return state.currentMode === 'mode' ? 'work' : state.currentMode;
 }
 
@@ -145,6 +158,7 @@ function titleForView(view) {
     'counseling-home': '너와 나의 합격의 순간',
     'work-home': '업무용',
     library: '자료보관함',
+    attendance: '출석부',
     competitions: '공모전·실기대회',
     curriculum: '꿈을 향한 커리큘럼',
     admin: '권한관리',
@@ -171,6 +185,7 @@ function switchView(view, options = {}) {
   if (eyebrow) eyebrow.textContent = view === 'counseling-home' ? 'HI5·ANiHi DATA CORE' : 'HI5·ANiHi 통합 데이터 허브';
   if (view !== 'competitions') clearAwardImages();
   if (view !== 'curriculum') window.DataCoreCurriculumLibrary?.dispose();
+  void renderAttendance();
   document.querySelectorAll('.view').forEach((section) => section.classList.remove('active'));
   $(`view-${view}`)?.classList.add('active');
   $('pageTitle').textContent = titleForView(view);
@@ -183,10 +198,16 @@ function switchView(view, options = {}) {
       'counseling-home': '/data-core/counseling',
       'work-home': '/data-core/work',
       library: '/data-core/work/library',
+      attendance: '/data-core/work/attendance',
       competitions: '/data-core/counseling/competitions',
       curriculum: '/data-core/curriculum',
     })[view];
-    if (path && location.pathname !== path) history.pushState({ view }, '', path);
+    // 자료보관함 사이드바 메뉴는 어떤 하위 폴더/검색/페이지에 있든 항상 root로 이동해야 한다.
+    // pathname만 비교하면(예: 같은 /data-core/work/library) 남아있는 ?folder=/q=/page= 쿼리가
+    // 지워지지 않고 hq-library.js의 load()가 그 쿼리를 그대로 다시 읽어버린다.
+    if (path && (location.pathname !== path || (options.resetQuery && location.search))) {
+      history.pushState({ view }, '', path);
+    }
   }
 
   if (state.context !== null) renderUser();
@@ -209,6 +230,7 @@ function initialViewFromPath() {
   if (path === '/data-core/counseling') return 'counseling-home';
   if (path === '/data-core/counseling/competitions') return 'competitions';
   if (path === '/data-core/work/library') return 'library';
+  if (path === '/data-core/work/attendance') return 'attendance';
   if (path === '/data-core/work') return 'work-home';
   return 'mode-home';
 }
@@ -289,7 +311,7 @@ function fillCampusSelect(select, options = {}) {
 }
 
 function campusPresentation(campus) {
-  return CAMPUS_PRESENTATION[campus.code] || { name: campus.name, group: '기타', order: 999 };
+  return { name: campus.name, group: '캠퍼스' };
 }
 
 function campusDisplayName(campus) {
@@ -297,12 +319,7 @@ function campusDisplayName(campus) {
 }
 
 function orderedCampuses() {
-  const groupOrder = { 입시관: 1, 예비관: 2, 기타: 3 };
-  return [...state.campuses].sort((left, right) => {
-    const a = campusPresentation(left);
-    const b = campusPresentation(right);
-    return (groupOrder[a.group] - groupOrder[b.group]) || (a.order - b.order) || campusDisplayName(left).localeCompare(campusDisplayName(right), 'ko');
-  });
+  return state.campuses;
 }
 
 function folderButton(folder, campusId = '') {
@@ -408,6 +425,9 @@ async function loadHealthAndContext() {
 
   if (!state.context?.authenticated) {
     renderCampusSelectors();
+    if (state.currentView === 'attendance') {
+      $('attendanceHost').textContent = '로그인 후 출석부를 사용할 수 있습니다.';
+    }
     return;
   }
   try {
@@ -418,6 +438,7 @@ async function loadHealthAndContext() {
   } catch (error) {
     toast(error.message, 'error');
   }
+  if (state.currentView === 'attendance') void renderAttendance();
 }
 
 async function loadFiles() {
@@ -552,7 +573,7 @@ async function uploadFile(event) {
     recordId: $('uploadRecordId').value || '',
     sourceApp: 'data-core-library', ownerId: 'shared', year: String(new Date().getFullYear()),
   };
-  uploadQueue = new DataCoreUploadQueue(files, target, renderUploadProgress);
+  uploadQueue = new DataCoreUploadQueue(files, target, renderUploadProgress,window.DataCoreLibraryThumbnail?.send || DataCoreUploadQueue.send);
   await runUploadQueue();
 }
 async function runUploadQueue(retry = false) {
@@ -842,18 +863,32 @@ const awardSelected = new Set();
 const awardImages = new AwardImageCache({ onDenied: () => {
   awardImageObserver?.disconnect();
   $('awardLibraryFiles').querySelectorAll('[data-award-thumbnail]').forEach(img => { img.removeAttribute('src'); img.dataset.loadState = 'denied'; });
-  $('awardLightboxImage').removeAttribute('src');
-  $('awardLightbox')?.close();
+  window.DataCoreImageGallery.close('awards');
   toast('이미지 접근 권한을 다시 확인해 주세요.', 'error');
+}, onPreview: async (id, blob, signal) => {
+  const file = state.awardFiles.find(file => file.id === id && file.recordId === state.selectedAwardFolderId);
+  if (!file || file.thumbnailUrl || !canDeleteAward(file) || signal.aborted) return;
+  const controller = new AbortController(), cancel = () => controller.abort();
+  signal.addEventListener('abort', cancel, {once:true});
+  const timer = setTimeout(cancel, 30000);
+  try {
+    const body = new FormData(); body.set('file', blob, 'thumbnail.webp');
+    const response = await fetch(`/api/data-core/library/files/${encodeURIComponent(id)}/thumbnail`, {
+      method:'POST', body, credentials:'same-origin', cache:'no-store', signal:controller.signal, priority:'low',
+    });
+    if (response.ok) {
+      const result = await response.json();
+      if (!signal.aborted && result.file?.id) file.thumbnailUrl = `/api/data-core/files/${encodeURIComponent(result.file.id)}`;
+    }
+  } finally { clearTimeout(timer); signal.removeEventListener('abort', cancel); }
 } });
 let awardImageObserver;
 let awardDeletePending = null;
 let awardDeleteBusy = false;
 function clearAwardImages() {
   awardImageObserver?.disconnect();
+  window.DataCoreImageGallery.close('awards');
   awardImages.clear();
-  $('awardLightboxImage')?.removeAttribute?.('src');
-  $('awardLightbox')?.close();
 }
 function updateAwardSelection() {
   const selectable = selectableAwardFiles();
@@ -959,7 +994,8 @@ function renderAwardLibraryFiles() {
     const retry = img.closest('.award-library-item').querySelector('[data-award-retry]');
     retry.classList.add('hidden');
     try {
-      const url = await awardImages.getThumbnail(img.dataset.awardThumbnail);
+      const file=state.awardFiles.find(file=>file.id===img.dataset.awardThumbnail);
+      const url = await awardImages.getThumbnail(img.dataset.awardThumbnail,file?.thumbnailUrl);
       if (folderId !== state.selectedAwardFolderId || !img.isConnected) return;
       img.src = url;
       await img.decode();
@@ -993,25 +1029,17 @@ function renderAwardLibraryFiles() {
     button.onclick = () => loadThumbnail(button.closest('.award-library-item').querySelector('[data-award-thumbnail]'));
   });
   root.querySelectorAll('[data-award-image]').forEach((link) => {
-    link.onclick = async (event) => {
+    link.onclick = (event) => {
+      if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
       event.preventDefault();
       const file = state.awardFiles.find((item) => String(item.id) === link.dataset.awardImage);
       if (!file || file.recordId !== state.selectedAwardFolderId) return;
-      const image = $('awardLightboxImage');
-      image.removeAttribute('src');
-      image.dataset.fileId = file.id;
-      const cached = awardImages.peek(file.id);
-      const preview = awardImages.peekPreview(file.id);
-      if (cached || preview) image.src = cached || preview;
-      $('awardLightboxImage').alt = file.fileName || '수상작';
-      $('awardLightboxCaption').textContent = file.fileName || '수상작';
-      $('awardLightbox').showModal();
-      try {
-        const url = cached || await awardImages.get(file.id, { priority: true });
-        if ($('awardLightbox').open && image.dataset.fileId === file.id && file.recordId === state.selectedAwardFolderId) image.src = url;
-      } catch (error) {
-        if ($('awardLightbox').open && image.dataset.fileId === file.id) $('awardLightboxCaption').textContent = error.message;
-      }
+      const files = state.awardFiles.filter(item => item.recordId === file.recordId && String(item.mimeType || '').startsWith('image/'));
+      window.DataCoreImageGallery.open({scope:'awards', title:'수상작', anchor:link,
+        index:files.findIndex(item => item.id === file.id),
+        items:files.map(item => ({title:item.fileName || '수상작',
+          previewSrc:awardImages.peek(item.id) || awardImages.peekPreview(item.id) || item.thumbnailUrl,
+          load:({priority}) => awardImages.get(item.id, {priority:priority!=='low'})}))});
     };
   });
 }
@@ -1042,7 +1070,6 @@ async function loadAwardFiles() {
   const folder = selectedAwardFolder();
   state.awardFiles = [];
   awardFilesLoading = Boolean(folder && state.context?.authenticated);
-  $('awardLightbox').close();
   renderAwardLibraryFiles();
   if (!folder || !state.context?.authenticated) {
     return;
@@ -1538,8 +1565,8 @@ async function deleteCalendarEvent(id) {
 }
 
 function bindEvents() {
-  document.querySelectorAll('.nav-item[data-view], .feature-card[data-view]').forEach((button) => {
-    button.onclick = () => switchView(button.dataset.view);
+  document.querySelectorAll('.nav-item[data-view], .feature-card[data-view], .at-work-link[data-view], #view-attendance [data-view]').forEach((button) => {
+    button.onclick = () => switchView(button.dataset.view, { resetQuery: button.dataset.view === 'library' });
   });
   $('refreshFilesBtn').onclick = loadFiles;
   $('fileSearchBtn').onclick = loadFiles;
@@ -1560,13 +1587,7 @@ function bindEvents() {
   $('competitionForm').onsubmit = createCompetitionFromForm;
   $('awardFolderForm').onsubmit = createAwardFolder;
   $('openAwardFolderBtn').onclick = () => openModal('awardFolderModal');
-  $('closeAwardLightboxBtn').onclick = () => $('awardLightbox').close();
-  $('awardLightbox').addEventListener('close', () => {
-    $('awardLightboxImage').removeAttribute('src');
-    $('awardLightboxImage').alt = '';
-    $('awardLightboxCaption').textContent = '';
-  });
-  ['awardFolderModal', 'awardLightbox', 'awardDeleteDialog'].forEach((id) => {
+  ['awardFolderModal', 'awardDeleteDialog'].forEach((id) => {
     $(id).addEventListener('click', (event) => {
       if (event.target !== $(id)) return;
       const rect = $(id).getBoundingClientRect();

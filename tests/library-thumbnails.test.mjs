@@ -48,7 +48,9 @@ test('protected image revalidation and immutable library thumbnail provenance', 
       for(const key of ['campus_id','owner_user_id','visibility'])assert.equal(row[key],sourceBefore[key]);
       const list=await h.list(folder,users.staff);assert.equal(list.body.files.filter(f=>f.id===derived.id).length,0);
       assert.equal(list.body.files.find(f=>f.id===id).thumbnailUrl,`/api/data-core/library/files/${derived.id}`);
-      const regular=await h.request('GET','/api/data-core/files',users.staff);assert.ok(!JSON.stringify(regular.body).includes(derived.id));
+      const regular=await h.request('GET','/api/data-core/files',users.staff);
+      assert.ok(!regular.body.files.some(file=>file.id===derived.id));
+      assert.equal(regular.body.files.find(file=>file.id===id).thumbnailUrl,`/api/data-core/files/${derived.id}`);
     });
     await t.test('thumbnail read/304 inherits library sharing, generic campus boundary unchanged',async()=>{
       const route=`/api/data-core/library/files/${derived.id}`;
@@ -101,6 +103,20 @@ test('protected image revalidation and immutable library thumbnail provenance', 
       assert.equal((await h.env.FAMILY_FILES.list()).objects.length,1);
       assert.deepEqual(Buffer.from(await (await h.env.FILES.get(sourceBefore.r2_key)).arrayBuffer()),original);
       assert.equal((await h.file(id)).organization_id,ORG);
+    });
+    await t.test('award upload uses the existing central thumbnail endpoint and generic list',async()=>{
+      const folder=await h.request('POST','/api/data-core/records',users.admin,{recordType:'competition-award-folder',sourceApp:'competition',campusId:A,title:'__synthetic_award_thumbnail'});
+      assert.equal(folder.status,201);
+      const form=new FormData();form.set('file',new File([original],'synthetic-award.jpg',{type:'image/jpeg'}));
+      form.set('recordId',folder.body.record.id);form.set('campusId',A);form.set('category','competition-material');
+      const uploaded=await h.request('POST','/api/data-core/files',users.admin,form);assert.equal(uploaded.status,201);
+      const id=uploaded.body.file.id,before=await h.file(id),thumb=new FormData();thumb.set('file',new File([small],'thumbnail.webp',{type:'image/webp'}));
+      const result=await h.request('POST',`/api/data-core/library/files/${id}/thumbnail`,users.admin,thumb);
+      assert.equal(result.status,201,JSON.stringify(result.body));
+      const files=await h.request('GET',`/api/data-core/files?recordId=${folder.body.record.id}`,users.admin);
+      assert.equal(files.body.files[0].thumbnailUrl,`/api/data-core/files/${result.body.file.id}`);
+      assert.deepEqual(await h.file(id),before);
+      assert.deepEqual(Buffer.from(await(await h.env.FILES.get(before.r2_key)).arrayBuffer()),original);
     });
   } finally { await h.mf.dispose(); }
 });

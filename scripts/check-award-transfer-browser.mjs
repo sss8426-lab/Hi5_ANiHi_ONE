@@ -110,7 +110,7 @@ try {
   assert.ok((await page.evaluate(()=>progressSamples)).includes('100%'));
   if(count>1)assert.ok((await page.evaluate(()=>progressSamples)).some(p=>parseInt(p)>0&&parseInt(p)<100));
   assert.ok(files.every(f=>f.recordId==='synthetic-0'));
-  await page.locator('[data-award-image]').first().click();await page.locator('#awardLightbox[open]').waitFor();await page.keyboard.press('Escape');
+  await page.locator('[data-award-image]').first().click();await page.locator('.core-image-gallery[open]').waitFor();await page.keyboard.press('Escape');
   await page.reload();await page.locator('[data-award-image]').first().waitFor();assert.equal(await page.locator('[data-award-image]').count(),count);checks+=9;
  }
  reset(2);failOnce=true;await page.reload();await page.locator('#openAwardUploadBtn:not([disabled])').waitFor();await page.locator('#openAwardUploadBtn').click();

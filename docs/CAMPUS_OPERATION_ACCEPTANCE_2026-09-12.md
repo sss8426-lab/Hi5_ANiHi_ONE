@@ -1,5 +1,33 @@
 # Campus Operation Acceptance - 2026-09-12
 
+## Operations recheck - 2026-09-14
+
+**Campus users' first password change is pending; production campus CRUD is not accepted.** This section supersedes the older status below for the September 14 operational recheck, without claiming that the September 12 counseling implementation phase is complete.
+
+- Reviewed application baseline: `1ea3db84e1e0e12663c8cfbb57efe7ad2de3729d` (PR #213). This documentation follows PR #214, main `541d062e78abff2bfc45b4b4d2e485c2bf386254`; neither changes account implementation.
+- Observed production Worker: `58a9cc6c-783c-4091-b3e8-57b7fbe3c7e8`, 100%, deployed at 2026-09-14 05:33:00 UTC. This is the verification baseline, not a future documentation deployment version.
+- Aggregate-only read-only D1 preflight: existing **10**, active **10**, first-change pending **10**, completed **0**, disabled **0**, live valid campus sessions **0**. `rows_written=0`, `changed_db=false`.
+- The scope was the ten existing login identities (`ba`, `bd`, `wj`, `bb`, `jd`, `og`, `gj`, `pj`, `as`, `us`) and their existing campus membership mappings. No credential material, individual session IDs or student/guardian records were returned.
+
+| Verification | September 14 result |
+|---|---|
+| All ten mappings, normalized login, forced change, own student/record/file CRUD | Isolated Miniflare synthetic tests pass for all ten; no production credentials used |
+| Cross-campus read/write/delete and MASTER-only route/API denial | Isolated synthetic tests pass; no production campus CRUD claim |
+| MASTER campus transfer | Isolated synthetic tests pass; IDs, original file bytes, relations and historical records preserved |
+| Login/activity timestamps, 5-minute heartbeat throttle, 15-minute cutoff, logout/disabled state | Existing isolated behavior tests pass; production accounts were not disabled or reset |
+| Signed-in production MASTER presence screen | Ten active accounts and ten presence entries visible; all offline; totals **10 / 0 online / 0 today** agree with read-only preflight |
+| Recent login display | Existing campus login timestamps visible in Korean-time formatting; no new campus login was performed |
+| Production MASTER responsive layout | Read-only DOM checks at **1920/1440/1280/1024/820/768/390**: all ten presence entries retained and no document horizontal overflow; 1024/390 screenshots inspected |
+| Production CRUD for 2-3 ready campuses | **Not run**: completed first changes=0 and campus sessions=0. Human gate remains in place |
+
+The full baseline suite passed **382/382**, including `campus-accounts-behavior` and `kkumeum-campus-transfer` coverage. Additional local synthetic browser regressions passed: content AI workflow (seven widths), kkumeum mobile shell **807 checks** (nine widths), shared design **1,444 checks** (seven widths, no page/console errors or broken assets). These are not evidence of successful live OpenAI generation or authenticated production campus CRUD. The earlier `check-campus-browser.mjs` result below is historical and was not rerun in this recheck.
+
+Existing MASTER/campus accounts, passwords, roles, campus assignments and FAMILY data were unchanged. No account recreation, reset, activation toggle, schema migration or production student/file mutation was performed for campus acceptance. The separate OpenAI synthetic-file upload and recoverable cleanup are documented in `CONTENT_OPENAI_WORKFLOW.md`, not counted as campus CRUD acceptance.
+
+**Human action:** each campus holder signs in at `/data-core/login` and completes the existing minimum-12-character first-change form privately. Do not share the password or session in chat. Then perform only the remaining synthetic production CRUD checks for 2-3 ready campuses with explicit test prefixes and soft-trash cleanup; initial login tests do not need to be repeated.
+
+## Historical September 12 evidence
+
 ## Status and scope
 
 **Partially verified, not production CRUD acceptance complete.** This document does not grant completion to PHASE 2. PHASE 3/4 implementation remains gated by the requested phase order.

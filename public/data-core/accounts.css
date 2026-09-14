@@ -44,3 +44,6 @@ body.campus-accounts .table-wrap, body.campus-accounts table td { background:var
 body.campus-accounts table th { background:var(--core-surface-soft); }
 .campus-accounts #role, .campus-accounts #campusId { background:var(--core-surface); color:var(--core-ink); }
 .campus-accounts #createForm .primary-btn { color:white; }
+.retired-accounts-filter { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 13px; }
+.retired-accounts-filter[hidden] { display: none; }
+.retired-accounts-filter input { width: 18px; height: 18px; }

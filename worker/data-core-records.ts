@@ -1,4 +1,5 @@
 import { DEFAULT_ORGANIZATION_ID, ensureDataCoreDatabase } from "./data-core";
+import { campusDisplayName } from './campus-directory';
 import { assertMutableRecordType, DERIVATIVE_RECORD_TYPE, THUMBNAIL_RECORD_TYPE } from './data-core-derivative-policy';
 import { LIBRARY_FOLDER, HQ_FOLDER } from './data-core-library-policy';
 import { curriculumRecord } from './data-core-curriculum';
@@ -162,7 +163,7 @@ function rowToRecord(row: Record<string, unknown>, tags: string[] = []) {
     id: row.id,
     organizationId: row.organization_id,
     campusId: row.campus_id,
-    campusName: row.campus_name ?? null,
+    campusName: campusDisplayName(row.campus_id, row.campus_name ?? null),
     createdByUserId: row.created_by_user_id,
     createdByName: row.created_by_name ?? null,
     recordType: row.record_type,
