@@ -74,9 +74,14 @@ function validateFile(fileName: string, sizeBytes: number) {
   if (BLOCKED_EXTENSIONS.has(extension(fileName))) error(415, '실행 파일 또는 스크립트 파일은 업로드할 수 없습니다.');
 }
 
-function profile(folder: LibraryFolder) {
+function profile(folder: LibraryFolder): {
+  area: DataCoreFileArea;
+  visibility: 'private' | 'campus' | 'organization';
+  sourceApp: string;
+  category: string;
+} {
   const category = folder.category;
-  if (!category) error(400, '파일을 저장할 폴더를 먼저 선택하세요.');
+  if (typeof category !== 'string' || !category) throw new DataCoreAccessError(400, '파일을 저장할 폴더를 먼저 선택하세요.');
   const area = (category === 'student-artwork' ? 'student-private' : 'documents-private') as DataCoreFileArea;
   const visibility = (category === 'student-artwork' || folder.shareMode === 'restricted'
     ? 'private' : folder.campusId ? 'campus' : 'organization') as 'private' | 'campus' | 'organization';
