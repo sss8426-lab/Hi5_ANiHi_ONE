@@ -74,3 +74,31 @@ test('library queue exposes active byte progress for the upload modal',async()=>
   await queue.run();
   assert.ok(snapshots.some(s=>s.currentItems?.[0]?.name==='대용량.ai'&&s.currentItems[0].loaded===37&&s.currentItems[0].total===100));
 });
+
+test('multipart retry resumes from the failed part in the same page',async()=>{
+  const originalJson=Queue.json,originalUploadPart=Queue.uploadPart,originalConcurrency=Queue.MULTIPART_CONCURRENCY;
+  let starts=0,completes=0,failedOnce=false;const calls=[];
+  Queue.MULTIPART_CONCURRENCY=1;
+  Queue.json=async(url,options)=>{
+    if(url==='/api/data-core/library/uploads'){starts++;return {sessionId:'session-1',chunkSize:16*MiB,partCount:4};}
+    if(url.endsWith('/complete')){completes++;return {file:{id:'complete'}};}
+    throw new Error(`unexpected ${url} ${options?.method}`);
+  };
+  Queue.uploadPart=async(sessionId,partNumber,blob,signal,onProgress)=>{
+    calls.push(partNumber);onProgress(blob.size);
+    if(partNumber===2&&!failedOnce){failedOnce=true;throw new Error('synthetic part failure');}
+    return {partNumber,etag:`etag-${partNumber}`};
+  };
+  const file={name:'retry.ai',size:51*MiB,type:'application/postscript',slice:(start,end)=>({size:end-start})};
+  const item={};
+  try {
+    await assert.rejects(()=>Queue.sendMultipart(file,{recordId:'folder'},new AbortController().signal,()=>{},item),/synthetic part failure/);
+    const result=await Queue.sendMultipart(file,{recordId:'folder'},new AbortController().signal,()=>{},item);
+    assert.equal(result.file.id,'complete');
+  } finally {
+    Queue.json=originalJson;Queue.uploadPart=originalUploadPart;Queue.MULTIPART_CONCURRENCY=originalConcurrency;
+  }
+  assert.equal(starts,1,'retry should reuse the existing upload session');
+  assert.equal(completes,1);
+  assert.deepEqual(calls,[1,2,2,3,4],'only the failed and not-yet-uploaded parts should be sent again');
+});
