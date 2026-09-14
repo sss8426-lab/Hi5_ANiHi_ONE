@@ -9,6 +9,7 @@ const out='outputs/counseling-ux';await fs.mkdir(out,{recursive:true});
 const browser=await chromium.launch({headless:true,channel:'chrome'});
 const png=Buffer.from(encode({width:16,height:20,channels:4,depth:8,data:new Uint8Array(16*20*4).fill(150)}));
 const universities=Array.from({length:35},(_,i)=>({id:i+1,name:`합성대 ${i+1}`,campus:'합성캠퍼스',major:'웹툰콘텐츠학과',admission:'실기우수',year:2027,gradeRatio:30,skillRatio:70,requiredScores:{},acceptedStats:{},checkedComplete:true,campusLocation:i===0?null:{campus:'합성캠퍼스',latitude:37.56-i/100,longitude:126.98,verificationStatus:'verified',sourceUrl:'https://synthetic.example/campus'}}));
+universities.push({id:36,name:'한국영상대',major:'애니메이션전공',admission:'SYNTHETIC',year:2027,checkedComplete:true,gradeRatio:30,skillRatio:70});
 const students=Array.from({length:14},(_,i)=>({id:i+1,name:`합성학생 ${i+1}`,studentType:'result',campusId:'synthetic-campus',gpa:3,skill:80,track:'웹툰',skillLevel:'중',artworks:Array.from({length:5},(_,j)=>({path:`artworks/synthetic-${i}-${j}.png`,name:`합성그림 ${j+1}`})),admissionResults:[{year:'2027',round:'수시',result:i<6?'합격':'불합격',universityName:'합성대 1',major:'웹툰콘텐츠학과',resultNote:i<6?'':['','예비30','예비 535번','468','예비424','예비 148번','예비9','예비4'][i-6]}]}));
 let checks=0, dataReads=0;const requests=new Map(),errors=[];
 try {
@@ -62,6 +63,11 @@ try {
       if(id.endsWith('Score'))assert.ok(box.width<=80,`${id} compact`);
     }
     await noOverflow(`dashboard ${width}`);await p.screenshot({path:`${out}/dashboard-${width}.png`,fullPage:true});
+    await p.locator('#track').selectOption('애니메이션');await p.locator('#analyzeBtn').click();
+    assert.equal(await p.locator('.top-list tbody tr[data-uni]').count(),1);
+    assert.equal(await p.locator('.top-list tbody tr[data-uni]').first().getAttribute('data-uni'),'36');
+    assert.match(await p.locator('.top-list .campus-distance').textContent(),/서울시청 \d+\.\d km/);checks+=3;
+    await p.locator('#track').selectOption('웹툰');await p.locator('#analyzeBtn').click();
     await p.locator('#goSearchBtn').click();await p.locator('#aName').waitFor();assert.ok(p.url().endsWith('#page=admin'));
     await navigate('cases');await p.locator('#caseSearchInput').fill('합성대');await p.locator('#caseSearchBtn').click();
     assert.equal(await p.locator('[data-case-column="pass"] .case-compare-card').count(),3);
@@ -86,7 +92,8 @@ try {
     await p.locator('.student-detail-row [data-open-artwork]').first().scrollIntoViewIfNeeded();
     await p.waitForLoadState('networkidle');
     const loaded=await p.locator('#students img[data-student-artwork]').evaluateAll(images=>images.filter(i=>i.complete&&i.naturalWidth).map(i=>new URL(i.src).pathname));
-    const beforeOpen=new Map(requests);await p.locator('.student-detail-row [data-open-artwork]').first().click();await p.locator('.core-image-gallery img').evaluate(i=>i.decode());
+    const beforeOpen=new Map(requests);await p.locator('.student-detail-row [data-open-artwork]').first().click();
+    await p.waitForFunction(()=>document.querySelector('.cig-feedback')?.hidden&&document.querySelector('.cig-image')?.naturalWidth);
     assert.equal(await thumb.getAttribute('data-synthetic-identity'),'retained');
     for(const key of loaded)if(key!==firstPath)assert.equal(requests.get(key),beforeOpen.get(key),`loaded image re-request ${key}`);
     await p.keyboard.press('Escape');assert.equal(await p.locator('.core-image-gallery').count(),0);
