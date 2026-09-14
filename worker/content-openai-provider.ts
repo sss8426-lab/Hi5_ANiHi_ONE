@@ -40,7 +40,11 @@ async function callOpenAi(env: OpenAiEnv, endpoint: 'responses' | 'images/edits'
     if (signal?.aborted) controller.abort();
     const headers: Record<string, string> = { authorization: `Bearer ${env.OPENAI_API_KEY}` };
     if (typeof body === 'string') headers['content-type'] = 'application/json';
-    const response = await fetch(`https://api.openai.com/v1/${endpoint}`, { method: 'POST', headers, body, signal: controller.signal, redirect: 'error' });
+    // Cloudflare Workers' fetch() only accepts 'follow' or 'manual' — 'error' throws immediately at
+    // the edge before the request is even sent. 'manual' keeps the original intent (never blindly
+    // follow an unexpected redirect from OpenAI): a 3xx response comes back with response.ok===false,
+    // which the existing status handling below already treats as a failure.
+    const response = await fetch(`https://api.openai.com/v1/${endpoint}`, { method: 'POST', headers, body, signal: controller.signal, redirect: 'manual' });
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');
       // Diagnostic only — logs OpenAI's own error body (never the request, never the API key), so a
