@@ -76,23 +76,62 @@ test('campus presentation: all selectors and library share names/order without s
   } finally { await h.mf.dispose(); }
 });
 
-test('shared folder presentation preserves server order, custom names, groups and nested search', async () => {
+test('shared folder presentation hides HQ root entries while preserving campus and custom folders', async () => {
   const window = {};
   vm.runInNewContext(await fs.readFile('public/data-core/library-client.js', 'utf8'), { window });
   const folders = [
     { id: 'hq-default:resources', title: '자료', group: '본원 작업물' },
     ...expected.map(([id, title]) => ({ id: 'campus:' + id, title, group: '캠퍼스' })),
     { id: 'custom', title: '직접 만든 자료', group: '사용자 정의 폴더' },
+    { id: 'stored-hq', parentId: 'hq', title: '수업그림', group: '본원 작업물' },
+    { id: 'hq', title: '본원 작업물' },
+    { id: 'custom-resources', parentId: 'root', title: '자료', group: '사용자 정의 폴더' },
   ];
   const clone = value => JSON.parse(JSON.stringify(value));
+  const before = clone(folders);
   const groups = clone(window.DataCoreLibraryClient.folderGroups({ folder: { id: 'root' }, folders }));
-  assert.deepEqual(groups.map(([name]) => name), ['본원 작업물', '캠퍼스', '사용자 정의 폴더']);
-  assert.deepEqual(groups[1][1].map(f => f.title), expected.map(c => c[1]));
+  assert.deepEqual(groups.map(([name]) => name), ['캠퍼스', '사용자 정의 폴더']);
+  assert.deepEqual(groups[0][1].map(f => f.title), expected.map(c => c[1]));
+  assert.deepEqual(groups[1][1].map(f => f.id), ['custom', 'custom-resources']);
+  assert.deepEqual(clone(window.DataCoreLibraryClient.folderGroups({ folder: { id: 'root' }, folders }, '수업그림')), []);
   assert.deepEqual(clone(window.DataCoreLibraryClient.folderGroups({ folder: { id: 'root' }, folders }, '송정')),
     [['캠퍼스', [folders[8]]]]);
   assert.deepEqual(clone(window.DataCoreLibraryClient.folderGroups({ folder: { id: 'custom' }, folders: folders.slice(-1) })),
     [['폴더', folders.slice(-1)]]);
+  assert.deepEqual(clone(window.DataCoreLibraryClient.folderGroups({ folder: { id: 'hq' }, folders: [folders[0]] })),
+    [['폴더', [folders[0]]]], 'authorized legacy browsing remains usable');
+  assert.deepEqual(folders, before, 'presentation does not mutate source folders');
   for (const path of ['public/data-core/content.js', 'public/data-core/work/hq-library.js']) {
     assert.match(await fs.readFile(path, 'utf8'), /DataCoreLibraryClient\.folderGroups/);
   }
+});
+
+test('root listing omits virtual and stored HQ folders without changing records or original bytes', async () => {
+  const h = await libraryHarness();
+  try {
+    const stored = await h.folder('hq', '__synthetic_hq_preserved');
+    assert.equal(stored.status, 201);
+    const uploaded = await h.upload('hq-default:resources');
+    assert.equal(uploaded.status, 201);
+    const fileBefore = await h.file(uploaded.body.file.id);
+    const bytesBefore = await (await h.env.FILES.get(fileBefore.r2_key)).arrayBuffer();
+    const rowsBefore = (await h.env.DB.prepare('SELECT * FROM data_records ORDER BY id').all()).results;
+    for (const user of [users.admin, users.director, users.teacher, users.staff]) {
+      for (let repeat = 0; repeat < 2; repeat++) {
+        const root = await h.browse('root', user);
+        assert.equal(root.status, 200);
+        assert.deepEqual(root.body.folders.map(f => f.id), expected.map(c => 'campus:' + c[0]));
+      }
+    }
+    assert.equal((await h.browse(stored.body.folder.id)).status, 200);
+    assert.equal((await h.browse('hq-default:resources')).status, 200);
+    const download = await h.raw('GET', `/api/data-core/library/files/${fileBefore.id}/download`);
+    assert.equal(download.status, 200);
+    assert.deepEqual(await download.arrayBuffer(), bytesBefore);
+    assert.equal((await h.browse(stored.body.folder.id, users.outsider)).status, 403);
+    assert.equal((await h.browse('root', null)).status, 401);
+    assert.deepEqual((await h.env.DB.prepare('SELECT * FROM data_records ORDER BY id').all()).results, rowsBefore);
+    assert.deepEqual(await h.file(fileBefore.id), fileBefore);
+    assert.deepEqual(await (await h.env.FILES.get(fileBefore.r2_key)).arrayBuffer(), bytesBefore);
+  } finally { await h.mf.dispose(); }
 });

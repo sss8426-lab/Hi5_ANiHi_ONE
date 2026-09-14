@@ -73,6 +73,9 @@ try {
   await visit();
   assert.equal(await page.locator('#legacyLibrary').isVisible(),false);
   const noCommon=async()=>{
+    assert.equal(await page.getByRole('heading',{name:'본원 작업물',exact:true}).count(),0);
+    assert.equal(await page.locator('#libraryFolders [data-lb-folder^="hq-default:"], #libraryFolders [data-lb-folder="hq"]').count(),0);
+    assert.equal(await page.locator(`#libraryFolders [data-lb-folder="${fixtures.hq}"]`).count(),0);
     assert.equal(await page.getByRole('heading',{name:'공통',exact:true}).count(),0);
     assert.equal(await page.locator('#libraryFolders [data-lb-folder="organization"]').count(),0);
     assert.equal(await page.locator('#libraryFolders [data-lb-folder="campus:campus-synthetic-acceptance-20260909"]').count(),0);
