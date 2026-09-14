@@ -181,7 +181,7 @@ function styleEngine(doc,template) {
   const xf=id=>children(xfs,'xf')[id]||children(xfs,'xf')[0];
   const fillId=cell=>number(xf(number(cell,'s',0)),'fillId',0);
   const fillColor=id=>colorHex(child(child(children(fills,'fill')[id],'patternFill'),'fgColor'),template);
-  const addFill=hex=>{const f=create(doc,'fill'),p=create(doc,'patternFill',{patternType:'solid'});p.appendChild(create(doc,'fgColor',{rgb:hex}));p.appendChild(create(doc,'bgColor',{indexed:64}));f.appendChild(p);fills.appendChild(f);fills.setAttribute('count',String(children(fills,'fill').length));return children(fills,'fill').length-1;};
+  const addFill=hex=>{const found=children(fills,'fill').findIndex(f=>attr(child(f,'patternFill'),'patternType')==='solid'&&attr(child(child(f,'patternFill'),'fgColor'),'rgb')===hex);if(found>=0)return found;const f=create(doc,'fill'),p=create(doc,'patternFill',{patternType:'solid'});p.appendChild(create(doc,'fgColor',{rgb:hex}));p.appendChild(create(doc,'bgColor',{indexed:64}));f.appendChild(p);fills.appendChild(f);fills.setAttribute('count',String(children(fills,'fill').length));return children(fills,'fill').length-1;};
   const cache=new Map();
   const withFill=(id,fill)=>{if(number(xf(id),'fillId',0)===fill)return id;const key=`${id}:${fill}`;if(cache.has(key))return cache.get(key);const n=xf(id).cloneNode(true);n.setAttribute('fillId',String(fill));n.setAttribute('applyFill','1');xfs.appendChild(n);const next=children(xfs,'xf').length-1;xfs.setAttribute('count',String(next+1));cache.set(key,next);return next;};
   return {xf,fillId,fillColor,addFill,withFill};
@@ -249,7 +249,14 @@ export function planPages(sheet,area,m,originalRows) {
   if(s.fit&&s.fitHeight===1)scale=Math.min(scale,(height-3)/(originalHeight+2));
   const headerHeight=header.reduce((n,r)=>n+d.height(r),0),available=height/scale-headerHeight;
   const pages=[];let page=[],used=0;
-  for(const row of rows){const h=d.height(row);if(page.length&&used+h>available+0.5){pages.push([...header,...page]);page=[];used=0;}page.push(row);used+=h;}
+  for(let i=0;i<rows.length;){
+    const row=rows[i],block=m.studentBlocks?.find(b=>b.start===row);
+    const group=block?rows.slice(i,i+block.end-block.start+1):[row];
+    const h=group.reduce((n,r)=>n+d.height(r),0);
+    check(h<=available+0.5,'학생 한 명의 영역이 한 페이지보다 큽니다. Excel 인쇄 설정을 확인해주세요.');
+    if(page.length&&used+h>available+0.5){pages.push([...header,...page]);page=[];used=0;}
+    page.push(...group);used+=h;i+=group.length;
+  }
   if(page.length)pages.push([...header,...page]);
   check(pages.length<=50,'인쇄 페이지가 너무 많습니다. 학생 범위를 확인해주세요.');
   const merges=all(sheet,'mergeCell').map(n=>range(attr(n,'ref')));
@@ -404,3 +411,8 @@ export function printDocument(result) {
   }).join('');
   return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>출석부</title><style>${TABLE_CSS}@page{size:A4 ${p.settings.orientation};margin:${m.top}in ${m.right}in ${m.bottom}in ${m.left}in}html,body{padding:0;margin:0}.at-print-page{width:${p.width}px;height:${Math.floor(p.height)-2}px;position:relative;overflow:hidden;break-after:page;page-break-after:always}.at-print-page:last-child{break-after:auto;page-break-after:auto}.at-sheet{position:absolute;left:${left}px;top:var(--at-print-top);transform:scale(${p.scale});transform-origin:top left}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}</style></head><body>${pages}</body></html>`;
 }
+
+// Shared OOXML primitives for automatic recognition; the original template adapter remains available.
+export {all,child,children,attr,number,check,cellRef,range,textOf,indexSheet,areaFor,
+  dateParts,putValue,mutableSheet,styleEngine,cellStyleId,mostCommon,updateTitle,
+  ensureSheet,create,setNamedRange,namedRange,dimensions,colorHex};
