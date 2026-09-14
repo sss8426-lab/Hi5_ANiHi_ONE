@@ -94,11 +94,14 @@
       `<div class="lb-folder-item${f.canDelete && state.folder.id === 'root' ? ' lb-folder-editable' : ''}"><a class="lb-folder" href="${h(href(f.id))}" data-lb-folder="${h(f.id)}">${icon('Folder')}<strong>${h(f.title)}</strong></a>
       ${f.canDelete && state.folder.id === 'root' ? `<details class="lb-folder-menu"><summary aria-label="${h(f.title)} 폴더 메뉴" title="폴더 메뉴">${icon('Menu')}</summary><button type="button" data-lb-delete-folder="${h(f.id)}">폴더 삭제</button></details>` : ''}</div>`).join('')}</div></section>`).join('');
   }
-  function size(bytes) { return bytes < 1024 ? `${bytes} B` : bytes < 1048576 ? `${(bytes/1024).toFixed(1)} KB` : `${(bytes/1048576).toFixed(1)} MB`; }
+  function size(bytes) { return bytes < 1024 ? `${bytes} B` : bytes < 1048576 ? `${(bytes/1024).toFixed(1)} KB` : bytes < 1073741824 ? `${(bytes/1048576).toFixed(1)} MB` : `${(bytes/1073741824).toFixed(2)} GB`; }
+  const opaquePreview = fileName => /\.(ai|psd|psb|clip|eps|zip)$/i.test(fileName || '');
+  const previewable = file => !opaquePreview(file.fileName) && /^(image\/(jpeg|png|webp|gif|avif)|application\/pdf|text\/plain)$/.test(file.mimeType);
+  const imageFile = file => !opaquePreview(file.fileName) && /^image\/(jpeg|png|webp|gif|avif)$/.test(file.mimeType);
   function renderFiles(files) {
     $('libraryFiles').innerHTML = files.length ? `<ul class="lb-file-list">${files.map(f => {
-      const preview = /^(image\/(jpeg|png|webp|gif|avif)|application\/pdf|text\/plain)$/.test(f.mimeType);
-      const image = /^image\/(jpeg|png|webp|gif|avif)$/.test(f.mimeType);
+      const preview = previewable(f);
+      const image = imageFile(f);
       const visual = image ? `<a class="lb-thumbnail" data-lb-image="${h(f.id)}" href="${h(f.previewUrl)}" target="_blank" rel="noopener" aria-label="${h(f.fileName)} 미리보기">${icon('Image')}<img hidden data-original="${h(f.previewUrl)}" data-thumbnail="${h(f.thumbnailUrl||'')}" alt="" width="112" height="84" loading="lazy" decoding="async"></a>` : icon('BookOpen');
       return `<li class="lb-file" data-library-file="${h(f.id)}"><div class="lb-file-main">${visual}
         <div><strong>${h(f.fileName)}</strong><small>${h(f.mimeType)} · ${h(size(f.sizeBytes))} · ${h(new Date(f.createdAt).toLocaleDateString('ko-KR'))}</small>
@@ -147,7 +150,7 @@
     const image = e.target.closest('[data-lb-image]');
     if (image && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey && e.button === 0) {
       e.preventDefault();
-      const files=state.files.filter(f=>/^image\/(jpeg|png|webp|gif|avif)$/.test(f.mimeType));
+      const files=state.files.filter(imageFile);
       window.DataCoreImageGallery.open({scope:'library',title:state.folder.title,anchor:image,
         index:files.findIndex(f=>f.id===image.dataset.lbImage),
         items:files.map(f=>({title:f.fileName,previewSrc:imageCache.peek(f.thumbnailUrl||f.previewUrl)||f.thumbnailUrl,load:({priority})=>imageCache.get(f.previewUrl,{priority:priority!=='low'})}))});
@@ -191,7 +194,10 @@
   };
   function progress(p) {
     $('libraryProgressCount').textContent=`${p.count}개 파일 · ${p.percent}% · 완료 ${p.success}개 · 실패 ${p.failed}개`;
-    $('libraryProgress').value=p.percent; $('libraryProgressCurrent').textContent=p.current;
+    $('libraryProgress').value=p.percent;
+    const active=p.currentItems?.[0];
+    $('libraryProgressCurrent').textContent=active?`${active.name}\n${size(active.loaded)} / ${size(active.total)}`:p.current;
+    $('libraryProgressCurrent').style.whiteSpace='pre-line';
     $('libraryCancelUpload').hidden=!p.running; $('libraryCloseProgress').hidden=p.running; $('libraryRetry').hidden=p.running||!p.failed||p.cancelled;
     $('libraryUploadErrors').innerHTML=state.queue?.items.filter(i=>i.status==='failed').map(i=>`<li>${h(i.file.name)}: ${h(i.error)}</li>`).join('')||'';
   }

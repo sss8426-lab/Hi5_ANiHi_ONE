@@ -1,5 +1,6 @@
 (() => {
   const supported = /^image\/(jpeg|png|webp|avif|gif)$/;
+  const opaqueDesignFile = /\.(ai|psd|psb|clip|eps)$/i;
   let serial=Promise.resolve();
   async function create(file,id,signal=new AbortController().signal,endpoint) {
     signal.throwIfAborted();
@@ -22,9 +23,9 @@
       return response.json();
     } finally { bitmap.close();canvas.width=canvas.height=0; }
   }
-  async function send(file,target,signal,onProgress) {
-    const result=await DataCoreUploadQueue.send(file,target,signal,onProgress);
-    if(!supported.test(file.type)||!result.file?.id)return result;
+  async function send(file,target,signal,onProgress,item) {
+    const result=await DataCoreUploadQueue.send(file,target,signal,onProgress,item);
+    if(opaqueDesignFile.test(file.name)||!supported.test(file.type)||!result.file?.id)return result;
     // Decode only one local image at a time; an optional preview failure never retries the original upload.
     const task=serial.then(()=>create(file,result.file.id,signal));serial=task.catch(()=>{});
     try {await task;result.thumbnailCreated=true;}

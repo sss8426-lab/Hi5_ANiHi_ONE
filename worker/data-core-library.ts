@@ -7,10 +7,16 @@ import { privateImageResponse } from './private-image-response';
 import { isSelectableCampus } from './campus-directory';
 import { LibraryTree, LibraryFolder, LIBRARY_FOLDER, HQ_FOLDER, LIBRARY_SOURCE, LIBRARY_CATEGORIES, HQ_DEFAULTS,
   libraryMetadata, libraryCanWrite, libraryCanDelete, libraryCanDeleteFolder, libraryFolderScope, requireLibraryWrite, libraryFileReadable } from './data-core-library-policy';
+import { SIMPLE_UPLOAD_MAX_BYTES, startLibraryMultipartUpload, uploadLibraryMultipartPart,
+  completeLibraryMultipartUpload, abortLibraryMultipartUpload, parseUploadedParts } from './data-core-library-multipart';
 
 function error(status: number, message: string): never { throw new DataCoreAccessError(status, message); }
 const json = (value: unknown, status = 200) => Response.json(value, { status, headers: { 'cache-control': 'private, no-store' } });
 const text = (value: unknown) => typeof value === 'string' ? value.trim() : '';
+const OPAQUE_PREVIEW_EXTENSIONS = new Set(['ai','psd','psb','clip','eps','zip']);
+const fileExtension = (name: unknown) => { const value = text(name).toLowerCase(), index = value.lastIndexOf('.'); return index >= 0 ? value.slice(index + 1) : ''; };
+const previewableFile = (row: Record<string, any>) => !OPAQUE_PREVIEW_EXTENSIONS.has(fileExtension(row.original_file_name)) &&
+  /^(image\/(jpeg|png|webp|gif|avif)|application\/pdf|text\/plain)$/.test(String(row.mime_type || ''));
 const serialize = (tree: LibraryTree, f: LibraryFolder) => ({ id: f.id, title: f.title, parentId: f.parentId,
   campusId: f.campusId, category: f.category, group: f.group, canWrite: libraryCanWrite(tree.context, f),
   systemManaged: Boolean(f.systemManaged), canDelete: libraryCanDeleteFolder(tree.context, f),
@@ -195,9 +201,36 @@ export async function handleLibraryApi(request: Request, db: D1Database, bucket:
   }
   const folderMatch = /^\/api\/data-core\/library\/folders\/([^/]+)$/.exec(url.pathname);
   if (folderMatch && request.method === 'DELETE') return json(await deleteFolder(tree, decodeURIComponent(folderMatch[1])));
+
+  if (url.pathname === '/api/data-core/library/uploads' && request.method === 'POST') {
+    let input; try { input = await request.json(); } catch { error(400, '업로드 요청을 확인하세요.'); }
+    if (!input || typeof input !== 'object' || Array.isArray(input)) error(400, '업로드 요청을 확인하세요.');
+    let folder = await tree.resolve(text((input as Record<string, unknown>).folderId));
+    requireLibraryWrite(context, folder);
+    folder = await materialize(tree, folder);
+    return json(await startLibraryMultipartUpload(db, bucket, context, folder, input as Record<string, unknown>), 201);
+  }
+  const partMatch = /^\/api\/data-core\/library\/uploads\/([^/]+)\/parts\/([1-9][0-9]*)$/.exec(url.pathname);
+  if (partMatch && request.method === 'PUT') return json(await uploadLibraryMultipartPart(request, db, bucket, tree, context,
+    decodeURIComponent(partMatch[1]), Number(partMatch[2])));
+  const completeMatch = /^\/api\/data-core\/library\/uploads\/([^/]+)\/complete$/.exec(url.pathname);
+  if (completeMatch && request.method === 'POST') {
+    let input; try { input = await request.json(); } catch { error(400, '업로드 완료 요청을 확인하세요.'); }
+    if (!input || typeof input !== 'object' || Array.isArray(input)) error(400, '업로드 완료 요청을 확인하세요.');
+    return json(await completeLibraryMultipartUpload(db, bucket, tree, context, decodeURIComponent(completeMatch[1]),
+      parseUploadedParts((input as Record<string, unknown>).parts)));
+  }
+  const uploadMatch = /^\/api\/data-core\/library\/uploads\/([^/]+)$/.exec(url.pathname);
+  if (uploadMatch && request.method === 'DELETE') return json(await abortLibraryMultipartUpload(db, bucket, tree, context,
+    decodeURIComponent(uploadMatch[1])));
+
   if (url.pathname === '/api/data-core/library/files' && request.method === 'GET') return json(await listFiles(tree,
     await tree.resolve(text(url.searchParams.get('folderId')) || 'root'), url));
   if (url.pathname === '/api/data-core/library/files' && request.method === 'POST') {
+    const declaredSize = Number(request.headers.get('x-data-core-file-size'));
+    if (request.headers.has('x-data-core-file-size') && Number.isFinite(declaredSize) && declaredSize > SIMPLE_UPLOAD_MAX_BYTES) {
+      error(413, '50MiB 초과 파일은 대용량 업로드로 전송해 주세요.');
+    }
     const form = await request.formData();
     let folder = await tree.resolve(text(form.get('recordId')));
     requireLibraryWrite(context, folder);
@@ -230,7 +263,7 @@ export async function handleLibraryApi(request: Request, db: D1Database, bucket:
       if (row.category === THUMBNAIL_CATEGORY && !await bucket.head(source.r2_key)) error(404,'원본 파일을 찾을 수 없습니다.');
       const object = await bucket.get(row.r2_key);
       if (!object) error(404, '원본 파일을 찾을 수 없습니다.');
-      const preview = /^(image\/(jpeg|png|webp|gif|avif)|application\/pdf|text\/plain)$/.test(row.mime_type);
+      const preview = previewableFile(row);
       const disposition = match[2] || !preview ? 'attachment' : 'inline';
       return privateImageResponse(request,object,new Headers({
         'content-type': preview ? row.mime_type : 'application/octet-stream', 'cache-control': 'private, no-store',
