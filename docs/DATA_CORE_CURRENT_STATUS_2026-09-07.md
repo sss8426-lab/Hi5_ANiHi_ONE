@@ -789,3 +789,21 @@ Folder navigation, breadcrumb/history, nested-folder creation, shared upload que
 새 테이블·새 R2 구조·새 권한 규칙은 만들지 않았다. 썸네일·파생 이미지·휴지통 파일·완료되지 않은 multipart
 세션은 자동으로 제외된다. 프런트엔드는 기존 `navigate()`/`load()` 흐름을 그대로 재사용한다. 자료보관함 외
 다른 서비스는 변경하지 않았다. 계약과 테스트 목록은 `docs/LIBRARY_RECENT_UPLOADS_2026-09-14.md`를 따른다.
+
+## 25. 블로그 자동화 네이버 홈피드형 콘텐츠 전략 및 발행 패키지 (2026-09-14)
+
+블로그 "AI로 글 작성"을 사진 선택 → 글 방향(검색형/홈피드형/균형형, 기본 균형형) →
+AI 전략 분석(핵심 주제 1개 + 제목 후보 3개 + 본문 초안 1회 생성) → 제목 선택 → 발행 패키지 완성
+흐름으로 확장했다. [바로 글 만들기]로 제목 선택을 건너뛰고 기존처럼 한 번에 생성할 수도 있다.
+제목을 strategyMode 추천과 다른 후보로 바꾸면 사진을 다시 보내지 않고 `POST /api/data-core/content/refine`
+(`mode:'retitle'`)로 lead/body만 최소 재작성하고, [다른 제목 만들기]도 같은 엔드포인트의
+`mode:'titles'`로 제목만 다시 만든다(비용 제어). 서버는 생성 직후 홈피드 품질검사(핵심주제·제목-도입부
+일치·키워드 반복·광고 비중)를 거쳐 문제가 있으면 정확히 한 번만 교정 재작성하고, 그래도 남는 문제는
+`warnings`로만 알린다(무한 재생성 없음). 최근 블로그 초안 제목을 함께 보내 중복 제목을 피하도록
+지시하고, 클라이언트도 근접 중복을 비차단 경고로 보여준다. 다음 콘텐츠 아이디어 3개, 발행 전 확인
+체크리스트, 네이버 발행용 복사(제목/본문/해시태그/CTA + 이미지 순서, plain text)를 추가했다.
+네이버 비공식 자동 로그인/자동 발행(쿠키 저장, 세션 탈취, CDP 제어, CAPTCHA 우회, RabbitWrite 직접
+호출 등)은 만들지 않았다 — Generation과 Publishing을 논리적으로 분리해 두었을 뿐이다. 기존
+draft(`title`/`content`/`hashtags`/`cta`)는 그대로 열리고, 새 필드는 metadata에 additive로만
+저장된다(DB migration 없음). 인스타 자동화는 코드 한 줄도 바뀌지 않았다. 세부 내용과 테스트는
+`docs/BLOG_HOMEFEED_CONTENT_STRATEGY_2026-09-14.md`를 따른다.

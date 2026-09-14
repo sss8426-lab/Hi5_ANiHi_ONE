@@ -1,6 +1,8 @@
 import baseWorker from "./index";
 import {
   DataCoreAccessError,
+  requireCampusAccess,
+  requireWriteAccess,
   resolveDataCoreAccess,
 } from "./data-core-access";
 import {
@@ -33,7 +35,9 @@ import {
 } from "./data-core-content";
 import {
   generateContentDraft as generateContentWithProvider,
+  refineContentDraft,
   type ContentGenerationInput,
+  type ContentRefineInput,
 } from "./data-core-content-generation";
 import { runDataCoreDiagnostics } from "./data-core-diagnostics";
 import {
@@ -501,6 +505,26 @@ async function handleContentApi(request: Request, env: Env) {
       const run = () => generateContentWithProvider(env.DB!, context, input, provider, photos);
       const generation = provider ? await withAiRequest(env.DB, context, input.requestId, scope.campusId, run) : await run();
       return jsonResponse(generation, { status: generation.available ? 200 : 503 });
+    } catch (error) {
+      if (error instanceof ContentAiError) return jsonResponse({ error: error.message, code: error.code }, { status: error.status });
+      throw error;
+    }
+  }
+  // Blog-only lightweight follow-ups to /generate: regenerate the 3 title candidates, or rewrite
+  // lead/body to fit a newly-picked title. Always JSON (never multipart — no photos are re-sent).
+  if (url.pathname === "/api/data-core/content/refine") {
+    if (request.method !== "POST") {
+      return jsonResponse({ error: "지원하지 않는 콘텐츠 생성 API 요청입니다." }, { status: 405 });
+    }
+    const input = (await contentJson(request)) as ContentRefineInput;
+    const campusId = typeof input.campusId === "string" && input.campusId ? input.campusId : null;
+    requireWriteAccess(context);
+    if (!context.isSuperAdmin || campusId) requireCampusAccess(context, campusId);
+    const provider = env.FILES ? openAiContentProvider(env, env.DB, env.FILES, context, request.signal) : undefined;
+    try {
+      const run = () => refineContentDraft(env.DB!, context, input, provider);
+      const refinement = provider ? await withAiRequest(env.DB, context, input.requestId, campusId, run) : await run();
+      return jsonResponse(refinement, { status: refinement.available ? 200 : 503 });
     } catch (error) {
       if (error instanceof ContentAiError) return jsonResponse({ error: error.message, code: error.code }, { status: error.status });
       throw error;

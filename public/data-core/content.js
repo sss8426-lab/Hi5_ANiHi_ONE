@@ -17,6 +17,18 @@ const state = {
   aiController: null,
   aiFile: null,
   aiSourceId: null,
+  // Blog homefeed/search content-strategy state (unused for Instagram).
+  blogStrategy: null,
+  blogTitles: null,
+  blogSelectedTitleKind: null,
+  blogFittedKind: null, // which title kind the current lead/body was actually written for
+  currentLead: '',
+  currentBody: '',
+  lastHashtags: [],
+  lastCta: '',
+  blogNextTopics: [],
+  blogWarnings: [],
+  blogRecentTitlesCache: [],
 };
 // Instagram never reaches this: it always replaces the selection with a single photo (see
 // renderFilePicker's pick handler), so this only ever gates the blog "AI로 글 작성" flow.
@@ -169,6 +181,8 @@ function setSourceApp(sourceApp) {
   $('regenerateAi').textContent = instagram ? '다시 편집' : '다시 작성';
   $('copyContent').textContent = instagram ? '문구 복사' : '전체 복사';
   $('aiPrivacy').textContent = instagram ? 'AI 이미지 편집은 선택한 대표 사진 1장에 대해 실행됩니다.' : '선택한 사진은 AI 분석에 맞게 자동 최적화되어 전송됩니다. 자료보관함 원본 파일은 변경되지 않습니다.';
+  $('strategyModeField').hidden = instagram;
+  $('quickGenerateAi').hidden = instagram;
   resetDraftForm(false);
 }
 
@@ -302,6 +316,14 @@ function renderFilePicker() {
 }
 
 function draftPayload() {
+  const metadata = { footer: $('resultFooter').value, callToAction: $('resultFooter').value || null };
+  if (state.sourceApp === 'blog') {
+    metadata.strategyMode = $('strategyMode').value;
+    if (state.blogStrategy) metadata.strategy = state.blogStrategy;
+    if (state.blogTitles) metadata.titles = state.blogTitles;
+    if (state.blogSelectedTitleKind) metadata.selectedTitleKind = state.blogSelectedTitleKind;
+    if (state.blogNextTopics.length) metadata.nextTopics = state.blogNextTopics;
+  }
   return {
     sourceApp: state.sourceApp,
     campusId: $('draftCampus').value || null,
@@ -313,7 +335,7 @@ function draftPayload() {
     relatedFileIds: state.selectedFileIds,
     derivedFileIds: state.selectedDerivedFileIds,
     tags: normalizedHashtags($('draftTags').value),
-    metadata: { footer: $('resultFooter').value, callToAction: $('resultFooter').value || null },
+    metadata,
   };
 }
 
@@ -364,6 +386,13 @@ function resetDraftForm(clearSource = true) {
   $('newDraftBtn').classList.add('hidden');
   $('deleteDraftBtn').classList.add('hidden');
   $('saveDraftBtn').textContent = '초안 저장';
+  state.blogStrategy = null; state.blogTitles = null; state.blogSelectedTitleKind = null; state.blogFittedKind = null;
+  state.currentLead = ''; state.currentBody = ''; state.lastHashtags = []; state.lastCta = ''; state.blogNextTopics = []; state.blogWarnings = [];
+  $('strategyMode').value = 'balanced';
+  $('titlePicker').hidden = true;
+  $('titlePickerStatus').textContent = '';
+  $('nextTopics').hidden = true;
+  $('publishChecklist').hidden = true;
   renderSelectedFiles();
   renderFilePicker();
 }
@@ -384,6 +413,18 @@ function loadDraftIntoForm(draft) {
   $('resultFooter').value = metadata.footer || metadata.callToAction || '';
   state.selectedFileIds = Array.isArray(metadata.relatedFileIds) ? metadata.relatedFileIds.map(String) : [];
   state.selectedDerivedFileIds = Array.isArray(metadata.derivedFileIds) ? metadata.derivedFileIds.map(String) : [];
+  // Additive, optional fields from the homefeed/search content-strategy work — absent on any draft
+  // saved before this feature, which must still open normally (see AGENTS.md 기존 draft 호환).
+  $('strategyMode').value = metadata.strategyMode || 'balanced';
+  state.blogStrategy = metadata.strategy || null;
+  state.blogTitles = metadata.titles || null;
+  state.blogSelectedTitleKind = metadata.selectedTitleKind || null;
+  state.blogFittedKind = state.blogSelectedTitleKind;
+  state.blogNextTopics = Array.isArray(metadata.nextTopics) ? metadata.nextTopics : [];
+  // A reopened draft has no separately tracked lead/body — treat the saved content as the body base
+  // for a future title switch (retitleTo() still works, just without a distinct lead paragraph).
+  state.currentLead = ''; state.currentBody = draft.content || '';
+  $('titlePicker').hidden = true;
   $('newDraftBtn').classList.remove('hidden');
   $('deleteDraftBtn').classList.remove('hidden');
   $('saveDraftBtn').textContent = '초안 수정';
@@ -393,6 +434,8 @@ function loadDraftIntoForm(draft) {
   void loadDefaults(); void loadFiles();
   renderSelectedFiles();
   renderFilePicker();
+  renderNextTopics();
+  renderPublishChecklist();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -484,11 +527,35 @@ function bindEvents() {
   $('pastWork').ontoggle = () => { if ($('pastWork').open) void loadDrafts(); };
   $('saveDefaults').onclick = saveDefaults;
   $('generateAi').onclick = () => runAi();
+  $('quickGenerateAi').onclick = () => runAi(false, true);
   $('regenerateAi').onclick = () => runAi();
   $('retryCaption').onclick = () => runAi(true);
   $('cancelAi').onclick = () => state.aiController?.abort();
   $('copyContent').onclick = copyContent;
-  $('manualDraft').onclick = () => { $('aiResult').hidden = false; $('resultHeading').textContent = '작성 결과'; $('resultFooter').value = $('defaultFooter').value; };
+  $('copyPublishPackage').onclick = copyPublishPackage;
+  $('regenerateTitles').onclick = async () => {
+    if (state.busy || !state.blogStrategy) return;
+    setAiBusy(true);
+    $('titlePickerStatus').textContent = '다른 제목을 만들고 있습니다…';
+    try {
+      const recentTitles = await recentBlogTitles();
+      const response = await api('/api/data-core/content/refine', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ mode: 'titles', campusId: $('draftCampus').value || null, strategy: state.blogStrategy,
+          notes: $('aiCommand').value.trim(), recentTitles, requestId: crypto.randomUUID() }),
+      });
+      if (!response.available) throw new Error(response.message);
+      state.blogTitles = response.refined.titles;
+      state.blogFittedKind = null;
+      renderTitlePicker();
+      await retitleTo(state.blogSelectedTitleKind);
+    } catch (error) {
+      $('titlePickerStatus').textContent = error.message;
+    } finally { setAiBusy(false); }
+  };
+  $('draftTags').addEventListener('input', renderPublishChecklist);
+  $('resultFooter').addEventListener('input', renderPublishChecklist);
+  $('manualDraft').onclick = () => { $('titlePicker').hidden = true; $('aiResult').hidden = false; $('resultHeading').textContent = '작성 결과'; $('resultFooter').value = $('defaultFooter').value; };
   $('compareImage').onclick = () => {
     const visible = !$('aiOriginalFigure').hidden;
     $('aiOriginalFigure').hidden = visible; $('compareImage').setAttribute('aria-pressed', String(!visible));
@@ -546,7 +613,7 @@ function setAiBusy(busy) {
   state.busy = busy;
   $('manualWork').inert = busy;
   $('pastWork').inert = busy;
-  for (const id of ['generateAi','regenerateAi','draftCampus','saveDraftBtn','newDraftBtn','deleteDraftBtn','manualDraft','clearFilesBtn','makeInstagramImage','saveDerivative']) $(id).disabled = busy || !canWrite();
+  for (const id of ['generateAi','quickGenerateAi','regenerateAi','regenerateTitles','draftCampus','saveDraftBtn','newDraftBtn','deleteDraftBtn','manualDraft','clearFilesBtn','makeInstagramImage','saveDerivative']) $(id).disabled = busy || !canWrite();
   $('cancelAi').hidden = !busy;
   $('aiStatus').classList.toggle('busy', busy);
   if (!busy) derivativeEditor?.update(selectedFiles(), state.sourceApp === 'instagram');
@@ -598,7 +665,144 @@ async function prepareBlogPhotos(files, signal) {
   return photos;
 }
 
-async function runAi(captionOnly = false) {
+// Recent blog draft titles for the current campus scope — used both to steer the AI away from
+// near-duplicate titles (sent as recentTitles) and for the client-side warning banner. Cheap D1
+// read, not an AI call, so it is safe to re-fetch per action (generate / 다른 제목 만들기).
+async function recentBlogTitles() {
+  if (state.sourceApp !== 'blog') return [];
+  try {
+    const params = new URLSearchParams({ sourceApp: 'blog', limit: '20' });
+    if ($('draftCampus').value) params.set('campusId', $('draftCampus').value);
+    const response = await api(`/api/data-core/content?${params}`);
+    const titles = (response.drafts || []).map((draft) => draft.title).filter(Boolean);
+    state.blogRecentTitlesCache = titles;
+    return titles;
+  } catch { return state.blogRecentTitlesCache; }
+}
+
+function normalizedTitleWords(title) {
+  return new Set(String(title || '').replace(/[^가-힣a-zA-Z0-9\s]/g, ' ').split(/\s+/).filter((word) => word.length > 1));
+}
+
+// Non-blocking near-duplicate check (word-overlap ratio) — never prevents generation, only warns.
+function titlesSimilar(a, b) {
+  const wa = normalizedTitleWords(a), wb = normalizedTitleWords(b);
+  if (!wa.size || !wb.size) return false;
+  let overlap = 0;
+  for (const word of wa) if (wb.has(word)) overlap++;
+  return overlap / Math.min(wa.size, wb.size) >= 0.6;
+}
+
+function renderDuplicateWarning() {
+  const el = $('titleDuplicateWarning');
+  const candidate = state.blogTitles?.[state.blogSelectedTitleKind];
+  const match = candidate && state.blogRecentTitlesCache.find((title) => title !== candidate && titlesSimilar(title, candidate));
+  if (match) { el.textContent = `⚠ 최근 비슷한 글이 있습니다: ${match}`; el.hidden = false; }
+  else el.hidden = true;
+}
+
+function renderNextTopics() {
+  const has = state.sourceApp === 'blog' && state.blogNextTopics.length > 0;
+  $('nextTopics').hidden = !has;
+  if (!has) return;
+  $('nextTopicsList').innerHTML = state.blogNextTopics.map((topic, index) => `<li><button type="button" data-next-topic="${index}">${h(topic)}</button></li>`).join('');
+  $('nextTopicsList').querySelectorAll('[data-next-topic]').forEach((button) => {
+    button.onclick = () => {
+      $('aiCommand').value = state.blogNextTopics[Number(button.dataset.nextTopic)];
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      toast('다음 글 주제를 명령창에 채웠습니다. 사진을 새로 선택하고 다시 작성해보세요.');
+    };
+  });
+}
+
+// Client-computed "발행 전 확인" checklist — no server round-trip, recomputed from the current form.
+function renderPublishChecklist() {
+  const show = state.sourceApp === 'blog' && Boolean(state.blogStrategy);
+  $('publishChecklist').hidden = !show;
+  if (!show) return;
+  const tagCount = normalizedHashtags($('draftTags').value).length;
+  const items = [
+    [Boolean(state.blogStrategy?.primaryTopic), '핵심 주제 1개'],
+    [Boolean($('draftTitle').value.trim()), '제목과 본문 일치'],
+    [Boolean(state.currentLead && state.currentLead.trim().length >= 10), '첫 문단에 핵심 답 포함'],
+    [state.selectedFileIds.length > 0, `선택 사진 ${state.selectedFileIds.length}장`],
+    [tagCount >= 8 && tagCount <= 15, `해시태그 ${tagCount}개`],
+    [Boolean($('resultFooter').value.trim()), 'CTA 포함'],
+  ];
+  $('checklistItems').innerHTML = items.map(([ok, label]) => `<li class="${ok ? 'ok' : 'warn'}">${ok ? '✓' : '⚠'} ${h(label)}</li>`).join('');
+}
+
+async function copyPublishPackage() {
+  const rows = selectedFiles();
+  const text = [$('draftTitle').value, $('draftContent').value, $('draftTags').value, $('resultFooter').value].filter(Boolean).join('\n\n')
+    + (rows.length ? '\n\n이미지 순서:\n' + rows.map((file, index) => `${index + 1}. ${file.fileName || '사진 ' + (index + 1)}`).join('\n') : '');
+  try { await navigator.clipboard.writeText(text); toast('네이버 발행용으로 복사했습니다.'); }
+  catch { toast('클립보드 권한을 확인해주세요.', 'error'); }
+}
+
+// Applies a title candidate (whose lead/body already fits it — either the initial generation's
+// selectedTitleKind, or the result of a completed retitleTo() call) to the visible draft form.
+function applyBlogTitleAndBody(kind) {
+  state.blogSelectedTitleKind = kind;
+  $('draftTitle').value = state.blogTitles[kind];
+  $('draftContent').value = [state.currentLead, state.currentBody].filter(Boolean).join('\n\n');
+  $('draftTags').value = normalizedHashtags($('defaultHashtags').value, state.lastHashtags).map((tag) => '#' + tag).join(' ');
+  $('resultFooter').value = $('defaultFooter').value || state.lastCta || '';
+  $('titlePicker').hidden = true;
+  $('aiResult').hidden = false;
+  $('resultHeading').textContent = 'AI 작성 결과';
+  renderSelectedFiles();
+  renderNextTopics();
+  renderPublishChecklist();
+  renderDuplicateWarning();
+}
+
+// Switches to a different title candidate. If its lead/body was already fitted (blogFittedKind),
+// applies it directly; otherwise asks the AI for a *minimal* rewrite of lead/body only — no photos,
+// no full regeneration (see AGENTS.md-style cost-control rule in the spec: never re-send images just
+// because the user picked a different title).
+async function retitleTo(kind) {
+  if (kind === state.blogFittedKind) { applyBlogTitleAndBody(kind); return; }
+  $('titlePickerStatus').textContent = '선택한 제목에 맞게 본문을 조정하고 있습니다…';
+  const response = await api('/api/data-core/content/refine', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      mode: 'retitle', campusId: $('draftCampus').value || null, strategy: state.blogStrategy,
+      selectedTitle: state.blogTitles[kind], priorLead: state.currentLead, priorBody: state.currentBody,
+      notes: $('aiCommand').value.trim(), requestId: crypto.randomUUID(),
+    }),
+  });
+  if (!response.available) throw new Error(response.message);
+  state.currentLead = response.refined.lead; state.currentBody = response.refined.body;
+  state.blogFittedKind = kind;
+  applyBlogTitleAndBody(kind);
+  $('titlePickerStatus').textContent = '';
+}
+
+function renderTitlePicker() {
+  const kinds = [['search', '검색형'], ['homefeed', '홈피드형'], ['balanced', '균형형']];
+  $('titleOptions').innerHTML = kinds.map(([kind, label]) => `
+    <label class="title-option">
+      <input type="radio" name="titleKind" value="${h(kind)}" ${state.blogSelectedTitleKind === kind ? 'checked' : ''}>
+      <span class="title-option-label">${label}</span>
+      <span class="title-option-text">${h(state.blogTitles[kind] || '')}</span>
+    </label>`).join('');
+  $('titleOptions').querySelectorAll('input[name="titleKind"]').forEach((input) => {
+    input.onchange = async () => {
+      if (state.busy) return;
+      setAiBusy(true);
+      try { await retitleTo(input.value); }
+      catch (error) { $('titlePickerStatus').textContent = error.message; }
+      finally { setAiBusy(false); }
+    };
+  });
+  $('aiResult').hidden = true;
+  $('titlePicker').hidden = false;
+  $('titlePickerStatus').textContent = '';
+  renderDuplicateWarning();
+}
+
+async function runAi(captionOnly = false, quick = false) {
   if (state.busy || !canWrite()) return;
   const ids = captionOnly && state.aiSourceId ? [state.aiSourceId] : [...state.selectedFileIds], direction = $('aiCommand').value.trim();
   const instagram = state.sourceApp === 'instagram';
@@ -638,20 +842,38 @@ async function runAi(captionOnly = false) {
       const photoFiles = ids.map((id) => state.knownFiles.get(String(id))).filter(Boolean);
       if (photoFiles.length !== ids.length) throw new Error('선택한 사진 정보를 확인할 수 없습니다. 사진을 다시 선택해주세요.');
       const photos = await prepareBlogPhotos(photoFiles, signal);
+      const recentTitles = await recentBlogTitles();
       $('aiStatus').textContent = '사진을 살펴보고 글을 작성하고 있습니다…';
       const form = new FormData();
-      form.set('input', JSON.stringify({ selectedFileIds: ids, notes: direction, sourceApp, campusId, requestId: crypto.randomUUID() }));
+      form.set('input', JSON.stringify({ selectedFileIds: ids, notes: direction, sourceApp, campusId, strategyMode: $('strategyMode').value, recentTitles, requestId: crypto.randomUUID() }));
       for (const [id, blob] of photos) form.set(`photo:${id}`, blob, `${id}.jpg`);
       result = await api('/api/data-core/content/generate', { method: 'POST', signal, body: form });
     }
     const generated = result.generated;
-    $('draftTitle').value = generated.title;
-    $('draftContent').value = generated.body || generated.content;
-    $('draftTags').value = normalizedHashtags($('defaultHashtags').value, generated.hashtags || generated.keywords).map(tag => '#' + tag).join(' ');
-    $('resultFooter').value = $('defaultFooter').value || generated.cta || generated.callToAction || '';
-    $('aiResult').hidden = false;
-    $('resultHeading').textContent = instagram ? '인스타 결과' : 'AI 작성 결과';
-    $('aiStatus').textContent = '작성이 완료되었습니다.';
+    if (instagram) {
+      $('draftTitle').value = generated.title;
+      $('draftContent').value = generated.body || generated.content;
+      $('draftTags').value = normalizedHashtags($('defaultHashtags').value, generated.hashtags || generated.keywords).map(tag => '#' + tag).join(' ');
+      $('resultFooter').value = $('defaultFooter').value || generated.cta || generated.callToAction || '';
+      $('aiResult').hidden = false;
+      $('resultHeading').textContent = '인스타 결과';
+      $('aiStatus').textContent = '작성이 완료되었습니다.';
+    } else {
+      // Blog: strategy + 3 title candidates + a body already fitted to generated.selectedTitleKind.
+      // "바로 글 만들기" applies it immediately; the default flow shows the title picker first.
+      state.blogStrategy = generated.strategy; state.blogTitles = generated.titles;
+      state.blogSelectedTitleKind = generated.selectedTitleKind; state.blogFittedKind = generated.selectedTitleKind;
+      state.currentLead = generated.lead; state.currentBody = generated.body;
+      state.lastHashtags = generated.hashtags || []; state.lastCta = generated.cta || '';
+      state.blogNextTopics = generated.nextTopics || []; state.blogWarnings = generated.warnings || [];
+      if (quick) {
+        applyBlogTitleAndBody(state.blogSelectedTitleKind);
+        $('aiStatus').textContent = state.blogWarnings.length ? `작성이 완료되었습니다. ${state.blogWarnings[0]}` : '작성이 완료되었습니다.';
+      } else {
+        renderTitlePicker();
+        $('aiStatus').textContent = '제목 3개 중 하나를 선택해주세요.';
+      }
+    }
   } catch (error) {
     const message = error.name === 'AbortError' ? '대기를 중단했습니다. 이미 전송된 AI 작업은 과금되거나 저장될 수 있습니다.' : error.message;
     $('aiStatus').textContent = imageSaved ? '이미지는 저장되었습니다. 홍보 문구는 작성하지 못했습니다. 직접 작성하거나 다시 시도해주세요.' : message;
