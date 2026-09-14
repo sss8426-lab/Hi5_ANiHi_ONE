@@ -294,7 +294,11 @@ function generateSheet(template,m,options,styles,workbook){
       for(const d of targetColumns){
         const cell=grid.cell(d.c,row),cal=calendar[d.day-1];
         putValue(cell,'',sheet);
-        const slotDays=override?days:d.slot===0?days:channel?.slots.find(s=>s.slot===d.slot)?.weekdays||[];
+        // Falling back to the channel's whole-row weekdays for slot 0 would wrongly highlight
+        // slot 0 for a student whose actual mark lives at slot 1/2 of the same multi-slot day
+        // (that row-level weekday list merges marks from every slot). Every slot, including 0,
+        // must resolve through its own per-slot weekday list.
+        const slotDays=override?days:channel?.slots.find(s=>s.slot===d.slot)?.weekdays||[];
         const selected=b.name&&slotDays.includes(cal.weekdayIndex)&&cal.active;
         cell.setAttribute('s',String(se.withFill(number(cell,'s',0),selected?fill.lesson:fill.plain)));
       }
@@ -308,7 +312,7 @@ function generateSheet(template,m,options,styles,workbook){
   const groups=new Map();for(const d of targetColumns){if(!groups.has(d.day))groups.set(d.day,[]);groups.get(d.day).push(d);}
   if(m.headerMode==='merged'){
     const mergeContainer=ensureSheet(sheet,'mergeCells');
-    for(const [day,cols] of groups){
+    for(const cols of groups.values()){
       if(cols.length<2)continue;
       const dateRef=`${cellRef(cols[0].c,m.dateRow)}:${cellRef(cols.at(-1).c,m.dateRow)}`;
       mergeContainer.appendChild(create(sheet,'mergeCell',{ref:dateRef}));
