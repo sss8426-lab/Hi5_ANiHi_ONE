@@ -202,7 +202,12 @@ function switchView(view, options = {}) {
       competitions: '/data-core/counseling/competitions',
       curriculum: '/data-core/curriculum',
     })[view];
-    if (path && location.pathname !== path) history.pushState({ view }, '', path);
+    // 자료보관함 사이드바 메뉴는 어떤 하위 폴더/검색/페이지에 있든 항상 root로 이동해야 한다.
+    // pathname만 비교하면(예: 같은 /data-core/work/library) 남아있는 ?folder=/q=/page= 쿼리가
+    // 지워지지 않고 hq-library.js의 load()가 그 쿼리를 그대로 다시 읽어버린다.
+    if (path && (location.pathname !== path || (options.resetQuery && location.search))) {
+      history.pushState({ view }, '', path);
+    }
   }
 
   if (state.context !== null) renderUser();
@@ -1561,7 +1566,7 @@ async function deleteCalendarEvent(id) {
 
 function bindEvents() {
   document.querySelectorAll('.nav-item[data-view], .feature-card[data-view], .at-work-link[data-view], #view-attendance [data-view]').forEach((button) => {
-    button.onclick = () => switchView(button.dataset.view);
+    button.onclick = () => switchView(button.dataset.view, { resetQuery: button.dataset.view === 'library' });
   });
   $('refreshFilesBtn').onclick = loadFiles;
   $('fileSearchBtn').onclick = loadFiles;
