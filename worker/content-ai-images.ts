@@ -4,9 +4,17 @@ import { inflateSync } from 'node:zlib';
 import pica from 'pica';
 import { DataCoreAccessError } from './data-core-access';
 
+// Instagram image-edit path only: one R2 original is read per request, sanitized, and sent to
+// OpenAI's image-edit endpoint as-is. Unchanged by the blog photo-optimization work below.
 export const AI_IMAGE_BYTES = 8 * 1024 * 1024;
 export const AI_TOTAL_BYTES = 16 * 1024 * 1024;
 export const AI_PHOTO_LIMIT = 6;
+
+// Blog "AI로 글 작성" path: the browser resizes/compresses each selected photo before it ever
+// reaches the Worker, so these bound the *optimized* upload, not the R2 original.
+export const BLOG_AI_PHOTO_LIMIT = 10;
+export const BLOG_ANALYSIS_IMAGE_MAX_BYTES = 2 * 1024 * 1024;
+export const BLOG_ANALYSIS_TOTAL_MAX_BYTES = 16 * 1024 * 1024;
 const unsupported = () => new DataCoreAccessError(415, '이 이미지는 AI 편집에 사용할 수 없습니다.');
 const join = (parts: Uint8Array[]) => new Uint8Array(Buffer.concat(parts));
 const ascii = (bytes: Uint8Array) => Buffer.from(bytes).toString('ascii');
