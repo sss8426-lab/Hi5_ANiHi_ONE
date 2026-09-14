@@ -198,11 +198,14 @@ export async function uploadLibraryMultipartPart(
     : current.chunkSize;
   const lengthHeader = request.headers.get('content-length');
   if (lengthHeader && Number(lengthHeader) !== expected) error(400, '업로드 조각 크기가 올바르지 않습니다.');
-  if (!request.body) error(400, '업로드 조각 데이터가 없습니다.');
+  let bytes: ArrayBuffer;
+  try { bytes = await request.arrayBuffer(); }
+  catch { error(400, '업로드 조각 데이터를 읽을 수 없습니다.'); }
+  if (bytes.byteLength !== expected) error(400, '업로드 조각 크기가 올바르지 않습니다.');
   if (current.status === 'pending') await saveStatus(db, sessionId, current, 'uploading');
   try {
     const upload = bucket.resumeMultipartUpload(current.r2Key, current.uploadId);
-    const part = await upload.uploadPart(partNumber, request.body);
+    const part = await upload.uploadPart(partNumber, bytes);
     return { partNumber: part.partNumber, etag: part.etag, sizeBytes: expected };
   } catch (cause) {
     if (cause instanceof DataCoreAccessError) throw cause;
