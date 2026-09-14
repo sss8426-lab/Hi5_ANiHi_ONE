@@ -5,7 +5,18 @@ import sharp from 'sharp';
 import { libraryHarness, users, A, B, ORG } from './support/library-harness.mjs';
 
 const png = () => encode({width:64,height:80,channels:4,depth:8,data:new Uint8Array(64*80*4).fill(180)});
-const generated = {title:'합성 수업 기록',body:'선택한 그림의 선과 색을 함께 살펴봅니다.',hashtags:['그림','성장'],cta:'수업 문의'};
+// Blog structured-output shape (strategy + 3 title candidates + lead/body). Every test in this file
+// that posts sourceApp:'blog' (the default from input()) mocks the provider with this object.
+const generated = {
+  strategy: {primaryTopic:'합성 수업 기록',searchIntent:'합성 수업 정보',nextQuestion:'다음엔 무엇을 배울까요',readerProblem:'그림이 늘지 않음'},
+  titles: {search:'합성 학원 그림 수업',homefeed:'그림이 늘지 않는 이유',balanced:'합성 수업 기록, 그림이 늘지 않는 이유'},
+  selectedTitleKind: 'balanced',
+  lead: '그림을 많이 그려도 늘지 않는 학생은 장면을 먼저 생각하지 않는 경우가 많습니다. 합성 수업에서는 선과 색을 함께 살펴봅니다.',
+  body: '선택한 그림의 선과 색을 함께 살펴봅니다.',
+  hashtags: ['그림','성장'],
+  cta: '수업 문의',
+  nextTopics: ['합성 다음 주제 1','합성 다음 주제 2','합성 다음 주제 3'],
+};
 const textResponse = value => Response.json({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(value)}]}]});
 async function fixture(h, user=users.staff, mime='image/png', bytes=png()) {
   const folder = await h.folder('category:'+user.campus+':class-photo','__synthetic_ai_'+crypto.randomUUID(),user);
@@ -42,7 +53,7 @@ test('Responses adapter sends selected sanitized pixels, structured output; defa
     assert.equal((await h.request('GET','/api/data-core/content/defaults?sourceApp=instagram&campusId='+A,users.staff)).body.defaults.footer,'');
     assert.equal((await h.request('GET','/api/data-core/content/defaults?sourceApp=blog&campusId='+A,users.foreign)).status,403);
     assert.equal((await h.request('PUT','/api/data-core/content/defaults',users.staff,{sourceApp:'blog',campusId:B,hashtags:'',footer:''})).status,403);
-    const draft=await h.request('POST','/api/data-core/content',users.staff,{sourceApp:'blog',campusId:A,title:generated.title,content:generated.body,relatedFileIds:[file.id],metadata:{footer:'합성 문의'}});
+    const draft=await h.request('POST','/api/data-core/content',users.staff,{sourceApp:'blog',campusId:A,title:generated.titles[generated.selectedTitleKind],content:generated.body,relatedFileIds:[file.id],metadata:{footer:'합성 문의'}});
     assert.equal(draft.status,201,JSON.stringify(draft.body));
     assert.equal((await h.request('DELETE','/api/data-core/content/'+draft.body.draft.id,users.staff)).status,200);
     assert.deepEqual(await h.file(file.id),original);
@@ -137,6 +148,61 @@ test('sanitized JPEG/WebP retain orientation but never original EXIF; provider f
     delete h.env.OPENAI_API_KEY;
     const absent=await h.request('POST','/api/data-core/content/generate',users.staff,input(file.id));assert.equal(absent.status,503);assert.equal(absent.body.available,false);
     assert.equal((await h.env.DB.prepare('SELECT COUNT(*) count FROM file_objects WHERE category=? AND organization_id=?').bind('instagram-derived',ORG).first()).count,0);
+  }finally{globalThis.fetch=originalFetch;await h.mf.dispose();}
+});
+
+test('blog multipart path: 10 browser-optimized photos bypass R2 entirely, still enforce per-file/total hard caps and reject non-blog use',async()=>{
+  const h=await libraryHarness(),originalFetch=globalThis.fetch;
+  try {
+    const files=[];for(let i=0;i<10;i++)files.push(await fixture(h));
+    const originalRows=await Promise.all(files.map(f=>h.file(f.id)));
+    h.env.OPENAI_API_KEY='synthetic-test-only';
+    const optimized=await sharp({create:{width:40,height:30,channels:3,background:'#335577'}}).jpeg({quality:80}).toBuffer();
+    const multipart=(selected,bytesById)=>{
+      const form=new FormData();
+      form.set('input',JSON.stringify({sourceApp:'blog',campusId:A,selectedFileIds:selected.map(f=>f.id),notes:'합성 다중 사진',requestId:crypto.randomUUID()}));
+      for(const file of selected)form.set(`photo:${file.id}`,new Blob([bytesById.get(file.id)||optimized],{type:'image/jpeg'}),`${file.id}.jpg`);
+      return form;
+    };
+    let calls=0,sentImages=0;
+    globalThis.fetch=async(url,options)=>{
+      if(!String(url).startsWith('https://api.openai.com/'))return originalFetch(url,options);
+      calls++;const body=JSON.parse(options.body),images=body.input[0].content.filter(item=>item.type==='input_image');
+      sentImages=images.length;
+      // Every image sent to the provider must be the browser-optimized 40x30 JPEG, never the R2
+      // 64x80 PNG original (sanitizeAiImage rewrites JPEG markers, so compare decoded metadata).
+      for(const image of images){
+        const meta=await sharp(Buffer.from(image.image_url.split(',')[1],'base64')).metadata();
+        assert.equal(meta.format,'jpeg');assert.equal(meta.width,40);assert.equal(meta.height,30);
+      }
+      return textResponse(generated);
+    };
+    const result=await h.request('POST','/api/data-core/content/generate',users.staff,multipart(files,new Map()));
+    assert.equal(result.status,200,JSON.stringify(result.body));assert.equal(calls,1);assert.equal(sentImages,10);
+
+    // An 11th photo is rejected before any provider traffic (JSON-only requests keep the old 6-photo cap).
+    const eleventh=await fixture(h);
+    assert.equal((await h.request('POST','/api/data-core/content/generate',users.staff,multipart([...files,eleventh],new Map()))).status,400);
+    assert.equal(calls,1);
+
+    // A single optimized photo over the 2MiB hard cap is rejected before provider traffic.
+    const bigBytes=new Map([[files[0].id,new Uint8Array(3*1024*1024)]]);
+    assert.equal((await h.request('POST','/api/data-core/content/generate',users.staff,multipart([files[0]],bigBytes))).status,413);
+    assert.equal(calls,1);
+
+    // Several individually-under-cap photos can still add up past the 16MiB total safety cap.
+    const nine=files.slice(0,9), overTotal=new Map(nine.map(f=>[f.id,new Uint8Array(1.9*1024*1024)]));
+    assert.equal((await h.request('POST','/api/data-core/content/generate',users.staff,multipart(nine,overTotal))).status,413);
+    assert.equal(calls,1);
+
+    // Instagram never uses this multipart shape; sending one is rejected outright.
+    const instagramForm=new FormData();
+    instagramForm.set('input',JSON.stringify({sourceApp:'instagram',campusId:A,selectedFileIds:[files[0].id],notes:'x',requestId:crypto.randomUUID()}));
+    instagramForm.set(`photo:${files[0].id}`,new Blob([optimized],{type:'image/jpeg'}),'x.jpg');
+    assert.equal((await h.request('POST','/api/data-core/content/generate',users.staff,instagramForm)).status,400);
+    assert.equal(calls,1);
+    // None of this ever wrote to the R2 originals or their file_objects rows.
+    assert.deepEqual(await Promise.all(files.map(f=>h.file(f.id))),originalRows);
   }finally{globalThis.fetch=originalFetch;await h.mf.dispose();}
 });
 

@@ -1,6 +1,8 @@
 import baseWorker from "./index";
 import {
   DataCoreAccessError,
+  requireCampusAccess,
+  requireWriteAccess,
   resolveDataCoreAccess,
 } from "./data-core-access";
 import {
@@ -33,7 +35,9 @@ import {
 } from "./data-core-content";
 import {
   generateContentDraft as generateContentWithProvider,
+  refineContentDraft,
   type ContentGenerationInput,
+  type ContentRefineInput,
 } from "./data-core-content-generation";
 import { runDataCoreDiagnostics } from "./data-core-diagnostics";
 import {
@@ -418,6 +422,33 @@ async function contentJson(request: Request) {
   } catch { throw new DataCoreAccessError(400, 'AI 요청 형식과 길이를 확인해주세요.'); }
 }
 
+// Blog "AI로 글 작성" sends its already browser-optimized photos as multipart/form-data instead of
+// the tiny JSON-only body every other content-generation call uses; Instagram is unaffected, since
+// it never sends a multipart request here. Each photo field is capped well above the client's own
+// ~2MiB target so a slightly-over blob still reaches the server's own hard-cap validation instead of
+// silently failing multipart parsing.
+const BLOG_PHOTO_FIELD_MAX_BYTES = 4 * 1024 * 1024;
+async function contentGenerateRequest(request: Request) {
+  const contentType = request.headers.get('content-type') || '';
+  if (!contentType.includes('multipart/form-data')) {
+    return { input: await contentJson(request), photos: undefined as Map<string, { bytes: Uint8Array; mime: string }> | undefined };
+  }
+  let form: FormData;
+  try { form = await request.formData(); } catch { throw new DataCoreAccessError(400, 'AI 요청 형식을 확인해주세요.'); }
+  const raw = form.get('input');
+  if (typeof raw !== 'string' || raw.length > 16384) throw new DataCoreAccessError(400, 'AI 요청 형식과 길이를 확인해주세요.');
+  let input: unknown;
+  try { input = JSON.parse(raw); } catch { throw new DataCoreAccessError(400, 'AI 요청 형식을 확인해주세요.'); }
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw new DataCoreAccessError(400, 'AI 요청 형식을 확인해주세요.');
+  const photos = new Map<string, { bytes: Uint8Array; mime: string }>();
+  for (const [key, value] of form.entries()) {
+    if (!key.startsWith('photo:') || !(value instanceof File)) continue;
+    if (value.size > BLOG_PHOTO_FIELD_MAX_BYTES) throw new DataCoreAccessError(413, '사진 최적화 결과가 예상보다 큽니다. 다시 시도해주세요.');
+    photos.set(key.slice('photo:'.length), { bytes: new Uint8Array(await value.arrayBuffer()), mime: value.type });
+  }
+  return { input, photos };
+}
+
 async function handleContentApi(request: Request, env: Env) {
   const url = new URL(request.url);
   if (!url.pathname.startsWith("/api/data-core/content")) return null;
@@ -465,13 +496,35 @@ async function handleContentApi(request: Request, env: Env) {
     if (request.method !== "POST") {
       return jsonResponse({ error: "지원하지 않는 콘텐츠 생성 API 요청입니다." }, { status: 405 });
     }
-    const input = await contentJson(request) as ContentGenerationInput;
+    const { input: parsedInput, photos } = await contentGenerateRequest(request);
+    const input = parsedInput as ContentGenerationInput;
     const scope = contentScope(context, input);
+    if (photos && scope.sourceApp !== 'blog') throw new DataCoreAccessError(400, '사진 업로드 방식이 이 콘텐츠 종류와 맞지 않습니다.');
     const provider = env.FILES ? openAiContentProvider(env, env.DB, env.FILES, context, request.signal) : undefined;
     try {
-      const run = () => generateContentWithProvider(env.DB!, context, input, provider);
+      const run = () => generateContentWithProvider(env.DB!, context, input, provider, photos);
       const generation = provider ? await withAiRequest(env.DB, context, input.requestId, scope.campusId, run) : await run();
       return jsonResponse(generation, { status: generation.available ? 200 : 503 });
+    } catch (error) {
+      if (error instanceof ContentAiError) return jsonResponse({ error: error.message, code: error.code }, { status: error.status });
+      throw error;
+    }
+  }
+  // Blog-only lightweight follow-ups to /generate: regenerate the 3 title candidates, or rewrite
+  // lead/body to fit a newly-picked title. Always JSON (never multipart — no photos are re-sent).
+  if (url.pathname === "/api/data-core/content/refine") {
+    if (request.method !== "POST") {
+      return jsonResponse({ error: "지원하지 않는 콘텐츠 생성 API 요청입니다." }, { status: 405 });
+    }
+    const input = (await contentJson(request)) as ContentRefineInput;
+    const campusId = typeof input.campusId === "string" && input.campusId ? input.campusId : null;
+    requireWriteAccess(context);
+    if (!context.isSuperAdmin || campusId) requireCampusAccess(context, campusId);
+    const provider = env.FILES ? openAiContentProvider(env, env.DB, env.FILES, context, request.signal) : undefined;
+    try {
+      const run = () => refineContentDraft(env.DB!, context, input, provider);
+      const refinement = provider ? await withAiRequest(env.DB, context, input.requestId, campusId, run) : await run();
+      return jsonResponse(refinement, { status: refinement.available ? 200 : 503 });
     } catch (error) {
       if (error instanceof ContentAiError) return jsonResponse({ error: error.message, code: error.code }, { status: error.status });
       throw error;
