@@ -42,7 +42,10 @@ async function callOpenAi(env: OpenAiEnv, endpoint: 'responses' | 'images/edits'
     if (typeof body === 'string') headers['content-type'] = 'application/json';
     const response = await fetch(`https://api.openai.com/v1/${endpoint}`, { method: 'POST', headers, body, signal: controller.signal, redirect: 'error' });
     if (!response.ok) {
-      await response.body?.cancel();
+      const errorText = await response.text().catch(() => '');
+      // Diagnostic only — logs OpenAI's own error body (never the request, never the API key), so a
+      // production failure can be told apart (bad model name vs rate limit vs malformed schema, etc).
+      console.error('[openai]', endpoint, response.status, errorText.slice(0, 500));
       if ([401,403,404].includes(response.status)) throw unavailable();
       if (response.status === 429) throw new ContentAiError('rate_limit', 429, 'AI 사용량이 많습니다. 잠시 후 다시 시도해주세요.');
       if (response.status === 400) throw new ContentAiError('unsupported_input', 400, '선택한 이미지와 AI 모델 설정을 확인해주세요.');
@@ -52,6 +55,7 @@ async function callOpenAi(env: OpenAiEnv, endpoint: 'responses' | 'images/edits'
   } catch (error) {
     if (error instanceof ContentAiError) throw error;
     if (controller.signal.aborted) throw new ContentAiError('timeout', 504, 'AI 작업 대기 시간이 지났습니다. 잠시 후 다시 시도해주세요.');
+    console.error('[openai] request failed', endpoint, error instanceof Error ? error.message : String(error));
     throw failure();
   } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
 }
@@ -208,15 +212,17 @@ function blogQualityIssues(result: { strategy: { primaryTopic: string }; titles:
 }
 
 function parseBlogResult(texts: { type?: string; text?: string }[]) {
-  let result; try { result = JSON.parse(texts.filter(item => item.type === 'output_text').map(item => item.text).join('')); } catch { throw failure(); }
+  const raw = texts.filter(item => item.type === 'output_text').map(item => item.text).join('');
+  let result; try { result = JSON.parse(raw); } catch { console.error('[openai] blog result not JSON', raw.slice(0, 500)); throw failure(); }
   const { strategy, titles, selectedTitleKind, lead, body, hashtags, cta, nextTopics } = result || {};
   const validText = (value: unknown, max: number) => typeof value === 'string' && value.length <= max;
-  if (!strategy || !['primaryTopic','searchIntent','nextQuestion','readerProblem'].every(key => validText(strategy[key], 600))) throw failure();
-  if (!titles || !BLOG_STRATEGY_MODES.every(mode => validText(titles[mode], 300))) throw failure();
-  if (!BLOG_STRATEGY_MODES.includes(selectedTitleKind)) throw failure();
-  if (!validText(lead, 2000) || !lead.trim() || !validText(body, 20000) || !body.trim()) throw failure();
-  if (!validText(cta, 2000) || !Array.isArray(hashtags) || hashtags.some((tag: unknown) => typeof tag !== 'string') || hashtags.length > 30) throw failure();
-  if (!Array.isArray(nextTopics) || nextTopics.length > 10 || nextTopics.some((topic: unknown) => typeof topic !== 'string' || topic.length > 200)) throw failure();
+  const fail = (reason: string): never => { console.error('[openai] blog result invalid', reason, raw.slice(0, 500)); throw failure(); };
+  if (!strategy || !['primaryTopic','searchIntent','nextQuestion','readerProblem'].every(key => validText(strategy[key], 600))) fail('strategy');
+  if (!titles || !BLOG_STRATEGY_MODES.every(mode => validText(titles[mode], 300))) fail('titles');
+  if (!BLOG_STRATEGY_MODES.includes(selectedTitleKind)) fail('selectedTitleKind');
+  if (!validText(lead, 2000) || !lead.trim() || !validText(body, 20000) || !body.trim()) fail('lead/body');
+  if (!validText(cta, 2000) || !Array.isArray(hashtags) || hashtags.some((tag: unknown) => typeof tag !== 'string') || hashtags.length > 30) fail('cta/hashtags');
+  if (!Array.isArray(nextTopics) || nextTopics.length > 10 || nextTopics.some((topic: unknown) => typeof topic !== 'string' || topic.length > 200)) fail('nextTopics');
   return { strategy, titles, selectedTitleKind, lead, body, hashtags, cta, nextTopics } as const;
 }
 
@@ -226,7 +232,10 @@ async function responsesCall(env: OpenAiEnv, instructions: string, content: unkn
     input: [{ role: 'user', content }],
     text: { format: { type: 'json_schema', name: schemaName, strict: true, schema } },
   }), signal);
-  if (response.status !== 'completed' || !Array.isArray(response.output)) throw failure();
+  if (response.status !== 'completed' || !Array.isArray(response.output)) {
+    console.error('[openai] responses status', schemaName, response.status, response.incomplete_details ?? '');
+    throw failure();
+  }
   const texts = response.output.filter((item: { type?: string }) => item.type === 'message').flatMap((item: { content?: unknown[] }) => item.content || []) as { type?: string; text?: string }[];
   if (texts.some(item => item.type === 'refusal')) throw new ContentAiError('refused', 422, '이 요청은 AI로 처리할 수 없습니다. 사진이나 명령을 바꿔주세요.');
   return texts;
