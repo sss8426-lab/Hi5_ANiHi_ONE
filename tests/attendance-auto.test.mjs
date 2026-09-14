@@ -5,7 +5,7 @@ import {DOMParser,XMLSerializer} from '@xmldom/xmldom';
 import {autoFixture} from './helpers/attendance-auto-fixture.mjs';
 import {attendanceFixture} from './helpers/attendance-fixture.mjs';
 import {analyzeWorkbook,openTemplate,generateWorkbook,nextMonth,attendanceFilename,printWorkbook} from '../public/data-core/work/attendance-auto.js';
-import {all,attr,child,textOf,indexSheet,cellRef,number,calendarMonth} from '../public/data-core/work/attendance-template.js';
+import {all,attr,child,textOf,indexSheet,cellRef,number,calendarMonth,range} from '../public/data-core/work/attendance-template.js';
 import {unzipSync,zipSync,strFromU8,strToU8} from '../public/data-core/vendor/fflate-0.8.3.js';
 const env={DOMParser,XMLSerializer},hash=b=>createHash('sha256').update(b).digest('hex');
 const read=opts=>{const source=autoFixture(opts),t=openTemplate(source,env),a=analyzeWorkbook(t,'출석부26.09_.xlsx');return {source,t,a};};
@@ -30,8 +30,24 @@ test('all sheets generated; unknown attendance values removed; style, geometry a
   assert.deepEqual(reopened.entries['xl/worksheets/sheet3.xml'],t.entries['xl/worksheets/sheet3.xml']);
   for(const r of g.results){
     const s=r.mapping,old=t.read(t.sheets[s.index].path),grid=indexSheet(r.sheet);
-    for(const tag of ['cols','mergeCells','pageSetup','pageMargins','conditionalFormatting'])assert.deepEqual(all(r.sheet,tag).map(serialize),all(old,tag).map(serialize),tag);
+    for(const tag of ['pageSetup','pageMargins'])assert.deepEqual(all(r.sheet,tag).map(serialize),all(old,tag).map(serialize),tag);
     assert.deepEqual(all(r.sheet,'row').map(n=>attr(n,'ht')),all(old,'row').map(n=>attr(n,'ht')));
+    // Columns left of the calendar (student name/weekday) keep the same effective width; the
+    // calendar's own <col> entries are always rebuilt (weekday->slot mapping can change even when
+    // the count does not), so only their structure is checked: one positive-width entry per new
+    // date column. A single wide pre-calendar range may be split at the calendar boundary, which
+    // is a harmless side effect since nothing is drawn in those unused gap columns.
+    const widthAt=(doc,c)=>{const n=all(doc,'col').find(x=>Number(attr(x,'min'))<=c&&Number(attr(x,'max'))>=c);return n?Number(attr(n,'width')):0;};
+    for(let c=1;c<s.dateStart;c++)assert.equal(widthAt(r.sheet,c),widthAt(old,c),`column ${c} width unchanged`);
+    const cols=all(r.sheet,'col');
+    const calendarCols=cols.filter(n=>Number(attr(n,'min'))>=s.dateStart&&Number(attr(n,'min'))<=s.dateColumns.at(-1).c);
+    assert.equal(calendarCols.length,s.dateColumns.length,'one <col> per new date column');
+    assert.ok(calendarCols.every(n=>Number(attr(n,'width'))>0),'every calendar column keeps a positive width');
+    // The title-row merge and the conditional-format range both span the whole calendar in this
+    // fixture, so both must grow/shrink with it instead of staying pinned to the old width.
+    const titleMerge=all(r.sheet,'mergeCell').map(n=>attr(n,'ref')).find(ref=>ref.startsWith('A1:'));
+    assert.equal(range(titleMerge).end.c,s.dateColumns.at(-1).c,'title merge grows/shrinks with the calendar');
+    assert.equal(range(attr(all(r.sheet,'conditionalFormatting')[0],'sqref')).end.c,s.dateColumns.at(-1).c,'conditional formatting range grows/shrinks with the calendar');
     for(const b of s.studentBlocks)for(let row=b.start;row<=b.end;row++)for(const d of s.dateColumns)assert.equal(textOf(grid.cells.get(cellRef(d.c,row)),t.strings),'');
     assert.equal(textOf(grid.cells.get(cellRef(s.dateColumns.at(-1).c,s.dateRow)),t.strings),'31');
     assert.equal(textOf(grid.cells.get(s.period.monthCells[0]),t.strings),'10');assert.equal(r.plan.pages.length,1);
