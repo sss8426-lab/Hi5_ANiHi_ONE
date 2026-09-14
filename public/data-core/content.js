@@ -787,8 +787,10 @@ function renderTitlePicker() {
       <span class="title-option-label">${label}</span>
       <span class="title-option-text">${h(state.blogTitles[kind] || '')}</span>
     </label>`).join('');
+  // 'click' (not 'change') so re-clicking the already-recommended, pre-checked option still
+  // proceeds — a radio's 'change' event never fires when its checked state doesn't actually flip.
   $('titleOptions').querySelectorAll('input[name="titleKind"]').forEach((input) => {
-    input.onchange = async () => {
+    input.onclick = async () => {
       if (state.busy) return;
       setAiBusy(true);
       try { await retitleTo(input.value); }
