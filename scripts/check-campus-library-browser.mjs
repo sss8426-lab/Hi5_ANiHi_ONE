@@ -24,6 +24,8 @@ const child = await h.folder(created.body.folder.id, '장면 연출');
 assert.equal(child.status, 201);
 const expected = (await h.request('GET', '/api/data-core/campuses')).body.campuses;
 assert.equal(expected.length, 10);
+const hq = await h.folder('hq', '__synthetic_hidden_hq');
+assert.equal(hq.status, 201);
 const checked = new Set(), protectedAssets = new Set(), errors = [];
 const root = resolve('public');
 const server = createServer(async (req, res) => {
@@ -78,18 +80,20 @@ try {
   for (const width of [1920, 1440, 1280, 1024, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 1000 });
     await page.goto(origin + '/data-core/work/library');
-    await page.waitForFunction(() => document.querySelectorAll('#libraryFolders [data-lb-folder]').length >= 14);
+    await page.waitForFunction(() => document.querySelectorAll('#libraryFolders [data-lb-folder]').length === 10);
     const library = await page.locator('#libraryFolders .lb-folder-group').evaluateAll(nodes => nodes.map(n => ({
       group: n.querySelector('h3').textContent,
       folders: [...n.querySelectorAll('[data-lb-folder]')].map(a => [a.dataset.lbFolder, a.textContent.trim()]),
     })));
     assert.deepEqual(library.find(g => g.group === '캠퍼스').folders, expected.map(c => ['campus:' + c.id, c.name]));
+    assert.deepEqual(library.map(g => g.group), ['캠퍼스']);
+    assert.equal(await page.getByRole('heading', { name: '본원 작업물', exact: true }).count(), 0);
     assert.equal(await page.getByText('SYNTHETIC TEST 20260909', { exact: true }).count(), 0);
     await page.screenshot({ path: resolve(out, `library-${width}.png`), fullPage: true });
     for (const channel of ['blog', 'instagram']) {
       await page.goto(origin + '/data-core/content/' + channel);
       assert.deepEqual(await options('#draftCampus'), expectedOptions);
-      await page.waitForFunction(() => document.querySelectorAll('#photoFolders [data-folder]').length >= 14);
+      await page.waitForFunction(() => document.querySelectorAll('#photoFolders [data-folder]').length === 10);
       const content = await page.locator('.photo-folder-group').evaluateAll(nodes => nodes.map(n => ({
         group: n.querySelector('h3').textContent,
         folders: [...n.querySelectorAll('[data-folder]')].map(a => [a.dataset.folder, a.textContent.trim()]),
@@ -104,7 +108,7 @@ try {
       await page.waitForFunction(() => document.querySelector('#photoBreadcrumb').textContent.includes('장면 연출'));
       assert.match(await page.locator('#photoBreadcrumb').textContent(), /부천 애니 입시본원/);
       await page.locator('#photoBreadcrumb [data-folder="root"]').click();
-      await page.waitForFunction(() => document.querySelectorAll('#photoFolders [data-folder]').length >= 14);
+      await page.waitForFunction(() => document.querySelectorAll('#photoFolders [data-folder]').length === 10);
       assert.equal(await page.locator('#draftCampus').inputValue(), '', 'root breadcrumb restores organization scope');
     }
     await page.goto(origin + '/data-core/work/attendance');

@@ -21,7 +21,9 @@ Unknown real campuses remain after the known list in stable source order. No tit
 
 ## Shared Folder Browser
 
-Library, Blog and Instagram all use existing `/api/data-core/library/folders` and `/files` through `library-client.js`. `folderGroups` retains API names/order and renders HQ work, campuses and actual user-created folders consistently. Nested folders use the same stored parent IDs and breadcrumb data. The first four HQ folders and nine campus categories are the existing projections, not recreated folders. Campus roots use a single ordered group so older admissions/preparatory grouping cannot reorder the requested sequence. Each UI retains its purpose-specific actions (library upload vs. image selection); image-only filtering, selection, scopes and defaults are unchanged.
+Library, Blog and Instagram all use existing `/api/data-core/library/folders` and `/files` through `library-client.js`. Their normal root navigation omits the HQ work section (수업그림, 원장전용, 자료, 제작물), including materialized HQ folders. The root GET response filters by the resolved HQ parent; the shared `folderGroups` helper also handles stale root responses. No title-based hiding is used, so similarly named campus folders and non-HQ user-created folders remain usable.
+
+Existing HQ records, original bytes, IDs and authorized legacy deep links are preserved, not deleted or reassigned. No migration or production data write is needed. Campus names/order, the nine existing campus category projections, nested parent IDs and breadcrumbs remain unchanged. Campus roots use a single ordered group so older admissions/preparatory grouping cannot reorder the requested sequence. Each UI retains its purpose-specific actions (library upload vs. image selection); image-only filtering, selection, scopes and defaults are unchanged.
 
 ## Read-only Production Inventory
 
@@ -29,7 +31,13 @@ September 14 KST: SELECT-only inspection found 10 real active campuses and the e
 
 One existing account is linked to this retired campus. Its account-list row is hidden by default with an explicit MASTER-only "보관된 검증 계정 보기" checkbox so administrators can still manage it. No account status, session or password is changed. Hide only this known retired campus from ordinary campus choices and root folder projections. Preserve its D1 row, memberships, trashed files, R2 objects and authorized deep links for recovery. No production DELETE/UPDATE, reset, seed or cleanup job was executed. Test fixtures and validation scripts remain in the repository and isolated Miniflare instances, not production UI seeds. Trash is an intentional administrator recovery surface and is not silently purged or title-filtered.
 
-## Verification
+## HQ Navigation Removal Verification
+
+September 14 KST follow-up: build, typecheck, all 64 public JS syntax checks, Wrangler dry-run and 17 focused tests passed. Changed-file lint has 6 inherited errors before/after, zero new. Isolated Worker tests confirm that virtual and materialized HQ entries stay absent on repeated root reads across roles, while HQ records/file metadata/original bytes and authorized legacy downloads remain unchanged. Campus and non-HQ custom folders with the same titles are not hidden.
+
+The shared browser check passed at 1920/1440/1280/1024/768/390/320px with only the 10 campus entries in each root view, identical Library/Blog/Instagram grouping, and working nested navigation. Screenshots were inspected for desktop, tablet and mobile. The separate library smoke passed upload, preview, download, soft-trash/restore and permission checks at six widths. All test writes are isolated synthetic D1/R2; no production data is modified. Full-suite, CI, Preview and deployment evidence is recorded in the follow-up PR.
+
+## Earlier Campus Presentation Verification
 
 Local checks passed: npm ci, build, typecheck, all 64 public JS syntax checks, 380 tests and Wrangler dry-run. Changed-file ESLint comparison is 16 inherited errors before / 15 after, zero new; full repository lint retains 89 errors. npm audit retains 12 findings (8 high, 4 moderate); dependencies were not changed. Windows loopback exhaustion during an overlapping verification attempt was resolved by stopping only the test processes, allowing connections to expire and rerunning the full suite alone.
 

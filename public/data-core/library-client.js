@@ -5,6 +5,8 @@
       const groups = new Map();
       const search = query.trim().toLocaleLowerCase('ko-KR');
       for (const folder of view.folders || []) {
+        // Also handle stale root responses without hiding similarly named campus folders.
+        if (view.folder.id === 'root' && (folder.parentId === 'hq' || folder.id === 'hq' || folder.id.startsWith('hq-default:'))) continue;
         if (search && !folder.title.toLocaleLowerCase('ko-KR').includes(search)) continue;
         const group = view.folder.id === 'root' ? folder.group || '폴더' : '폴더';
         if (!groups.has(group)) groups.set(group, []);

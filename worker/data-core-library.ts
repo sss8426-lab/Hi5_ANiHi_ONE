@@ -184,7 +184,9 @@ export async function handleLibraryApi(request: Request, db: D1Database, bucket:
   const tree = await new LibraryTree(db, context).init();
   if (url.pathname === '/api/data-core/library/folders' && request.method === 'GET') {
     const folder = await tree.resolve(text(url.searchParams.get('parentId')) || 'root');
-    return json({ folder: serialize(tree, folder), breadcrumbs: await tree.breadcrumbs(folder), folders: (await children(tree, folder)).map(f => serialize(tree, f)) });
+    // Hide HQ entry points only; retain stored folders, files and authorized legacy deep links.
+    const folders = (await children(tree, folder)).filter(f => folder.id !== 'root' || f.parentId !== 'hq');
+    return json({ folder: serialize(tree, folder), breadcrumbs: await tree.breadcrumbs(folder), folders: folders.map(f => serialize(tree, f)) });
   }
   if (url.pathname === '/api/data-core/library/folders' && request.method === 'POST') {
     let input; try { input = await request.json(); } catch { error(400, 'JSON 요청을 확인하세요.'); }
