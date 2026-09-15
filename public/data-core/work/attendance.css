@@ -6,6 +6,10 @@
 .at-app button:disabled{opacity:.5;cursor:not-allowed}.at-app :focus-visible{outline:2px solid var(--core-green,#174f44);outline-offset:3px}
 .at-app .at-primary{background:var(--core-green,#174f44);color:#fff;justify-self:start}
 .at-app #atForm{display:grid;gap:24px;max-width:520px}.at-app .at-period{max-width:260px}
+.at-app .at-check{flex-direction:row;align-items:center;gap:10px}.at-app .at-check input{width:20px;min-height:20px;flex:none}
+#atSheetSelection{border:1px solid var(--core-border,#dedcd5);border-radius:6px;padding:12px;min-width:0}
+#atSheetSelection legend{font-size:14px}#atSheetSelection small,#atLayoutOption small{display:block;font-size:12px;line-height:1.6;color:var(--core-text-secondary,#747872)}
+.at-source-sheet{display:grid;gap:8px;padding:10px 0;border-bottom:1px solid var(--core-border,#dedcd5);overflow-wrap:anywhere}.at-source-sheet:last-child{border-bottom:0}.at-source-sheet input[type=month]{max-width:230px}.at-source-sheet button{justify-self:start}
 #atRecognized{display:grid;gap:6px;overflow-wrap:anywhere;font-size:13px;color:var(--core-text-secondary,#747872)}#atRecognized strong{color:var(--core-text,#171917);font-size:14px}
 #atReviewPrompt{font-size:13px;line-height:1.6}#atReviewPrompt button{margin-left:8px}
 #atStatus{font-size:14px;line-height:1.6;margin:16px 0}#atResult{margin-top:24px}

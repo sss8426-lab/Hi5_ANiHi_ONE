@@ -13,14 +13,14 @@ const check = (condition, message) => { if (!condition) throw Error(message); };
 export const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[c]));
 export const columnName = n => { let s=''; for(;n;n=Math.floor((n-1)/26))s=String.fromCharCode(65+(n-1)%26)+s; return s; };
 export const columnNumber = s => /^[A-Z]{1,3}$/i.test(s) ? [...s.toUpperCase()].reduce((n,c)=>n*26+c.charCodeAt(0)-64,0) : 0;
-export function address(ref) {
+export function address(ref,metadata=false) {
   const m = /^\$?([A-Z]{1,3})\$?(\d+)$/i.exec(ref || '');
   check(m, '셀 위치는 A1 형식으로 입력해주세요.');
   const c=columnNumber(m[1]), r=Number(m[2]);
-  check(c<=MAX_COLS && r>=1 && r<=MAX_ROWS, '지원 범위는 128열, 1,000행까지입니다.'); return {c,r};
+  check(c>=1&&c<=(metadata?16384:MAX_COLS) && r>=1 && r<=(metadata?1048576:MAX_ROWS), '지원 범위는 128열, 1,000행까지입니다.'); return {c,r};
 }
 const cellRef = (c,r) => `${columnName(c)}${r}`;
-function range(ref) { const [a,b=a]=ref.split(':'); return {...address(a), end:address(b)}; }
+function range(ref,metadata=false) { const [a,b=a]=ref.split(':'); return {...address(a,metadata), end:address(b,metadata)}; }
 function xml(text, env) {
   check(!/<!DOCTYPE|<!ENTITY/i.test(text), '외부 엔터티가 포함된 파일은 사용할 수 없습니다.');
   const doc=new env.DOMParser().parseFromString(text,'application/xml');

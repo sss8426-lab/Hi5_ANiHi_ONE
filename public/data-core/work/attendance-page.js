@@ -1,4 +1,4 @@
-import { mountAttendance } from './attendance.js?v=20260914-auto';
+import { mountAttendance } from './attendance.js?v=20260915-template-recovery';
 
 export function mountAttendancePage(host, { context, campuses }) {
   host.replaceChildren();

@@ -3,9 +3,12 @@ import fs from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
+import {createHash} from 'node:crypto';
 import {DOMParser,XMLSerializer} from '@xmldom/xmldom';
 import {attendanceFixture} from '../tests/helpers/attendance-fixture.mjs';
 import {autoFixture} from '../tests/helpers/attendance-auto-fixture.mjs';
+import {realWorldFixture} from '../tests/helpers/attendance-real-world-fixture.mjs';
+import {unzipSync,zipSync,strFromU8,strToU8} from '../public/data-core/vendor/fflate-0.8.3.js';
 import {analyzeWorkbook,generateWorkbook,printWorkbook} from '../public/data-core/work/attendance-auto.js';
 import {openTemplate,analyzeSheet,generateAttendance,templateStudents,printDocument} from '../public/data-core/work/attendance-template.js';
 
@@ -109,6 +112,42 @@ try {
   for(const item of await page.locator('[data-review]').all())await item.locator('input[value="1"]').check();
   await page.locator('#atReviewSave').click();await page.locator('#atGenerate').click();await page.locator('#atResult:visible').waitFor();
   await page.locator('#atAgain').click();
+  // Missing source periods and partial/mixed workbooks are real UI recovery paths, not engine-only tests.
+  await page.locator('#atFile').setInputFiles({name:'SYNTHETIC.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:Buffer.from(realWorldFixture({titleText:'2026년 출석부'}))});
+  await page.locator('[data-source-period="0"]').waitFor();
+  assert.equal(await page.locator('#atGenerate').isDisabled(),true);
+  assert.equal(await page.locator('[data-source-period="0"]').inputValue(),'');
+  await page.locator('[data-source-period="0"]').fill('2026-10');await page.locator('[data-confirm-period="0"]').click();
+  assert.match(await page.locator('#atStatus').textContent(),/자동으로 인식/);
+  await page.locator('[data-source-period="0"]').fill('2026-09');await page.locator('[data-confirm-period="0"]').click();
+  await page.locator('#atReview').click();
+  for(const item of await page.locator('[data-review]').all())await item.locator('input[value="1"]').check();
+  await page.locator('#atReviewSave').click();await page.locator('#atGenerate').click();await page.locator('#atResult:visible').waitFor();
+  assert.match(await page.locator('#atResultTitle').textContent(),/2026년 10월/);
+  await page.locator('#atAgain').click();
+  const mixed=unzipSync(autoFixture({review:false}));mixed['xl/worksheets/sheet2.xml']=unzipSync(autoFixture({review:false,month:4}))['xl/worksheets/sheet2.xml'];
+  await page.locator('#atFile').setInputFiles({name:'SYNTHETIC.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:Buffer.from(zipSync(mixed))});
+  await page.locator('[data-source-sheet="0"]:checked').waitFor();
+  assert.equal(await page.locator('[data-source-sheet="1"]').isChecked(),false);
+  await page.locator('[data-source-sheet="0"]').uncheck();assert.equal(await page.locator('#atGenerate').isDisabled(),true);
+  await page.locator('[data-source-sheet="1"]').check();await page.locator('#atGenerate').click();await page.locator('#atResult:visible').waitFor();
+  assert.equal(await page.locator('#atTabs [role=tab]').count(),1);
+  const mixedDownload=page.waitForEvent('download');await page.locator('#atDownload').click();const mixedFile=await mixedDownload;
+  const mixedPath=path.join(out,'selected-archive.xlsx');await mixedFile.saveAs(mixedPath);
+  const selectedOut=openTemplate(await fs.readFile(mixedPath),{DOMParser,XMLSerializer});
+  assert.deepEqual(selectedOut.entries['xl/worksheets/sheet1.xml'],mixed['xl/worksheets/sheet1.xml']);
+  await page.locator('#atAgain').click();
+  const formulaSource=unzipSync(autoFixture({review:false}));
+  formulaSource['xl/worksheets/sheet2.xml']=strToU8(strFromU8(formulaSource['xl/worksheets/sheet2.xml']).replace('<row r="1" ht="28" customHeight="1">','<row r="1" ht="28" customHeight="1"><c r="P1"><f>COUNT(P4:P7)</f><v>99</v></c>'));
+  await page.locator('#atFile').setInputFiles({name:'SYNTHETIC26.09.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:Buffer.from(zipSync(formulaSource))});
+  await page.locator('#atGenerate:not([disabled])').waitFor();await page.locator('#atGenerate').click();
+  await page.locator('#atStatus').filter({hasText:/원본 날짜칸 유지/}).waitFor();
+  await page.locator('#atPreserveColumns').check();await page.locator('#atGenerate').click();await page.locator('#atResult:visible').waitFor();
+  assert.equal(await page.locator('#atPrint').isDisabled(),true);assert.equal(await page.locator('#atDownload').isDisabled(),false);
+  await page.locator('#atAgain').click();
+  await page.screenshot({path:path.join(out,'recovery-controls-mobile.png'),fullPage:true});
+  await page.setViewportSize({width:1440,height:900});await page.screenshot({path:path.join(out,'recovery-controls-desktop.png'),fullPage:true});
+  checks.push({missingSourceMonth:true,wrongSourceMonthRejected:true,mixedArchiveSelection:true,unselectedSheetPreserved:true,formulaRecovery:true});
   await page.locator('#atFile').setInputFiles({name:'invalid.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:Buffer.from('invalid')});
   await page.locator('#atStatus').filter({hasText:/암호화되지 않은/}).waitFor();
   assert.equal(await page.locator('#atGenerate').isDisabled(),true);
@@ -124,6 +163,32 @@ try {
   await page.locator('#atCampus').selectOption('synthetic-b');assert.equal(await page.locator('#atGenerate').isDisabled(),true);
   assert.equal(await page.locator('#atRecognized').isVisible(),false);
   role='TEACHER';await page.reload();await page.locator('#atFile').waitFor();
+  if(process.env.ATTENDANCE_PRIVATE_DIRECTORY){
+    const directory=process.env.ATTENDANCE_PRIVATE_DIRECTORY,hash=b=>createHash('sha256').update(b).digest('hex');let fileIndex=0;
+    for(const name of (await fs.readdir(directory)).filter(n=>n.endsWith('.xlsx')).sort()){
+      const file=path.join(directory,name),bytes=await fs.readFile(file),before=hash(bytes),started=Date.now();
+      await page.reload();await page.locator('#atFile').waitFor();
+      await page.locator('#atFile').setInputFiles({name,mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:bytes});
+      await page.locator('#atRecognized:visible').waitFor();
+      if(await page.locator('#atReviewPrompt').isVisible()){
+        await page.locator('#atReview').click();
+        for(const item of await page.locator('[data-review]').all())await item.locator('input[value="1"]').check();
+        await page.locator('#atReviewSave').click();
+      }
+      await page.locator('#atGenerate:not([disabled])').waitFor();await page.locator('#atGenerate').click();
+      await page.waitForFunction(()=>!document.querySelector('#atGenerate').disabled);
+      let preserved=false;
+      if(!await page.locator('#atResult').isVisible()){
+        assert.match(await page.locator('#atStatus').textContent(),/수식|그림·표·개체/);
+        await page.locator('#atPreserveColumns').check();preserved=true;await page.locator('#atGenerate').click();
+      }
+      await page.locator('#atResult:visible').waitFor();assert.equal(await page.locator('#atDownload').isDisabled(),false);
+      assert.equal(hash(await fs.readFile(file)),before,'Original local bytes changed');
+      checks.push({privateFileIndex:++fileIndex,generated:true,preserveColumns:preserved,originalUnchanged:true,milliseconds:Date.now()-started,testOnlyWeekdayConfirmation:true});
+    }
+    // Never screenshot, persist or print real student cells, filenames or source paths.
+    await page.reload();
+  }
   role='STAFF';await page.reload();await page.getByText('출석부 생성은 캠퍼스 관리자와 교사만 사용할 수 있습니다.').waitFor();
   role='ANONYMOUS';await page.reload();await page.getByText('로그인 후 출석부를 사용할 수 있습니다.').waitFor();
   checks.push({review:true,invalidFile:true,reset:true,campusIsolation:true,roles:true,february:true,printDialog:true});
@@ -159,5 +224,5 @@ try {
   }
   const unexpected=requests.filter(r=>r.method!=='GET'&&!sourcePreviewRequest(r));
   assert.deepEqual(unexpected,[]);assert.deepEqual(errors,[]);
-  const result={base,checks,errors,mutations:0,realStudentData:false,authentication:'synthetic context; not a live account login'};await fs.writeFile(path.join(out,'results.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result));
+  const result={base,checks,errors,mutations:0,realStudentData:Boolean(process.env.ATTENDANCE_PRIVATE_DIRECTORY),authentication:'synthetic context; not a live account login'};await fs.writeFile(path.join(out,'results.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result));
 }finally{await browser.close();await new Promise(r=>server.close(r));}
