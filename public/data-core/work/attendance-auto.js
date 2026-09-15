@@ -2,11 +2,14 @@ import {zipSync,strToU8} from '../vendor/fflate-0.8.3.js';
 import {openTemplate,calendarMonth,parseWeekdays,planPages,printDocument,all,child,children,
   attr,number,check,cellRef,range,address,textOf,indexSheet,areaFor,dateParts,putValue,
   mutableSheet,styleEngine,cellStyleId,mostCommon,updateTitle,ensureSheet,create,
-  setNamedRange,namedRange,dimensions,colorHex,columnName,columnNumber,shiftRangeColumns} from './attendance-template.js';
+  setNamedRange,namedRange,dimensions,colorHex,columnName,columnNumber,shiftRangeColumns} from './attendance-template.js?v=20260915-cell-fidelity';
 
 export const RECOGNITION_ERROR='이 출석부 형식을 자동으로 인식하지 못했습니다.';
 const rowValues=(grid,row,strings)=>[...grid.cells].filter(([ref])=>address(ref).r===row).map(([ref,c])=>({ref,c,value:textOf(c,strings).trim()}));
 const chromatic=color=>{if(!/^#[\da-f]{6}$/i.test(color||''))return false;const rgb=[1,3,5].map(i=>parseInt(color.slice(i,i+2),16));return Math.max(...rgb)-Math.min(...rgb)>15;};
+const exceptionalMark=value=>/^(?:보|보강|결|결석|지각|조퇴|휴강|휴원|휴일|공휴일|취소)$/.test(value.trim());
+const inactiveStudent=value=>/^(?:휴원|휴원중|휴원 중|퇴원)$/.test(value.trim());
+const datedNote=value=>/연휴|휴원|휴강|휴일|보강|방학|개강|공휴|추석|설날/.test(value);
 const monthText=(name)=>/(20\d{2}|\d{2})[.\-_년]\s*(\d{1,2})(?:월|(?=[._\s-]|$))/.exec(name);
 export function nextMonth(year,month){return month===12?{year:year+1,month:1}:{year,month:month+1};}
 export function attendanceFilename(name,year,month){
@@ -195,7 +198,15 @@ function reshapeCalendar(sheet,workbook,m,targetColumns,styleMap,template){
       if(p.end.c<m.dateStart)continue; // fully before the calendar (student-info columns), untouched
       if(p.c<=m.dateStart&&p.end.c>=oldCalEnd){node.setAttribute('ref',`${cellRef(p.c,p.r)}:${cellRef(p.end.c+delta,p.end.r)}`);continue;} // spans across (or exactly covers) the calendar, e.g. a title row: grows/shrinks with it
       if(p.c>=at){node.setAttribute('ref',shiftRangeColumns(ref,at,delta));continue;} // fully inside the trailing (make-up/total) region
-      if(p.c>=m.dateStart&&p.end.c<=oldCalEnd){mergeContainer.removeChild(node);continue;} // fully inside the old calendar (date/weekday header merges) — rebuilt fresh below
+      if(p.c>=m.dateStart&&p.end.c<=oldCalEnd&&p.end.r<m.firstStudentRow){
+        if(p.r<m.dateRow){
+          const start=m.dateColumns[p.c-m.dateStart],end=m.dateColumns[p.end.c-m.dateStart];
+          const first=targetColumns.filter(d=>d.day===start.day),last=targetColumns.filter(d=>d.day===end.day);
+          node.setAttribute('ref',`${cellRef(first[Math.min(start.slot,first.length-1)].c,p.r)}:${cellRef(last.at(-1).c,p.end.r)}`);
+        }else mergeContainer.removeChild(node);
+        continue;
+      }
+      if(p.c>=m.dateStart&&p.end.c<=oldCalEnd)check(false,'날짜 영역 안의 부분 병합은 Excel에서 확인해주세요. 원본 날짜칸 유지로 생성할 수 있습니다.');
       check(false,'날짜 영역과 겹치는 병합 셀 구조는 지원하지 않습니다. Excel에서 확인해주세요.');
     }
     for(const tag of ['conditionalFormatting','dataValidation'])for(const node of all(sheet,tag)){
@@ -278,15 +289,20 @@ function analyzeStudents(template,sheet,grid,m){
     // Blank template blocks remain part of pagination but are not invented students.
     const block={id:`${m.index}:${r}`,name,start:r,end,weekdays:[],channels:[],needsReview:false};
     blocks.push(block);r=end;if(!name)continue;
+    const statusMerge=merges.find(p=>p.r===block.start&&p.end.r===end&&p.c===m.dateStart&&p.end.c===m.dateColumns.at(-1).c&&inactiveStudent(value(p.c,p.r)));
+    if(statusMerge||m.weekdayCol&&inactiveStudent(value(m.weekdayCol,block.start))){block.inactive=true;block.statusMerge=statusMerge||null;continue;}
     let explicit=[];if(m.weekdayCol){try{explicit=parseWeekdays(value(m.weekdayCol,block.start));}catch{block.needsReview=true;}}
     const marked=new Set();
     for(let row=block.start;row<=end;row++){
-      const signal=d=>{const cell=grid.cells.get(cellRef(d.c,row)),v=value(d.c,row);return !child(cell,'f')&&v!==''&&v!=='0';};
+      const signal=d=>{const cell=grid.cells.get(cellRef(d.c,row)),v=value(d.c,row);return !child(cell,'f')&&v!==''&&v!=='0'&&!exceptionalMark(v);};
       const hasValues=m.dateColumns.some(d=>calendar[d.day-1].active&&signal(d));
+      const colored=m.dateColumns.filter(d=>calendar[d.day-1].active&&!exceptionalMark(value(d.c,row))&&chromatic(styles.fillColor(number(styles.xf(cellStyleId(sheet,grid.cells.get(cellRef(d.c,row)),d.c)),'fillId',0))));
+      const backgrounds=new Set(m.dateColumns.filter(d=>calendar[d.day-1].active).map(d=>styles.fillColor(number(styles.xf(cellStyleId(sheet,grid.cells.get(cellRef(d.c,row)),d.c)),'fillId',0))?.toUpperCase()||'#FFFFFF'));
+      const useColor=colored.length>=3&&backgrounds.size>1;
       const rowMarks=new Set(),slots=new Map();
       for(const d of m.dateColumns){if(!calendar[d.day-1].active)continue;
         const cell=grid.cells.get(cellRef(d.c,row)),id=cellStyleId(sheet,cell,d.c),fill=number(styles.xf(id),'fillId',0);
-        if(hasValues?signal(d):chromatic(styles.fillColor(fill))){rowMarks.add(d.day);marked.add(d.day);if(!slots.has(d.slot))slots.set(d.slot,new Set());slots.get(d.slot).add(d.day);}
+        if(!exceptionalMark(value(d.c,row))&&(useColor?chromatic(styles.fillColor(fill)):hasValues&&signal(d))){rowMarks.add(d.day);marked.add(d.day);if(!slots.has(d.slot))slots.set(d.slot,new Set());slots.get(d.slot).add(d.day);}
       }
       const inferred=inferWeekdays(rowMarks,calendar);
       block.channels.push({offset:row-block.start,weekdays:inferred.weekdays,slots:[...slots].map(([slot,marks])=>({slot,weekdays:inferWeekdays(marks,calendar).weekdays}))});
@@ -368,6 +384,7 @@ function scheduleFill(template,originalSheet,originalGrid,styles,m,block,row){
   const calendar=calendarMonth(m.period.year,m.period.month),selected=[],normal=[];
   for(const d of m.dateColumns){if(!calendar[d.day-1].active)continue;
     const c=originalGrid.cells.get(cellRef(d.c,row)),id=cellStyleId(originalSheet,c,d.c),fill=number(styles.xf(id),'fillId',0),v=textOf(c,template.strings);
+    if(exceptionalMark(v))continue;
     const isLesson=block.weekdays.includes(calendar[d.day-1].weekdayIndex);
     (isLesson?selected:normal).push(fill);
     if(isLesson&&v)for(const cf of all(originalSheet,'conditionalFormatting')){
@@ -380,10 +397,63 @@ function scheduleFill(template,originalSheet,originalGrid,styles,m,block,row){
       }
     }
   }
-  const candidate=selected.find(f=>chromatic(styles.fillColor(f)));
+  const colors=selected.filter(f=>chromatic(styles.fillColor(f))),candidate=colors.length?mostCommon(colors):undefined;
   return {plain:mostCommon(normal,0),lesson:candidate??styles.addFill('FFE8F0EC')};
 }
 function serialValue(year,month,day,epoch1904){return (Date.UTC(year,month-1,day)-Date.UTC(epoch1904?1904:1899,epoch1904?0:11,epoch1904?1:30))/86400000;}
+// Keep the recurring appearance of each student's weekday/slot, including white free slots and
+// gray unavailable slots. A one-off make-up mark must not override a row's regular lesson pattern.
+function rowStyleSamples(sheet,grid,styles,m,calendar,row,template){
+  const groups=new Map(),allSamples=[];
+  for(const d of m.dateColumns){
+    if(d.day>28||!calendar[d.day-1].active)continue;
+    const cell=grid.cells.get(cellRef(d.c,row)),id=cellStyleId(sheet,cell,d.c),value=textOf(cell,template.strings);
+    const sample={id,fill:number(styles.xf(id),'fillId',0),exception:exceptionalMark(value),edge:d.c===m.dateStart||d.c===m.dateColumns.at(-1).c};
+    const key=`${calendar[d.day-1].weekdayIndex}:${d.slot}`;
+    if(!groups.has(key))groups.set(key,[]);groups.get(key).push(sample);allSamples.push(sample);
+  }
+  const normal=allSamples.filter(s=>!s.exception&&!chromatic(styles.fillColor(s.fill)));
+  const white=normal.filter(s=>!styles.fillColor(s.fill)||styles.fillColor(s.fill).toUpperCase()==='#FFFFFF');
+  const plain=mostCommon((white.length?white:normal).map(s=>s.fill),0),byKey=new Map();
+  for(const [key,group] of groups){
+    const ordinary=group.filter(s=>!s.exception),samples=ordinary.length?ordinary:group;
+    const color=s=>styles.fillColor(s.fill)?.toUpperCase()||'#FFFFFF';
+    const dominant=mostCommon(samples.map(color));
+    const same=samples.filter(s=>color(s)===dominant),interior=same.filter(s=>!s.edge);
+    let id=mostCommon((interior.length?interior:same).map(s=>s.id));
+    if(group.filter(s=>s.exception).length>=Math.ceil(group.length/2))id=styles.withFill(id,plain);
+    byKey.set(key,id);
+  }
+  const first=cellStyleId(sheet,grid.cells.get(cellRef(m.dateStart,row)),m.dateStart);
+  const lastColumn=m.dateColumns.at(-1).c,last=cellStyleId(sheet,grid.cells.get(cellRef(lastColumn,row)),lastColumn);
+  return {byKey,plain,first,last};
+}
+function clearMonthNotes(sheet,grid,originalSheet,originalGrid,styles,m,columns,template){
+  let cleared=0;const oldEnd=m.dateColumns.at(-1).c;
+  const notes=[],merges=all(originalSheet,'mergeCell').map(n=>range(attr(n,'ref')));
+  for(const [ref,cell] of originalGrid.cells){
+    const p=address(ref);
+    if(p.c<m.dateStart||p.c>oldEnd||p.r>=m.dateRow||m.period.titleCells.includes(ref)||m.period.yearCells.includes(ref)||m.period.monthCells.includes(ref)||!textOf(cell,template.strings).trim())continue;
+    if(child(cell,'f')||!datedNote(textOf(cell,template.strings)))continue;
+    const merge=merges.find(b=>b.c===p.c&&b.r===p.r);
+    if(merge&&(merge.end.c>oldEnd||merge.end.r!==p.r))continue;
+    notes.push(merge||{...p,end:p});cleared++;
+  }
+  for(const note of notes){
+    const row=note.r;
+    const candidates=m.dateColumns.map(d=>({id:cellStyleId(originalSheet,originalGrid.cells.get(cellRef(d.c,row)),d.c),cell:originalGrid.cells.get(cellRef(d.c,row))}));
+    const neutral=candidates.filter(s=>!textOf(s.cell,template.strings).trim()&&!chromatic(styles.fillColor(number(styles.xf(s.id),'fillId',0))));
+    const id=mostCommon((neutral.length?neutral:candidates).map(s=>s.id));
+    const sourceDays=m.dateColumns.filter(d=>d.c>=note.c&&d.c<=note.end.c).map(d=>d.day);
+    const target=columns.filter(d=>sourceDays.includes(d.day));
+    // Clear both former and relocated positions; only empty styled cells or this exact note are touched.
+    const noteText=textOf(originalGrid.cells.get(cellRef(note.c,row)),template.strings).trim();
+    const positions=new Set([...target.map(d=>d.c),...columns.filter(d=>d.c>=note.c&&d.c<=note.end.c).map(d=>d.c)]);
+    for(const c of positions){const cell=grid.cell(c,row),value=textOf(cell,template.strings).trim();if(child(cell,'f')||value&&value!==noteText)continue;putValue(cell,'',sheet);cell.setAttribute('s',String(id));}
+    for(const merge of all(sheet,'mergeCell').slice()){const p=range(attr(merge,'ref'));if(p.r===row&&p.end.r===row&&(p.c===target[0].c&&p.end.c===target.at(-1).c||p.c===note.c&&p.end.c===note.end.c))merge.parentNode.removeChild(merge);}
+  }
+  return cleared;
+}
 function generateSheet(template,m,options,styles,workbook){
   const sheet=template.read(template.sheets[m.index].path),se=styleEngine(styles,template);
   const originalSheet=template.read(template.sheets[m.index].path),originalGrid=indexSheet(originalSheet);
@@ -398,11 +468,20 @@ function generateSheet(template,m,options,styles,workbook){
   // the mutable cell index must be built fresh afterwards, or it would resolve stale references.
   const {area,at,delta}=preserve?{area:m.area,at:m.dateColumns.at(-1).c+1,delta:0}:reshapeCalendar(sheet,workbook,m,targetColumns,styleMap,template);
   const grid=mutableSheet(sheet);
+  const differentMonth=options.year!==m.period.year||options.month!==m.period.month;
+  const clearedNotes=differentMonth?clearMonthNotes(sheet,grid,originalSheet,originalGrid,se,m,targetColumns,template):0;
   for(const b of m.studentBlocks){
     const override=options.weekdays?.[b.id],weekdays=override?parseWeekdays(override):b.weekdays;
-    check(!b.name||weekdays.length&&(!b.needsReview||override),'수업요일 확인이 필요한 학생이 있습니다.');
+    check(!b.name||b.inactive||weekdays.length&&(!b.needsReview||override),'수업요일 확인이 필요한 학생이 있습니다.');
     for(let row=b.start;row<=b.end;row++){
+      if(b.statusMerge){
+        const source=originalGrid.cells.get(cellRef(m.dateStart,row));
+        for(const d of targetColumns){const cell=grid.cell(d.c,row),c=d.c===m.dateStart?m.dateStart:d.c===targetColumns.at(-1).c?m.dateColumns.at(-1).c:m.dateStart+1;putValue(cell,'',sheet);cell.setAttribute('s',String(cellStyleId(originalSheet,originalGrid.cells.get(cellRef(c,row)),c)));}
+        if(row===b.start){const cell=grid.cell(m.dateStart,row);if(source){if(source.hasAttribute('t'))cell.setAttribute('t',attr(source,'t'));for(const n of Array.from(source.childNodes))if(n.nodeType===1&&['v','is'].includes(n.localName))cell.appendChild(n.cloneNode(true));}}
+        continue;
+      }
       const fill=scheduleFill(template,originalSheet,originalGrid,se,m,{...b,weekdays},row);
+      const samples=rowStyleSamples(originalSheet,originalGrid,se,m,oldCalendar,row,template);
       const channel=b.channels.find(c=>c.offset===row-b.start),days=override?weekdays:channel?.weekdays||[];
       for(const d of targetColumns){
         const cell=grid.cell(d.c,row),cal=calendar[d.day-1];
@@ -413,8 +492,17 @@ function generateSheet(template,m,options,styles,workbook){
         // (that row-level weekday list merges marks from every slot). Every slot, including 0,
         // must resolve through its own per-slot weekday list.
         const slotDays=override?days:channel?.slots.find(s=>s.slot===d.slot)?.weekdays||[];
-        const selected=b.name&&slotDays.includes(cal.weekdayIndex)&&cal.active;
-        cell.setAttribute('s',String(se.withFill(number(cell,'s',0),selected?fill.lesson:fill.plain)));
+        const selected=b.name&&!b.inactive&&slotDays.includes(cal.weekdayIndex)&&cal.active;
+        let id=samples.byKey.get(`${cal.weekdayIndex}:${d.slot}`)??samples.byKey.get(`${cal.weekdayIndex}:0`)??samples.first;
+        const sampledFill=number(se.xf(id),'fillId',0);
+        const background=!cal.active?se.addFill('FFF1F1F1'):chromatic(se.fillColor(sampledFill))?samples.plain:sampledFill;
+        id=se.withFill(id,selected?fill.lesson:background);
+        if(!differentMonth&&cal.active){
+          const source=m.dateColumns.find(s=>s.day===d.day&&s.slot===d.slot),original=source&&originalGrid.cells.get(cellRef(source.c,row));
+          if(original&&!exceptionalMark(textOf(original,template.strings)))id=cellStyleId(originalSheet,original,source.c);
+        }
+        const edges={};if(d.c===m.dateStart)edges.left=samples.first;if(d.c===targetColumns.at(-1).c)edges.right=samples.last;
+        cell.setAttribute('s',String(se.withEdges(id,edges)));
       }
     }
   }
@@ -482,7 +570,8 @@ function generateSheet(template,m,options,styles,workbook){
     titleCells:m.period.titleCells.map(ref=>remapRef(ref,at,delta)),
     yearCells:m.period.yearCells.map(ref=>remapRef(ref,at,delta)),
     monthCells:m.period.monthCells.map(ref=>remapRef(ref,at,delta))}};
-  return {sheet,styles,area,mapping,plan,template,year:options.year,month:options.month,browserPrintSafe,preserveColumns:preserve};
+  const mergeContainer=child(sheet.documentElement,'mergeCells');if(mergeContainer)mergeContainer.setAttribute('count',String(children(mergeContainer,'mergeCell').length));
+  return {sheet,styles,area,mapping,plan,template,year:options.year,month:options.month,browserPrintSafe,preserveColumns:preserve,clearedNotes};
 }
 export function generateWorkbook(template,analysis,options){
   calendarMonth(options.year,options.month);

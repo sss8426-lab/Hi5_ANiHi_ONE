@@ -8,6 +8,7 @@ import {DOMParser,XMLSerializer} from '@xmldom/xmldom';
 import {attendanceFixture} from '../tests/helpers/attendance-fixture.mjs';
 import {autoFixture} from '../tests/helpers/attendance-auto-fixture.mjs';
 import {realWorldFixture} from '../tests/helpers/attendance-real-world-fixture.mjs';
+import {fidelityFixture} from '../tests/helpers/attendance-fidelity-fixture.mjs';
 import {unzipSync,zipSync,strFromU8,strToU8} from '../public/data-core/vendor/fflate-0.8.3.js';
 import {analyzeWorkbook,generateWorkbook,printWorkbook} from '../public/data-core/work/attendance-auto.js';
 import {openTemplate,analyzeSheet,generateAttendance,templateStudents,printDocument} from '../public/data-core/work/attendance-template.js';
@@ -192,6 +193,27 @@ try {
   role='STAFF';await page.reload();await page.getByText('출석부 생성은 캠퍼스 관리자와 교사만 사용할 수 있습니다.').waitFor();
   role='ANONYMOUS';await page.reload();await page.getByText('로그인 후 출석부를 사용할 수 있습니다.').waitFor();
   checks.push({review:true,invalidFile:true,reset:true,campusIsolation:true,roles:true,february:true,printDialog:true});
+  role='CAMPUS_ADMIN';await page.reload();await page.locator('#atFile').waitFor();
+  const fidelity=fidelityFixture(),ft=openTemplate(fidelity.bytes,{DOMParser,XMLSerializer});
+  const fo=generateWorkbook(ft,analyzeWorkbook(ft),{year:2026,month:10});
+  for(const width of [1920,1440,1280,1024,768,390]){
+    await page.setViewportSize({width,height:900});await page.reload();await page.locator('#atFile').waitFor();
+    await page.locator('#atFile').setInputFiles({name:'SYNTHETIC_2026.09.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:Buffer.from(fidelity.bytes)});
+    await page.locator('#atGenerate:not([disabled])').waitFor();assert.equal(await page.locator('#atReviewPrompt').isVisible(),false);
+    await page.locator('#atGenerate').click();await page.locator('#atResult:visible').waitFor();
+    assert.equal(await page.locator('#atTable [data-cell=D8]').textContent(),'휴원');
+    assert.ok(await page.locator('#atMonthNotice').isVisible());
+    const slot=fo.results[0].mapping.dateColumns.find(d=>d.day===31&&d.slot===2);
+    const ref=(await import('../public/data-core/work/attendance-template.js')).cellRef(slot.c,5);
+    assert.equal(await page.locator(`[data-cell="${ref}"]`).evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(255, 255, 255)');
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
+    await page.screenshot({path:path.join(out,`fidelity-${width}.png`),fullPage:true});
+  }
+  const fidelityPrint=await context.newPage();await fidelityPrint.setContent(printWorkbook(fo));await fidelityPrint.evaluate(()=>document.fonts.ready);
+  await fidelityPrint.pdf({path:path.join(out,'fidelity.pdf'),preferCSSPageSize:true,printBackground:true});
+  assert.equal(await fidelityPrint.locator('.at-print-page').count(),1);
+  await fidelityPrint.screenshot({path:path.join(out,'fidelity-print.png'),fullPage:true});await fidelityPrint.close();
+  checks.push({cellFidelity:true,threeFillSemantics:true,inactiveLabel:true,monthNotes:true,richTitle:true});
   const autoTemplate=openTemplate(autoFixture({students:45,review:false,fit:false}),{DOMParser,XMLSerializer});
   const autoOutput=generateWorkbook(autoTemplate,analyzeWorkbook(autoTemplate,'출석부26.09_.xlsx'),{year:2026,month:10});
   const printedAuto=await context.newPage();await printedAuto.setContent(printWorkbook(autoOutput));
