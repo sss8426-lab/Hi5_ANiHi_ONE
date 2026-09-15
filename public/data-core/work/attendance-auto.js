@@ -33,13 +33,19 @@ function dateGrid(template,sheet,grid,area){
       columns.push({c:x,day:d,slot:d===previous?columns.at(-1).slot+1:0});previous=d;
     }
     if(previous<28)continue;
-    // Only reuse existing blank, styled tail cells. Never consume a summary column.
+    // Some templates always reserve all 31 day-slots (blank/styled placeholders for days beyond the
+    // current month's real length) — try to borrow those trailing blank cells so short months still
+    // resolve to a familiar 31-slot layout. Other templates only ever lay out as many physical day
+    // columns as the month being copied actually needs (28-30), with no day-31 placeholder to borrow
+    // at all — for those, the run ending anywhere from day 28 to day 31 is itself the natural boundary
+    // of the calendar (the next cell is occupied by something else, or the sheet simply ends there),
+    // and downstream generation never depends on the source having a physical day-31 column (only
+    // days 1-28 feed weekdaySlotPolicy; the target month's columns are rebuilt from scratch).
     for(let d=previous+1;d<=31;d++){
       const x=columns.at(-1).c+1,cell=grid.cells.get(cellRef(x,r));
       if(x>area.end.c||literal(x,r)||!cell)break;
       columns.push({c:x,day:d,slot:0});
     }
-    if(columns.at(-1).day!==31)continue;
     const weekdayRow=[r+1,r-1].find(w=>w>=area.r&&columns.filter(d=>/^[일월화수목금토](?:요일)?$/.test(text(d.c,w))).length>=14)||0;
     const headerMode=anyMerged?'merged':columns.some(d=>d.slot>0)?'repeated':'single';
     found.push({dateRow:r,dateStart:c,dateColumns:columns,weekdayRow,headerMode});
@@ -52,9 +58,12 @@ function period(template,sheet,grid,m,filename){
   let year=0,month=0;
   for(const [ref,c] of grid.cells){
     if(address(ref).r>=m.dateRow)continue;
-    const value=textOf(c,template.strings),full=/(20\d{2})\s*년\s*(\d{1,2})\s*월|\b(20\d{2})[./-](\d{1,2})\b/.exec(value);
+    const value=textOf(c,template.strings);
+    // Allow a short run of non-digit text between the year and "월" (e.g. "2026학년도 9월", not just
+    // the bare "2026년 9월") — [^\d] keeps it from ever skipping past an unrelated number.
+    const full=/(20\d{2})[^\d]{0,8}?(\d{1,2})\s*월|\b(20\d{2})[./-](\d{1,2})\b/.exec(value);
     if(full){candidates.push({year:Number(full[1]||full[3]),month:Number(full[2]||full[4])});titleCells.push(ref);continue;}
-    const y=/(20\d{2})\s*년/.exec(value);if(y){year=Number(y[1]);yearCells.push(ref);}
+    const y=/(20\d{2})\s*(?:년|학년도)/.exec(value);if(y){year=Number(y[1]);yearCells.push(ref);}
   }
   if(year){
     const values=[...grid.cells].filter(([ref,c])=>address(ref).r<m.dateRow&&/^(?:0?[1-9]|1[0-2])(?:월)?$/.test(textOf(c,template.strings).trim()));
@@ -244,9 +253,20 @@ export function analyzeWorkbook(template,filename=''){
       if(address(cell.ref).c<m.dateStart&&/^(수업요일|요일|수업일)$/.test(cell.value.replace(/\s/g,'')))m.weekdayCol=address(cell.ref).c;
     }
     check(m.nameCol<m.dateStart,RECOGNITION_ERROR);
-    const dims=dimensions(sheet,area);check([m.nameCol,...m.dateColumns.map(d=>d.c)].every(c=>dims.widths[c-area.c]>0),RECOGNITION_ERROR);
-    // Unknown conditional expressions can change the next month's appearance. Fail closed.
-    check(all(sheet,'cfRule').every(rule=>attr(rule,'type')==='cellIs'&&attr(rule,'operator')==='equal'&&all(rule,'formula').length===1&&/^(?:"[^"\r\n]*"|\d+)$/.test(all(rule,'formula')[0].textContent)),RECOGNITION_ERROR);
+    const dims=dimensions(sheet,area);
+    check([m.nameCol,...m.dateColumns.map(d=>d.c)].every(c=>dims.widths[c-area.c]>0),RECOGNITION_ERROR);
+    // Unknown conditional expressions can change the next month's appearance, so any rule type we
+    // don't understand still fails closed. Two shapes are understood as safe: a "cellIs equal
+    // <literal>" rule (compares a cell to a fixed value/text — used to color-sample lesson days),
+    // and Excel's built-in "text contains/begins with/ends with <literal>" rules (their formula is
+    // an auto-generated SEARCH/FIND helper over the rule's own `text` attribute, never a reference
+    // to another cell, so it stays meaningful no matter what a new month's blank cells later hold).
+    check(all(sheet,'cfRule').every(rule=>{
+      const type=attr(rule,'type');
+      if(type==='cellIs')return attr(rule,'operator')==='equal'&&all(rule,'formula').length===1&&/^(?:"[^"\r\n]*"|\d+)$/.test(all(rule,'formula')[0].textContent);
+      if(['containsText','notContainsText','beginsWith','endsWith'].includes(type))return rule.hasAttribute('text')&&attr(rule,'text').length<=200;
+      return false;
+    }),RECOGNITION_ERROR);
     m.period=period(template,sheet,grid,m,filename);
     m.studentBlocks=analyzeStudents(template,sheet,grid,m);sheets.push(m);
   }

@@ -25,7 +25,9 @@ if(process.env.ATTENDANCE_ORIGIN){
     if(asset==='data-core/index.html')previewShell=withNav(deployed);
   }
 }
-const browser=await chromium.launch({channel:'chrome',headless:true});
+const browserChannel=process.env.ATTENDANCE_BROWSER_CHANNEL||'chrome';
+assert.ok(['chrome','chromium'].includes(browserChannel),'지원하지 않는 검증 브라우저입니다.');
+const browser=await chromium.launch({channel:browserChannel,headless:true});
 const errors=[],requests=[],checks=[];let role='CAMPUS_ADMIN';
 const sourcePreviewRequest=r=>r.method==='POST'&&/^\/api\/data-core\/competition-sources\/(artmd|mgood)\/preview$/.test(r.path);
 try {
