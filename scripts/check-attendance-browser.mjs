@@ -110,7 +110,7 @@ try {
   await page.locator('#atReviewSave').click();await page.locator('#atGenerate').click();await page.locator('#atResult:visible').waitFor();
   await page.locator('#atAgain').click();
   await page.locator('#atFile').setInputFiles({name:'invalid.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:Buffer.from('invalid')});
-  await page.locator('#atStatus').filter({hasText:/자동으로 인식/}).waitFor();
+  await page.locator('#atStatus').filter({hasText:/암호화되지 않은/}).waitFor();
   assert.equal(await page.locator('#atGenerate').isDisabled(),true);
   assert.equal(await page.locator('#atResult').isVisible(),false);
   assert.equal(await page.locator('#atMapping,#atSource').count(),0);
