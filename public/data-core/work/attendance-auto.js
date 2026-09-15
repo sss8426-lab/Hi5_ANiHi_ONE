@@ -310,7 +310,7 @@ function analyzeStudents(template,sheet,grid,m){
     const inferred=inferWeekdays(marked,calendar);
     block.weekdays=explicit.length?explicit:inferred.weekdays;
     block.needsReview=block.needsReview||!explicit.length&&inferred.needsReview;
-    if(explicit.length)block.channels=block.channels.map(c=>({...c,weekdays:explicit,slots:c.slots.map(s=>({...s,weekdays:s.weekdays.filter(d=>explicit.includes(d))}))}));
+    if(explicit.length)block.channels=block.channels.map(c=>({...c,weekdays:explicit}));
   }
   check(blocks.some(b=>b.name)&&blocks.filter(b=>b.name).length<=500,RECOGNITION_ERROR);
   return blocks;
