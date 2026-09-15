@@ -297,7 +297,8 @@ function analyzeStudents(template,sheet,grid,m){
       const signal=d=>{const cell=grid.cells.get(cellRef(d.c,row)),v=value(d.c,row);return !child(cell,'f')&&v!==''&&v!=='0'&&!exceptionalMark(v);};
       const hasValues=m.dateColumns.some(d=>calendar[d.day-1].active&&signal(d));
       const colored=m.dateColumns.filter(d=>calendar[d.day-1].active&&!exceptionalMark(value(d.c,row))&&chromatic(styles.fillColor(number(styles.xf(cellStyleId(sheet,grid.cells.get(cellRef(d.c,row)),d.c)),'fillId',0))));
-      const useColor=colored.length>=3;
+      const backgrounds=new Set(m.dateColumns.filter(d=>calendar[d.day-1].active).map(d=>styles.fillColor(number(styles.xf(cellStyleId(sheet,grid.cells.get(cellRef(d.c,row)),d.c)),'fillId',0))?.toUpperCase()||'#FFFFFF'));
+      const useColor=colored.length>=3&&backgrounds.size>1;
       const rowMarks=new Set(),slots=new Map();
       for(const d of m.dateColumns){if(!calendar[d.day-1].active)continue;
         const cell=grid.cells.get(cellRef(d.c,row)),id=cellStyleId(sheet,cell,d.c),fill=number(styles.xf(id),'fillId',0);
@@ -309,7 +310,7 @@ function analyzeStudents(template,sheet,grid,m){
     const inferred=inferWeekdays(marked,calendar);
     block.weekdays=explicit.length?explicit:inferred.weekdays;
     block.needsReview=block.needsReview||!explicit.length&&inferred.needsReview;
-    if(explicit.length)block.channels=block.channels.map(c=>({...c,weekdays:explicit}));
+    if(explicit.length)block.channels=block.channels.map(c=>({...c,weekdays:explicit,slots:c.slots.map(s=>({...s,weekdays:s.weekdays.filter(d=>explicit.includes(d))}))}));
   }
   check(blocks.some(b=>b.name)&&blocks.filter(b=>b.name).length<=500,RECOGNITION_ERROR);
   return blocks;

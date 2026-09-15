@@ -69,3 +69,12 @@ test('unknown header labels are preserved and partial body merges are never sile
   child(sheet.documentElement,'mergeCells').appendChild(create(sheet,'mergeCell',{ref:`${cellRef(s.f.start,5)}:${cellRef(s.f.start+1,5)}`}));
   t=read();assert.throws(()=>generateWorkbook(t,analyzeWorkbook(t),{year:2026,month:10}),/부분 병합/);
 });
+test('uniform decorative color is not a lesson schedule; explicit weekdays bound inferred slots',()=>{
+  const s=setup(),sheet=s.t.read('xl/worksheets/sheet1.xml'),styles=s.t.styles.cloneNode(true),se=styleEngine(styles,s.t),grid=indexSheet(sheet);
+  const blue=se.addFill('FFDDEEFF');
+  for(const d of s.f.columns){const n=grid.cells.get(cellRef(d.c,5));n.setAttribute('s',String(se.withFill(cellStyleId(sheet,n),blue)));putValue(n,[1,8,15,22].includes(d.day)?1:'',sheet);}
+  putValue(grid.cells.get('C5'),'화',sheet);
+  const t=openTemplate(zipSync({...s.t.entries,'xl/worksheets/sheet1.xml':strToU8(xml(sheet)),'xl/styles.xml':strToU8(xml(styles))}),env);
+  const b=analyzeWorkbook(t).sheets[0].studentBlocks[0];assert.deepEqual(b.channels[0].slots,[{slot:0,weekdays:[2]}]);
+  assert.equal(b.needsReview,false);
+});
