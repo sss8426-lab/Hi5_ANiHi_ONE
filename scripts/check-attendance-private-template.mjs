@@ -117,7 +117,12 @@ try{
         assert.equal(b.end,sourceBlock.end,'student block end row preserved');
         assert.equal(b.name,sourceBlock.name,'student identity unchanged');
         for(let row=b.start;row<=b.end;row++)for(let c=m.area.c;c<m.dateStart;c++){
-          assert.equal(textOf(nextGrid.cells.get(cellRef(c,row)),template.strings),textOf(oldGrid.cells.get(cellRef(c,row)),template.strings),'student info column unchanged');
+          const oldCell=oldGrid.cells.get(cellRef(c,row)),nextCell=nextGrid.cells.get(cellRef(c,row));
+          // A formula cell's cached <v> is deliberately cleared everywhere in the sheet (checked
+          // separately below via 'stale formula cache removed'), so its textOf() legitimately changes
+          // even though the formula itself — and the untouched student-info column it sits in — did not.
+          if(child(oldCell,'f')||child(nextCell,'f'))continue;
+          assert.equal(textOf(nextCell,template.strings),textOf(oldCell,template.strings),'student info column unchanged');
         }
         for(let row=b.start;row<=b.end;row++)for(const d of m.dateColumns){
           assert.equal(textOf(nextGrid.cells.get(cellRef(d.c,row)),template.strings),'','prior attendance mark cleared');
