@@ -196,7 +196,24 @@ function styleEngine(doc,template) {
   const addFill=hex=>{const found=children(fills,'fill').findIndex(f=>attr(child(f,'patternFill'),'patternType')==='solid'&&attr(child(child(f,'patternFill'),'fgColor'),'rgb')===hex);if(found>=0)return found;const f=create(doc,'fill'),p=create(doc,'patternFill',{patternType:'solid'});p.appendChild(create(doc,'fgColor',{rgb:hex}));p.appendChild(create(doc,'bgColor',{indexed:64}));f.appendChild(p);fills.appendChild(f);fills.setAttribute('count',String(children(fills,'fill').length));return children(fills,'fill').length-1;};
   const cache=new Map();
   const withFill=(id,fill)=>{if(number(xf(id),'fillId',0)===fill)return id;const key=`${id}:${fill}`;if(cache.has(key))return cache.get(key);const n=xf(id).cloneNode(true);n.setAttribute('fillId',String(fill));n.setAttribute('applyFill','1');xfs.appendChild(n);const next=children(xfs,'xf').length-1;xfs.setAttribute('count',String(next+1));cache.set(key,next);return next;};
-  return {xf,fillId,fillColor,addFill,withFill};
+  const borders=child(doc.documentElement,'borders'),edgeCache=new Map();
+  const withEdges=(id,edges)=>{
+    const key=JSON.stringify([id,edges]);if(edgeCache.has(key))return edgeCache.get(key);
+    const list=children(borders,'border'),base=list[number(xf(id),'borderId',0)],next=base.cloneNode(true);
+    const xml=n=>n?new template.env.XMLSerializer().serializeToString(n):'';
+    let changed=false;
+    for(const [side,sourceId] of Object.entries(edges)){
+      const source=child(list[number(xf(sourceId),'borderId',0)],side),old=child(next,side);
+      if(xml(source)===xml(old))continue;changed=true;
+      if(source){if(old)next.replaceChild(source.cloneNode(true),old);else next.appendChild(source.cloneNode(true));}else if(old)next.removeChild(old);
+    }
+    if(!changed)return id;
+    const serialized=xml(next);let borderId=list.findIndex(b=>xml(b)===serialized);
+    if(borderId<0){borderId=list.length;borders.appendChild(next);borders.setAttribute('count',String(borderId+1));}
+    const n=xf(id).cloneNode(true);n.setAttribute('borderId',String(borderId));n.setAttribute('applyBorder','1');
+    xfs.appendChild(n);const result=children(xfs,'xf').length-1;xfs.setAttribute('count',String(result+1));edgeCache.set(key,result);return result;
+  };
+  return {xf,fillId,fillColor,addFill,withFill,withEdges};
 }
 function mostCommon(values,fallback=0) { const counts=new Map();values.forEach(v=>counts.set(v,(counts.get(v)||0)+1));return [...counts].sort((a,b)=>b[1]-a[1])[0]?.[0]??fallback; }
 function shiftRange(ref,at,delta) {
@@ -231,7 +248,8 @@ function updateTitle(cell,value,doc,template) {
     for(const node of elements(cell))if(['v','is','f'].includes(node.localName))cell.removeChild(node);
     cell.setAttribute('t','inlineStr');cell.appendChild(content);
   }
-  if(attr(cell,'t')!=='inlineStr'||all(cell,'t').length<2){putValue(cell,value,doc);return;}
+  if(attr(cell,'t')==='inlineStr'&&all(cell,'t').length===1){all(cell,'t')[0].textContent=value;return;}
+  if(attr(cell,'t')!=='inlineStr'||!all(cell,'t').length){putValue(cell,value,doc);return;}
   const texts=all(cell,'t'),old=texts.map(t=>t.textContent).join('');let prefix=0,suffix=0;
   while(prefix<old.length&&old[prefix]===value[prefix])prefix++;
   while(suffix<old.length-prefix&&old[old.length-1-suffix]===value[value.length-1-suffix])suffix++;
@@ -248,7 +266,8 @@ function settings(sheet) {
 }
 function dimensions(sheet,area) {
   const defaults=child(sheet.documentElement,'sheetFormatPr'),idx=indexSheet(sheet),cols=all(sheet,'col');
-  const widths=Array.from({length:area.end.c-area.c+1},(_,i)=>{const c=area.c+i,n=cols.find(col=>number(col,'min',0)<=c&&number(col,'max',0)>=c);return attr(n,'hidden')==='1'?0:Math.floor(number(n,'width',number(defaults,'defaultColWidth',8.43))*7+5);});
+  // OOXML width already includes the cell padding (ISO/IEC 29500 Column.width).
+  const widths=Array.from({length:area.end.c-area.c+1},(_,i)=>{const c=area.c+i,n=cols.find(col=>number(col,'min',0)<=c&&number(col,'max',0)>=c);return attr(n,'hidden')==='1'?0:Math.floor((256*number(n,'width',number(defaults,'defaultColWidth',8.43))+Math.floor(128/7))/256*7);});
   const height=r=>attr(idx.rows.get(r),'hidden')==='1'?0:number(idx.rows.get(r),'ht',number(defaults,'defaultRowHeight',15))*4/3;
   return {widths,height,width:widths.reduce((a,b)=>a+b,0)};
 }
@@ -380,19 +399,32 @@ export function generateAttendance(template,m,options) {
   return {bytes:zipSync(files,{level:6}),sheet,styles,area,mapping:current,plan,warnings,browserPrintSafe:browserPrintSafe&&plan.settings.paperSize===9,template,year:options.year,month:options.month};
 }
 
-function cssStyle(result,cell) {
+function fontCss(font,result,partial=false) {
+  const face=attr(child(font,'name'),'val',attr(child(font,'rFont'),'val','Arial')).replace(/[^\p{L}\p{N} ,_-]/gu,'');
+  const enabled=tag=>child(font,tag)&&!['0','false'].includes(attr(child(font,tag),'val'));
+  const css=[`font-family:'${face}',sans-serif`,`font-size:${Math.min(72,Math.max(5,number(child(font,'sz'),'val',11)))}pt`,`font-weight:${enabled('b')?'700':'400'}`,`font-style:${enabled('i')?'italic':'normal'}`];
+  if(partial){if(!child(font,'i'))css.splice(3,1);if(!child(font,'b'))css.splice(2,1);if(!child(font,'sz'))css.splice(1,1);if(!child(font,'name')&&!child(font,'rFont'))css.splice(0,1);}
+  const color=colorHex(child(font,'color'),result.template);if(color)css.push(`color:${color}`);
+  if(enabled('u'))css.push('text-decoration:underline');
+  return css;
+}
+function cssStyle(result,cell,edges={}) {
   const doc=result.styles,xf=children(child(doc.documentElement,'cellXfs'),'xf')[cell?cellStyleId(result.sheet,cell):0];
   const font=children(child(doc.documentElement,'fonts'),'font')[number(xf,'fontId',0)];
   const border=children(child(doc.documentElement,'borders'),'border')[number(xf,'borderId',0)];
   const fill=children(child(doc.documentElement,'fills'),'fill')[number(xf,'fillId',0)],alignment=child(xf,'alignment');
-  const face=attr(child(font,'name'),'val','Arial').replace(/[^\p{L}\p{N} ,_-]/gu,'');
-  const css=[`font-family:'${face}',sans-serif`,`font-size:${Math.min(72,Math.max(5,number(child(font,'sz'),'val',11)))}pt`,`font-weight:${child(font,'b')?'700':'400'}`,`font-style:${child(font,'i')?'italic':'normal'}`];
+  const css=fontCss(font,result);
   const color=colorHex(child(font,'color'),result.template),bg=colorHex(child(child(fill,'patternFill'),'fgColor'),result.template);if(color)css.push(`color:${color}`);if(bg)css.push(`background:${bg}`);
   const horizontal=attr(alignment,'horizontal','general'),vertical=attr(alignment,'vertical','bottom');
   css.push(`text-align:${['left','center','right','justify'].includes(horizontal)?horizontal:attr(cell,'t')==='inlineStr'||attr(cell,'t')==='s'?'left':'right'}`,`vertical-align:${vertical==='center'?'middle':['top','bottom'].includes(vertical)?vertical:'bottom'}`);
   if(child(font,'u'))css.push('text-decoration:underline');
-  for(const side of ['left','right','top','bottom']){const n=child(border,side),style=attr(n,'style');if(style){const width=style==='thick'?2:style.startsWith('medium')?1.5:0.75;css.push(`border-${side}:${width}pt ${style==='double'?'double':style.toLowerCase().includes('dash')?'dashed':style==='dotted'?'dotted':'solid'} ${colorHex(child(n,'color'),result.template)||'#222222'}`);}}
+  for(const side of ['left','right','top','bottom']){const n=edges[side]||child(border,side),style=attr(n,'style');if(style){const width=style==='thick'||style==='double'?1.5:style.startsWith('medium')?1:style==='hair'?0.25:0.5;css.push(`border-${side}:${width}pt ${style==='double'?'double':style.toLowerCase().includes('dash')?'dashed':style==='dotted'?'dotted':'solid'} ${colorHex(child(n,'color'),result.template)||'#222222'}`);}}
   return css.join(';');
+}
+function richCellHtml(result,node,text){
+  const content=attr(node,'t')==='s'?all(result.template.shared,'si')[Number(child(node,'v')?.textContent)]:child(node,'is');
+  const runs=children(content,'r');if(!runs.length)return escapeHtml(text);
+  return runs.map(run=>{const font=child(run,'rPr');return `<span${font?` style="${escapeHtml(fontCss(font,result,true).join(';'))}"`:''}>${escapeHtml(child(run,'t')?.textContent||'')}</span>`;}).join('');
 }
 export function renderTable(result,rows=null) {
   const {area,sheet,template,plan}=result,idx=indexSheet(sheet),merges=all(sheet,'mergeCell').map(n=>range(attr(n,'ref')));
@@ -406,12 +438,20 @@ export function renderTable(result,rows=null) {
       if(r===result.mapping.dateRow){const serial=dateParts(text,template.epoch1904);if(serial)text=String(serial.day);}
       const xf=children(child(result.styles.documentElement,'cellXfs'),'xf')[node?cellStyleId(sheet,node,c):0],wrap=attr(child(xf,'alignment'),'wrapText')==='1';
       const height=merge?Array.from({length:merge.end.r-merge.r+1},(_,i)=>plan.dimensions.height(merge.r+i)).reduce((a,b)=>a+b,0):plan.dimensions.height(r);
-      cells.push(`<td data-cell="${cellRef(c,r)}" ${merge?`colspan="${merge.end.c-merge.c+1}" rowspan="${merge.end.r-merge.r+1}"`:''} style="${escapeHtml(cssStyle(result,node))}"><div style="max-height:${Math.max(0,height-2)}px;white-space:${wrap?'pre-wrap':'pre'}">${escapeHtml(text)}</div></td>`);
+      const edges={};
+      if(merge)for(const [side,point] of Object.entries({right:cellRef(merge.end.c,r),bottom:cellRef(c,merge.end.r)})){
+        const edge=idx.cells.get(point);if(!edge)continue;
+        const exf=children(child(result.styles.documentElement,'cellXfs'),'xf')[cellStyleId(sheet,edge)];
+        const border=children(child(result.styles.documentElement,'borders'),'border')[number(exf,'borderId',0)];
+        if(attr(child(border,side),'style'))edges[side]=child(border,side);
+      }
+      const rotation=number(child(xf,'alignment'),'textRotation',0),vertical=rotation===255?'writing-mode:vertical-rl;text-orientation:upright;margin:auto;':'';
+      cells.push(`<td data-cell="${cellRef(c,r)}" ${merge?`colspan="${merge.end.c-merge.c+1}" rowspan="${merge.end.r-merge.r+1}"`:''} style="${escapeHtml(cssStyle(result,node,edges))}"><div style="max-height:${Math.max(0,height-2)}px;white-space:${wrap?'pre-wrap':'pre'};${vertical}">${richCellHtml(result,node,text)}</div></td>`);
     }return `<tr style="height:${plan.dimensions.height(r)}px">${cells.join('')}</tr>`;
   }).join('');
   return `<table class="at-sheet" style="width:${plan.dimensions.width}px"><colgroup>${cols}</colgroup><tbody>${body}</tbody></table>`;
 }
-export const TABLE_CSS='.at-sheet{border-collapse:collapse;table-layout:fixed;background:white;color:#111;letter-spacing:0}.at-sheet td{padding:0 1px;box-sizing:border-box;overflow:hidden}.at-sheet td>div{overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.1}.at-sheet tr{break-inside:avoid}';
+export const TABLE_CSS='.at-sheet{border-collapse:collapse;table-layout:fixed;min-width:0;background:white;color:#111;letter-spacing:0}.at-sheet td{border:0;padding:0 1px;box-sizing:border-box;overflow:hidden}.at-sheet td>div{overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.1}.at-sheet tr{break-inside:avoid}';
 export function sourcePreview(template,index) {
   const sheet=template.read(template.sheets[index].path),area=areaFor(template.workbook,index,sheet);
   return renderTable({sheet,area,styles:template.styles,template,mapping:analyzeSheet(template,index),plan:{dimensions:dimensions(sheet,area)}});

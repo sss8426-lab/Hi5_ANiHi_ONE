@@ -1,5 +1,5 @@
-import {openTemplate,inspectAttendanceSheets,nextMonth,generateWorkbook,attendanceFilename,printWorkbook,RECOGNITION_ERROR} from './attendance-auto.js?v=20260915-template-recovery';
-import {renderTable,TABLE_CSS,escapeHtml as h} from './attendance-template.js';
+import {openTemplate,inspectAttendanceSheets,nextMonth,generateWorkbook,attendanceFilename,printWorkbook,RECOGNITION_ERROR} from './attendance-auto.js?v=20260915-cell-fidelity';
+import {renderTable,TABLE_CSS,escapeHtml as h} from './attendance-template.js?v=20260915-cell-fidelity';
 
 const icon=name=>`<svg class="at-icon" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#${name}"/></svg>`;
 const monthValue=({year,month})=>`${year}-${String(month).padStart(2,'0')}`;
@@ -23,6 +23,7 @@ export function mountAttendance(host){
     <section id="atResult" hidden>
       <h2 id="atResultTitle"></h2>
       <p id="atLayoutNotice" hidden>원본 날짜칸을 유지했습니다. 주말 다중 수업칸은 재배치되지 않으므로 Excel에서 확인해주세요.</p>
+      <p id="atMonthNotice" hidden>지난달 날짜에 붙은 연휴·메모는 새 달에 옮기지 않았습니다. 보강·출결 표시는 비우고 정규 수업칸과 휴원 상태를 유지했습니다.</p>
       <div id="atTabs" role="tablist" aria-label="출석부 시트"></div>
       <div class="at-result-heading"><span id="atEstimate"></span><button type="button" id="atSize" aria-pressed="false" title="실제 크기">${icon('ZoomIn')}</button></div>
       <div class="at-preview" id="atPreview" role="tabpanel" tabindex="0" aria-label="생성된 출석부 미리보기"><div id="atPaper"><div id="atTable"></div></div></div>
@@ -106,6 +107,7 @@ export function mountAttendance(host){
       result=generateWorkbook(template,analysis,{year,month,weekdays:overrides,preserveColumns:$('atPreserveColumns').checked});active=0;
       $('atResultTitle').textContent=`${year}년 ${month}월 출석부`;
       $('atLayoutNotice').hidden=!result.results.some(r=>r.preserveColumns&&r.mapping.dateColumns.some(d=>d.slot>0));
+      $('atMonthNotice').hidden=!result.results.some(r=>r.clearedNotes);
       $('atTabs').innerHTML=result.results.map((r,i)=>`<button type="button" role="tab" id="atTab${i}" aria-controls="atPreview" data-sheet="${i}">${h(r.mapping.name)}</button>`).join('');
       $('atResult').hidden=false;$('atForm').hidden=true;$('atPrintNotice').hidden=result.results.every(r=>r.browserPrintSafe);showSheet();status('');
     }catch(error){invalidate();$('atForm').hidden=false;status(`${error?.message||'출석부를 만들지 못했습니다.'}${/수식|그림·표·개체/.test(error?.message||'')?' 원본 날짜칸 유지를 선택하거나 해당 시트를 제외한 뒤 다시 만들어주세요.':''}`);}
