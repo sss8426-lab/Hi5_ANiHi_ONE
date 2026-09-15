@@ -36,11 +36,23 @@ function ensureSheet(doc, tag) {
 function namedRange(workbook, sheetIndex, kind) { return all(workbook,'definedName').find(n=>attr(n,'name')===kind && Number(attr(n,'localSheetId','-1'))===sheetIndex); }
 function areaFor(workbook,index,sheet) {
   const text=namedRange(workbook,index,'_xlnm.Print_Area')?.textContent;
+  let declared;
   if(text) {
     const m=/^('(?:[^']|'')+'|[^!]+)!([^!,]+)$/.exec(text);
-    check(m,'인쇄 영역이 여러 구간입니다. 연속된 출석부 영역을 지정한 양식이 필요합니다.');return range(m[2]);
+    check(m,'인쇄 영역이 여러 구간입니다. 연속된 출석부 영역을 지정한 양식이 필요합니다.');declared=range(m[2]);
+  } else declared=range(attr(child(sheet.documentElement,'dimension'),'ref','A1'));
+  // Both the Print_Area name and the sheet's own <dimension> tag are metadata that some tools fail to
+  // recompute after edits, so either can go stale and report a smaller used range than the sheet's
+  // real cells. Never shrink below what cells actually exist — but keep trusting the declared range
+  // where it reports MORE than the real cells, since templates commonly pre-format blank rows/columns
+  // below current data for future months.
+  let maxR=declared.end.r,maxC=declared.end.c;
+  for(const c of all(sheet,'c')){
+    const {c:col,r:row}=address(attr(c,'r'));
+    if(row>maxR)maxR=row;
+    if(col>maxC)maxC=col;
   }
-  return range(attr(child(sheet.documentElement,'dimension'),'ref','A1'));
+  return maxR===declared.end.r&&maxC===declared.end.c?declared:{...declared,end:{r:maxR,c:maxC}};
 }
 function textOf(cell, shared) {
   if(!cell)return '';
