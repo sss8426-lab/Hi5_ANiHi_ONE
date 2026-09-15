@@ -2,7 +2,7 @@ import {zipSync,strToU8} from '../vendor/fflate-0.8.3.js';
 import {openTemplate,calendarMonth,parseWeekdays,planPages,printDocument,all,child,children,
   attr,number,check,cellRef,range,address,textOf,indexSheet,areaFor,dateParts,putValue,
   mutableSheet,styleEngine,cellStyleId,mostCommon,updateTitle,ensureSheet,create,
-  setNamedRange,namedRange,dimensions,colorHex,columnName,shiftRangeColumns} from './attendance-template.js';
+  setNamedRange,namedRange,dimensions,colorHex,columnName,columnNumber,shiftRangeColumns} from './attendance-template.js';
 
 export const RECOGNITION_ERROR='이 출석부 형식을 자동으로 인식하지 못했습니다.';
 const rowValues=(grid,row,strings)=>[...grid.cells].filter(([ref])=>address(ref).r===row).map(([ref,c])=>({ref,c,value:textOf(c,strings).trim()}));
@@ -137,6 +137,20 @@ function sampleCalendarStyles(originalSheet,originalGrid,m,calendar){
   }
   return byKey;
 }
+// A reshape never rewrites formula text, only cell positions outside the calendar (and only in the
+// trailing region — student-info columns before dateStart are never touched at all). So a formula is
+// safe to leave exactly as-is only when BOTH its own cell and every cell/range it references resolve
+// to a column strictly before dateStart: nothing about it moves or goes stale. Anything referencing
+// another sheet, an external workbook, a table, or a named range (none of which this can resolve) is
+// rejected, never guessed at. This never edits formula text — it only decides whether every formula
+// on the sheet is already fully confined to the columns the reshape guarantees stay untouched.
+function formulaConfinedBefore(text,limitColumn){
+  if(/[![]/.test(text))return false;
+  const refPattern=/(?:^|[^A-Za-z0-9_])\$?([A-Za-z]{1,3})\$?(\d{1,7})(?![A-Za-z0-9_(])/g;
+  let match;
+  while((match=refPattern.exec(text)))if(columnNumber(match[1].toUpperCase())>=limitColumn)return false;
+  return true;
+}
 // Grows or shrinks the calendar's physical column span to match targetColumns.length, shifting
 // everything to the right of the calendar (make-up/total/summary columns, their merges and named
 // ranges) while leaving the student-info columns to the left of dateStart untouched. Column widths
@@ -145,7 +159,7 @@ function reshapeCalendar(sheet,workbook,m,targetColumns,styleMap){
   const oldWidth=m.dateColumns.length,newWidth=targetColumns.length,delta=newWidth-oldWidth;
   const oldCalEnd=m.dateStart+oldWidth-1,newCalEnd=m.dateStart+newWidth-1,at=oldCalEnd+1;
   if(delta!==0){
-    check(!all(sheet,'f').length,'날짜 열 구조가 바뀌는 달에는 수식이 있는 양식을 지원하지 않습니다. Excel에서 수식 없는 복사본을 사용해주세요.');
+    check(all(sheet,'f').every(f=>address(attr(f.parentNode,'r')).c<m.dateStart&&formulaConfinedBefore(f.textContent,m.dateStart)),'날짜 열 구조가 바뀌는 달에는 수식이 있는 양식을 지원하지 않습니다. Excel에서 수식 없는 복사본을 사용해주세요.');
     check(!['drawing','legacyDrawing','tableParts','oleObjects','controls'].some(tag=>all(sheet,tag).length),'날짜 열 구조가 바뀌는 달에는 그림·표·개체가 있는 양식을 지원하지 않습니다.');
     const mergeContainer=child(sheet.documentElement,'mergeCells');
     if(mergeContainer)for(const node of children(mergeContainer,'mergeCell').slice()){
