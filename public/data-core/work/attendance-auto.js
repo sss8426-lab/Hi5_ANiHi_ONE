@@ -52,7 +52,7 @@ function dateGrid(template,sheet,grid,area){
   }
   return found;
 }
-function period(template,sheet,grid,m,filename){
+function period(template,sheet,grid,m,filename,sourcePeriod){
   const candidates=[],yearCells=[],monthCells=[],titleCells=[];
   const fm=monthText(filename);if(fm)candidates.push({year:Number(fm[1])+(fm[1].length===2?2000:0),month:Number(fm[2])});
   let year=0,month=0;
@@ -71,13 +71,19 @@ function period(template,sheet,grid,m,filename){
   }
   const serial=dateParts(textOf(grid.cells.get(cellRef(m.dateStart,m.dateRow)),template.strings),template.epoch1904);
   if(serial)candidates.push(serial);
-  check(candidates.length&&candidates.every(p=>p.year===candidates[0].year&&p.month===candidates[0].month),RECOGNITION_ERROR);
+  if(!candidates.length){
+    if(!sourcePeriod){const error=Error('원본 출석부의 연도와 월을 확인해주세요.');error.code='SOURCE_PERIOD_REQUIRED';error.year=year||null;throw error;}
+    calendarMonth(sourcePeriod.year,sourcePeriod.month);
+    check(!year||year===sourcePeriod.year,'원본에 표시된 연도와 선택한 연도가 다릅니다.');
+    candidates.push(sourcePeriod);
+  }
+  check(candidates.every(p=>p.year===candidates[0].year&&p.month===candidates[0].month),RECOGNITION_ERROR);
   const source=candidates[0];calendarMonth(source.year,source.month);
   if(m.weekdayRow){const cal=calendarMonth(source.year,source.month);check(m.dateColumns.every(d=>{
     const v=textOf(grid.cells.get(cellRef(d.c,m.weekdayRow)),template.strings).replace(/요일$/,'');
     return !v||!cal[d.day-1].active||v===cal[d.day-1].weekday;
   }),RECOGNITION_ERROR);}
-  return {...source,yearCells,monthCells,titleCells};
+  return {...source,yearCells,monthCells,titleCells,confirmed:!fm&&!monthCells.length&&!titleCells.length&&!serial&&Boolean(sourcePeriod)};
 }
 export function inferWeekdays(marked,calendar){
   const evidence=Array.from({length:7},(_,weekday)=>{
@@ -155,12 +161,34 @@ function formulaConfinedBefore(text,limitColumn){
 // everything to the right of the calendar (make-up/total/summary columns, their merges and named
 // ranges) while leaving the student-info columns to the left of dateStart untouched. Column widths
 // and styles for the (possibly new) calendar columns are rebuilt from the sampled (weekday,slot) map.
-function reshapeCalendar(sheet,workbook,m,targetColumns,styleMap){
+function drawingConfinedBefore(template,m,sheet){
+  if(['legacyDrawing','tableParts','oleObjects','controls'].some(tag=>all(sheet,tag).length))return false;
+  const descriptor=template.sheets.find(s=>s.index===m.index);
+  const slash=descriptor.path.lastIndexOf('/'),directory=descriptor.path.slice(0,slash);
+  const rels=template.read(`${directory}/_rels/${descriptor.path.slice(slash+1)}.rels`);
+  return all(sheet,'drawing').every(node=>{
+    const id=node.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','id');
+    const rel=rels&&all(rels,'Relationship').find(r=>attr(r,'Id')===id);
+    if(!rel||attr(rel,'TargetMode')||!attr(rel,'Type').endsWith('/drawing'))return false;
+    const parts=attr(rel,'Target').startsWith('/')?[]:directory.split('/');
+    for(const part of attr(rel,'Target').split('/')){if(part==='..'){if(!parts.length)return false;parts.pop();}else if(part&&part!=='.')parts.push(part);}
+    const drawing=template.read(parts.join('/'));if(!drawing)return false;
+    // Empty drawing parts and two-cell anchors wholly inside the unchanged student columns are safe.
+    return children(drawing.documentElement,'twoCellAnchor').length===Array.from(drawing.documentElement.childNodes).filter(n=>n.nodeType===1).length&&children(drawing.documentElement,'twoCellAnchor').every(anchor=>{
+      const from=child(child(anchor,'from'),'col'),to=child(child(anchor,'to'),'col');
+      return from&&to&&[from,to].every(n=>/^\d+$/.test(n.textContent)&&Number(n.textContent)<m.dateStart-1);
+    });
+  });
+}
+function reshapeCalendar(sheet,workbook,m,targetColumns,styleMap,template){
   const oldWidth=m.dateColumns.length,newWidth=targetColumns.length,delta=newWidth-oldWidth;
   const oldCalEnd=m.dateStart+oldWidth-1,newCalEnd=m.dateStart+newWidth-1,at=oldCalEnd+1;
-  if(delta!==0){
+  const layoutChanged=delta!==0||targetColumns.some((d,i)=>d.day!==m.dateColumns[i].day||d.slot!==m.dateColumns[i].slot);
+  if(layoutChanged){
     check(all(sheet,'f').every(f=>address(attr(f.parentNode,'r')).c<m.dateStart&&formulaConfinedBefore(f.textContent,m.dateStart)),'날짜 열 구조가 바뀌는 달에는 수식이 있는 양식을 지원하지 않습니다. Excel에서 수식 없는 복사본을 사용해주세요.');
-    check(!['drawing','legacyDrawing','tableParts','oleObjects','controls'].some(tag=>all(sheet,tag).length),'날짜 열 구조가 바뀌는 달에는 그림·표·개체가 있는 양식을 지원하지 않습니다.');
+    check(drawingConfinedBefore(template,m,sheet),'날짜 열 구조가 바뀌는 달에는 그림·표·개체가 있는 양식을 지원하지 않습니다.');
+  }
+  if(delta!==0){
     const mergeContainer=child(sheet.documentElement,'mergeCells');
     if(mergeContainer)for(const node of children(mergeContainer,'mergeCell').slice()){
       const ref=attr(node,'ref'),p=range(ref);
@@ -173,12 +201,30 @@ function reshapeCalendar(sheet,workbook,m,targetColumns,styleMap){
     for(const tag of ['conditionalFormatting','dataValidation'])for(const node of all(sheet,tag)){
       if(!node.hasAttribute('sqref'))continue;
       node.setAttribute('sqref',attr(node,'sqref').split(' ').map(ref=>{
-        const p=range(ref);
-        if(p.c<=m.dateStart&&p.end.c>=oldCalEnd)return `${cellRef(p.c,p.r)}:${cellRef(p.end.c+delta,p.end.r)}`;
-        if(p.c>=at)return shiftRangeColumns(ref,at,delta);
+        const p=range(ref,true);
+        if(p.c<=m.dateStart&&p.end.c>=oldCalEnd)return `${cellRef(p.c,p.r)}:${cellRef(p.end.c===16384?16384:p.end.c+delta,p.end.r)}`;
+        if(p.c>=at)return `${cellRef(p.c+delta,p.r)}:${cellRef(p.end.c===16384?16384:p.end.c+delta,p.end.r)}`;
+        if(tag==='conditionalFormatting'&&p.end.c>=m.dateStart){
+          const remap=(c,end)=>{
+            if(c<m.dateStart)return c;
+            if(c>oldCalEnd)return c===16384?c:c+delta;
+            const d=m.dateColumns[c-m.dateStart],group=targetColumns.filter(t=>t.day===d.day);
+            const sourceGroup=m.dateColumns.filter(t=>t.day===d.day);
+            return end&&d.slot===sourceGroup.length-1?group.at(-1).c:group[Math.min(d.slot,group.length-1)].c;
+          };
+          return `${cellRef(remap(p.c,false),p.r)}:${cellRef(remap(p.end.c,true),p.end.r)}`;
+        }
         check(p.end.c<m.dateStart,`날짜 영역과 겹치는 ${tag} 범위는 지원하지 않습니다.`);
         return ref;
       }).join(' '));
+      if(tag==='conditionalFormatting'){
+        const origin=attr(node,'sqref').split(/[ :]/)[0];
+        for(const rule of all(node,'cfRule')){
+          const literal=`"${attr(rule,'text').replace(/"/g,'""')}"`,type=attr(rule,'type');
+          const expression={containsText:`NOT(ISERROR(SEARCH(${literal},${origin})))`,notContainsText:`ISERROR(SEARCH(${literal},${origin}))`,beginsWith:`LEFT(${origin},LEN(${literal}))=${literal}`,endsWith:`RIGHT(${origin},LEN(${literal}))=${literal}`}[type];
+          if(expression){let formula=child(rule,'formula');if(!formula){formula=create(sheet,'formula');rule.appendChild(formula);}formula.textContent=expression;}
+        }
+      }
     }
     for(const node of all(sheet,'hyperlink'))if(node.hasAttribute('ref'))node.setAttribute('ref',shiftRangeColumns(attr(node,'ref'),at,delta));
     for(const row of all(sheet,'row'))for(const c of children(row,'c').slice()){
@@ -191,6 +237,8 @@ function reshapeCalendar(sheet,workbook,m,targetColumns,styleMap){
       if(!['_xlnm.Print_Area','_xlnm.Print_Titles'].includes(attr(n,'name')))continue;
       const [prefix,...rest]=n.textContent.split('!'),ref=rest.join('!');
       n.textContent=`${prefix}!${ref.split(',').map(part=>{
+        if(/^\$?\d+:\$?\d+$/.test(part))return part;
+        if(/^\$?[A-Z]+:\$?[A-Z]+$/.test(part))return part.replace(/\$?([A-Z]+)/g,(_ref,col)=>`$${columnName(columnNumber(col)>=at?columnNumber(col)+delta:columnNumber(col))}`);
         const p=range(part);
         if(p.c<=m.dateStart&&p.end.c>=oldCalEnd)return `$${columnName(p.c)}$${p.r}:$${columnName(p.end.c+delta)}$${p.end.r}`;
         if(p.c>=at)return shiftRangeColumns(part,at,delta);
@@ -251,14 +299,32 @@ function analyzeStudents(template,sheet,grid,m){
   check(blocks.some(b=>b.name)&&blocks.filter(b=>b.name).length<=500,RECOGNITION_ERROR);
   return blocks;
 }
-export function analyzeWorkbook(template,filename=''){
+function attendanceArea(template,descriptor,sheet,grid){
+  const declared=areaFor(template.workbook,descriptor.index,sheet);
+  const print=namedRange(template.workbook,descriptor.index,'_xlnm.Print_Area');
+  const bound=print?range(print.textContent.split('!').at(-1)):{c:declared.c,r:declared.r,end:{c:declared.c,r:declared.r}};
+  const xfs=children(child(template.styles.documentElement,'cellXfs'),'xf'),borders=children(child(template.styles.documentElement,'borders'),'border');
+  const visibleStyles=new Set(xfs.flatMap((xf,i)=>{
+    const border=borders[number(xf,'borderId',0)];
+    return ['left','right','top','bottom'].some(side=>attr(child(border,side),'style'))?[i]:[];
+  }));
+  // Exporters often format 1,000 empty rows. Only actual content, visible borders and merges define
+  // the printable form; all cells outside this bound still remain in the copied workbook.
+  for(const [ref,c] of grid.cells){
+    if(!textOf(c,template.strings).trim()&&!child(c,'f')&&!visibleStyles.has(cellStyleId(sheet,c,address(ref).c)))continue;
+    const p=address(ref);bound.end.c=Math.max(bound.end.c,p.c);bound.end.r=Math.max(bound.end.r,p.r);
+  }
+  for(const n of all(sheet,'mergeCell')){const p=range(attr(n,'ref'));if(p.r<=bound.end.r){bound.end.r=Math.max(bound.end.r,p.end.r);bound.end.c=Math.max(bound.end.c,p.end.c);}}
+  return bound;
+}
+export function analyzeWorkbook(template,filename='',options={}){
   const sheets=[];
   for(const descriptor of template.sheets){
-    if(descriptor.hidden)continue;
+    if(descriptor.hidden||options.sheetIndexes&&!options.sheetIndexes.includes(descriptor.index))continue;
     const sheet=template.read(descriptor.path),grid=indexSheet(sheet);
     const headers=[...grid.cells].filter(([ref,c])=>address(ref).r<=40&&/^(이름|학생명|성명)$/.test(textOf(c,template.strings).trim()));
     if(!headers.length)continue;
-    const area=areaFor(template.workbook,descriptor.index,sheet),candidates=dateGrid(template,sheet,grid,area);
+    const area=attendanceArea(template,descriptor,sheet,grid),candidates=dateGrid(template,sheet,grid,area);
     check(candidates.length===1&&headers.length===1&&!all(sheet,'sheetProtection').length,RECOGNITION_ERROR);
     const m={index:descriptor.index,name:descriptor.name,area,...candidates[0],nameCol:address(headers[0][0]).c};
     m.firstStudentRow=Math.max(m.dateRow,m.weekdayRow,address(headers[0][0]).r)+1;
@@ -281,11 +347,22 @@ export function analyzeWorkbook(template,filename=''){
       if(['containsText','notContainsText','beginsWith','endsWith'].includes(type))return rule.hasAttribute('text')&&attr(rule,'text').length<=200;
       return false;
     }),RECOGNITION_ERROR);
-    m.period=period(template,sheet,grid,m,filename);
+    m.period=period(template,sheet,grid,m,filename,options.sourcePeriods?.[descriptor.index]);
     m.studentBlocks=analyzeStudents(template,sheet,grid,m);sheets.push(m);
   }
-  check(sheets.length&&sheets.every(s=>s.period.year===sheets[0].period.year&&s.period.month===sheets[0].period.month),RECOGNITION_ERROR);
+  check(sheets.length&&(options.allowMixedPeriods||sheets.every(s=>s.period.year===sheets[0].period.year&&s.period.month===sheets[0].period.month)),RECOGNITION_ERROR);
   return {sheets,year:sheets[0].period.year,month:sheets[0].period.month};
+}
+// Inspect independently; the caller must explicitly select supported sheets. Other ZIP parts are retained.
+export function inspectAttendanceSheets(template,filename='',sourcePeriods={}){
+  return template.sheets.filter(s=>!s.hidden).map(s=>{
+    try{
+      const analysis=analyzeWorkbook(template,filename,{sheetIndexes:[s.index],sourcePeriods});
+      return {index:s.index,name:s.name,status:'ready',mapping:analysis.sheets[0]};
+    }catch(error){
+      return {index:s.index,name:s.name,status:error.code==='SOURCE_PERIOD_REQUIRED'?'needs-period':'unsupported',year:error.year||null,message:error.message};
+    }
+  });
 }
 function scheduleFill(template,originalSheet,originalGrid,styles,m,block,row){
   const calendar=calendarMonth(m.period.year,m.period.month),selected=[],normal=[];
@@ -294,9 +371,9 @@ function scheduleFill(template,originalSheet,originalGrid,styles,m,block,row){
     const isLesson=block.weekdays.includes(calendar[d.day-1].weekdayIndex);
     (isLesson?selected:normal).push(fill);
     if(isLesson&&v)for(const cf of all(originalSheet,'conditionalFormatting')){
-      if(!attr(cf,'sqref').split(' ').some(ref=>{const a=range(ref);return row>=a.r&&row<=a.end.r&&d.c>=a.c&&d.c<=a.end.c;}))continue;
+      if(!attr(cf,'sqref').split(' ').some(ref=>{const a=range(ref,true);return row>=a.r&&row<=a.end.r&&d.c>=a.c&&d.c<=a.end.c;}))continue;
       for(const rule of all(cf,'cfRule')){
-        if(all(rule,'formula')[0].textContent.replace(/^"|"$/g,'')!==v)continue;
+        if(all(rule,'formula')[0]?.textContent.replace(/^"|"$/g,'')!==v)continue;
         const dxf=children(child(template.styles.documentElement,'dxfs'),'dxf')[number(rule,'dxfId',-1)];
         const color=colorHex(child(child(child(dxf,'fill'),'patternFill'),'fgColor'),template)||colorHex(child(child(child(dxf,'fill'),'patternFill'),'bgColor'),template);
         if(chromatic(color))selected.push(styles.addFill(`FF${color.slice(1)}`));
@@ -312,12 +389,14 @@ function generateSheet(template,m,options,styles,workbook){
   const originalSheet=template.read(template.sheets[m.index].path),originalGrid=indexSheet(originalSheet);
   const calendar=calendarMonth(options.year,options.month),oldCalendar=calendarMonth(m.period.year,m.period.month);
   const policy=weekdaySlotPolicy(m.dateColumns,oldCalendar);
-  const targetColumns=targetCalendarColumns(options.year,options.month,policy);
+  const preserve=options.preserveColumns===true;
+  if(preserve)check(m.dateColumns.at(-1).day===31,'원본 날짜칸 유지에는 31일 칸이 있는 양식이 필요합니다.');
+  const targetColumns=preserve?m.dateColumns.map(d=>({...d,weekdayIndex:calendar[d.day-1].weekdayIndex,active:calendar[d.day-1].active})):targetCalendarColumns(options.year,options.month,policy);
   let column=m.dateStart;for(const d of targetColumns)d.c=column++;
   const styleMap=sampleCalendarStyles(originalSheet,originalGrid,m,oldCalendar);
   // reshapeCalendar mutates the raw sheet DOM (column inserts/deletes shift cell `r` attributes);
   // the mutable cell index must be built fresh afterwards, or it would resolve stale references.
-  const {area,at,delta}=reshapeCalendar(sheet,workbook,m,targetColumns,styleMap);
+  const {area,at,delta}=preserve?{area:m.area,at:m.dateColumns.at(-1).c+1,delta:0}:reshapeCalendar(sheet,workbook,m,targetColumns,styleMap,template);
   const grid=mutableSheet(sheet);
   for(const b of m.studentBlocks){
     const override=options.weekdays?.[b.id],weekdays=override?parseWeekdays(override):b.weekdays;
@@ -327,6 +406,7 @@ function generateSheet(template,m,options,styles,workbook){
       const channel=b.channels.find(c=>c.offset===row-b.start),days=override?weekdays:channel?.weekdays||[];
       for(const d of targetColumns){
         const cell=grid.cell(d.c,row),cal=calendar[d.day-1];
+        if(child(cell,'f'))continue;
         putValue(cell,'',sheet);
         // Falling back to the channel's whole-row weekdays for slot 0 would wrongly highlight
         // slot 0 for a student whose actual mark lives at slot 1/2 of the same multi-slot day
@@ -340,12 +420,17 @@ function generateSheet(template,m,options,styles,workbook){
   }
   // Empty roster rows still must not carry last month's marks into the new workbook.
   const covered=new Set(m.studentBlocks.flatMap(b=>Array.from({length:b.end-b.start+1},(_,i)=>b.start+i)));
-  for(let r=m.firstStudentRow;r<=area.end.r;r++)if(!covered.has(r))for(const d of targetColumns)putValue(grid.cell(d.c,r),'',sheet);
+  for(let r=m.firstStudentRow;r<=area.end.r;r++)if(!covered.has(r))for(const d of targetColumns){const cell=grid.cell(d.c,r);if(!child(cell,'f'))putValue(cell,'',sheet);}
   const sourceDateSample=textOf(originalGrid.cells.get(cellRef(m.dateColumns[0].c,m.dateRow)),template.strings);
   const usesSerial=Boolean(dateParts(sourceDateSample,template.epoch1904)),usesDayWord=/일$/.test(sourceDateSample);
   const groups=new Map();for(const d of targetColumns){if(!groups.has(d.day))groups.set(d.day,[]);groups.get(d.day).push(d);}
-  if(m.headerMode==='merged'){
+  if(m.headerMode==='merged'&&!preserve){
     const mergeContainer=ensureSheet(sheet,'mergeCells');
+    // Even equal-width months can put the weekend merges in different columns.
+    for(const n of children(mergeContainer,'mergeCell').slice()){
+      const p=range(attr(n,'ref'));
+      if([m.dateRow,m.weekdayRow].includes(p.r)&&p.r===p.end.r&&p.c>=m.dateStart&&p.end.c<=targetColumns.at(-1).c)mergeContainer.removeChild(n);
+    }
     for(const cols of groups.values()){
       if(cols.length<2)continue;
       const dateRef=`${cellRef(cols[0].c,m.dateRow)}:${cellRef(cols.at(-1).c,m.dateRow)}`;
@@ -360,21 +445,22 @@ function generateSheet(template,m,options,styles,workbook){
       const key=`${d.weekdayIndex}:${d.slot}`,s=styleMap.get(key)||styleMap.get(`${d.weekdayIndex}:0`);
       const anchor=m.headerMode==='merged'?i===0:true;
       const header=grid.cell(d.c,m.dateRow);
-      if(s?.dateStyle)header.setAttribute('s',String(s.dateStyle));
+      if(!preserve&&s?.dateStyle)header.setAttribute('s',String(s.dateStyle));
       putValue(header,anchor&&cal.active?(usesSerial?serialValue(options.year,options.month,day,template.epoch1904):usesDayWord?`${day}일`:day):'',sheet);
       if(m.weekdayRow){
         const weekdayCell=grid.cell(d.c,m.weekdayRow);
-        if(s?.weekdayStyle)weekdayCell.setAttribute('s',String(s.weekdayStyle));
+        if(!preserve&&s?.weekdayStyle)weekdayCell.setAttribute('s',String(s.weekdayStyle));
         putValue(weekdayCell,anchor&&cal.active?cal.weekday:'',sheet);
       }
     });
   }
-  for(const ref of m.period.titleCells){const cell=grid.cells.get(remapRef(ref,at,delta)),text=textOf(cell,template.strings);updateTitle(cell,text.replace(/20\d{2}\s*년\s*\d{1,2}\s*월/,`${options.year}년 ${options.month}월`).replace(/20\d{2}([./-])\d{1,2}/,`${options.year}$1${String(options.month).padStart(2,'0')}`),sheet,template);}
-  for(const ref of m.period.yearCells){const cell=grid.cells.get(remapRef(ref,at,delta));updateTitle(cell,textOf(cell,template.strings).replace(/20\d{2}(?=\s*년)/,String(options.year)),sheet,template);}
+  for(const ref of m.period.titleCells){const cell=grid.cells.get(remapRef(ref,at,delta)),text=textOf(cell,template.strings);updateTitle(cell,text.replace(/20\d{2}([^\d]{0,8}?)\d{1,2}\s*월/,`${options.year}$1${options.month}월`).replace(/20\d{2}([./-])\d{1,2}/,`${options.year}$1${String(options.month).padStart(2,'0')}`),sheet,template);}
+  for(const ref of m.period.yearCells){const cell=grid.cells.get(remapRef(ref,at,delta));updateTitle(cell,textOf(cell,template.strings).replace(/20\d{2}(\s*(?:년|학년도))/,`${options.year}$1${m.period.confirmed?` ${options.month}월`:''}`),sheet,template);}
   for(const ref of m.period.monthCells){const cell=grid.cells.get(remapRef(ref,at,delta));putValue(cell,/월/.test(textOf(cell,template.strings))?`${options.month}월`:options.month,sheet);}
   // Keep formulas, but never show cached prior-month totals as new results.
   for(const f of all(sheet,'f')){const v=child(f.parentNode,'v');if(v)v.parentNode.removeChild(v);}
   const plan=planPages(sheet,area,m,{start:area.r,end:area.end.r});
+  if(!namedRange(workbook,m.index,'_xlnm.Print_Area'))setNamedRange(workbook,m.index,'_xlnm.Print_Area',`'${m.name.replace(/'/g,"''")}'!$${columnName(area.c)}$${area.r}:$${columnName(area.end.c)}$${area.end.r}`);
   const setup=ensureSheet(sheet,'pageSetup');if(!setup.hasAttribute('paperSize'))setup.setAttribute('paperSize','9');
   if(!setup.hasAttribute('orientation'))setup.setAttribute('orientation','landscape');
   if(plan.settings.fitWidth!==1||!plan.settings.fit&&plan.settings.scale>plan.width/plan.dimensions.width){
@@ -391,16 +477,17 @@ function generateSheet(template,m,options,styles,workbook){
     setNamedRange(workbook,m.index,'_xlnm.Print_Titles',[`${quoted}!$${area.r}:$${m.firstStudentRow-1}`,...repeatColumns].join(','));
   }
   const colBreaks=child(sheet.documentElement,'colBreaks');if(colBreaks)colBreaks.parentNode.removeChild(colBreaks);
-  const browserPrintSafe=plan.settings.paperSize===9&&!['drawing','legacyDrawing','picture','headerFooter'].some(tag=>all(sheet,tag).some(n=>n.attributes.length||n.childNodes.length));
+  const browserPrintSafe=plan.settings.paperSize===9&&!(preserve&&all(sheet,'f').length)&&!['drawing','legacyDrawing','picture','headerFooter'].some(tag=>all(sheet,tag).some(n=>n.attributes.length||n.childNodes.length));
   const mapping={...m,dateColumns:targetColumns.map(d=>({...d})),area,period:{...m.period,
     titleCells:m.period.titleCells.map(ref=>remapRef(ref,at,delta)),
     yearCells:m.period.yearCells.map(ref=>remapRef(ref,at,delta)),
     monthCells:m.period.monthCells.map(ref=>remapRef(ref,at,delta))}};
-  return {sheet,styles,area,mapping,plan,template,year:options.year,month:options.month,browserPrintSafe};
+  return {sheet,styles,area,mapping,plan,template,year:options.year,month:options.month,browserPrintSafe,preserveColumns:preserve};
 }
 export function generateWorkbook(template,analysis,options){
   calendarMonth(options.year,options.month);
   const styles=template.styles.cloneNode(true),workbook=template.workbook.cloneNode(true),files={...template.entries};
+  check(analysis.sheets.length,'생성할 출석부 시트를 선택해주세요.');
   const results=analysis.sheets.map(m=>generateSheet(template,m,options,styles,workbook));
   const serialize=doc=>strToU8(new template.env.XMLSerializer().serializeToString(doc));
   for(const result of results)files[template.sheets[result.mapping.index].path]=serialize(result.sheet);
