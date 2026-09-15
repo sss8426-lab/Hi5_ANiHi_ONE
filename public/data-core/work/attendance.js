@@ -40,13 +40,13 @@ export function mountAttendance(host){
     $('atRecognized').hidden=true;$('atRecognized').replaceChildren();invalidate();if(!file){status('');return;}
     filename=file.name;busy=true;sync();status('출석부를 확인하는 중...');
     try{
-      if(file.size>20*1024*1024)throw Error('size');
+      if(file.size>20*1024*1024)throw Error('Excel 파일은 20MB 이하로 올려주세요.');
       const bytes=await file.arrayBuffer();if(disposed||ticket!==epoch)return;
       template=openTemplate(bytes);analysis=analyzeWorkbook(template,filename);
       $('atMonth').value=monthValue(nextMonth(analysis.year,analysis.month));
       $('atRecognized').innerHTML=`<strong>${h(filename)}</strong><span>${analysis.sheets.length}개 출석부 확인 · 학생 ${analysis.sheets.reduce((n,s)=>n+s.studentBlocks.filter(b=>b.name).length,0)}명</span><span>${analysis.sheets.map(s=>h(s.name)).join(' · ')} · ${analysis.year}년 ${analysis.month}월</span>`;
       $('atRecognized').hidden=false;status('');
-    }catch{template=null;analysis=null;status(`${RECOGNITION_ERROR} 다른 파일을 선택해주세요.`);}
+    }catch(error){template=null;analysis=null;status(`${error?.message||RECOGNITION_ERROR} 다른 파일을 선택해주세요.`);}
     finally{busy=false;if(!disposed&&ticket===epoch)sync();}
   };
   $('atMonth').oninput=()=>{invalidate();status('');};
@@ -69,7 +69,7 @@ export function mountAttendance(host){
       $('atResultTitle').textContent=`${year}년 ${month}월 출석부`;
       $('atTabs').innerHTML=result.results.map((r,i)=>`<button type="button" role="tab" id="atTab${i}" aria-controls="atPreview" data-sheet="${i}">${h(r.mapping.name)}</button>`).join('');
       $('atResult').hidden=false;$('atForm').hidden=true;$('atPrintNotice').hidden=result.results.every(r=>r.browserPrintSafe);showSheet();status('');
-    }catch{invalidate();$('atForm').hidden=false;status('출석부를 만들지 못했습니다. 다른 파일을 선택해주세요.');}
+    }catch(error){invalidate();$('atForm').hidden=false;status(`${error?.message||'출석부를 만들지 못했습니다.'} 다른 파일을 선택해주세요.`);}
     finally{busy=false;if(!disposed)sync();}
   };
   function fit(){
