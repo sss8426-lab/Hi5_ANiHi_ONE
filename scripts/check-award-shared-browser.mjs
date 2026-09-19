@@ -11,7 +11,7 @@ const {chromium}=await import(process.env.PLAYWRIGHT_MODULE?pathToFileURL(proces
 const remote=process.env.AWARD_ASSET_ORIGIN||null;
 const out=resolve('outputs/award-browser'+(remote?'-remote':''));await mkdir(out,{recursive:true});
 const h=await libraryHarness();let role=users.master;
-const errors=[],checked=new Set(),result={remoteAssets:remote,backend:'isolated synthetic Worker',widths:[],flows:[]};
+const errors=[],checked=new Set(),result={remoteAssets:remote,backend:'isolated synthetic Worker',protectedAssets:[],widths:[],flows:[]};
 const png=await sharp({create:{width:720,height:480,channels:3,background:'#208779'}}).png().toBuffer();
 const server=createServer(async(req,res)=>{
   try {
@@ -34,7 +34,15 @@ const server=createServer(async(req,res)=>{
     if(remote&&path.startsWith('/data-core/')&&!checked.has(path)) {
       const r=await fetch(remote+path);assert.equal(r.status,200,path);
       const hash=b=>createHash('sha256').update(/\.(html|js|css|svg|json)$/.test(path)?b.toString().replace(/\r\n/g,'\n'):b).digest('hex');
-      assert.equal(hash(Buffer.from(await r.arrayBuffer())),hash(bytes),'Remote asset mismatch '+path);checked.add(path);
+      const deployed=Buffer.from(await r.arrayBuffer());
+      if(path==='/data-core/operations.html') {
+        // The real unauthenticated Preview returns the login shell. Do not bypass it
+        // or claim that the protected page's bytes were compared remotely.
+        assert.match(deployed.toString(),/<title>DATA CORE 로그인<\/title>/);
+        assert.ok(!deployed.toString().includes('awardTrashPanel'));
+        result.protectedAssets.push(path);
+      } else assert.equal(hash(deployed),hash(bytes),'Remote asset mismatch '+path);
+      checked.add(path);
     }
     res.writeHead(200,{'content-type':({'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml','.json':'application/json','.webp':'image/webp'})[extname(file)]||'application/octet-stream'});res.end(bytes);
   }catch(error){errors.push(String(error));res.writeHead(500);res.end('Synthetic test failure');}
@@ -105,6 +113,6 @@ try {
   assert.equal((await h.request('GET',`/api/data-core/awards/folders/${child}`,users.staff)).status,200);
   result.flows.push('MASTER/CAMPUS_ADMIN/TEACHER/STAFF UI create/upload/delete; selection trash; MASTER operations folder restore; original bytes preserved');
   role=users.outsider;await visit();await page.locator('#openAwardFolderBtn').waitFor({state:'hidden'});
-  assert.deepEqual(errors,[]);result.checkedAssets=[...checked];result.errors=errors;
+  assert.deepEqual(errors,[]);result.checkedAssets=[...checked].filter(path=>!result.protectedAssets.includes(path));result.errors=errors;
 } finally {await browser?.close();await new Promise(r=>server.close(r));await h.mf.dispose();await writeFile(resolve(out,'report.json'),JSON.stringify({...result,errors},null,2));}
 console.log(JSON.stringify(result,null,2));
