@@ -268,6 +268,12 @@ async function handleDataCoreApi(request: Request, env: Env) {
     env.DATA_CORE_SUPER_ADMIN_EMAILS,
   );
 
+  if (url.pathname.startsWith('/api/data-core/awards/')) {
+    if (!env.DB || !env.FILES) throw new DataCoreAccessError(503,'DATA CORE 저장소가 연결되지 않았습니다.');
+    const {handleAwardApi} = await import('./data-core-awards');
+    return handleAwardApi(request,env.DB,env.FILES,context);
+  }
+
   if (url.pathname === '/api/data-core/curriculum' || url.pathname.startsWith('/api/data-core/curriculum/')) {
     if (!env.DB) throw new DataCoreAccessError(503, 'DATA CORE 데이터베이스가 연결되지 않았습니다.');
     const { handleCurriculumApi } = await import('./data-core-curriculum');
@@ -339,6 +345,7 @@ async function handleDataCoreApi(request: Request, env: Env) {
   if (url.pathname === "/api/data-core/records" && request.method === "POST") {
     if (!env.DB) throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
     const input = await readJsonBody(request) as DataRecordCreateInput;
+    if (String(input.recordType).trim() === 'competition-award-folder' && request.headers.get('origin') !== url.origin) throw new DataCoreAccessError(403,'동일 출처 요청만 허용됩니다.');
     if ((String(input.recordType).trim().startsWith('curriculum-') || String(input.sourceApp).trim() === 'curriculum') && request.headers.get('origin') !== url.origin) throw new DataCoreAccessError(403, '동일 출처 요청만 허용됩니다.');
     return jsonResponse(
       { record: await createDataRecord(env.DB, context, input) },
@@ -367,6 +374,7 @@ async function handleDataCoreApi(request: Request, env: Env) {
     if (!env.DB) throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
     if (!['GET','HEAD'].includes(request.method)) {
       const row = await env.DB.prepare('SELECT record_type,source_app FROM data_records WHERE id=? AND organization_id=?').bind(recordId,DEFAULT_ORGANIZATION_ID).first<Record<string,unknown>>();
+      if (row?.record_type === 'competition-award-folder' && request.headers.get('origin') !== url.origin) throw new DataCoreAccessError(403,'동일 출처 요청만 허용됩니다.');
       if ((String(row?.record_type).startsWith('curriculum-') || row?.source_app === 'curriculum') && request.headers.get('origin') !== url.origin) throw new DataCoreAccessError(403, '동일 출처 요청만 허용됩니다.');
     }
 
@@ -415,7 +423,11 @@ async function handleDataCoreApi(request: Request, env: Env) {
         throw new DataCoreAccessError(403, '동일 출처 요청만 허용됩니다.');
       }
       if (request.headers.get('origin') !== url.origin) {
-        const row = await env.DB.prepare('SELECT source_app,category FROM file_objects WHERE id=? AND organization_id=?').bind(fileId,DEFAULT_ORGANIZATION_ID).first<Record<string,unknown>>();
+        const row = await env.DB.prepare('SELECT source_app,category,data_record_id FROM file_objects WHERE id=? AND organization_id=?').bind(fileId,DEFAULT_ORGANIZATION_ID).first<Record<string,unknown>>();
+        if (row?.data_record_id) {
+          const {awardRow} = await import('./data-core-awards');
+          if (await awardRow(env.DB,String(row.data_record_id))) throw new DataCoreAccessError(403,'동일 출처 요청만 허용됩니다.');
+        }
         const { curriculumFile } = await import('./data-core-curriculum');
         if (row && curriculumFile(row)) throw new DataCoreAccessError(403, '동일 출처 요청만 허용됩니다.');
       }

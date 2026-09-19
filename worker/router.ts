@@ -294,6 +294,10 @@ async function handleTrashApi(request: Request, env: Env) {
 
   const restoreMatch = url.pathname.match(/^\/api\/data-core\/trash\/files\/([^/]+)\/restore$/);
   if (restoreMatch && request.method === "POST") {
+    if (request.headers.get('origin') !== url.origin) {
+      const award = await env.DB.prepare("SELECT fo.id FROM file_objects fo JOIN data_records dr ON dr.id=fo.data_record_id WHERE fo.id=? AND dr.record_type='competition-award-folder' AND dr.source_app='competition'").bind(decodeURIComponent(restoreMatch[1])).first();
+      if (award) throw new DataCoreAccessError(403,'동일 출처 요청만 허용됩니다.');
+    }
     return jsonResponse(
       await restoreDataCoreFile(
         env.DB,

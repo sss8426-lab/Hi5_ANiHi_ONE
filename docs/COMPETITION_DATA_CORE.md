@@ -223,6 +223,8 @@ audit_logs
 
 ## Upload progress and award deletion (2026-09-10)
 
+> Historical policy: the award-specific purge and empty-only folder rules below are superseded by the 2026-09-20 shared workspace policy in `AWARD_SHARED_WORKSPACE_2026-09-20.md`. Existing generic administrator purge safeguards remain.
+
 - Existing multipart upload API, original uploaded filename, campus/owner rules and FILES binding are retained. The server uses the multipart File name, not a client filename override or folder title. `upload-queue.js` uses at most three XHRs and real multipart upload-byte events. Selection bytes exclude multipart overhead; transfer totals include it. 100% requires every server success response, not merely finishing the request body.
 - Selection shows a count/size summary with an optional collapsed list. Failed requests can be retried without repeating successful requests. Cancelling aborts active XHRs and stops waiting items; confirmed successes are never rolled back. An already accepted server request may finish despite a client abort. Gallery refresh remains authoritative; transport errors advise checking the gallery before retrying.
 - Upload destination is a frozen folder/campus/category snapshot. D1 inserts require the linked record still to be active. New-upload metadata failures compensate only the new row/object, never an existing file.

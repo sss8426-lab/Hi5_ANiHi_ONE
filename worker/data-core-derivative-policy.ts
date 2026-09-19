@@ -2,6 +2,10 @@ import { DEFAULT_ORGANIZATION_ID } from './data-core';
 import { DataCoreAccessContext, DataCoreAccessError, isCampusAdmin, managesCampus } from './data-core-access';
 import { PRIVATE_IMAGE_MIMES } from './private-image-response';
 import { curriculumFile, curriculumFileReadable } from './data-core-curriculum';
+import { sharedAwardFileFolder } from './data-core-awards';
+
+// Contexts are request-scoped; reuse ancestry checks only within a read request.
+const awardReadPaths = new WeakMap<DataCoreAccessContext, Map<string,Promise<Record<string,unknown>[] | null>>>();
 
 export const DERIVATIVE_RECORD_TYPE = 'instagram-derived-file';
 export const DERIVATIVE_CATEGORY = 'instagram-derived';
@@ -62,11 +66,14 @@ export async function canReadRegisteredFile(db: D1Database, context: DataCoreAcc
   if (curriculumFile(row)) return curriculumFileReadable(db, context, row);
   // This derivative is served only after resolving the live legacy student/slot.
   if(row.category==='admissions-legacy-thumbnail')return false;
-  if (!canReadBaseFile(context, row)) return false;
   if (row.category === THUMBNAIL_CATEGORY) {
     const source=await thumbnailSource(db,row);
     return Boolean(source && await canReadRegisteredFile(db,context,source));
   }
+  if(!awardReadPaths.has(context))awardReadPaths.set(context,new Map());
+  try { if (await sharedAwardFileFolder(db,context,row,awardReadPaths.get(context))) return true; }
+  catch (error) { if (error instanceof DataCoreAccessError) return false; throw error; }
+  if (!canReadBaseFile(context, row)) return false;
   if (row.source_app === 'data-core-library' || row.category === 'hq-workspace') {
     if (!row.data_record_id) return false;
     const { LibraryTree, LIBRARY_FOLDER, HQ_FOLDER, libraryFileReadable } = await import('./data-core-library-policy');

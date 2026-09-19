@@ -10,14 +10,15 @@ function harness() {
     if (!elements.has(id)) elements.set(id, {
       value: '', disabled: false, innerHTML: '', textContent: '',
       classList: {add() {}, remove() {}, toggle() {}}, setAttribute() {},
-      querySelectorAll: () => [], close() {}, showModal() {},
+      querySelectorAll: () => [], close() {}, showModal() {}, insertAdjacentHTML(_position,html) { this.innerHTML+=html; },
     });
     return elements.get(id);
   };
   const context = vm.createContext({
     window: {DataCoreImageGallery:{close(){}}},
     document: {getElementById: element, querySelectorAll: () => []},
-    console, URLSearchParams, FormData, HTMLDialogElement: class {},
+    console, URL, URLSearchParams, FormData, HTMLDialogElement: class {},
+    location: {href:'http://test/data-core/counseling/competitions'}, history:{pushState(){}},
     AwardImageCache: class {clear() {} remove() {}},
   });
   vm.runInContext(source.slice(0, source.lastIndexOf('init().catch')), context);
@@ -52,15 +53,15 @@ test('award gallery ignores stale successes, failures, and foreign record rows',
   assert.equal(h.run('awardFilesLoading'), false);
 });
 
-test('award folders keep creation order, escape names, and disable writes for readers', async () => {
+test('award roots escape names and disable writes for readers', async () => {
   const h = harness();
-  h.context.api = async (url) => url.includes('/records?') ? {records:[
+  h.context.api = async (url) => url.includes('collectionType=enrolled') ? {folders:[
     {id:'b',createdAt:'2026-09-02',title:'<img onerror=alert(1)>'},
     {id:'a',createdAt:'2026-09-01',title:'자유 폴더명'},
-  ]} : {files:[]};
+  ]} : {folders:[],files:[],events:[]};
   await h.run('loadAwardFolders()');
-  assert.equal(h.run('state.selectedAwardFolderId'), 'a');
-  assert.equal(h.run('state.awardFolders[1].id'), 'b');
+  assert.equal(h.run('state.selectedAwardFolderId'), null);
+  assert.equal(h.run('state.awardFolders.length'), 2);
   assert.match(h.element('awardFolderList').innerHTML, /&lt;img/);
   assert.doesNotMatch(h.element('awardFolderList').innerHTML, /<img/);
   h.run('state.context.canWrite = false; renderAwardFolders()');
@@ -90,7 +91,7 @@ test('folder deletion calls only the record endpoint, never the file or R2 delet
   h.context.api=async (url,options) => {calls.push([url,options?.method]); return {records:[]};};
   h.run("state.awardFolders=[{id:'synthetic',title:'합성 폴더'}];state.selectedAwardFolderId='synthetic'");
   await h.run('deleteAwardFolder()');
-  assert.deepEqual(calls.filter(([,method])=>method==='DELETE'), [['/api/data-core/records/synthetic','DELETE']]);
+  assert.deepEqual(calls.filter(([,method])=>method==='DELETE'), [['/api/data-core/awards/folders/synthetic','DELETE']]);
 });
 
 test('select all toggles only current-folder files without writes and clears stale selection', async () => {
