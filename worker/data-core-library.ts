@@ -285,10 +285,19 @@ async function fileCounts(tree:LibraryTree, folders:LibraryFolder[]) {
   const counts = new Map<string,number>();
   if (!folders.length) return counts;
   // Count metadata groups, never list R2 objects or fetch file bytes.
-  const rows = (await tree.db.prepare(`SELECT data_record_id, campus_id, category, source_app, visibility, area, owner_user_id,
-    organization_id, COUNT(*) AS n FROM file_objects WHERE organization_id = ? AND campus_id IS ? AND deleted_at IS NULL
-    AND source_app NOT LIKE '%family%' AND source_app NOT LIKE '%kkumeum%' AND r2_key NOT LIKE 'family/%' AND r2_key NOT LIKE 'kkumeum/%'
-    GROUP BY data_record_id, campus_id, category, source_app, visibility, area, owner_user_id`).bind(ORG, folders[0].campusId).all<Record<string,unknown>>()).results || [];
+  const ids=folders.map(f=>f.id), legacy=folders.filter(f=>f.id.startsWith('category:')).map(f=>f.category!);
+  const linked = "dr.record_type IN ('library-folder','hq-library-folder')";
+  const effective = `CASE WHEN ${linked} THEN fo.data_record_id END`;
+  const rows = (await tree.db.prepare(`SELECT ${effective} AS data_record_id, fo.campus_id, fo.category, fo.source_app,
+    fo.visibility, fo.area, fo.owner_user_id, fo.organization_id, COUNT(*) AS n
+    FROM file_objects fo LEFT JOIN data_records dr ON dr.id = fo.data_record_id
+    WHERE fo.organization_id = ? AND fo.campus_id IS ? AND fo.deleted_at IS NULL
+    AND (fo.data_record_id IN (${ids.map(()=>'?').join(',')}) ${legacy.length ? `OR (fo.category IN (${legacy.map(()=>'?').join(',')}) AND (${linked}) IS NOT TRUE)` : ''})
+    AND fo.source_app NOT LIKE '%family%' AND fo.source_app NOT LIKE '%kkumeum%' AND fo.r2_key NOT LIKE 'family/%' AND fo.r2_key NOT LIKE 'kkumeum/%'
+    AND COALESCE(dr.record_type,'') NOT LIKE '%family%' AND COALESCE(dr.record_type,'') NOT LIKE '%kkumeum%'
+    AND COALESCE(dr.source_app,'') NOT LIKE '%family%' AND COALESCE(dr.source_app,'') NOT LIKE '%kkumeum%'
+    GROUP BY ${effective}, fo.campus_id, fo.category, fo.source_app, fo.visibility, fo.area, fo.owner_user_id`)
+    .bind(ORG, folders[0].campusId, ...ids, ...legacy).all<Record<string,unknown>>()).results || [];
   const wanted = new Set(folders.map(f => f.id));
   for (const row of rows) {
     try { const f = await fileFolder(tree, row); if (wanted.has(f.id) && libraryFileReadable(tree.context,f,row)) counts.set(f.id,(counts.get(f.id)||0)+Number(row.n)); }
