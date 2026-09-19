@@ -57,6 +57,8 @@ test('three-level breadcrumbs, eight-level bound, parent immutability and nondes
     }
     const legacy=(await h.request('POST','/api/data-core/records',users.admin,{recordType:'competition-award-folder',sourceApp:'competition',title:'SYNTHETIC legacy'})).body.record;
     assert.equal(legacy.collectionType,null);
+    const unclassifiedChild=await h.request('POST',base+'/folders',users.staff,{title:'SYNTHETIC legacy child',parentFolderId:legacy.id,collectionType:null});
+    assert.equal(unclassifiedChild.status,201);assert.equal(unclassifiedChild.body.record.collectionType,null);
     assert.equal((await h.request('GET',base+'/folders?collectionType=enrolled',users.teacher)).body.folders.find(r=>r.id===legacy.id).needsClassification,true);
     assert.equal((await h.request('PATCH',`${base}/folders/${legacy.id}`,users.teacher,{collectionType:'public'})).status,403);
     assert.equal((await h.request('PATCH',`${base}/folders/${legacy.id}`,users.admin,{collectionType:'public'})).status,200);

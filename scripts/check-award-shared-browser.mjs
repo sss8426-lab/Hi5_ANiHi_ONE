@@ -112,6 +112,10 @@ try {
   await visit(leaf);await page.locator('#awardLibraryFiles [data-award-image]').nth(1).waitFor();
   assert.equal((await h.request('GET',`/api/data-core/awards/folders/${child}`,users.staff)).status,200);
   result.flows.push('MASTER/CAMPUS_ADMIN/TEACHER/STAFF UI create/upload/delete; selection trash; MASTER operations folder restore; original bytes preserved');
+  const legacy=(await h.request('POST','/api/data-core/records',users.master,{recordType:'competition-award-folder',sourceApp:'competition',title:'SYNTHETIC 미분류 기존 폴더'})).body.record;
+  role=users.staff;await visit(legacy.id);const legacyChild=await create('#openAwardChildBtn','SYNTHETIC 미분류 하위 폴더');
+  assert.equal((await h.request('GET',`/api/data-core/awards/folders/${legacyChild}`,users.staff)).body.record.collectionType,null);
+  result.flows.push('legacy unclassified root permits staff child creation without changing classification');
   role=users.outsider;await visit();await page.locator('#openAwardFolderBtn').waitFor({state:'hidden'});
   assert.deepEqual(errors,[]);result.checkedAssets=[...checked].filter(path=>!result.protectedAssets.includes(path));result.errors=errors;
 } finally {await browser?.close();await new Promise(r=>server.close(r));await h.mf.dispose();await writeFile(resolve(out,'report.json'),JSON.stringify({...result,errors},null,2));}

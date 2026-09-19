@@ -854,7 +854,7 @@ let awardCreateTarget={collectionType:'enrolled',parentFolderId:null};
 let awardFolderRequest=0, awardActivityRequest=0, awardActivityCursor=null;
 function canManageAwards() { return Boolean(state.context?.authenticated && canWrite() && !state.context?.mustChangePassword && (isSuperAdmin() || state.context?.memberships?.some(m=>['MASTER','SUPER_ADMIN','CAMPUS_ADMIN','CAMPUS_DIRECTOR','TEACHER','STAFF'].includes(m.role)))); }
 function prepareAwardFolder(type='enrolled',parent=null) {
-  awardCreateTarget={collectionType:type,parentFolderId:parent?.id||null};
+  awardCreateTarget={collectionType:parent?(parent.collectionType||parent.metadata?.collectionType||null):type,parentFolderId:parent?.id||null};
   $('awardFolderDestination').textContent=parent?.title || (type==='public'?'공개 수상작 모음':'재원생 수상작 모음');
   $('awardFolderTitle').value=''; openModal('awardFolderModal');
 }
