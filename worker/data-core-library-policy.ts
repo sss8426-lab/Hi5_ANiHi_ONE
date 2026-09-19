@@ -21,7 +21,7 @@ type Row = Record<string, any>;
 export type LibraryFolder = {
   id: string; title: string; parentId: string | null; campusId: string | null;
   category: string | null; shareMode: 'organization' | 'campus' | 'restricted';
-  virtual: boolean; depth: number; row?: Row; group?: string; systemManaged?: boolean; protected?: boolean;
+  virtual: boolean; depth: number; row?: Row; group?: string; systemManaged?: boolean; protected?: boolean; archived?: boolean;
 };
 function fail(status = 403, message = '이 자료보관함에 접근할 권한이 없습니다.'): never { throw new DataCoreAccessError(status, message); }
 export function libraryMetadata(row: Row) {
@@ -29,7 +29,7 @@ export function libraryMetadata(row: Row) {
 }
 export function requireLibraryAccess(context: DataCoreAccessContext) { requireWriteAccess(context); }
 export function libraryCanWrite(context: DataCoreAccessContext, folder: LibraryFolder) {
-  return context.canWrite && (context.isSuperAdmin || Boolean(folder.campusId && context.campusIds.includes(folder.campusId)));
+  return !folder.archived && context.canWrite && (context.isSuperAdmin || Boolean(folder.campusId && context.campusIds.includes(folder.campusId)));
 }
 export function requireLibraryWrite(context: DataCoreAccessContext, folder: LibraryFolder) {
   requireLibraryAccess(context);
@@ -46,11 +46,17 @@ export function libraryFolderScope(folder: LibraryFolder) {
   return folder.id === 'root' || libraryMetadata(folder.row || {}).libraryScope === 'organization' ? 'organization' : 'hq';
 }
 export function libraryCanDeleteFolder(context: DataCoreAccessContext, folder: LibraryFolder) {
+  if (libraryDefaultFolder(folder)) return libraryCanWrite(context, folder);
   return !folder.virtual && !folder.systemManaged && Boolean(folder.row) &&
     (folder.parentId !== 'root' || context.isSuperAdmin) && libraryCanDelete(context, folder, folder.row?.created_by_user_id);
 }
 
 /** Request-local cache; persisted metadata is checked through the entire ancestry. */
+export function libraryDefaultFolder(folder: LibraryFolder) {
+  return folder.id.startsWith('category:') || folder.id.startsWith('hq-default:') ||
+    folder.row?.record_type === HQ_FOLDER && HQ_DEFAULTS.some(([key]) => key === libraryMetadata(folder.row!).folderKey);
+}
+
 export class LibraryTree {
   rows = new Map<string, Row | null>();
   folders = new Map<string, LibraryFolder>();
@@ -94,6 +100,8 @@ export class LibraryTree {
           m.campusId !== campusId || m.libraryScope !== (campusId ? 'campus' : 'hq') ||
           m.libraryShareMode !== folder.shareMode || row.visibility !== (campusId ? 'campus' : 'organization')) fail();
         folder.row = row;
+        folder.title = row.title;
+        folder.archived = m.libraryArchived === true;
       }
     } else if (id.startsWith('hq-default:')) {
       const item = HQ_DEFAULTS.find(d => `hq-default:${d[0]}` === id);
@@ -121,7 +129,7 @@ export class LibraryTree {
       // Legacy HQ visibility (including director-only) is not broadened or rewritten.
       const shared = ['organization', 'public'].includes(row.visibility) && !['restricted', 'campus'].includes(m.libraryShareMode);
       folder = { id: row.id, title: row.title, parentId: 'hq', campusId: null, category: 'hq-workspace',
-        virtual, depth: 2, row, shareMode: shared ? 'organization' : 'restricted',
+        virtual, depth: 2, row, shareMode: shared ? 'organization' : 'restricted', archived: m.libraryArchived === true,
         protected: m.folderKey === 'director-only' || row.id === 'hq-default:director-only' || row.title === '원장전용',
         systemManaged: m.system === true || m.systemManaged === true || HQ_DEFAULTS.some(([key]) => key === m.folderKey) };
     } else if (m.parentFolderId === null) {

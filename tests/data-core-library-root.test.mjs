@@ -58,16 +58,18 @@ test('library root: admin-only custom folders, protected projections and zero le
       ok(await h.request('POST','/api/data-core/library/folders',users.admin,{title:'__synthetic_csrf'},'https://evil.test'),403);
       ok(await h.request('DELETE',`/api/data-core/library/folders/${root}`,users.admin,undefined,'https://evil.test'),403);
     });
-    await t.test('system campus/default/HQ roots protected including persisted legacy defaults', async () => {
-      for (const id of ['root','hq','organization',`campus:${A}`,`campus:${B}`,'hq-default:resources',`category:${A}:admission-material`]) {
+    await t.test('system campus roots protected while default folders support reversible removal', async () => {
+      for (const id of ['root','hq','organization',`campus:${A}`,`campus:${B}`]) {
         const view=await h.browse(id);ok(view);assert.equal(view.body.folder.canDelete,false);assert.equal(view.body.folder.systemManaged,true);ok(await remove(id),403);
       }
       const legacy=await h.request('POST','/api/data-core/records',users.admin,{recordType:'hq-library-folder',sourceApp:'data-core-library',
         title:'__synthetic_hq_default',visibility:'organization',metadata:{folderKey:'class-artwork'}});ok(legacy,201);
       const id=legacy.body.record.id, before=await row(id);
-      assert.equal((await h.browse(id)).body.folder.canDelete,false);ok(await remove(id),403);assert.deepEqual(await row(id),before);
-      // Protect materialized default projections without blocking normal content management inside them.
-      const file=await h.upload('hq-default:resources');ok(file,201);ok(await remove('hq-default:resources'),403);
+      assert.equal((await h.browse(id)).body.folder.canDelete,true);ok(await remove(id));
+      assert.equal((await row(id)).deleted_at,before.deleted_at);
+      ok(await h.request('PATCH',`/api/data-core/library/folders/${id}`,users.admin,{restore:true}));
+      const file=await h.upload('hq-default:resources');ok(file,201);ok(await remove('hq-default:resources'));
+      ok(await h.request('PATCH','/api/data-core/library/folders/hq-default:resources',users.admin,{restore:true}));
       const child=await h.folder('hq-default:resources','__synthetic_default_child');ok(child,201);ok(await remove(child.body.folder.id));
       ok(await h.request('DELETE',`/api/data-core/library/files/${file.body.file.id}`));
       const managed=await h.folder('hq','__synthetic_system_managed');ok(managed,201);
