@@ -346,7 +346,7 @@ export function analyzeWorkbook(template,filename='',options={}){
     if(!candidates.length)candidates=sparseCalendars(template,sheet,grid,area);
     check(candidates.length===1&&headers.length===1&&!all(sheet,'sheetProtection').length,RECOGNITION_ERROR);
     const m={index:descriptor.index,name:descriptor.name,area,...candidates[0],nameCol:address(headers[0][0]).c};
-    if(m.sparse){const print=namedRange(template.workbook,descriptor.index,'_xlnm.Print_Area');if(print)m.area={...area,end:{...area.end,r:range(print.textContent.split('!').at(-1)).end.r}};}
+    if(m.sparse){const print=namedRange(template.workbook,descriptor.index,'_xlnm.Print_Area');if(print){const p=range(print.textContent.split('!').at(-1));m.area={...area,end:{r:p.end.r,c:Math.max(p.end.c,m.dateColumns.at(-1).c)}};}}
     m.firstStudentRow=Math.max(m.dateRow,m.weekdayRow,address(headers[0][0]).r)+1;
     m.weekdayCol=0;
     for(let r=area.r;r<m.firstStudentRow;r++)for(const cell of rowValues(grid,r,template.strings)){

@@ -4,7 +4,7 @@ import {createHash} from 'node:crypto';
 import {DOMParser,XMLSerializer} from '@xmldom/xmldom';
 import {sparseFixture} from './helpers/attendance-sparse-fixture.mjs';
 import {openTemplate,analyzeWorkbook,generateWorkbook,inspectAttendanceSheets} from '../public/data-core/work/attendance-auto.js';
-import {all,attr,child,indexSheet,textOf,cellRef,calendarMonth,dimensions,putValue,create} from '../public/data-core/work/attendance-template.js';
+import {all,attr,child,indexSheet,textOf,cellRef,calendarMonth,dimensions,putValue,create,columnName,namedRange} from '../public/data-core/work/attendance-template.js';
 import {zipSync,strToU8} from '../public/data-core/vendor/fflate-0.8.3.js';
 const env={DOMParser,XMLSerializer},hash=b=>createHash('sha256').update(b).digest('hex');
 function setup(options={}){const f=sparseFixture(options),t=openTemplate(f.bytes,env),a=analyzeWorkbook(t);return {f,t,a};}
@@ -62,4 +62,12 @@ test('stale calculation chain is removed only from generated copy with consisten
  assert.equal(out.entries['xl/calcChain.xml'],undefined);assert.ok(source.entries['xl/calcChain.xml']);assert.equal(hash(source.bytes),before);
  assert.ok(all(out.read('xl/_rels/workbook.xml.rels'),'Relationship').every(n=>!attr(n,'Type').endsWith('/calcChain')));
  assert.ok(all(out.read('[Content_Types].xml'),'Override').every(n=>attr(n,'PartName')!=='/xl/calcChain.xml'));
+});
+test('print width stays within source print area while unprinted tail data and column styles survive',()=>{
+ const {t,f}=setup(),workbook=t.workbook.cloneNode(true);
+ namedRange(workbook,0,'_xlnm.Print_Area').textContent=`'SYNTHETIC'!$A$1:$${columnName(f.last)}$10`;
+ const source=openTemplate(zipSync({...t.entries,'xl/workbook.xml':strToU8(new XMLSerializer().serializeToString(workbook))}),env);
+ const out=generateWorkbook(source,analyzeWorkbook(source),{year:2026,month:10}).results[0],last=out.mapping.dateColumns.at(-1).c;
+ assert.equal(out.area.end.c,last);assert.equal(textOf(indexSheet(out.sheet).cells.get(cellRef(last+1,5)),source.strings),'SYNTHETIC_TAIL');
+ assert.ok(all(out.sheet,'col').some(n=>Number(attr(n,'min'))===last+1&&Number(attr(n,'width'))===5));
 });

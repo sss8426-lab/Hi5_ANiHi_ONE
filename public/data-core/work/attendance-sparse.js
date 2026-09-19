@@ -158,10 +158,13 @@ export function reshapeSparse(sheet,workbook,m,targets){
   const columns=all(sheet,'col').map(n=>n.cloneNode(true)),container=ensureSheet(sheet,'cols');
   while(container.firstChild)container.removeChild(container.firstChild);
   const finalEnd=m.area.end.c+delta;
-  for(let c=1;c<=finalEnd;c++){
+  for(let c=1;c<=newEnd;c++){
     const sourceC=c<m.dateStart?c:c>newEnd?c-delta:targets[c-m.dateStart].sourceC;
     const source=columns.find(n=>number(n,'min',1)<=sourceC&&number(n,'max',1)>=sourceC);
     const n=source?source.cloneNode(true):create(sheet,'col');n.setAttribute('min',String(c));n.setAttribute('max',String(c));container.appendChild(n);
+  }
+  for(const source of columns.filter(n=>number(n,'max',1)>oldEnd)){
+    const n=source.cloneNode(true);n.setAttribute('min',String(Math.max(number(n,'min',1),oldEnd+1)+delta));n.setAttribute('max',String(number(n,'max',1)+delta));container.appendChild(n);
   }
   for(const node of all(sheet,'mergeCell').slice()){
     const p=range(attr(node,'ref'));
