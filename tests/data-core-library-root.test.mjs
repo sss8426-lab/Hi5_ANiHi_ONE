@@ -74,20 +74,22 @@ test('library root: admin-only custom folders, protected projections and zero le
       await h.env.DB.prepare("UPDATE data_records SET metadata_json=json_set(metadata_json,'$.systemManaged',json('true')) WHERE id=?").bind(managed.body.folder.id).run();
       ok(await remove(managed.body.folder.id),403);
     });
-    await t.test('custom root children/upload/share unchanged; active and restorable trash block folder deletion', async () => {
+    await t.test('custom root children block deletion; files survive deletion in an unclassified root', async () => {
       const child=await h.folder(root,'__synthetic_child');ok(child,201);
       assert.equal(JSON.parse((await row(child.body.folder.id)).metadata_json).libraryScope,'organization');
       const view=await h.browse(child.body.folder.id,users.staff);ok(view);assert.deepEqual(view.body.breadcrumbs.map(f=>f.id),['root',root,child.body.folder.id]);
-      let blocked=await remove(root);ok(blocked,409);assert.equal(blocked.body.error,'폴더 안에 자료가 있습니다. 내부 자료를 먼저 정리해주세요.');
+      const blocked=await remove(root);ok(blocked,409);assert.match(blocked.body.error,/하위 폴더/);
       ok(await remove(child.body.folder.id));
       const f=await h.upload(root);ok(f,201);const before=await h.file(f.body.file.id), bytes=await (await h.env.FILES.get(before.r2_key)).text();
       for(const user of [users.director,users.teacher,users.staff]) {
         ok(await h.list(root,user));const download=await h.request('GET',`/api/data-core/library/files/${f.body.file.id}/download`,user);ok(download);assert.equal(download.body,bytes);
         ok(await h.request('DELETE',`/api/data-core/library/files/${f.body.file.id}`,user),403);
       }
-      ok(await remove(root),409);ok(await h.request('DELETE',`/api/data-core/library/files/${f.body.file.id}`));ok(await remove(root),409);
+      ok(await h.request('DELETE',`/api/data-core/library/files/${f.body.file.id}`));
+      const removed=await remove(root);ok(removed);
       assert.equal(await (await h.env.FILES.get(before.r2_key)).text(),bytes);
-      ok(await h.request('POST',`/api/data-core/trash/files/${f.body.file.id}/restore`));assert.deepEqual(await h.file(before.id),before);
+      ok(await h.request('POST',`/api/data-core/trash/files/${f.body.file.id}/restore`));assert.deepEqual(await h.file(before.id),{...before,data_record_id:removed.body.destinationFolderId});
+      root=(await rootCreate('__synthetic_forgery_root')).body.folder.id;
     });
     await t.test('empty custom root delete200 soft-deletes only its row; reserved metadata forgery is denied', async () => {
       const created=await rootCreate('__synthetic_empty_delete');ok(created,201);const id=created.body.folder.id;

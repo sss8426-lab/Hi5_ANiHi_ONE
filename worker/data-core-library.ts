@@ -14,17 +14,18 @@ function error(status: number, message: string): never { throw new DataCoreAcces
 const json = (value: unknown, status = 200) => Response.json(value, { status, headers: { 'cache-control': 'private, no-store' } });
 const text = (value: unknown) => typeof value === 'string' ? value.trim() : '';
 const OPAQUE_PREVIEW_EXTENSIONS = new Set(['ai','psd','psb','clip','eps','zip']);
-const RECENT_UPLOAD_LIMIT = 10;
+const RECENT_UPLOAD_LIMIT = 50;
 const RECENT_UPLOAD_SCAN_LIMIT = 200;
 // Only categories a library folder can ever resolve to (see LibraryTree/fileFolder); keeps the
 // recent-uploads scan from touching unrelated features' file_objects rows (admissions, kkumeum, etc).
-const LIBRARY_FILE_CATEGORIES = [...LIBRARY_CATEGORIES.map(c => c[0]), 'hq-workspace', 'library-material'];
+const LIBRARY_FILE_CATEGORIES = [...LIBRARY_CATEGORIES.map(c => c[0]), 'hq-workspace'];
 const fileExtension = (name: unknown) => { const value = text(name).toLowerCase(), index = value.lastIndexOf('.'); return index >= 0 ? value.slice(index + 1) : ''; };
 const previewableFile = (row: Record<string, any>) => !OPAQUE_PREVIEW_EXTENSIONS.has(fileExtension(row.original_file_name)) &&
   /^(image\/(jpeg|png|webp|gif|avif)|application\/pdf|text\/plain)$/.test(String(row.mime_type || ''));
 const serialize = (tree: LibraryTree, f: LibraryFolder) => ({ id: f.id, title: f.title, parentId: f.parentId,
   campusId: f.campusId, category: f.category, group: f.group, canWrite: libraryCanWrite(tree.context, f),
   systemManaged: Boolean(f.systemManaged), canDelete: libraryCanDeleteFolder(tree.context, f),
+  canRename: libraryCanDeleteFolder(tree.context, f),
   readOnly: !libraryCanWrite(tree.context, f) });
 
 async function audit(tree: LibraryTree, action: string, folder: LibraryFolder) {
@@ -127,16 +128,48 @@ async function deleteFolder(tree: LibraryTree, id: string) {
   requireLibraryWrite(tree.context, folder);
   if (!libraryCanDeleteFolder(tree.context, folder)) error(403, '이 폴더는 삭제할 수 없습니다.');
   const now = new Date().toISOString();
-  // Include trashed files: a later Operations restore must never lose its folder.
-  const result = await tree.db.prepare(`UPDATE data_records SET deleted_at = ?, updated_at = ?, status = 'deleted'
-    WHERE id = ? AND organization_id = ? AND deleted_at IS NULL
-    AND NOT EXISTS (SELECT 1 FROM file_objects WHERE data_record_id = ?)
-    AND NOT EXISTS (SELECT 1 FROM data_records WHERE organization_id = ? AND deleted_at IS NULL
-      AND CASE WHEN json_valid(metadata_json) THEN json_extract(metadata_json, '$.parentFolderId') END = ?)`)
-    .bind(now, now, id, ORG, id, ORG, id).run();
-  if (Number(result.meta?.changes) !== 1) error(409, '폴더 안에 자료가 있습니다. 내부 자료를 먼저 정리해주세요.');
+  if ((await children(tree, folder)).length) error(409, '하위 폴더를 먼저 정리해주세요. 원본 파일은 삭제되지 않습니다.');
+  const linked = await tree.db.prepare('SELECT COUNT(*) AS n FROM file_objects WHERE data_record_id = ? AND organization_id = ?').bind(id, ORG).first<{n:number}>();
+  let destination: LibraryFolder | null = null;
+  if (linked?.n) {
+    const parent = await tree.resolve(folder.parentId!);
+    destination = parent.category === folder.category ? parent : await tree.resolve(folder.category === 'hq-workspace' ? 'hq-default:resources' : `category:${folder.campusId || 'organization'}:${folder.category}`);
+    if (destination.shareMode !== folder.shareMode || destination.campusId !== folder.campusId || Boolean(destination.protected) !== Boolean(folder.protected)) error(409, '보호 범위가 같은 폴더로 파일을 먼저 이동해주세요.');
+    destination = await materialize(tree, destination);
+  }
+  // Atomic soft-delete and relink, including trashed files so a later restore remains valid.
+  const guard = `id = ? AND organization_id = ? AND deleted_at IS NULL AND NOT EXISTS
+    (SELECT 1 FROM data_records child WHERE child.organization_id = ? AND child.deleted_at IS NULL
+      AND CASE WHEN json_valid(child.metadata_json) THEN json_extract(child.metadata_json, '$.parentFolderId') END = ?)
+    AND NOT EXISTS (SELECT 1 FROM data_records upload WHERE upload.organization_id = ? AND upload.record_type = 'library-upload-session'
+      AND upload.status IN ('pending','uploading','failed') AND upload.deleted_at IS NULL
+      AND CASE WHEN json_valid(upload.metadata_json) THEN json_extract(upload.metadata_json, '$.folderId') END = ?)`;
+  const statements = [];
+  if (destination) statements.push(tree.db.prepare(`UPDATE file_objects SET data_record_id = ? WHERE data_record_id = ? AND organization_id = ?
+    AND EXISTS (SELECT 1 FROM data_records WHERE ${guard})
+    AND EXISTS (SELECT 1 FROM data_records WHERE id = ? AND organization_id = ? AND deleted_at IS NULL)`)
+    .bind(destination.id, id, ORG, id, ORG, ORG, id, ORG, id, destination.id, ORG));
+  statements.push(tree.db.prepare(`UPDATE data_records SET deleted_at = ?, updated_at = ?, status = 'deleted'
+    WHERE ${guard} AND NOT EXISTS (SELECT 1 FROM file_objects WHERE data_record_id = ? AND organization_id = ?)`)
+    .bind(now, now, id, ORG, ORG, id, ORG, id, id, ORG));
+  const result = await tree.db.batch(statements);
+  if (Number(result.at(-1)?.meta?.changes) !== 1) error(409, '폴더 상태가 변경되었습니다. 다시 확인해주세요.');
   await audit(tree, 'delete', folder);
-  return { ok: true, id, deletedAt: now };
+  return { ok: true, id, deletedAt: now, destinationFolderId: destination?.id || folder.parentId };
+}
+
+async function renameFolder(tree: LibraryTree, id: string, input: Record<string, unknown>) {
+  const folder = await tree.resolve(id);
+  requireLibraryWrite(tree.context, folder);
+  if (!libraryCanDeleteFolder(tree.context, folder)) error(403, '기본 폴더의 이름은 변경할 수 없습니다.');
+  const title = text(input.title);
+  if (!title || [...title].length > 80 || [...title].some(c => c.charCodeAt(0) < 32)) error(400, '폴더 이름은 1~80자로 입력하세요.');
+  if ((await children(tree, await tree.resolve(folder.parentId!))).some(f => f.id !== id && f.title.normalize('NFC') === title.normalize('NFC'))) error(409, '같은 이름의 폴더가 있습니다.');
+  const result = await tree.db.prepare('UPDATE data_records SET title = ?, updated_at = ? WHERE id = ? AND organization_id = ? AND deleted_at IS NULL')
+    .bind(title, new Date().toISOString(), id, ORG).run();
+  if (Number(result.meta?.changes) !== 1) error(409, '폴더 상태가 변경되었습니다.');
+  await audit(tree, 'rename', folder);
+  return { ok: true, id, title };
 }
 
 async function fileFolder(tree: LibraryTree, row: Record<string, any>) {
@@ -180,6 +213,7 @@ async function listFiles(tree: LibraryTree, folder: LibraryFolder, url: URL) {
       files.push({ id: row.id, fileName: row.original_file_name, mimeType: row.mime_type, sizeBytes: row.size_bytes,
         createdAt: row.created_at, campusId: row.campus_id, ownerName: row.owner_name, recordId: row.data_record_id,
         canDelete: libraryCanDelete(tree.context, folder, row.owner_user_id),
+        canMove: libraryCanWrite(tree.context, folder),
         previewUrl: `/api/data-core/library/files/${encodeURIComponent(row.id)}`,
         downloadUrl: `/api/data-core/library/files/${encodeURIComponent(row.id)}/download` });
     } catch (e) { if (!(e instanceof DataCoreAccessError)) throw e; }
@@ -190,27 +224,77 @@ async function listFiles(tree: LibraryTree, folder: LibraryFolder, url: URL) {
 
 async function recentFiles(tree: LibraryTree, folder: LibraryFolder) {
   const placeholders = LIBRARY_FILE_CATEGORIES.map(() => '?').join(',');
-  const rows = (folder.campusId
-    ? await tree.db.prepare(`SELECT * FROM file_objects WHERE organization_id = ? AND campus_id = ? AND deleted_at IS NULL
-        AND category IN (${placeholders}) ORDER BY created_at DESC, id DESC LIMIT ?`)
-        .bind(ORG, folder.campusId, ...LIBRARY_FILE_CATEGORIES, RECENT_UPLOAD_SCAN_LIMIT).all<Record<string, unknown>>()
-    : await tree.db.prepare(`SELECT * FROM file_objects WHERE organization_id = ? AND deleted_at IS NULL
-        AND category IN (${placeholders}) ORDER BY created_at DESC, id DESC LIMIT ?`)
-        .bind(ORG, ...LIBRARY_FILE_CATEGORIES, RECENT_UPLOAD_SCAN_LIMIT).all<Record<string, unknown>>()
-  ).results || [];
   const campusNames = new Map(tree.campuses.map(c => [c.id, c.name]));
   const files: Record<string, unknown>[] = [];
-  for (const row of rows) {
+  const visible:Record<string,unknown>[] = [];
+  let cursor: {time:string; id:string} | null = null;
+  // Keyset scan ensures protected rows cannot crowd eligible uploads out of the top 50.
+  while (files.length < RECENT_UPLOAD_LIMIT) {
+    const values:(string | number | null)[] = [ORG, ...LIBRARY_FILE_CATEGORIES];
+    if (folder.campusId) values.push(folder.campusId);
+    if (cursor) values.push(cursor.time, cursor.time, cursor.id);
+    const rows:Record<string,unknown>[] = (await tree.db.prepare(`SELECT * FROM file_objects WHERE organization_id = ? AND deleted_at IS NULL
+      AND category IN (${placeholders}) AND visibility IN ('campus','organization','public') AND area IN ('documents-private','academy-public')
+      ${folder.campusId ? 'AND campus_id = ?' : ''} ${cursor ? 'AND (created_at < ? OR (created_at = ? AND id < ?))' : ''}
+      ORDER BY created_at DESC, id DESC LIMIT ${RECENT_UPLOAD_SCAN_LIMIT}`).bind(...values).all<Record<string,unknown>>()).results || [];
+    for (const row of rows) {
     if (files.length >= RECENT_UPLOAD_LIMIT) break;
     try {
       const sourceFolder = await fileFolder(tree, row);
+      if (sourceFolder.protected || sourceFolder.shareMode === 'restricted' || sourceFolder.category === 'student-artwork' || sourceFolder.category === 'counseling-material' ||
+        (await tree.breadcrumbs(sourceFolder)).some(f => f.id === 'hq-default:director-only' || f.title === '원장전용')) continue;
       if (!libraryFileReadable(tree.context, sourceFolder, row)) continue;
+      visible.push(row);
       files.push({ id: row.id, fileName: row.original_file_name, folderId: sourceFolder.id, folderTitle: sourceFolder.title,
         campusId: row.campus_id, campusName: row.campus_id ? campusNames.get(row.campus_id) || null : null,
-        mimeType: row.mime_type, sizeBytes: row.size_bytes, createdAt: row.created_at });
+        mimeType: row.mime_type, sizeBytes: row.size_bytes, createdAt: row.created_at,
+        canDelete: libraryCanDelete(tree.context, sourceFolder, row.owner_user_id), canMove: libraryCanWrite(tree.context, sourceFolder),
+        previewUrl: `/api/data-core/library/files/${encodeURIComponent(String(row.id))}`,
+        downloadUrl: `/api/data-core/library/files/${encodeURIComponent(String(row.id))}/download` });
     } catch (e) { if (!(e instanceof DataCoreAccessError)) throw e; }
+    }
+    if (rows.length < RECENT_UPLOAD_SCAN_LIMIT) break;
+    const last = rows.at(-1)!; cursor = {time:String(last.created_at), id:String(last.id)};
   }
-  return { files };
+  const thumbnails = await thumbnailUrls(tree.db, visible, '/api/data-core/library/files/');
+  return { files: files.map(f => ({...f, thumbnailUrl:thumbnails.get(String(f.id)) || null})), limit: RECENT_UPLOAD_LIMIT };
+}
+
+async function moveFile(tree: LibraryTree, id: string, input: Record<string,unknown>) {
+  const {row, folder, source} = await fileRow(tree, id);
+  requireLibraryWrite(tree.context, folder);
+  if (source.id !== row.id) error(403, '파생 파일은 원본과 함께 관리됩니다.');
+  let target = await tree.resolve(text(input.folderId));
+  requireLibraryWrite(tree.context, target);
+  // Relocation never changes campus, visibility, owner or original R2 bytes.
+  const general = (f:LibraryFolder) => !f.protected && Boolean(f.category) && !['student-artwork','counseling-material'].includes(f.category!) &&
+    (f.shareMode === 'organization' || f.category === 'class-photo' && Boolean(f.campusId));
+  const samePolicy = target.shareMode === folder.shareMode && target.category === folder.category && Boolean(target.protected) === Boolean(folder.protected);
+  const generalMove = general(folder) && general(target) && ['campus','organization','public'].includes(row.visibility) && ['documents-private','academy-public'].includes(row.area);
+  if (target.campusId !== folder.campusId || !samePolicy && !generalMove) error(400, '같은 캠퍼스와 보호 범위의 폴더를 선택해주세요.');
+  target = await materialize(tree, target);
+  const changed = await tree.db.prepare(`UPDATE file_objects SET data_record_id = ?, category = ? WHERE id = ? AND organization_id = ? AND deleted_at IS NULL
+    AND data_record_id IS ? AND EXISTS (SELECT 1 FROM data_records WHERE id = ? AND organization_id = ? AND deleted_at IS NULL)`)
+    .bind(target.id, target.category, id, ORG, row.data_record_id, target.id, ORG).run();
+  if (Number(changed.meta?.changes) !== 1) error(409, '파일 또는 폴더 상태가 변경되었습니다.');
+  await audit(tree, 'move-file', target);
+  return {ok:true, id, folderId:target.id};
+}
+
+async function fileCounts(tree:LibraryTree, folders:LibraryFolder[]) {
+  const counts = new Map<string,number>();
+  if (!folders.length) return counts;
+  // Count metadata groups, never list R2 objects or fetch file bytes.
+  const rows = (await tree.db.prepare(`SELECT data_record_id, campus_id, category, source_app, visibility, area, owner_user_id,
+    organization_id, COUNT(*) AS n FROM file_objects WHERE organization_id = ? AND campus_id IS ? AND deleted_at IS NULL
+    AND source_app NOT LIKE '%family%' AND source_app NOT LIKE '%kkumeum%' AND r2_key NOT LIKE 'family/%' AND r2_key NOT LIKE 'kkumeum/%'
+    GROUP BY data_record_id, campus_id, category, source_app, visibility, area, owner_user_id`).bind(ORG, folders[0].campusId).all<Record<string,unknown>>()).results || [];
+  const wanted = new Set(folders.map(f => f.id));
+  for (const row of rows) {
+    try { const f = await fileFolder(tree, row); if (wanted.has(f.id) && libraryFileReadable(tree.context,f,row)) counts.set(f.id,(counts.get(f.id)||0)+Number(row.n)); }
+    catch(e) { if (!(e instanceof DataCoreAccessError)) throw e; }
+  }
+  return counts;
 }
 
 export async function handleLibraryApi(request: Request, db: D1Database, bucket: R2Bucket, context: DataCoreAccessContext) {
@@ -222,7 +306,8 @@ export async function handleLibraryApi(request: Request, db: D1Database, bucket:
     const folder = await tree.resolve(text(url.searchParams.get('parentId')) || 'root');
     // Hide HQ entry points only; retain stored folders, files and authorized legacy deep links.
     const folders = (await children(tree, folder)).filter(f => folder.id !== 'root' || f.parentId !== 'hq');
-    return json({ folder: serialize(tree, folder), breadcrumbs: await tree.breadcrumbs(folder), folders: folders.map(f => serialize(tree, f)) });
+    const counts = await fileCounts(tree, folders.filter(f => f.category));
+    return json({ folder: serialize(tree, folder), breadcrumbs: await tree.breadcrumbs(folder), folders: folders.map(f => ({...serialize(tree, f), fileCount: f.category ? counts.get(f.id) || 0 : null})) });
   }
   if (url.pathname === '/api/data-core/library/folders' && request.method === 'POST') {
     let input; try { input = await request.json(); } catch { error(400, 'JSON 요청을 확인하세요.'); }
@@ -231,6 +316,11 @@ export async function handleLibraryApi(request: Request, db: D1Database, bucket:
   }
   const folderMatch = /^\/api\/data-core\/library\/folders\/([^/]+)$/.exec(url.pathname);
   if (folderMatch && request.method === 'DELETE') return json(await deleteFolder(tree, decodeURIComponent(folderMatch[1])));
+  if (folderMatch && request.method === 'PATCH') {
+    const input = await request.json().catch(() => null);
+    if (!input || typeof input !== 'object' || Array.isArray(input)) error(400, '폴더 요청을 확인하세요.');
+    return json(await renameFolder(tree, decodeURIComponent(folderMatch[1]), input as Record<string,unknown>));
+  }
 
   if (url.pathname === '/api/data-core/library/recent' && request.method === 'GET') {
     const folder = await tree.resolve(text(url.searchParams.get('folderId')) || 'root');
@@ -288,6 +378,11 @@ export async function handleLibraryApi(request: Request, db: D1Database, bucket:
   }
   const match = /^\/api\/data-core\/library\/files\/([^/]+)(\/download)?$/.exec(url.pathname);
   if (match) {
+    if (request.method === 'PATCH' && !match[2]) {
+      const input = await request.json().catch(() => null);
+      if (!input || typeof input !== 'object' || Array.isArray(input)) error(400, '이동할 폴더를 확인하세요.');
+      return json(await moveFile(tree, decodeURIComponent(match[1]), input as Record<string,unknown>));
+    }
     const { row, folder, source } = await fileRow(tree, decodeURIComponent(match[1]));
     if (request.method === 'DELETE' && !match[2]) {
       requireLibraryWrite(context, folder);

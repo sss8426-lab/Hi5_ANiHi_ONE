@@ -18,7 +18,7 @@ test('library folder browser: synthetic storage, complete ancestry and role boun
         ok(await h.browse('root', user)); ok(await h.browse(`campus:${B}`, user));
       }
       const legacy = await h.request('POST', '/api/data-core/records', users.admin, { recordType: 'hq-library-folder', sourceApp: 'data-core-library',
-        title: '원장전용', campusId: null, visibility: 'organization', metadata: { folderKey: 'director-only' } });
+        title: '공용 자료', campusId: null, visibility: 'organization', metadata: { folderKey: 'resources' } });
       ok(legacy, 201); hq = legacy.body.record.id;
       ok(await h.browse(hq, users.staff)); ok(await h.upload(hq, users.staff), 403);
       const restricted = await h.request('POST', '/api/data-core/records', users.admin, { recordType: 'hq-library-folder', sourceApp: 'data-core-library',
@@ -49,8 +49,7 @@ test('library folder browser: synthetic storage, complete ancestry and role boun
       assert.equal((await h.list(nested, users.staff, '&q='+encodeURIComponent('검증'))).body.files.length, 1);
       ok(await h.request('DELETE', `/api/data-core/library/folders/${parent}`, users.staff), 409);
       const empty = await h.folder(parent, '빈 폴더', users.teacher); ok(empty, 201);
-      ok(await h.request('DELETE', `/api/data-core/library/folders/${empty.body.folder.id}`, users.staff), 403);
-      ok(await h.request('DELETE', `/api/data-core/library/folders/${empty.body.folder.id}`, users.director));
+      ok(await h.request('DELETE', `/api/data-core/library/folders/${empty.body.folder.id}`, users.staff));
       ok(await h.browse(empty.body.folder.id), 404);
     });
     await t.test('foreign library read/download only; generic #166 remains 403', async () => {
@@ -96,16 +95,15 @@ test('library folder browser: synthetic storage, complete ancestry and role boun
         ok(await h.request('PATCH', `/api/data-core/records/${ordinary.body.record.id}`, users.staff, {recordType,sourceApp:'data-core-library'}),403);
       }
     });
-    await t.test('soft trash preserves R2 and restores into original folder; other owners denied', async () => {
+    await t.test('own campus writers can soft-trash ordinary files; folder removal preserves restore', async () => {
       const before = await h.file(uploaded), bytes = await (await h.env.FILES.get(before.r2_key)).text();
-      ok(await h.request('DELETE', `/api/data-core/library/files/${uploaded}`, users.teacher), 403);
-      ok(await h.request('DELETE', `/api/data-core/library/files/${uploaded}`, users.director));
+      ok(await h.request('DELETE', `/api/data-core/library/files/${uploaded}`, users.teacher));
       assert.equal((await h.list(nested, users.staff)).body.files.length, 0);
-      ok(await h.request('DELETE', `/api/data-core/library/folders/${nested}`, users.staff), 409);
+      const removed=await h.request('DELETE', `/api/data-core/library/folders/${nested}`, users.staff);ok(removed);
       assert.equal(await (await h.env.FILES.get(before.r2_key)).text(), bytes);
       ok(await h.request('POST', `/api/data-core/trash/files/${uploaded}/restore`, users.staff));
-      assert.equal((await h.list(nested, users.staff)).body.files[0].id, uploaded);
-      assert.deepEqual(await h.file(uploaded), before);
+      assert.equal((await h.list(removed.body.destinationFolderId, users.staff)).body.files[0].id, uploaded);
+      assert.deepEqual(await h.file(uploaded), {...before,data_record_id:removed.body.destinationFolderId});
     });
     await t.test('malformed/missing/deleted/cyclic lineage and FAMILY cannot bypass file access', async () => {
       const row = await h.file(foreignFile), folderId = row.data_record_id;

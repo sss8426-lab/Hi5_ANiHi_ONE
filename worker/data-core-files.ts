@@ -540,7 +540,8 @@ export async function deleteDataCoreFile(
   const folder = await libraryUploadTarget(db, context, row.data_record_id as string | null);
   if (libraryScope && row.campus_id) requireCampusAccess(context, String(row.campus_id));
   const director = libraryScope && context.memberships.some(m => m.campusId === row.campus_id && m.role === 'CAMPUS_DIRECTOR');
-  if ((!canMutateFileRow(context, row) && !director) || (folder && !libraryCanDelete(context, folder, row.owner_user_id))) {
+  const libraryManager = libraryScope && folder && row.visibility !== 'private' && row.area !== 'student-private' && libraryCanDelete(context, folder, row.owner_user_id);
+  if ((!canMutateFileRow(context, row) && !director && !libraryManager) || (folder && !libraryCanDelete(context, folder, row.owner_user_id))) {
     throw new DataCoreAccessError(403, "본인이 업로드한 파일만 삭제할 수 있습니다.");
   }
   const deletedAt = new Date().toISOString();

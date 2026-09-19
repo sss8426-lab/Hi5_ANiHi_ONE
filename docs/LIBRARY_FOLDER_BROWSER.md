@@ -1,5 +1,7 @@
 # Library Folder Browser
 
+2026-09-19: [Shared access and management](LIBRARY_SHARED_ACCESS_2026-09-19.md) supersedes the historical empty-only deletion, class-photo restriction, owner-only ordinary campus mutations and recent-10 policies below. System roots, private/FAMILY and AI input authorization remain protected.
+
 ## Storage and Compatibility
 
 `/data-core/work/library?folder=<id>` uses one browser for HQ, campus categories and nested folders. Breadcrumb links, parent navigation, browser history and refresh preserve the selected folder. Search is limited to that folder. Original filenames are retained.
