@@ -6,7 +6,7 @@ import { createLibraryThumbnail, thumbnailUrls } from './data-core-thumbnails';
 import { privateImageResponse } from './private-image-response';
 import { isSelectableCampus } from './campus-directory';
 import { LibraryTree, LibraryFolder, LIBRARY_FOLDER, HQ_FOLDER, LIBRARY_SOURCE, LIBRARY_CATEGORIES, HQ_DEFAULTS,
-  libraryMetadata, libraryCanWrite, libraryCanDelete, libraryCanDeleteFolder, libraryFolderScope, requireLibraryWrite, libraryFileReadable } from './data-core-library-policy';
+  libraryMetadata, libraryCanWrite, libraryCanDelete, libraryCanDeleteFolder, libraryDefaultFolder, libraryFolderScope, requireLibraryWrite, libraryFileReadable } from './data-core-library-policy';
 import { SIMPLE_UPLOAD_MAX_BYTES, startLibraryMultipartUpload, uploadLibraryMultipartPart,
   completeLibraryMultipartUpload, abortLibraryMultipartUpload, parseUploadedParts } from './data-core-library-multipart';
 
@@ -26,6 +26,8 @@ const serialize = (tree: LibraryTree, f: LibraryFolder) => ({ id: f.id, title: f
   campusId: f.campusId, category: f.category, group: f.group, canWrite: libraryCanWrite(tree.context, f),
   systemManaged: Boolean(f.systemManaged), canDelete: libraryCanDeleteFolder(tree.context, f),
   canRename: libraryCanDeleteFolder(tree.context, f),
+  defaultFolder: libraryDefaultFolder(f), archived: Boolean(f.archived),
+  canRestore: Boolean(f.archived && libraryDefaultFolder(f) && libraryCanWrite(tree.context, { ...f, archived: false })),
   readOnly: !libraryCanWrite(tree.context, f) });
 
 async function audit(tree: LibraryTree, action: string, folder: LibraryFolder) {
@@ -34,7 +36,7 @@ async function audit(tree: LibraryTree, action: string, folder: LibraryFolder) {
     tree.context.user!.internalUserId, action, folder.id, new Date().toISOString()).run();
 }
 
-async function children(tree: LibraryTree, parent: LibraryFolder) {
+async function children(tree: LibraryTree, parent: LibraryFolder, includeArchived = false) {
   const rows = (await tree.db.prepare(`SELECT * FROM data_records WHERE organization_id = ? AND source_app = ? AND deleted_at IS NULL
     AND record_type IN (?, ?) AND (CASE WHEN json_valid(metadata_json) THEN json_extract(metadata_json, '$.parentFolderId') END = ?
       OR (? IN ('root','hq') AND campus_id IS NULL AND (record_type = ? OR
@@ -76,7 +78,7 @@ async function children(tree: LibraryTree, parent: LibraryFolder) {
     const rank = (f: LibraryFolder) => f.virtual ? LIBRARY_CATEGORIES.findIndex(c => c[0] === f.category) : 99;
     output.sort((a,b) => rank(a) - rank(b));
   }
-  return output;
+  return output.filter(f => includeArchived || !f.archived);
 }
 
 async function materialize(tree: LibraryTree, folder: LibraryFolder) {
@@ -124,16 +126,32 @@ async function createFolder(tree: LibraryTree, input: Record<string, unknown>) {
 }
 
 async function deleteFolder(tree: LibraryTree, id: string) {
-  const folder = await tree.resolve(id);
+  let folder = await tree.resolve(id);
   requireLibraryWrite(tree.context, folder);
   if (!libraryCanDeleteFolder(tree.context, folder)) error(403, '이 폴더는 삭제할 수 없습니다.');
   const now = new Date().toISOString();
   if ((await children(tree, folder)).length) error(409, '하위 폴더를 먼저 정리해주세요. 원본 파일은 삭제되지 않습니다.');
+  if (libraryDefaultFolder(folder)) {
+    folder = await materialize(tree, folder);
+    // Retain the canonical authorization anchor and every file link, including legacy/trash.
+    const result = await tree.db.prepare(`UPDATE data_records SET metadata_json = json_set(metadata_json, '$.libraryArchived', json('true')), updated_at = ?
+      WHERE id = ? AND organization_id = ? AND deleted_at IS NULL
+      AND NOT EXISTS (SELECT 1 FROM data_records child WHERE child.organization_id = ? AND child.deleted_at IS NULL
+        AND CASE WHEN json_valid(child.metadata_json) THEN json_extract(child.metadata_json, '$.parentFolderId') END = ?)
+      AND NOT EXISTS (SELECT 1 FROM data_records upload WHERE upload.organization_id = ? AND upload.record_type = 'library-upload-session'
+        AND upload.status IN ('pending','uploading','failed') AND upload.deleted_at IS NULL
+        AND CASE WHEN json_valid(upload.metadata_json) THEN json_extract(upload.metadata_json, '$.folderId') END = ?)`)
+      .bind(now, id, ORG, ORG, id, ORG, id).run();
+    if (Number(result.meta?.changes) !== 1) error(409, '하위 폴더 또는 진행 중인 업로드를 먼저 정리해주세요.');
+    await audit(tree, 'archive', folder);
+    return { ok: true, id, archived: true, destinationFolderId: folder.parentId };
+  }
   const linked = await tree.db.prepare('SELECT COUNT(*) AS n FROM file_objects WHERE data_record_id = ? AND organization_id = ?').bind(id, ORG).first<{n:number}>();
   let destination: LibraryFolder | null = null;
   if (linked?.n) {
     const parent = await tree.resolve(folder.parentId!);
     destination = parent.category === folder.category ? parent : await tree.resolve(folder.category === 'hq-workspace' ? 'hq-default:resources' : `category:${folder.campusId || 'organization'}:${folder.category}`);
+    if (destination.archived) error(409, '파일을 보존할 기본 폴더를 먼저 복원해주세요.');
     if (destination.shareMode !== folder.shareMode || destination.campusId !== folder.campusId || Boolean(destination.protected) !== Boolean(folder.protected)) error(409, '보호 범위가 같은 폴더로 파일을 먼저 이동해주세요.');
     destination = await materialize(tree, destination);
   }
@@ -159,12 +177,22 @@ async function deleteFolder(tree: LibraryTree, id: string) {
 }
 
 async function renameFolder(tree: LibraryTree, id: string, input: Record<string, unknown>) {
-  const folder = await tree.resolve(id);
+  let folder = await tree.resolve(id);
+  if (input.restore === true) {
+    if (!folder.archived || !libraryDefaultFolder(folder)) error(400, '복원할 기본 폴더가 아닙니다.');
+    requireLibraryWrite(tree.context, { ...folder, archived: false });
+    if ((await children(tree, await tree.resolve(folder.parentId!))).some(f => f.id !== id && f.title.normalize('NFC') === folder.title.normalize('NFC'))) error(409, '같은 이름의 폴더가 있습니다. 해당 폴더 이름을 먼저 변경해주세요.');
+    await tree.db.prepare(`UPDATE data_records SET metadata_json = json_remove(metadata_json, '$.libraryArchived'), updated_at = ? WHERE id = ? AND organization_id = ? AND deleted_at IS NULL`)
+      .bind(new Date().toISOString(), id, ORG).run();
+    await audit(tree, 'restore', folder);
+    return { ok: true, id, restored: true };
+  }
   requireLibraryWrite(tree.context, folder);
   if (!libraryCanDeleteFolder(tree.context, folder)) error(403, '기본 폴더의 이름은 변경할 수 없습니다.');
   const title = text(input.title);
   if (!title || [...title].length > 80 || [...title].some(c => c.charCodeAt(0) < 32)) error(400, '폴더 이름은 1~80자로 입력하세요.');
   if ((await children(tree, await tree.resolve(folder.parentId!))).some(f => f.id !== id && f.title.normalize('NFC') === title.normalize('NFC'))) error(409, '같은 이름의 폴더가 있습니다.');
+  folder = await materialize(tree, folder);
   const result = await tree.db.prepare('UPDATE data_records SET title = ?, updated_at = ? WHERE id = ? AND organization_id = ? AND deleted_at IS NULL')
     .bind(title, new Date().toISOString(), id, ORG).run();
   if (Number(result.meta?.changes) !== 1) error(409, '폴더 상태가 변경되었습니다.');
@@ -314,7 +342,9 @@ export async function handleLibraryApi(request: Request, db: D1Database, bucket:
   if (url.pathname === '/api/data-core/library/folders' && request.method === 'GET') {
     const folder = await tree.resolve(text(url.searchParams.get('parentId')) || 'root');
     // Hide HQ entry points only; retain stored folders, files and authorized legacy deep links.
-    const folders = (await children(tree, folder)).filter(f => folder.id !== 'root' || f.parentId !== 'hq');
+    const archived = url.searchParams.get('archived') === '1';
+    if (archived) requireLibraryWrite(tree.context, folder);
+    const folders = (await children(tree, folder, archived)).filter(f => (folder.id !== 'root' || f.parentId !== 'hq') && (!archived || f.archived));
     const counts = await fileCounts(tree, folders.filter(f => f.category));
     return json({ folder: serialize(tree, folder), breadcrumbs: await tree.breadcrumbs(folder), folders: folders.map(f => ({...serialize(tree, f), fileCount: f.category ? counts.get(f.id) || 0 : null})) });
   }

@@ -70,6 +70,33 @@ try {
   const visit=async(id='root')=>{await page.goto(base+'/data-core/work/library'+(id==='root'?'':'?folder='+encodeURIComponent(id)));await page.waitForFunction(()=>document.querySelector('#libraryContents')?.getAttribute('aria-busy')==='false'&&document.querySelector('#libraryBreadcrumb [aria-current]'));};
   const settled=()=>page.waitForFunction(()=>document.querySelector('#libraryContents')?.getAttribute('aria-busy')==='false');
   if(!process.argv.includes('--images-only')) {
+  role=users.staff;
+  const editableDefault=`category:${A}:academy-photo`;
+  const defaultUpload=await h.upload(editableDefault,role);assert.equal(defaultUpload.status,201);
+  const defaultBefore=await h.file(defaultUpload.body.file.id);
+  for(const width of [1440,1024,390,320]) {
+    await page.setViewportSize({width,height:1000});await visit(editableDefault);
+    await page.locator('#libraryRenameFolder').click();await page.locator('#libraryFolderName').fill('__synthetic_기본 폴더 편집');await page.locator('#libraryCreate').click();
+    await page.waitForFunction(()=>document.querySelector('#libraryTitle')?.textContent==='__synthetic_기본 폴더 편집');
+    await page.locator('#libraryDeleteFolder').click();
+    assert.match(await page.locator('#libraryDeleteName').innerText(),/삭제한 기본 폴더/);
+    await page.locator('#libraryDeleteConfirm').click();await page.waitForFunction(()=>document.querySelector('#libraryTitle')?.textContent!=='__synthetic_기본 폴더 편집');await settled();
+    await page.reload();await settled();assert.equal(await page.locator(`#libraryFolders [data-lb-folder="${editableDefault}"]`).count(),0);
+    await page.locator('#libraryArchived').click();await page.locator(`#libraryArchivedList [data-lb-folder="${editableDefault}"]`).click();await settled();
+    assert.equal(await page.locator('#libraryUpload').isVisible(),false);
+    assert.equal(await page.locator('#libraryRestoreFolder').isVisible(),true);
+    assert.equal(await page.locator('#libraryFiles [data-library-file]').count(),1);
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+    await page.screenshot({path:resolve(out,`default-restore-${width}.png`),fullPage:true});
+    await page.locator('#libraryRestoreFolder').click();await page.locator('#libraryRenameFolder').waitFor({state:'visible'});
+    await visit(`campus:${A}`);await page.getByLabel('__synthetic_기본 폴더 편집 폴더 메뉴').click();
+    await page.screenshot({path:resolve(out,`default-menu-${width}.png`),fullPage:true});
+  }
+  assert.deepEqual(await h.file(defaultBefore.id),defaultBefore);
+  role=users.foreign;await visit(editableDefault);
+  assert.equal(await page.locator('#libraryRenameFolder').isVisible(),false);assert.equal(await page.locator('#libraryDeleteFolder').isVisible(),false);
+  result.flows.push('default folders: rename, archive, refresh, retained files, restore and role controls at 1440/1024/390/320');
+  role=users.admin;
   await visit();
   assert.equal(await page.locator('#legacyLibrary').isVisible(),false);
   const noCommon=async()=>{

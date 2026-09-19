@@ -25,6 +25,16 @@
 
 ## 폴더와 이동
 
+### 기본 분류 폴더 편집 후속
+
+수업사진/학생그림 등 기본 분류와 기존 본원 기본 폴더도 이름 변경 및 삭제가 가능하다. MASTER/SUPER_ADMIN은 전체, 캠퍼스 쓰기 사용자는 자기 캠퍼스만 가능하다. 캠퍼스 자체/root/hq/organization 및 임의 system-managed 폴더는 편집 대상이 아니다. 원장전용은 이름을 바꿔도 MASTER 전용으로 유지한다.
+
+기본 폴더는 파일 권한의 기준이므로 DELETE 시 기존 data_records.metadata_json의 libraryArchived=true로 목록에서 제거한다. ID/category/visibility/file_objects 연결/R2 바이트는 유지한다. 일반 사용자 폴더의 기존 soft-delete/relink와 구분한다. 별도 DB/migration 없음. 기본 폴더를 강제로 일반 미분류로 옮겨 개인정보 범위를 넓히지 않는다.
+
+해당 캠퍼스 또는 본원에서 `삭제한 기본 폴더` → 자료 보기 → `폴더 복원`으로 되돌릴 수 있다. GET folders?parentId=...&archived=1은 해당 범위 관리자만, PATCH folders/:id {restore:true}도 같은 쓰기 권한을 검증한다. 삭제 상태에서는 업로드/이름 변경/하위 폴더 생성/이동/자료보관함 파일 삭제를 차단하고 읽기 권한은 유지한다. 하위 폴더 또는 진행 중인 multipart 업로드가 있으면 삭제를 차단한다. 복원할 이름이 다른 폴더와 중복되면 409다.
+
+이 후속 정책이 아래의 기존 기본 폴더 편집 제한보다 우선한다. 블로그/인스타도 동일 API의 변경된 제목/목록을 사용한다. 합성 API/브라우저 검증과 실제 운영 로그인/쓰기 검증은 구분한다.
+
 기존 data_records와 file_objects만 사용한다. 새 DB/bucket/migration 없음.
 
 - PATCH library/folders/:id: title만 변경, trim/80자/중복 검사. 시스템/virtual 캠퍼스·기본 폴더의 ID/구조/이름은 유지한다. 사용자 생성 일반 폴더가 관리 대상이다.

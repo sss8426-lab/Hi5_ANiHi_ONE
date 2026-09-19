@@ -58,6 +58,8 @@
       <button id="libraryUpload" class="lb-button lb-primary" hidden>${icon('Image')}파일 업로드</button>
       <button id="libraryDeleteFolder" class="lb-button lb-danger" hidden>폴더 삭제</button>
       <button id="libraryRenameFolder" class="lb-button" hidden>이름 변경</button>
+      <button id="libraryArchived" class="lb-button" hidden>${icon('RotateCcw')}삭제한 기본 폴더</button>
+      <button id="libraryRestoreFolder" class="lb-button" hidden>${icon('RotateCcw')}폴더 복원</button>
       <button id="libraryRefresh" class="lb-button lb-square" aria-label="새로고침" title="새로고침">${icon('RotateCcw')}</button>
     </div></header>
     <form id="librarySearch" class="lb-search"><label for="libraryQuery">현재 폴더 검색</label><input id="libraryQuery" type="search" maxlength="120"><button class="lb-button" type="submit">검색</button></form>
@@ -67,6 +69,7 @@
       <ul id="libraryRecentList" class="lb-recent-list"></ul>
       <p id="libraryRecentEmpty" hidden>최근 업로드된 파일이 없습니다.</p><p id="libraryRecentEnd" role="status"></p></section>
     <input id="libraryFileInput" type="file" multiple hidden>
+    <dialog id="libraryArchivedDialog" aria-labelledby="libraryArchivedTitle"><h3 id="libraryArchivedTitle">삭제한 기본 폴더</h3><div id="libraryArchivedList"></div><p id="libraryArchivedError" role="alert"></p><button type="button" data-lb-close>닫기</button></dialog>
     <dialog id="libraryFolderDialog" aria-labelledby="libraryFolderTitle"><form id="libraryFolderForm"><h3 id="libraryFolderTitle">새 폴더</h3>
       <label for="libraryFolderName">새 폴더 이름</label><input id="libraryFolderName" required maxlength="80" autocomplete="off">
       <p id="libraryFolderError" role="alert"></p><div class="lb-toolbar"><button type="button" data-lb-close>취소</button><button id="libraryCreate" class="lb-primary" type="submit">만들기</button></div></form></dialog>
@@ -168,7 +171,7 @@
     $('libraryStatus').textContent = '불러오는 중…'; $('libraryContents').setAttribute('aria-busy','true');
     $('libraryFolders').replaceChildren(); $('libraryFiles').replaceChildren(); $('libraryPages').replaceChildren();
     $('libraryRecent').hidden = true; $('libraryRecentList').replaceChildren();
-    for (const id of ['libraryNew','libraryUpload','libraryDeleteFolder','libraryRenameFolder','libraryHq']) $(id).hidden = true;
+    for (const id of ['libraryNew','libraryUpload','libraryDeleteFolder','libraryRenameFolder','libraryHq','libraryArchived','libraryRestoreFolder']) $(id).hidden = true;
     $('libraryQuery').value = current.q;
     try {
       const options = { signal: state.controller.signal };
@@ -176,7 +179,7 @@
       if (generation !== state.generation) return;
       state.folder = view.folder; state.folders = view.folders; state.files = listing.files; state.breadcrumbs = view.breadcrumbs;
       $('libraryTitle').textContent = presentation(view.folder).title;
-      $('libraryPermission').textContent = view.folder.readOnly ? (view.folder.campusId?'다른 캠퍼스 자료 · 읽기 전용':'읽기·다운로드 가능') : '';
+      $('libraryPermission').textContent = view.folder.archived ? '삭제한 기본 폴더 · 원본 자료 보존 중' : view.folder.readOnly ? (view.folder.campusId?'다른 캠퍼스 자료 · 읽기 전용':'읽기·다운로드 가능') : '';
       $('libraryBreadcrumb').innerHTML = `<ol>${view.breadcrumbs.map((b,i) => `<li>${i === view.breadcrumbs.length-1 ? `<span aria-current="page">${h(presentation(b).title)}</span>` : `<a href="${h(href(b.id))}" data-lb-folder="${h(b.id)}">${h(presentation(b).title)}</a>`}</li>`).join('')}</ol>`;
       $('libraryUp').hidden = !view.folder.parentId; $('libraryUp').href = href(view.folder.parentId || 'root'); $('libraryUp').dataset.lbFolder = view.folder.parentId || 'root';
       $('libraryNew').hidden = !view.folder.canWrite;
@@ -184,6 +187,8 @@
       $('libraryUpload').hidden = !view.folder.canWrite || !view.folder.category;
       $('libraryDeleteFolder').hidden = !view.folder.canDelete;
       $('libraryRenameFolder').hidden = !view.folder.canRename;
+      $('libraryRestoreFolder').hidden = !view.folder.canRestore;
+      $('libraryArchived').hidden = !view.folder.canWrite || !(view.folder.id.startsWith('campus:') || ['organization','hq'].includes(view.folder.id));
       renderFolders(view.folders, current.q); renderFiles(listing.files);
       $('libraryStatus').textContent = !listing.files.length && !$('libraryFolders').children.length ? (current.q ? '검색 결과가 없습니다.' : '이 폴더에 자료가 없습니다.') : '';
       if (current.page > 1 || listing.hasMore) $('libraryPages').innerHTML = `<button class="lb-button" data-lb-page="${current.page-1}" ${current.page===1?'disabled':''}>이전</button><span>${current.page} 페이지</span><button class="lb-button" data-lb-page="${current.page+1}" ${listing.hasMore?'':'disabled'}>다음</button>`;
@@ -208,7 +213,7 @@
         items:files.map(f=>({title:f.fileName,previewSrc:imageCache.peek(f.thumbnailUrl||f.previewUrl)||f.thumbnailUrl,load:({priority})=>imageCache.get(f.previewUrl,{priority:priority!=='low'})}))});
     }
     const folder = e.target.closest('[data-lb-folder]');
-    if (folder && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.button === 0) { e.preventDefault(); navigate(folder.dataset.lbFolder); }
+    if (folder && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.button === 0) { e.preventDefault(); folder.closest('dialog')?.close(); navigate(folder.dataset.lbFolder); }
     const page = e.target.closest('[data-lb-page]'); if (page && !page.disabled) { const s=locationState(); navigate(s.id,s.q,Number(page.dataset.lbPage)); }
     const remove = e.target.closest('[data-lb-delete]');
     if (remove) confirmDelete('file', [...state.files,...state.recent].find(f=>f.id===remove.dataset.lbDelete));
@@ -227,6 +232,19 @@
   document.addEventListener('click', e => { for (const menu of host.querySelectorAll('.lb-folder-menu[open]')) if (!menu.contains(e.target)) menu.open=false; });
   $('librarySearch').onsubmit = e => { e.preventDefault(); navigate(locationState().id,$('libraryQuery').value.trim()); };
   $('libraryRefresh').onclick = () => load();
+  $('libraryArchived').onclick = async () => {
+    const id=state.folder?.id;if(!id)return;
+    $('libraryArchivedDialog').showModal();$('libraryArchivedList').textContent='불러오는 중…';$('libraryArchivedError').textContent='';
+    try {
+      const view=await api(`/api/data-core/library/folders?parentId=${encodeURIComponent(id)}&archived=1`);
+      $('libraryArchivedList').innerHTML=view.folders.length?view.folders.map(f=>`<p><a class="lb-button" href="${h(href(f.id))}" data-lb-folder="${h(f.id)}">${icon('Folder')}${h(f.title)} · 자료 보기 / 복원</a></p>`).join(''):'삭제한 기본 폴더가 없습니다.';
+    } catch(e){$('libraryArchivedList').textContent='';$('libraryArchivedError').textContent=e.message;}
+  };
+  $('libraryRestoreFolder').onclick = async () => {
+    const id=state.folder?.id;if(!id)return;$('libraryRestoreFolder').disabled=true;
+    try {await api(`/api/data-core/library/folders/${encodeURIComponent(id)}`,{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({restore:true})});await load();}
+    catch(e){$('libraryStatus').textContent=e.message;}finally{$('libraryRestoreFolder').disabled=false;}
+  };
   function editFolder(folder=null) { if (!state.folder?.canWrite) return; $('libraryFolderForm').reset();$('libraryFolderError').textContent='';$('libraryFolderDialog').dataset.parentId=state.folder.id;$('libraryFolderDialog').dataset.editId=folder?.id||'';$('libraryFolderName').value=folder?.title||'';$('libraryFolderTitle').textContent=folder?'폴더 이름 변경':'새 폴더 만들기';$('libraryCreate').textContent=folder?'저장':'만들기';$('libraryFolderDialog').showModal();$('libraryFolderName').focus(); }
   $('libraryNew').onclick=()=>editFolder();$('libraryRenameFolder').onclick=()=>editFolder(state.folder);
   $('libraryFolderForm').onsubmit = async e => {
@@ -239,7 +257,7 @@
     if (!item) return;
     state.pending={kind,id:item.id}; $('libraryDeleteError').textContent='';
     $('libraryDeleteTitle').textContent=kind==='file'?'이 파일을 휴지통으로 이동하시겠습니까?':`"${item.title}" 폴더를 삭제하시겠습니까?`;
-    $('libraryDeleteName').textContent=kind==='file'?item.fileName:'폴더 안의 원본 파일은 삭제되지 않습니다. 상위 폴더 또는 미분류에서 다시 확인할 수 있습니다.';
+    $('libraryDeleteName').textContent=kind==='file'?item.fileName:item.defaultFolder?'기본 폴더를 목록에서 제거합니다. 원본 파일과 권한은 보존되며, 삭제한 기본 폴더에서 자료를 보거나 복원할 수 있습니다.':'폴더 안의 원본 파일은 삭제되지 않습니다. 상위 폴더 또는 미분류에서 다시 확인할 수 있습니다.';
     $('libraryDeleteConfirm').textContent=kind==='file'?'휴지통으로 이동':'폴더 삭제'; $('libraryDeleteDialog').showModal();
   }
   $('libraryDeleteFolder').onclick=()=>confirmDelete('folder',state.folder);
