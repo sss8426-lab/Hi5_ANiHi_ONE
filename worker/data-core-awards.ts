@@ -1,5 +1,5 @@
 import { DEFAULT_ORGANIZATION_ID as ORG } from './data-core';
-import { DATA_CORE_ROLES, DataCoreAccessError, requireAuthenticatedAccess, type DataCoreAccessContext } from './data-core-access';
+import { DATA_CORE_ROLES, DataCoreAccessError, requireAuthenticatedAccess, requireCampusAccess, type DataCoreAccessContext } from './data-core-access';
 import { campusDisplayName } from './campus-directory';
 
 export const AWARD_FOLDER = 'competition-award-folder';
@@ -32,6 +32,7 @@ export async function awardPath(db: D1Database, context: DataCoreAccessContext, 
     if (row.visibility === 'private' && !context.isSuperAdmin && row.created_by_user_id !== context.user?.internalUserId) {
       throw new DataCoreAccessError(403, '비공개 폴더입니다.');
     }
+    if (row.visibility === 'private' && row.campus_id) requireCampusAccess(context,String(row.campus_id));
     rows.unshift(row);
     const parent = awardMetadata(row).parentFolderId || null;
     if (parent !== null && typeof parent !== 'string') throw new DataCoreAccessError(409, '폴더 계층을 확인해주세요.');
@@ -129,6 +130,7 @@ export async function sharedAwardFileFolder(db: D1Database, context: DataCoreAcc
   const folder=path.at(-1)!;
   if (row.visibility === 'private' || row.area === 'student-private') {
     if (!context.isSuperAdmin && row.owner_user_id !== context.user?.internalUserId) throw new DataCoreAccessError(403,'비공개 파일입니다.');
+    if(row.campus_id)requireCampusAccess(context,String(row.campus_id));
   }
   return {...folder,auditRestricted:path.some(p=>p.visibility==='private'),metadata_json:JSON.stringify({...awardMetadata(folder),collectionType:collection(awardMetadata(path[0]).collectionType)})};
 }

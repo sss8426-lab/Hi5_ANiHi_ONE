@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {libraryHarness,users,ORG,A} from './support/library-harness.mjs';
+import {libraryHarness,users,ORG,A,B} from './support/library-harness.mjs';
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aU1sAAAAASUVORK5CYII=','base64');
 const base='/api/data-core/awards';
 async function folder(h,user,title='SYNTHETIC folder',extra={}) {
@@ -126,6 +126,8 @@ test('activity keyset pages remain unique when new events arrive; private files 
     assert.ok(restricted);
     const safeEvents=(await h.request('GET',base+'/activity',users.foreign)).body.events;
     assert.ok(safeEvents.every(e=>e.eventId!==restricted.id));
+    await h.env.DB.prepare('UPDATE file_objects SET campus_id=? WHERE id=?').bind(B,file.id).run();
+    assert.equal((await h.request('POST',`${base}/files/${file.id}/download`,users.teacher)).status,403,'private owner still needs its campus scope');
     assert.equal((await h.request('GET',base+'/folders?trash=1',users.teacher)).status,403);
     assert.equal((await h.request('GET',base+'/activity?cursor=not-json',users.teacher)).status,400);
     assert.equal((await h.request('POST',base+'/folders',users.teacher,{title:'X',collectionType:'unknown'})).status,400);
