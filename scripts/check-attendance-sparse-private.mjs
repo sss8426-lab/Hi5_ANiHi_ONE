@@ -18,12 +18,12 @@ for(const [year,month] of [[2026,10],[2027,2],[2028,2]]){
  assert.equal(inspectAttendanceSheets(out,`${year}.${String(month).padStart(2,'0')}.xlsx`).filter(s=>s.status==='ready').length,7);
  for(const r of g.results){
   const m=r.mapping,grid=indexSheet(r.sheet),original=indexSheet(t.read(t.sheets[m.index].path));
-  for(const b of m.studentBlocks)assert.equal(textOf(grid.cells.get(cellRef(m.nameCol,b.start)),t.strings),textOf(original.cells.get(cellRef(m.nameCol,b.start)),t.strings),'Student identity changed');
+  for(const b of m.studentBlocks)assert.ok(textOf(grid.cells.get(cellRef(m.nameCol,b.start)),t.strings)===textOf(original.cells.get(cellRef(m.nameCol,b.start)),t.strings),'Student identity changed');
   assert.deepEqual([...new Set(m.dateColumns.map(d=>d.day))],calendar.filter(d=>d.active&&m.sparse.policy[d.weekdayIndex]).map(d=>d.day));
   for(const d of m.dateColumns)if(!d.slot){assert.equal(textOf(grid.cells.get(cellRef(d.c,m.dateRow)),t.strings),String(d.day));assert.equal(textOf(grid.cells.get(cellRef(d.c,m.weekdayRow)),t.strings),calendar[d.day-1].weekday);}
   assert.ok(all(r.sheet,'f').filter(f=>address(attr(f.parentNode,'r')).r<=m.area.end.r).every(f=>!attr(f,'si')&&!child(f.parentNode,'v')));
   const serialize=n=>new XMLSerializer().serializeToString(n);
-  for(const [ref,cell] of original.cells)if(address(ref).r>m.area.end.r)assert.equal(serialize(grid.cells.get(ref)),serialize(cell),'Record outside print area changed');
+  for(const [ref,cell] of original.cells)if(address(ref).r>m.area.end.r)assert.ok(serialize(grid.cells.get(ref))===serialize(cell),'Record outside print area changed');
  }
  const touched=new Set(['xl/workbook.xml','xl/styles.xml','xl/calcChain.xml','xl/_rels/workbook.xml.rels','[Content_Types].xml',...sheets.map(m=>t.sheets[m.index].path)]);
  assert.equal(out.entries['xl/calcChain.xml'],undefined);
