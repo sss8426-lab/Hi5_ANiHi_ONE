@@ -124,10 +124,15 @@ try {
   await page.locator('.lb-file').waitFor({state:'detached'});assert.equal((await h.file(fid)).deleted_at!==null,true);
   assert.equal((await h.request('POST',`/api/data-core/trash/files/${fid}/restore`,users.admin)).status,200);
   await page.locator('#libraryRefresh').click();await page.locator('.lb-file').waitFor();
-  expectedFolderConflict=true;
-  await page.locator('#libraryDeleteFolder').click();await page.locator('#libraryDeleteConfirm').click();await page.getByText('폴더 안에 자료가 있습니다. 내부 자료를 먼저 정리해주세요.',{exact:true}).waitFor();await page.keyboard.press('Escape');
-  expectedFolderConflict=false;
-  result.flows.push('navigate, breadcrumb, new folder, Space, refresh, back/forward, upload progress, Unicode download, preview, soft-trash/restore, nonempty409');
+  await page.locator('#libraryRenameFolder').click();await page.locator('#libraryFolderName').fill('__synthetic_이름 변경');await page.locator('#libraryCreate').click();
+  await page.waitForFunction(()=>document.querySelector('#libraryTitle')?.textContent==='__synthetic_이름 변경');
+  await page.locator(`[data-lb-move="${fid}"]`).click();await page.locator(`[data-lb-move-folder="${fixtures.a}"]`).click();
+  await page.waitForFunction(()=>!document.querySelector('#libraryMoveConfirm').disabled);await page.locator('#libraryMoveConfirm').click();await page.locator('#libraryMoveDialog').waitFor({state:'hidden'});
+  assert.equal((await h.file(fid)).data_record_id,fixtures.a);
+  const preserved=await h.upload(current,users.admin);assert.equal(preserved.status,201);
+  await page.locator('#libraryDeleteFolder').click();await page.locator('#libraryDeleteConfirm').click();await page.waitForURL('**folder='+fixtures.a);await settled();
+  assert.equal((await h.file(preserved.body.file.id)).data_record_id,fixtures.a);
+  result.flows.push('navigate, folder rename, same-campus file move, upload/download, soft-trash/restore, nonempty folder delete preserves originals');
   await visit(fixtures.hq);await page.locator('#libraryNew').click();await page.locator('#libraryFolderName').fill('__synthetic_빈 본원 폴더');await page.locator('#libraryCreate').click();await page.getByRole('link',{name:'__synthetic_빈 본원 폴더',exact:true}).click();await settled();await page.locator('#libraryDeleteFolder').click();await page.locator('#libraryDeleteConfirm').click();await page.waitForURL('**folder='+fixtures.hq);await settled();
   role=users.staff;await visit(fixtures.b);assert.equal(await page.locator('#libraryNew').isVisible(),false);assert.equal(await page.locator('#libraryUpload').isVisible(),false);assert.equal(await page.locator('[data-lb-delete]').count(),0);await page.getByRole('link',{name:'다운로드',exact:true}).waitFor();
   result.flows.push('HQ empty-folder delete; foreign browse/download with no mutation controls');
@@ -143,11 +148,28 @@ try {
   for(const width of [1440,390,320]) {
     await page.setViewportSize({width,height:1000});await visit();await page.getByLabel('__synthetic_최상위 메뉴 반응형 검증 폴더 메뉴').click();
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`root menu overflow ${width}`);
-    assert.ok(await page.locator('.lb-folder-menu[open] button').evaluate(el=>{
+    assert.ok(await page.locator('.lb-folder-menu[open] button').first().evaluate(el=>{
       const r=el.getBoundingClientRect();return r.width>=100&&r.left>=0&&r.right<=innerWidth&&el.scrollWidth<=el.clientWidth;
     }),`root menu label clipped ${width}`);
     await page.screenshot({path:resolve(out,`admin-root-menu-${width}.png`),fullPage:true});
   }
+  for(let i=0;i<60;i++)assert.equal((await h.upload(i%2?fixtures.a:fixtures.b,users.admin,{name:`__synthetic_recent_${String(i).padStart(2,'0')}.txt`})).status,201);
+  for(const user of [users.master,users.campusAdmin,users.foreign]){
+    role=user;await page.setViewportSize({width:390,height:844});await visit();
+    assert.equal(await page.locator('[data-recent-file]').count(),12);
+    for(let n=12;n<50;n=Math.min(50,n+12)){
+      await page.locator('#libraryRecentEnd').scrollIntoViewIfNeeded();
+      await page.waitForFunction(count=>document.querySelectorAll('[data-recent-file]').length>count,n);
+    }
+    const ids=await page.locator('[data-recent-file]').evaluateAll(nodes=>nodes.map(n=>n.dataset.recentFile));
+    assert.equal(ids.length,50);assert.equal(new Set(ids).size,50);
+    assert.equal(await page.locator('#libraryRecentEnd').innerText(),'최근 업로드 50개를 모두 확인했습니다.');
+    const apiRecent=await h.request('GET','/api/data-core/library/recent',user);assert.deepEqual(ids,apiRecent.body.files.map(f=>f.id));
+    for(const f of apiRecent.body.files)assert.equal(await page.locator(`[data-recent-file="${f.id}"] [data-lb-move]`).count(),f.canMove?1:0);
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+    await page.screenshot({path:resolve(out,`recent-${user.role}.png`)});
+  }
+  result.flows.push('MASTER/Campus A/Campus B recent list: 12 initial, scroll to 50, no duplicates or 51st; per-file management');
   }
   role=users.staff;
   const imagesFolder=await create(`category:${A}:admission-material`,'이미지 썸네일 검증',users.staff);

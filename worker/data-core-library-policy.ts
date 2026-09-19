@@ -11,6 +11,7 @@ export const LIBRARY_CATEGORIES = [
   ['competition-material', '공모전·실기대회'], ['admission-material', '입시자료'],
   ['counseling-material', '상담자료'], ['blog-source', '블로그소스'],
   ['instagram-source', '인스타소스'], ['promotion-material', '홍보자료'],
+  ['library-material', '미분류'],
 ] as const;
 export const HQ_DEFAULTS = [
   ['class-artwork', '수업그림'], ['director-only', '원장전용'], ['resources', '자료'], ['production', '제작물'],
@@ -20,7 +21,7 @@ type Row = Record<string, any>;
 export type LibraryFolder = {
   id: string; title: string; parentId: string | null; campusId: string | null;
   category: string | null; shareMode: 'organization' | 'campus' | 'restricted';
-  virtual: boolean; depth: number; row?: Row; group?: string; systemManaged?: boolean;
+  virtual: boolean; depth: number; row?: Row; group?: string; systemManaged?: boolean; protected?: boolean;
 };
 function fail(status = 403, message = '이 자료보관함에 접근할 권한이 없습니다.'): never { throw new DataCoreAccessError(status, message); }
 export function libraryMetadata(row: Row) {
@@ -36,6 +37,7 @@ export function requireLibraryWrite(context: DataCoreAccessContext, folder: Libr
   if (folder.campusId) requireCampusAccess(context, folder.campusId);
 }
 export function libraryCanDelete(context: DataCoreAccessContext, folder: LibraryFolder, owner: unknown) {
+  if (folder.campusId && folder.shareMode !== 'restricted' && !['student-artwork', 'counseling-material'].includes(folder.category || '')) return libraryCanWrite(context, folder);
   return libraryCanWrite(context, folder) && (context.isSuperAdmin || managesCampus(context, folder.campusId) || context.user?.internalUserId === owner ||
     context.memberships.some(m => m.organizationId === ORG && m.campusId === folder.campusId && m.role === 'CAMPUS_DIRECTOR'));
 }
@@ -99,6 +101,7 @@ export class LibraryTree {
       const row = await this.row(id);
       if (row) return this.resolveRecord(row, seen, true);
       folder = { ...base, id, title: item[1], parentId: 'hq', category: 'hq-workspace', depth: 2,
+        protected: item[0] === 'director-only',
         shareMode: item[0] === 'director-only' ? 'restricted' : 'organization' };
     } else {
       const row = await this.row(id);
@@ -119,6 +122,7 @@ export class LibraryTree {
       const shared = ['organization', 'public'].includes(row.visibility) && !['restricted', 'campus'].includes(m.libraryShareMode);
       folder = { id: row.id, title: row.title, parentId: 'hq', campusId: null, category: 'hq-workspace',
         virtual, depth: 2, row, shareMode: shared ? 'organization' : 'restricted',
+        protected: m.folderKey === 'director-only' || row.id === 'hq-default:director-only' || row.title === '원장전용',
         systemManaged: m.system === true || m.systemManaged === true || HQ_DEFAULTS.some(([key]) => key === m.folderKey) };
     } else if (m.parentFolderId === null) {
       // Only canonical, server-created organization roots are admitted here.
@@ -135,6 +139,7 @@ export class LibraryTree {
         m.libraryScope !== libraryFolderScope(parent) || m.libraryShareMode !== parent.shareMode ||
         row.visibility !== (parent.campusId ? 'campus' : 'organization') || parent.depth >= 14) fail();
       folder = { id: row.id, title: row.title, parentId: parent.id, campusId: parent.campusId, category,
+        protected: parent.protected,
         shareMode: parent.shareMode, virtual: false, depth: parent.depth + 1, row, systemManaged: m.systemManaged === true };
     }
     this.assertRead(folder);
@@ -143,7 +148,8 @@ export class LibraryTree {
   }
   assertRead(folder: LibraryFolder) {
     if (this.context.isSuperAdmin) return;
-    if (folder.shareMode === 'campus' && (!folder.campusId || !this.context.campusIds.includes(folder.campusId))) fail();
+    if (folder.protected) fail();
+    if (folder.shareMode === 'campus' && folder.category !== 'class-photo' && (!folder.campusId || !this.context.campusIds.includes(folder.campusId))) fail();
     if (folder.shareMode === 'restricted' && folder.row?.created_by_user_id !== this.context.user?.internalUserId && !managesCampus(this.context, folder.campusId)) fail();
   }
   async breadcrumbs(folder: LibraryFolder) {
@@ -159,9 +165,17 @@ export function libraryFileReadable(context: DataCoreAccessContext, folder: Libr
   const ownScope = context.isSuperAdmin || !folder.campusId || context.campusIds.includes(folder.campusId);
   if (ownScope && canReadBaseFile(context, row)) return true;
   // Only reserved, server-created folder lineage grants the narrowly scoped sharing exception.
-  return folder.row?.record_type === LIBRARY_FOLDER && row.data_record_id === folder.id && folder.shareMode === 'organization' &&
+  return canReadSharedCampusFile(folder, row);
+}
+
+/** Sharing is library-only; generic private and AI source authorization remain unchanged. */
+export function canReadSharedCampusFile(folder: LibraryFolder, row: Row) {
+  return row.organization_id === ORG && row.campus_id === folder.campusId && !row.deleted_at && row.category === folder.category &&
+    folder.row?.record_type === LIBRARY_FOLDER && row.data_record_id === folder.id &&
+    (folder.shareMode === 'organization' || Boolean(folder.campusId) && folder.category === 'class-photo' && folder.shareMode === 'campus') &&
     row.source_app === LIBRARY_SOURCE && ['documents-private', 'academy-public'].includes(row.area) &&
-    ['campus', 'organization', 'public'].includes(row.visibility) && !PERSONAL_CATEGORIES.has(row.category);
+    ['campus', 'organization', 'public'].includes(row.visibility) && !['student-artwork', 'counseling-material'].includes(row.category) &&
+    !/^(family|kkumeum)\//i.test(String(row.r2_key));
 }
 
 export async function libraryUploadTarget(db: D1Database, context: DataCoreAccessContext, recordId: string | null) {

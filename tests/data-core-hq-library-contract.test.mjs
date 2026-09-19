@@ -14,7 +14,7 @@ test('HQ defaults retain stable keys and order in the shared server folder proje
 });
 test('one browser reuses the upload queue and server-authorized controls without automatic default creation', async () => {
   const source = await read('public/data-core/work/hq-library.js');
-  assert.match(source, /new DataCoreUploadQueue/);
+  assert.match(source, /new window\.DataCoreUploadQueue/);
   assert.match(source, /libraryScoped:true/);
   assert.match(source, /view\.folder\.canWrite/);
   assert.match(source, /history\.pushState/);
@@ -29,7 +29,8 @@ test('one browser reuses the upload queue and server-authorized controls without
 test('library routes wrap existing storage; soft folder deletion cannot cascade or migrate', async () => {
   const source = await read('worker/data-core-library.ts');
   assert.match(source, /uploadDataCoreFile/); assert.match(source, /deleteDataCoreFile/);
-  assert.match(source, /NOT EXISTS \(SELECT 1 FROM file_objects WHERE data_record_id = \?\)/);
+  assert.match(source, /NOT EXISTS \(SELECT 1 FROM file_objects WHERE data_record_id = \? AND organization_id = \?\)/);
+  assert.match(source, /tree\.db\.batch\(statements\)/);
   assert.doesNotMatch(source, /bucket\.(delete|put)|CREATE TABLE|DROP TABLE|DELETE FROM/);
   assert.match(await read('public/data-core/work/kkumeum-nav.js'), /\/data-core\/work\/hq-library\.js/);
 });

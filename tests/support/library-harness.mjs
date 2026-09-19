@@ -4,6 +4,8 @@ export const ORG = 'org-hi5-anihi';
 export const A = 'campus-anihi-admission', B = 'campus-gwangjin';
 export const users = {
   admin: { id: 'library-admin', email: 'library-admin@example.test' },
+  master: { id: 'library-master', email: 'library-master@example.test', role: 'MASTER', campus: null },
+  campusAdmin: { id: 'library-campus-admin', email: 'library-campus-admin@example.test', role: 'CAMPUS_ADMIN', campus: A },
   director: { id: 'library-director', email: 'library-director@example.test', campus: A, role: 'CAMPUS_DIRECTOR' },
   teacher: { id: 'library-teacher', email: 'library-teacher@example.test', campus: A, role: 'TEACHER' },
   staff: { id: 'library-staff', email: 'library-staff@example.test', campus: A, role: 'STAFF' },
