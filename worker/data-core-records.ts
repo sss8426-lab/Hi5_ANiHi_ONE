@@ -3,6 +3,7 @@ import { campusDisplayName } from './campus-directory';
 import { assertMutableRecordType, DERIVATIVE_RECORD_TYPE, THUMBNAIL_RECORD_TYPE } from './data-core-derivative-policy';
 import { LIBRARY_FOLDER, HQ_FOLDER } from './data-core-library-policy';
 import { curriculumRecord } from './data-core-curriculum';
+import { AWARD_FOLDER, isAwardFolder, awardMember, awardPath, presentAward, createAwardFolder, updateAwardFolder, deleteAwardFolder } from './data-core-awards';
 import {
   isCampusAdmin, managesCampus, campusForWrite,
   DataCoreAccessContext,
@@ -185,6 +186,7 @@ function hasMembership(context: DataCoreAccessContext) {
 }
 
 function canReadRow(context: DataCoreAccessContext, row: Record<string, unknown>) {
+  if (isAwardFolder(row) && row.visibility !== 'private') return awardMember(context);
   if (row.record_type === LIBRARY_FOLDER) return false;
   if ([DERIVATIVE_RECORD_TYPE,THUMBNAIL_RECORD_TYPE,'content-ai-request'].includes(String(row.record_type))) return false;
   if (context.isSuperAdmin) return true;
@@ -273,7 +275,15 @@ export async function listDataRecords(
     .bind(...bindings, limit)
     .all<Record<string, unknown>>();
 
-  const visibleRows = (result.results || []).filter((row) => canReadRow(context, row));
+  const visibleRows = [];
+  for (const row of result.results || []) {
+    if (!canReadRow(context,row)) continue;
+    if (isAwardFolder(row)) {
+      try { await awardPath(db,context,String(row.id)); }
+      catch (error) { if (error instanceof DataCoreAccessError) continue; throw error; }
+    }
+    visibleRows.push(row);
+  }
   const tagMap = await tagsForRecords(
     db,
     visibleRows.map((row) => String(row.id)),
@@ -298,6 +308,7 @@ export async function getDataRecord(
     .bind(recordId, DEFAULT_ORGANIZATION_ID)
     .first<Record<string, unknown>>();
   if (!row) throw new DataCoreAccessError(404, "데이터를 찾을 수 없습니다.");
+  if (isAwardFolder(row)) { const path = await awardPath(db,context,recordId); return presentAward(row, presentAward(path[0]).collectionType); }
   if (!canReadRow(context, row)) throw new DataCoreAccessError(403, "이 데이터를 볼 권한이 없습니다.");
   const tagMap = await tagsForRecords(db, [recordId]);
   return rowToRecord(row, tagMap.get(recordId) || []);
@@ -310,6 +321,10 @@ export async function createDataRecord(
 ) {
   requireWriteAccess(context);
   if (!context.user) throw new DataCoreAccessError(401, "로그인이 필요합니다.");
+  if (String(input.recordType).trim() === AWARD_FOLDER) {
+    if (input.sourceApp !== 'competition') throw new DataCoreAccessError(400,'수상작 폴더 출처가 올바르지 않습니다.');
+    return createAwardFolder(db,context,input);
+  }
 
   const title = cleanText(input.title, 240);
   const recordType = cleanText(input.recordType, 80);
@@ -386,6 +401,8 @@ export async function updateDataRecord(
     .bind(recordId, DEFAULT_ORGANIZATION_ID)
     .first<Record<string, unknown>>();
   if (!existing) throw new DataCoreAccessError(404, "데이터를 찾을 수 없습니다.");
+  if (isAwardFolder(existing)) return updateAwardFolder(db,context,recordId,input);
+  if (existing.record_type === AWARD_FOLDER || String(input.recordType).trim() === AWARD_FOLDER) throw new DataCoreAccessError(403,'기존 데이터를 수상작 폴더로 변환할 수 없습니다.');
   if ([LIBRARY_FOLDER, HQ_FOLDER].includes(String(existing.record_type)) || [LIBRARY_FOLDER, HQ_FOLDER].includes(cleanText(input.recordType, 80))) {
     throw new DataCoreAccessError(403, '자료보관함 폴더 구조는 직접 변경할 수 없습니다.');
   }
@@ -458,6 +475,7 @@ export async function deleteDataRecord(
     .bind(recordId, DEFAULT_ORGANIZATION_ID)
     .first<Record<string, unknown>>();
   if (!existing) throw new DataCoreAccessError(404, "데이터를 찾을 수 없습니다.");
+  if (isAwardFolder(existing)) return deleteAwardFolder(db,context,recordId);
   if ([LIBRARY_FOLDER, HQ_FOLDER].includes(String(existing.record_type))) {
     throw new DataCoreAccessError(403, '자료보관함의 빈 폴더 삭제 기능을 사용하세요.');
   }

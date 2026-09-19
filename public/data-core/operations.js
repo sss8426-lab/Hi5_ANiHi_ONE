@@ -223,7 +223,24 @@ async function runDiagnostics() {
   finally { button.disabled = false; button.textContent = '진단 실행'; }
 }
 
+let awardTrashOffset=null;
+async function loadAwardTrash(more=false) {
+  if(!state.context?.isSuperAdmin)return;
+  $('awardTrashPanel').classList.remove('hidden');
+  try {
+    const result=await api('/api/data-core/awards/folders?trash=1&offset='+(more?awardTrashOffset||0:0));
+    const html=(result.folders||[]).map(folder=>`<div class="panel-head"><div><strong>${h(folder.title)}</strong><small>${h(formatDate(folder.deletedAt))}</small></div><button class="ghost-btn" data-award-restore="${h(folder.id)}">복원</button></div>`).join('');
+    if(more)$('awardTrashList').insertAdjacentHTML('beforeend',html);else $('awardTrashList').innerHTML=html||'<p>삭제한 수상작 폴더가 없습니다.</p>';
+    awardTrashOffset=result.nextOffset;$('awardTrashMore').classList.toggle('hidden',awardTrashOffset==null);
+    document.querySelectorAll('[data-award-restore]').forEach(button=>button.onclick=async()=>{
+      if(!confirm('이 폴더를 복원할까요?'))return;button.disabled=true;
+      try {await api(`/api/data-core/awards/folders/${encodeURIComponent(button.dataset.awardRestore)}/restore`,{method:'POST'});await loadAwardTrash();toast('폴더를 복원했습니다.');}
+      catch(error){toast(error.message,'error');button.disabled=false;}
+    });
+  }catch(error){toast(error.message,'error');}
+}
 function bindEvents() {
+  $('refreshAwardTrashBtn').onclick=()=>loadAwardTrash();$('awardTrashMore').onclick=()=>loadAwardTrash(true);
   $('refreshTrashBtn').onclick = loadTrash; $('trashSearchBtn').onclick = loadTrash; $('trashCampus').onchange = loadTrash;
   $('trashSearch').onkeydown = (event) => { if (event.key === 'Enter') loadTrash(); };
   $('refreshBackupsBtn').onclick = loadBackups; $('createBackupBtn').onclick = createBackup; $('runDiagnosticsBtn').onclick = runDiagnostics;
@@ -234,7 +251,7 @@ async function init() {
   bindEvents(); renderDiagnostics(); renderKnowledgeStatus(); await loadContext();
   if (state.context?.authenticated) {
     await loadTrash();
-    if (state.context.isSuperAdmin) await Promise.all([loadBackups(), loadKnowledgeStatus()]);
+    if (state.context.isSuperAdmin) await Promise.all([loadBackups(), loadKnowledgeStatus(), loadAwardTrash()]);
   }
 }
 

@@ -117,6 +117,7 @@ D1에 저장한다.
 - 삭제는 가능하면 soft delete / 휴지통을 우선한다.
 - 파일 영구삭제는 마스터 권한으로 제한한다.
 - 개인정보와 학생자료는 기본 private로 취급한다.
+- 수상작 공용 라이브러리는 명시적 예외다. `competition-award-folder`에 연결된 일반 수상작은 인증된 학원 조직 업무용 6개 역할이 캠퍼스와 무관하게 폴더 생성/soft-delete, 업로드/다운로드/이미지 휴지통을 사용할 수 있다. 기존 private/student-private 및 FAMILY 보호는 유지한다. 폴더 복원/분류는 마스터 전용이며 자세한 계약은 `docs/AWARD_SHARED_WORKSPACE_2026-09-20.md`를 따른다.
 
 ## 6. 기존 입시컨설팅 호환 원칙
 

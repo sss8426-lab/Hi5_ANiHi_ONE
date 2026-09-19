@@ -96,7 +96,7 @@ test("wires the DATA CORE counseling and work mode split", async () => {
   assert.doesNotMatch(appScript, /CAMPUS_PRESENTATION/);
   assert.match(appScript, /return state\.campuses/);
   assert.match(appScript, /data-campus-group/);
-  assert.match(dataCoreIndex, /app\.js\?v=20260914-month-controls/);
+  assert.match(dataCoreIndex, /app\.js\?v=20260920-award-shared/);
   assert.match(dataCoreIndex, /id="view-attendance"/);
   assert.match(dataCoreIndex, /class="at-work-link" data-view="attendance"/);
   assert.match(appScript, /params\.set\('sourceApp', sourceApp\)/);
@@ -185,8 +185,9 @@ test("wires counseling competition folders to existing DATA CORE records and fil
   assert.match(dataCoreIndex, /openAwardUploadBtn/);
   assert.match(dataCoreIndex, /uploadRecordId/);
   assert.match(dataCoreIndex, /id="uploadFile" type="file" multiple/);
-  assert.match(appScript, /competition-award-folder/);
-  assert.match(appScript, /\/api\/data-core\/records/);
+  assert.match(appScript, /\/api\/data-core\/awards\/folders/);
+  assert.match(dataCoreIndex, /재원생 수상작 모음/);
+  assert.match(dataCoreIndex, /공개 수상작 모음/);
   assert.match(appScript, /recordId=.*category=competition-material/);
   assert.match(appScript, /applicationDday/);
   assert.match(styles, /\.award-library-grid/);

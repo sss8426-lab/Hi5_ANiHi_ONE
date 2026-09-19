@@ -836,3 +836,13 @@ draft(`title`/`content`/`hashtags`/`cta`)는 그대로 열리고, 새 필드는 
 D001~D035와 직업명/전공/대학/입시/실기 로드맵 및 운영 데이터는 변경하지 않는다.
 MASTER/SUPER_ADMIN 전용 `/data-core/roadmap/image-review`에서 35개와 이름 가리기를 제공한다.
 직업별 검수 및 실제 배포/검증 경계는 `docs/ROADMAP_IMAGE_REVIEW_FINAL_2026-09-19.md` 참조.
+
+## 수상작 공용 라이브러리 (2026-09-20)
+
+재원생/공개 수상작을 위아래 두 그룹으로 구분하고 그룹별 한글 숫자 이름 정렬을 제공한다.
+업무용 학원 계정 6개 역할이 공용 폴더/하위폴더(최대 8단계), 업로드, 다운로드, soft-trash를 사용한다.
+기존 미분류 폴더/ID/원본 이름/파일/R2는 유지하며 마스터가 분류와 폴더 복원을 관리한다.
+공모전 소식 아래 append-only 관리 이력은 생성/삭제/업로드/명시 다운로드와 작업자·캠퍼스를 표시한다.
+썸네일/확대 GET은 다운로드 이력이 아니며 private/student-private/FAMILY 보호는 유지한다.
+새 DB/migration 없이 기존 records/files/audit 구조를 확장했다. 상세 계약과 검증 경계는
+`docs/AWARD_SHARED_WORKSPACE_2026-09-20.md` 참조. 운영 mutation smoke는 별도 확인 전 완료로 간주하지 않는다.

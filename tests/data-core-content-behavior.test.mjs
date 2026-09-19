@@ -328,6 +328,7 @@ async function createHarness() {
     const headers = new Headers(user ? authHeaders(user) : undefined);
     if (pathname.startsWith('/api/data-core/content')) headers.set('origin', 'http://localhost');
     if (pathname.includes('awardFolderId=')) headers.set('origin', 'http://localhost');
+    if (pathname.startsWith('/api/data-core/records') || pathname.startsWith('/api/data-core/trash')) headers.set('origin','http://localhost');
     for (const [name, value] of Object.entries(extraHeaders)) headers.set(name, value);
     let requestBody;
     if (body !== undefined) {
@@ -349,6 +350,7 @@ async function createHarness() {
   async function requestForm(pathname, user, form, extraHeaders = {}) {
     const headers = new Headers(user ? authHeaders(user) : undefined);
     if (pathname === '/api/data-core/instagram/derivatives') headers.set('origin', 'http://localhost');
+    if (form.get('recordId')) headers.set('origin','http://localhost');
     for (const [name, value] of Object.entries(extraHeaders)) headers.set(name, value);
     const response = await worker.fetch(
       new Request(`http://localhost${pathname}`, { method: "POST", headers, body: form }),
@@ -1011,7 +1013,7 @@ test("competition media uses linked DATA CORE files and has an empty state befor
   }
 });
 
-test("competition award folders link DATA CORE files and reject deleting nonempty folders", async () => {
+test("competition award folders link DATA CORE files and soft-delete nonempty folders", async () => {
   const h = await createHarness();
   try {
     const created = await h.request("POST", "/api/data-core/records", users.admin, {
@@ -1043,7 +1045,7 @@ test("competition award folders link DATA CORE files and reject deleting nonempt
     assert.equal(linked.body.files.length, 1);
 
     const deleted = await h.request("DELETE", `/api/data-core/records/${folderId}`, users.admin);
-    assert.equal(deleted.response.status, 409, JSON.stringify(deleted.body));
+    assert.equal(deleted.response.status, 200, JSON.stringify(deleted.body));
 
     const remaining = await h.request(
       "GET",
@@ -1051,13 +1053,16 @@ test("competition award folders link DATA CORE files and reject deleting nonempt
       users.admin,
     );
     assert.equal(remaining.response.status, 200);
-    assert.equal(remaining.body.files.length, 1);
+    assert.equal(remaining.body.files.length, 0);
+    const retained = await h.env.DB.prepare('SELECT r2_key,deleted_at FROM file_objects WHERE id=?').bind(uploaded.body.file.id).first();
+    assert.equal(retained.deleted_at,null);
+    assert.equal(await (await h.env.FILES.get(retained.r2_key)).text(),'award');
   } finally {
     await h.mf.dispose();
   }
 });
 
-test("award folder files enforce campus authorization and retain R2 bytes when folder deletion is blocked", async () => {
+test("award folder files are shared across academy campuses and retain bytes after folder trash", async () => {
   const h = await createHarness();
   try {
     // This harness normally gives B both campuses; keep only B's campus for this isolation test.
@@ -1077,19 +1082,19 @@ test("award folder files enforce campus authorization and retain R2 bytes when f
       form.append("recordId", folderId);
       return form;
     };
-    assert.equal((await h.request("GET", `/api/data-core/records/${folderId}`, users.b)).response.status, 403);
-    assert.equal((await h.requestForm("/api/data-core/files", users.b, upload(CAMPUS_B))).response.status, 403);
+    assert.equal((await h.request("GET", `/api/data-core/records/${folderId}`, users.b)).response.status, 200);
+    assert.equal((await h.requestForm("/api/data-core/files", users.b, upload(CAMPUS_B))).response.status, 201);
     const uploaded = await h.requestForm("/api/data-core/files", users.a, upload(CAMPUS_A));
     assert.equal(uploaded.response.status, 201);
     const fileId = uploaded.body.file.id;
-    assert.equal((await h.request("GET", `/api/data-core/files/${fileId}`, users.b)).response.status, 403);
+    assert.equal((await h.request("GET", `/api/data-core/files/${fileId}`, users.b)).response.status, 200);
     const otherList = await h.request("GET", `/api/data-core/files?recordId=${folderId}`, users.b);
-    assert.deepEqual(otherList.body.files, []);
-    assert.equal((await h.request("DELETE", `/api/data-core/records/${folderId}`, users.b)).response.status, 403);
-    assert.equal((await h.request("DELETE", `/api/data-core/records/${folderId}`, users.a)).response.status, 409);
+    assert.equal(otherList.body.files.length, 2);
+    assert.equal((await h.request("DELETE", `/api/data-core/records/${folderId}`, users.b)).response.status, 200);
+    assert.equal((await h.request("DELETE", `/api/data-core/records/${folderId}`, users.a)).response.status, 404);
     const retained = await h.request("GET", `/api/data-core/files?recordId=${folderId}`, users.a);
     assert.equal(retained.response.status, 200);
-    assert.equal(retained.body.files[0].id, fileId);
+    assert.deepEqual(retained.body.files, []);
     const stored = await h.env.DB.prepare("SELECT r2_key, deleted_at FROM file_objects WHERE id = ?").bind(fileId).first();
     assert.equal(stored.deleted_at, null);
     assert.equal(await (await h.env.FILES.get(stored.r2_key)).text(), "synthetic-award-bytes");
@@ -1269,7 +1274,7 @@ test("competition source failures and ambiguous matches never replace existing D
   }
 });
 
-test('award uploads preserve original names and scoped permanent deletion removes only unreferenced authorized files', async () => {
+test('award uploads preserve original names; explicit admin purge protects referenced trashed originals', async () => {
   const h = await createHarness();
   try {
     const create = (title) => h.request('POST', '/api/data-core/records', users.a, {
@@ -1298,12 +1303,14 @@ test('award uploads preserve original names and scoped permanent deletion remove
       assert.equal(listed.body.files.find(file=>file.id===row.id)?.fileName,row.original_file_name);
       assert.deepEqual(new Uint8Array(await (await h.env.FILES.get(row.r2_key)).arrayBuffer()),tinyPng());
     }
-    const path = `/api/data-core/files/${originals[0].id}?awardFolderId=${folder.id}`;
+    const softPath = `/api/data-core/files/${originals[0].id}?awardFolderId=${folder.id}`;
+    assert.equal((await h.request('DELETE',softPath.replace(folder.id,other.id),users.admin)).response.status,403);
+    assert.equal((await h.request('DELETE',softPath,users.a,undefined,{origin:'https://attacker.example'})).response.status,403);
+    assert.equal((await h.request('DELETE',softPath,users.b)).response.status,200);
+    assert.ok(await h.env.FILES.get(originals[0].r2_key));
+    const path = `/api/data-core/trash/files/${originals[0].id}`;
     assert.equal((await h.request('DELETE',path,users.b)).response.status,403);
     assert.equal((await h.request('DELETE',path,users.a)).response.status,403);
-    assert.equal((await h.request('DELETE',`/api/data-core/records/${folder.id}`,users.admin)).response.status,409);
-    assert.equal((await h.request('DELETE',path.replace(folder.id,other.id),users.admin)).response.status,403);
-    assert.equal((await h.request('DELETE',path,users.a,undefined,{origin:'https://attacker.example'})).response.status,403);
     await h.env.DB.prepare('DELETE FROM memberships WHERE user_id=? AND campus_id=?').bind('oai:user-a',CAMPUS_A).run();
     assert.equal((await h.request('DELETE',path,users.a)).response.status,403);
     assert.equal((await h.request('DELETE',path,users.admin)).response.status,200);
@@ -1314,31 +1321,39 @@ test('award uploads preserve original names and scoped permanent deletion remove
     for (const row of originals.slice(1)) assert.deepEqual(await h.env.DB.prepare('SELECT * FROM file_objects WHERE id=?').bind(row.id).first(),row);
     const restored = await h.request('POST',`/api/data-core/trash/files/${originals[0].id}/restore`,users.admin);
     assert.equal(restored.response.status,404);
-    const secondPath=`/api/data-core/files/${originals[1].id}?awardFolderId=${folder.id}`;
+    const secondPath=`/api/data-core/trash/files/${originals[1].id}`;
     const draft=await h.createDraft(users.admin,{sourceApp:'blog',campusId:CAMPUS_A,title:'Synthetic shared reference',relatedFileIds:[originals[1].id]});
+    assert.equal((await h.request('DELETE',`/api/data-core/files/${originals[1].id}?awardFolderId=${folder.id}`,users.admin)).response.status,200);
+    const secondTrashed=await h.env.DB.prepare('SELECT * FROM file_objects WHERE id=?').bind(originals[1].id).first();
     assert.equal((await h.request('DELETE',secondPath,users.admin)).response.status,409);
-    assert.deepEqual(await h.env.DB.prepare('SELECT * FROM file_objects WHERE id=?').bind(originals[1].id).first(),originals[1]);
+    assert.deepEqual(await h.env.DB.prepare('SELECT * FROM file_objects WHERE id=?').bind(originals[1].id).first(),secondTrashed);
     assert.equal((await h.request('DELETE',`/api/data-core/content/${draft.id}`,users.admin)).response.status,200);
     assert.equal((await h.request('DELETE',secondPath,users.admin)).response.status,409,'trashed draft still protects the original');
     await h.env.DB.prepare("UPDATE data_records SET metadata_json='{}' WHERE id=?").bind(draft.id).run();
     await h.env.FILES.put('state/admissions-data.json',JSON.stringify({synthetic:{dataCoreFileId:originals[1].id}}));
     assert.equal((await h.request('DELETE',secondPath,users.admin)).response.status,409,'legacy admissions reference also protected');
     await h.env.FILES.delete('state/admissions-data.json');
-    for(const row of originals.slice(1)) assert.equal((await h.request('DELETE',`/api/data-core/files/${row.id}?awardFolderId=${folder.id}`,users.admin)).response.status,200);
+    for(const row of originals.slice(1)) {
+      if (!(await h.env.DB.prepare('SELECT deleted_at FROM file_objects WHERE id=?').bind(row.id).first()).deleted_at) {
+        assert.equal((await h.request('DELETE',`/api/data-core/files/${row.id}?awardFolderId=${folder.id}`,users.admin)).response.status,200);
+      }
+      assert.equal((await h.request('DELETE',`/api/data-core/trash/files/${row.id}`,users.admin)).response.status,200);
+    }
     assert.equal((await h.request('GET',`/api/data-core/files?recordId=${folder.id}`,users.admin)).body.files.length,0);
     assert.equal((await h.request('DELETE',`/api/data-core/records/${folder.id}`,users.admin)).response.status,200);
   } finally { await h.mf.dispose(); }
 });
 
-test('award purge compensates R2/DB failures and refuses concurrent deletes', async () => {
+test('explicit admin purge compensates R2/DB failures and refuses concurrent deletes', async () => {
   const h=await createHarness();
   try {
     const folder=(await h.request('POST','/api/data-core/records',users.admin,{recordType:'competition-award-folder',sourceApp:'competition',title:'Synthetic failure fixture'})).body.record;
     const form=new FormData();form.append('file',new File([tinyPng()],'synthetic.png',{type:'image/png'}));form.append('recordId',folder.id);form.append('category','competition-material');
     const saved=await h.requestForm('/api/data-core/files',users.admin,form);
     assert.equal(saved.response.status,201);
+    await h.request('DELETE',`/api/data-core/files/${saved.body.file.id}?awardFolderId=${folder.id}`,users.admin);
     const row=await h.env.DB.prepare('SELECT * FROM file_objects WHERE id=?').bind(saved.body.file.id).first();
-    const endpoint=`/api/data-core/files/${row.id}?awardFolderId=${folder.id}`;
+    const endpoint=`/api/data-core/trash/files/${row.id}`;
     const db=h.env.DB,bucket=h.env.FILES;
     let deleted=false,failR2=true,failDb=false;
     h.env.FILES=new Proxy(bucket,{get(target,name){
@@ -1360,7 +1375,7 @@ test('award purge compensates R2/DB failures and refuses concurrent deletes', as
     assert.equal((await h.request('DELETE',endpoint,users.admin)).response.status,409);
     assert.equal((await h.request('POST',`/api/data-core/trash/files/${row.id}/restore`,users.admin)).response.status,409);
     failR2=false;failDb=false;
-    await db.prepare('UPDATE file_objects SET deleted_at=NULL WHERE id=?').bind(row.id).run();
+    await db.prepare('UPDATE file_objects SET deleted_at=? WHERE id=?').bind(row.deleted_at,row.id).run();
     assert.equal((await h.request('DELETE',endpoint,users.admin)).response.status,200);
   } finally {await h.mf.dispose();}
 });
