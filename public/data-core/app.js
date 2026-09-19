@@ -263,6 +263,9 @@ function updateBrandPresentation() {
 
 function renderUser() {
   updateBrandPresentation();
+  for (const id of ['openAwardFolderBtn','openPublicAwardFolderBtn','openAwardChildBtn','openAwardUploadBtn','deleteAwardFolderBtn']) {
+    $(id)?.classList.toggle('hidden', !canManageAwards());
+  }
   const chip = $('userChip');
   const context = state.context;
   if (!context?.authenticated) {
