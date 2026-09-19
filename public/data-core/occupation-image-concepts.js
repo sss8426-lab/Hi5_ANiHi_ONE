@@ -1,4 +1,6 @@
 // One original scene per catalog occupation; never borrow another occupation's image.
+import { renewedCareerImage } from './occupation-image-renewal.js?v=20260919-work-v2';
+
 export const occupationImageConcepts = [
   ['D001','webtoon-artist','웹툰 작가','웹툰·만화','세로 웹툰을 펜으로 채색','세로형 액정 태블릿, 펜, 러프 스케치','아래로 이어지는 여러 컷과 빈 말풍선','햇살이 드는 개인 디지털 스튜디오'],
   ['D002','print-comic-artist','출판만화가','웹툰·만화','종이 만화 원고에 펜촉으로 선을 긋기','G펜, 먹병, 자, 스크린톤','칸으로 나뉜 흑백 종이 만화 원고','창가의 기울어진 아날로그 제도 책상'],
@@ -44,4 +46,7 @@ export const occupationImageConcepts = [
   legacyAsset: `/data-core/assets/roadmap/jobs/${slug}.webp`,
   width: 640, height: 480,
   alt: `${title}: ${visualFocus}`,
+  detailAsset: `/data-core/assets/roadmap/detail/${slug}/portfolio.webp`,
+  detailWidth: 1600, detailHeight: 1200,
+  ...renewedCareerImage(occupationId, slug),
 }));

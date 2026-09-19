@@ -8,6 +8,8 @@ import {occupationImageConcepts} from '../public/data-core/occupation-image-conc
 const inventoryPath = 'public/data-core/visual-assets.json';
 const inventory = JSON.parse(await fs.readFile(inventoryPath, 'utf8'));
 for (const concept of occupationImageConcepts) {
+  // Versioned generated scenes are built from their PNG provenance, not recompressed portfolio copies.
+  if (concept.version !== '20260913-work-v1') continue;
   const original = await fs.readFile('public' + concept.sourceAsset);
   const bytes = await sharp(original).resize(concept.width, concept.height, {fit:'inside'}).webp({quality:84, effort:5}).toBuffer();
   const destination = 'public' + concept.asset;

@@ -51,7 +51,7 @@ test('approved bright photographs have a unique versioned mapping and bounded si
     }
   }
   assert.equal(hashes.size,48);
-  assert.match(fs.readFileSync('public/data-core/roadmap.js','utf8'),/occupation-image-concepts\.js\?v=20260913-work-v1/);
+  assert.match(fs.readFileSync('public/data-core/roadmap.js','utf8'),/occupation-image-concepts\.js\?v=20260919-work-v2/);
 });
 
 test('approved home photographs match accessible slots without replacing existing page assets',()=>{

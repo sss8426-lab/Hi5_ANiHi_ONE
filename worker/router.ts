@@ -571,6 +571,22 @@ async function handleContentApi(request: Request, env: Env) {
 const worker = {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    // Guard aliases and direct assets, including HEAD, before static asset handling.
+    let reviewPath = url.pathname;
+    try { reviewPath = decodeURIComponent(reviewPath); } catch { /* Invalid paths cannot match a review asset. */ }
+    if (/^\/data-core\/roadmap\/image-review(?:\.(?:html|js|css)|\/)?$/.test(reviewPath)) {
+      const headers = { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'private, no-store' };
+      if (!env.DB) return new Response('인증 서비스를 확인해주세요.', { status: 503, headers });
+      const context = await resolveDataCoreAccess(request, env.DB, env.DATA_CORE_SUPER_ADMIN_EMAILS);
+      if (!context.authenticated || context.mustChangePassword) return new Response('로그인이 필요합니다.', { status: 401, headers });
+      if (!context.isSuperAdmin) return new Response('마스터 관리자만 접근할 수 있습니다.', { status: 403, headers });
+      if (!['GET', 'HEAD'].includes(request.method)) return new Response('허용되지 않는 요청입니다.', { status: 405, headers });
+      url.pathname = /image-review\/?$/.test(reviewPath) ? '/data-core/roadmap/image-review.html' : reviewPath;
+      const result = await baseWorker.fetch(new Request(url.toString(), { method: request.method, headers: request.headers }), env);
+      const response = new Response(result.body, result);
+      response.headers.set('cache-control', 'private, no-store');
+      return response;
+    }
     if (request.method === "GET") {
       if (url.pathname === "/login" || url.pathname === "/data-core/login") {
         url.pathname = "/data-core/login.html";

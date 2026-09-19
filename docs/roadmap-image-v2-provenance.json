@@ -1,0 +1,842 @@
+{
+  "version": "20260919-work-v2",
+  "preserved": [
+    "D002",
+    "D012",
+    "D020"
+  ],
+  "images": [
+    {
+      "id": "D001",
+      "slug": "webtoon-artist",
+      "provider": "OpenAI image generation tool",
+      "generatedAt": "2026-09-19",
+      "syntheticScene": true,
+      "sourceName": "exec-9d253769-3c84-45a8-beb9-3c0a20e6d238.png",
+      "sourceSha256": "2d88b932d9b82acfeb2f49f6417cd9776195284a6e5d9ca91fd898f3755bb80f",
+      "prompt": "Use case: photorealistic-natural. One bright, professional, believable editorial photograph for a Korean academy's career education. Landscape 4:3. A single coherent photographic scene, not a collage. Show the work process AND unmistakable finished result/application prominently (about half each), people small or only hands; no face portrait. High detail, realistic materials and anatomy. No actual company/university/brand marks, no watermarks, no decorative words. Avoid illegible large text, use silent visual layouts and blank UI microtext where needed. Keep important outputs inside central 85% for small 4:3 card crop. Varied color palette, clean Soft Premium feel but not beige monotony. D001: Close angled view of a portrait pen display with vertical webtoon panels, stylus hand and matching completed webtoon on a smartphone. Color characters, backgrounds and blank speech balloons. No paper-comic focus.",
+      "derived": [
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D001-webtoon-artist-v2.webp",
+          "width": 640,
+          "height": 480,
+          "bytes": 49550,
+          "sha256": "6af6a016ec831c64dbbc878dd35cbaa95ec395fb458676b28df77c61d124c868"
+        },
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D001-webtoon-artist-v2-detail.webp",
+          "width": 1440,
+          "height": 1080,
+          "bytes": 157444,
+          "sha256": "9c0f420e3c9adb4033b5e21e54cc595c345b65482682786a8700b6874d18e883"
+        }
+      ]
+    },
+    {
+      "id": "D003",
+      "slug": "webtoon-pd",
+      "provider": "OpenAI image generation tool",
+      "generatedAt": "2026-09-19",
+      "syntheticScene": true,
+      "sourceName": "exec-a34605ef-076b-47af-b204-f3192294a006.png",
+      "sourceSha256": "a49b45899000c8d3f771b009846a18cab6df23a9997f258212e3d4aa6d9ef51f",
+      "prompt": "Use case: photorealistic-natural. One bright, professional, believable editorial photograph for a Korean academy's career education. Landscape 4:3. A single coherent photographic scene, not a collage. Show the work process AND unmistakable finished result/application prominently (about half each), people small or only hands; no face portrait. High detail, realistic materials and anatomy. No actual company/university/brand marks, no watermarks, no decorative words. Avoid illegible large text, use silent visual layouts and blank UI microtext where needed. Keep important outputs inside central 85% for small 4:3 card crop. Varied color palette, clean Soft Premium feel but not beige monotony. Wide diagonal view across an active editorial review room, TWO small adults seen in profile at opposite ends reviewing an upright wall display of sequential finished vertical comic episodes, beside a large production kanban with colored episode thumbnails, milestone rows and small revision tags. Foreground marked-up grayscale comic layouts with red circled feedback and calendar blocks. A PD pointing at revision notes, artist listening, neither drawing. Show coordination, episode progress and shared review; blue-white coral accents. Not a generic drawing desk.",
+      "derived": [
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D003-webtoon-pd-v2.webp",
+          "width": 640,
+          "height": 480,
+          "bytes": 56706,
+          "sha256": "c83bbd7a0d46a577256dd84f5630653b3247111b8f61e0822fea03f2d6e43ecf"
+        },
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D003-webtoon-pd-v2-detail.webp",
+          "width": 1440,
+          "height": 1080,
+          "bytes": 196472,
+          "sha256": "fb7727b230ff072e1bfd51aa1aa83094bb7bdaa500593ed1f4759b72da37250e"
+        }
+      ]
+    },
+    {
+      "id": "D004",
+      "slug": "story-writer",
+      "provider": "OpenAI image generation tool",
+      "generatedAt": "2026-09-19",
+      "syntheticScene": true,
+      "sourceName": "exec-8145d149-bb2c-4c7d-a95d-9b0b9b7a0bbd.png",
+      "sourceSha256": "a8836f78609b5561d9cd82362c7746dc931e19e2372c164e9aed133d3d318276",
+      "prompt": "Use case: photorealistic-natural. One bright, professional, believable editorial photograph for a Korean academy's career education. Landscape 4:3. A single coherent photographic scene, not a collage. Show the work process AND unmistakable finished result/application prominently (about half each), people small or only hands; no face portrait. High detail, realistic materials and anatomy. No actual company/university/brand marks, no watermarks, no decorative words. Avoid illegible large text, use silent visual layouts and blank UI microtext where needed. Keep important outputs inside central 85% for small 4:3 card crop. Varied color palette, clean Soft Premium feel but not beige monotony. Front-on wall-dominated story planning studio. A dense but coherent branching STORY MAP of hand-drawn scene cards, character relationship portraits connected by thread/arrows, beginning/middle/climax colored clusters. Small adult at far edge rearranges one scene card. On narrow lower ledge a synopsis manuscript with nonlegible tiny lines and a folded rough comic dummy. Unfinished pencil staging, narrative decisions not finished art; warm yellow cards on pale blue wall. No computer. Important story cards large and clear.",
+      "derived": [
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D004-story-writer-v2.webp",
+          "width": 640,
+          "height": 480,
+          "bytes": 56866,
+          "sha256": "2b873d4430766d4713bae39597b599080a37c1293b557d37eddc952ad0dd9aab"
+        },
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D004-story-writer-v2-detail.webp",
+          "width": 1440,
+          "height": 1080,
+          "bytes": 208632,
+          "sha256": "a2af0cad4ed8fb554365cd7a1808d7cc03ca83cdad847f37a299b3d27e81f6a6"
+        }
+      ]
+    },
+    {
+      "id": "D005",
+      "slug": "2d-animator",
+      "provider": "OpenAI image generation tool",
+      "generatedAt": "2026-09-19",
+      "syntheticScene": true,
+      "sourceName": "exec-fabd0ef3-df76-40d5-8ccc-0333f9247c6f.png",
+      "sourceSha256": "953b52fa517f6ad3101ddb23a2899ed388a9485b8a9a0072bd851b03052aac41",
+      "prompt": "Use case: photorealistic-natural. One bright, professional, believable editorial photograph for a Korean academy's career education. Landscape 4:3. A single coherent photographic scene, not a collage. Show the work process AND unmistakable finished result/application prominently (about half each), people small or only hands; no face portrait. High detail, realistic materials and anatomy. No actual company/university/brand marks, no watermarks, no decorative words. Avoid illegible large text, use silent visual layouts and blank UI microtext where needed. Keep important outputs inside central 85% for small 4:3 card crop. Varied color palette, clean Soft Premium feel but not beige monotony. Close low-angle view of a horizontal animation light table and pen display showing an original orange-jacket character's running cycle, ghosted blue/red ONION SKIN previous and next poses, a clear frame strip of 8 sequential poses across the lower screen and keyframe timeline. A second small playback screen shows the clean finished character leaping in a drawn park. Only a hand holding stylus at edge. Dynamic repeated poses are the unmistakable main subject, not static illustration. White and teal studio with orange character.",
+      "derived": [
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D005-2d-animator-v2.webp",
+          "width": 640,
+          "height": 480,
+          "bytes": 49076,
+          "sha256": "59bdde48b6b3c3b536ad758a4930fb71e596ed1b9a992a15920ec2f82437c6d3"
+        },
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D005-2d-animator-v2-detail.webp",
+          "width": 1440,
+          "height": 1080,
+          "bytes": 144994,
+          "sha256": "46941f4630c4b78cb1ed110a8167e61b828a8e37a2c02f3ac60cbc1ef1a935b6"
+        }
+      ]
+    },
+    {
+      "id": "D006",
+      "slug": "3d-animator",
+      "provider": "OpenAI image generation tool",
+      "generatedAt": "2026-09-19",
+      "syntheticScene": true,
+      "sourceName": "exec-e03f16be-36c2-47dd-b1e2-79306d53c879.png",
+      "sourceSha256": "a1d25436b13154903451e108a38253b744863d056cd46d94ce7418d041a8fdf6",
+      "prompt": "Use case: photorealistic-natural. One bright, professional, believable editorial photograph for a Korean academy's career education. Landscape 4:3. A single coherent photographic scene, not a collage. Show the work process AND unmistakable finished result/application prominently (about half each), people small or only hands; no face portrait. High detail, realistic materials and anatomy. No actual company/university/brand marks, no watermarks, no decorative words. Avoid illegible large text, use silent visual layouts and blank UI microtext where needed. Keep important outputs inside central 85% for small 4:3 card crop. Varied color palette, clean Soft Premium feel but not beige monotony. Side view into a contemporary CG animation workstation. Main widescreen prominently displays a stylized original humanoid robot in mid-jump, polygonal 3D volume, articulated rig joints, colored circular control handles on wrists/hips/knees and keyframe timeline below. Adjacent upright playback display shows the SAME robot fully rendered landing in a sunny courtyard. One adult's back/hand small at right manipulating mouse. Cool white studio, purple rig handles and yellow robot; absolutely no large face, no text-heavy interface.",
+      "derived": [
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D006-3d-animator-v2.webp",
+          "width": 640,
+          "height": 480,
+          "bytes": 43690,
+          "sha256": "b09175bfcaf8a470fb10270ba42e2e01b5cd4cd8a258c5f7501fe017155087a6"
+        },
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D006-3d-animator-v2-detail.webp",
+          "width": 1440,
+          "height": 1080,
+          "bytes": 133808,
+          "sha256": "65a8dcd5d2203e721cfefdb9d7b64da65c9b5fd195121b13c25f412bdbf49cbb"
+        }
+      ]
+    },
+    {
+      "id": "D007",
+      "slug": "animation-director",
+      "provider": "OpenAI image generation tool",
+      "generatedAt": "2026-09-19",
+      "syntheticScene": true,
+      "sourceName": "exec-49b798bb-f8cb-4abf-b07c-89ab8bdd2ef6.png",
+      "sourceSha256": "bb99cdfb7e0166dba5f5b1e49482748fd3d21c22660570d8e78916363ce710dc",
+      "prompt": "Use case: photorealistic-natural. One bright, professional, believable editorial photograph for a Korean academy's career education. Landscape 4:3. A single coherent photographic scene, not a collage. Show the work process AND unmistakable finished result/application prominently (about half each), people small or only hands; no face portrait. High detail, realistic materials and anatomy. No actual company/university/brand marks, no watermarks, no decorative words. Avoid illegible large text, use silent visual layouts and blank UI microtext where needed. Keep important outputs inside central 85% for small 4:3 card crop. Varied color palette, clean Soft Premium feel but not beige monotony. Wide view from rear corner of an animation screening/review room, not a workstation. Three small adult team members and a standing director at lower edge discuss a large projected ANIMATIC sequence, four cinematic drawn shots of a sailboat storm with color/light variations and a clean completed frame. Storyboard panels pinned below screen, director pointing to framing. Screen and wall work occupy 70%, team only20%. Bright professional room, daylight balanced with vivid blue/ocher projected scene, no logos or readable text.",
+      "derived": [
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D007-animation-director-v2.webp",
+          "width": 640,
+          "height": 480,
+          "bytes": 53084,
+          "sha256": "1eb0ba71f1bc20497f6f787fbfcd75af1bba8ae0160c843b7a2555cb50dac556"
+        },
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D007-animation-director-v2-detail.webp",
+          "width": 1440,
+          "height": 1080,
+          "bytes": 179852,
+          "sha256": "4d697ddcafc95a27be392493da925346079bcf06b0392cad0bd581c1aadf844a"
+        }
+      ]
+    },
+    {
+      "id": "D008",
+      "slug": "storyboard-artist",
+      "provider": "OpenAI image generation tool",
+      "generatedAt": "2026-09-19",
+      "syntheticScene": true,
+      "sourceName": "exec-6860bf37-39e5-4871-968b-9418eb0d6789.png",
+      "sourceSha256": "25a5e42d97a691e555cfba3004a0cc3f1459285d06c30db908586760be9ee65b",
+      "prompt": "Use case: photorealistic-natural. One bright, professional, believable editorial photograph for a Korean academy's career education. Landscape 4:3. A single coherent photographic scene, not a collage. Show the work process AND unmistakable finished result/application prominently (about half each), people small or only hands; no face portrait. High detail, realistic materials and anatomy. No actual company/university/brand marks, no watermarks, no decorative words. Avoid illegible large text, use silent visual layouts and blank UI microtext where needed. Keep important outputs inside central 85% for small 4:3 card crop. Varied color palette, clean Soft Premium feel but not beige monotony. Long horizontal drafting rail photographed from a shallow oblique angle, landscape STORYBOARD panels in a clear left-to-right shot sequence: wide street, medium running person, close hand on door, wide interior. Bold pencil CAMERA MOVEMENT arrows and framing rectangles visible; rough black/white pencil drawings, NOT polished comic panels, no speech balloons. An adult hand draws a pan arrow at right. Background simple miniature camera/tripod blocking setup echoes scene. Cropped-free sequence dominant, white/red pencil accents, no text.",
+      "derived": [
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D008-storyboard-artist-v2.webp",
+          "width": 640,
+          "height": 480,
+          "bytes": 55016,
+          "sha256": "99e87b19fe5c08273f8365a04785b419de3002ebe23cc9b3ea83c20de10080d1"
+        },
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D008-storyboard-artist-v2-detail.webp",
+          "width": 1440,
+          "height": 1080,
+          "bytes": 187076,
+          "sha256": "6b93c2168821761c76d2e0bc4ea760ac29bc9d26c9067e16a961f8a460e5684e"
+        }
+      ]
+    },
+    {
+      "id": "D009",
+      "slug": "game-concept-artist",
+      "provider": "OpenAI image generation tool",
+      "generatedAt": "2026-09-19",
+      "syntheticScene": true,
+      "sourceName": "exec-0981d349-2315-42cf-86ae-04fc36f7dba9.png",
+      "sourceSha256": "9e976173ec08e9c7af96eef0d14f64332c3fba135c8ca8ce0580d456b6c105ce",
+      "prompt": "Use case: photorealistic-natural. One bright, professional, believable editorial photograph for a Korean academy's career education. Landscape 4:3. A single coherent photographic scene, not a collage. Show the work process AND unmistakable finished result/application prominently (about half each), people small or only hands; no face portrait. High detail, realistic materials and anatomy. No actual company/university/brand marks, no watermarks, no decorative words. Avoid illegible large text, use silent visual layouts and blank UI microtext where needed. Keep important outputs inside central 85% for small 4:3 card crop. Varied color palette, clean Soft Premium feel but not beige monotony. Over-shoulder TIGHT view of a game key-art painting station: giant landscape digital canvas dominated by ONE finished original armored explorer, elaborate believable equipment and sword, dramatic rim light and atmospheric rocky scene. A stylus hand refines the shoulder armor. To left a printed wide game promotional poster of this SAME key art, no logo/text. Not turnaround, not UI, not multiple silhouettes. Screen art is brilliant amber versus emerald, studio neutral and bright; monitor largely front-facing, human less10%.",
+      "derived": [
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D009-game-concept-artist-v2.webp",
+          "width": 640,
+          "height": 480,
+          "bytes": 69096,
+          "sha256": "b86001bc934986f9b5c301d6c2807224ead3b8ffe1a858fbdb927843a3a0204f"
+        },
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D009-game-concept-artist-v2-detail.webp",
+          "width": 1440,
+          "height": 1080,
+          "bytes": 242428,
+          "sha256": "1321f66edfb3817761d316ec07c006323a46ce72ba554461bfe135b27d1f6cca"
+        }
+      ]
+    },
+    {
+      "id": "D010",
+      "slug": "character-concept-artist",
+      "provider": "OpenAI image generation tool",
+      "generatedAt": "2026-09-19",
+      "syntheticScene": true,
+      "sourceName": "exec-85bd1607-fb0c-447e-8f48-814b5861731f.png",
+      "sourceSha256": "e87a491a22e520e3c0af82bc510812c8b03de22bb2738258a59b0daa9c013874",
+      "prompt": "Use case: photorealistic-natural. One bright, professional, believable editorial photograph for a Korean academy's career education. Landscape 4:3. A single coherent photographic scene, not a collage. Show the work process AND unmistakable finished result/application prominently (about half each), people small or only hands; no face portrait. High detail, realistic materials and anatomy. No actual company/university/brand marks, no watermarks, no decorative words. Avoid illegible large text, use silent visual layouts and blank UI microtext where needed. Keep important outputs inside central 85% for small 4:3 card crop. Varied color palette, clean Soft Premium feel but not beige monotony. Direct overhead view of a matte white concept studio table covered in CHARACTER DEVELOPMENT SHEETS for one original desert courier: 8 varied silhouettes, 5 costume explorations, front/side/back turnaround and expressive face studies, detachable tools and boots. Only one small hand with pencil evaluating two candidate silhouettes. Colored fabric swatches and one small clay shape reference. Unfinished options AND resolved clean design sheet visible; no large monitor, no single hero key-art, terracotta/indigo costume palette.",
+      "derived": [
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D010-character-concept-artist-v2.webp",
+          "width": 640,
+          "height": 480,
+          "bytes": 60404,
+          "sha256": "b25b6766c000805d734ee66949370eb544a4222c92e85c8aef250c82066bc934"
+        },
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D010-character-concept-artist-v2-detail.webp",
+          "width": 1440,
+          "height": 1080,
+          "bytes": 238664,
+          "sha256": "bc8c723acbbe85b01942135ab3f37d6bfe3b2820730472fed37136145eef248f"
+        }
+      ]
+    },
+    {
+      "id": "D011",
+      "slug": "environment-concept-artist",
+      "provider": "OpenAI image generation tool",
+      "generatedAt": "2026-09-19",
+      "syntheticScene": true,
+      "sourceName": "exec-166e9cf6-0eed-4403-a44a-e39c29f0dddd.png",
+      "sourceSha256": "6c825bd2f5f28466e35d4d1e4192b7de28a7ecc25538f609481ef7243d16c27f",
+      "prompt": "Use case: photorealistic-natural. One bright, professional, believable editorial photograph for a Korean academy's career education. Landscape 4:3. A single coherent photographic scene, not a collage. Show the work process AND unmistakable finished result/application prominently (about half each), people small or only hands; no face portrait. High detail, realistic materials and anatomy. No actual company/university/brand marks, no watermarks, no decorative words. Avoid illegible large text, use silent visual layouts and blank UI microtext where needed. Keep important outputs inside central 85% for small 4:3 card crop. Varied color palette, clean Soft Premium feel but not beige monotony. Wide eye-level environment concept review wall in bright architecture-like art studio. Huge panoramic fantasy coastal CITY painting with terraced buildings and bridges dominates; extremely small human scale silhouettes. Beside finished environment print an easel with perspective construction sketch, clear horizon/converging guide lines and architectural mass studies. Artist tiny at far edge adds a line. NO character centered, no desk/monitor focus. Airy turquoise sea and white stone city, believable landscape art photographed as actual large prints.",
+      "derived": [
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D011-environment-concept-artist-v2.webp",
+          "width": 640,
+          "height": 480,
+          "bytes": 79724,
+          "sha256": "b2ffe37ab024854c423daf820b8ed333ffdb23e8f4d6bfdf69bb5161f05c76a6"
+        },
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D011-environment-concept-artist-v2-detail.webp",
+          "width": 1440,
+          "height": 1080,
+          "bytes": 301662,
+          "sha256": "f444a46c9c090b225335ff536928aa78423f084b1e9fa9961f73ca8e957406cb"
+        }
+      ]
+    },
+    {
+      "id": "D013",
+      "slug": "illustrator",
+      "provider": "OpenAI image generation tool",
+      "generatedAt": "2026-09-19",
+      "syntheticScene": true,
+      "sourceName": "exec-124d0491-83c9-4245-8886-c0608a36ad18.png",
+      "sourceSha256": "16fa77bf308e1bbcdcc1f3f9ae09dc51b5191040efb493a726f06b03cfe9f24a",
+      "prompt": "Use case: photorealistic-natural. One bright, professional, believable editorial photograph for a Korean academy's career education. Landscape 4:3. A single coherent photographic scene, not a collage. Show the work process AND unmistakable finished result/application prominently (about half each), people small or only hands; no face portrait. High detail, realistic materials and anatomy. No actual company/university/brand marks, no watermarks, no decorative words. Avoid illegible large text, use silent visual layouts and blank UI microtext where needed. Keep important outputs inside central 85% for small 4:3 card crop. Varied color palette, clean Soft Premium feel but not beige monotony. Three-quarter close view of illustrator's gouache easel: a single refined editorial illustration of a colorful botanical urban garden with a cyclist, brush hand finishing one shape. On foreground metal rack two physical book-cover/ad-print applications of the exact SAME illustration, no legible title or brand. Bold cobalt/coral/leaf-green palette, paint pigments and paper texture, finished printed result as important as painted canvas. Not a character sheet or cartoon panel strip, not a computer workstation.",
+      "derived": [
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D013-illustrator-v2.webp",
+          "width": 640,
+          "height": 480,
+          "bytes": 74572,
+          "sha256": "e400ff092d83e01c8355070c7eebc44b7bc58f1824fbce2178e65bc53c25d9ff"
+        },
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D013-illustrator-v2-detail.webp",
+          "width": 1440,
+          "height": 1080,
+          "bytes": 275296,
+          "sha256": "6ad2d3af48c14a96252e0ab37dcb313adeda00a63e08808f00e9e022420aefd9"
+        }
+      ]
+    },
+    {
+      "id": "D014",
+      "slug": "character-designer",
+      "provider": "OpenAI image generation tool",
+      "generatedAt": "2026-09-19",
+      "syntheticScene": true,
+      "sourceName": "exec-32a324f3-edb9-4fd8-8fe7-0a8f391a647e.png",
+      "sourceSha256": "f3725c6f3fe13425e77b90a7e43d0dc31bb7371a29022d317fc0b2b0f1e1dfd5",
+      "prompt": "Use case: photorealistic-natural. One bright, professional, believable editorial photograph for a Korean academy's career education. Landscape 4:3. A single coherent photographic scene, not a collage. Show the work process AND unmistakable finished result/application prominently (about half each), people small or only hands; no face portrait. High detail, realistic materials and anatomy. No actual company/university/brand marks, no watermarks, no decorative words. Avoid illegible large text, use silent visual layouts and blank UI microtext where needed. Keep important outputs inside central 85% for small 4:3 card crop. Varied color palette, clean Soft Premium feel but not beige monotony. Bright tabletop product-development scene viewed slightly above eye level. One original friendly round teal ROBOT MASCOT appears consistently on a large expression/turnaround sheet, small vinyl figurine, tote bag and plain stationery. Designer's small hands align the figurine with its front/side/back sheet; props and 6 expressions clearly visible. Non-game cute commercial mascot, no armor or fantasy hero, no screen. White tabletop against coral studio shelving, no lettering/logos other than the original mascot.",
+      "derived": [
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D014-character-designer-v2.webp",
+          "width": 640,
+          "height": 480,
+          "bytes": 43410,
+          "sha256": "3d8f54a7b8656f6568575d9d70161d29a5bfaa5cbc0e60c89647a62becb080d2"
+        },
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D014-character-designer-v2-detail.webp",
+          "width": 1440,
+          "height": 1080,
+          "bytes": 124350,
+          "sha256": "91a47cb93b10aaf6e6989ece69fad3a598689340ce734df7ed5ad2bbf848542e"
+        }
+      ]
+    },
+    {
+      "id": "D015",
+      "slug": "emoticon-artist",
+      "provider": "OpenAI image generation tool",
+      "generatedAt": "2026-09-19",
+      "syntheticScene": true,
+      "sourceName": "exec-fe37bc60-0fb9-4306-bc86-e43f5a5de5ef.png",
+      "sourceSha256": "34e3464f94dbbfa292066c67eb8207e6b7cfc2350e60f4f4a5ead769902bfbd9",
+      "prompt": "Use case: photorealistic-natural. One bright, professional, believable editorial photograph for a Korean academy's career education. Landscape 4:3. A single coherent photographic scene, not a collage. Show the work process AND unmistakable finished result/application prominently (about half each), people small or only hands; no face portrait. High detail, realistic materials and anatomy. No actual company/university/brand marks, no watermarks, no decorative words. Avoid illegible large text, use silent visual layouts and blank UI microtext where needed. Keep important outputs inside central 85% for small 4:3 card crop. Varied color palette, clean Soft Premium feel but not beige monotony. Extreme close oblique view of tablet and upright smartphone side-by-side. Tablet shows a legible 4 by 5 grid of TWENTY expressive stickers of the SAME original yellow blob mascot: wave, laugh, cry, tired, heart, celebration. Small stylus hand adjusts one expression. Smartphone chat bubbles contain several matching stickers as real messaging application, blank microtext, unbranded interface. Pastel turquoise/white surroundings. Stickers and phone occupy85%, no face, no general character merchandise.",
+      "derived": [
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D015-emoticon-artist-v2.webp",
+          "width": 640,
+          "height": 480,
+          "bytes": 34770,
+          "sha256": "e8da2441edc95e8053a39e7ba185f68e5ba90754d7521e4b5c5433e3b4977704"
+        },
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D015-emoticon-artist-v2-detail.webp",
+          "width": 1440,
+          "height": 1080,
+          "bytes": 98846,
+          "sha256": "c1ac762858ecffd7218bf415e4dab76f017137b06154d9e2dc6cd0493263ccaf"
+        }
+      ]
+    },
+    {
+      "id": "D016",
+      "slug": "picturebook-author",
+      "provider": "OpenAI image generation tool",
+      "generatedAt": "2026-09-19",
+      "syntheticScene": true,
+      "sourceName": "exec-e51cb840-099b-4bc6-9357-253305b1e605.png",
+      "sourceSha256": "4232ab38c56bd27930dca24f5b981c8c976a343009580e7de2dc091a75a9c2f9",
+      "prompt": "Use case: photorealistic-natural. One bright, professional, believable editorial photograph for a Korean academy's career education. Landscape 4:3. A single coherent photographic scene, not a collage. Show the work process AND unmistakable finished result/application prominently (about half each), people small or only hands; no face portrait. High detail, realistic materials and anatomy. No actual company/university/brand marks, no watermarks, no decorative words. Avoid illegible large text, use silent visual layouts and blank UI microtext where needed. Keep important outputs inside central 85% for small 4:3 card crop. Varied color palette, clean Soft Premium feel but not beige monotony. Top-down diagonal picture-book author's table: physical bound illustrated children's book open across two LARGE watercolor landscape spreads, rough folded dummy book and five loose sequential page paintings arranged from beginning to end. One hand paints an unfinished spread with brush. Original story of a red kite traveling over a seaside town, same motif across pages; completed book visibly has thick paper edges and binding. Blue/red/yellow watercolor, no printed readable words, no magazine typography, no monitor.",
+      "derived": [
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D016-picturebook-author-v2.webp",
+          "width": 640,
+          "height": 480,
+          "bytes": 76208,
+          "sha256": "d19fdb00b6c7652ebdf8b932417efb70d668dcc10e7fb60d34a9a524b00c7023"
+        },
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D016-picturebook-author-v2-detail.webp",
+          "width": 1440,
+          "height": 1080,
+          "bytes": 292260,
+          "sha256": "7c23cc72e47c79bcfc8da317ef6115436e53bff29279d3dca939673adec0cfc5"
+        }
+      ]
+    },
+    {
+      "id": "D017",
+      "slug": "visual-designer",
+      "provider": "OpenAI image generation tool",
+      "generatedAt": "2026-09-19",
+      "syntheticScene": true,
+      "sourceName": "exec-f8598a89-c631-4499-8b17-84770a1178a6.png",
+      "sourceSha256": "8c021d6799522f8ba33855e633c40529d40826487f64f923805f03951dc8da00",
+      "prompt": "Use case: photorealistic-natural. One bright, professional, believable editorial photograph for a Korean academy's career education. Landscape 4:3. A single coherent photographic scene, not a collage. Show the work process AND unmistakable finished result/application prominently (about half each), people small or only hands; no face portrait. High detail, realistic materials and anatomy. No actual company/university/brand marks, no watermarks, no decorative words. Avoid illegible large text, use silent visual layouts and blank UI microtext where needed. Keep important outputs inside central 85% for small 4:3 card crop. Varied color palette, clean Soft Premium feel but not beige monotony. Standing-height photograph inside a print/sign workshop, dominant vertical wall with two large graphic cultural-event POSTERS using clear shapes and minimal large numerals 01 02, matching directional pictogram signage and ticket/leaflet print on a narrow rail. A small hand uses a squeegee to mount a poster. Strong black/white/lime graphic layouts, not a brand logo identity system, no product packages, no person portrait. Real printed paper and physical sign applications in an airy white room.",
+      "derived": [
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D017-visual-designer-v2.webp",
+          "width": 640,
+          "height": 480,
+          "bytes": 38994,
+          "sha256": "8405fb3d60739841b4a327fb5ced5da5136a8210a8af1a4dda291b38ac9603f0"
+        },
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D017-visual-designer-v2-detail.webp",
+          "width": 1440,
+          "height": 1080,
+          "bytes": 127934,
+          "sha256": "6c29ba40f4af1dfd09a8555e9565d1af51a4471b9c27939bf8351e14a908d675"
+        }
+      ]
+    },
+    {
+      "id": "D018",
+      "slug": "brand-designer",
+      "provider": "OpenAI image generation tool",
+      "generatedAt": "2026-09-19",
+      "syntheticScene": true,
+      "sourceName": "exec-95491c3c-2d8c-4e79-913c-1ae315921a09.png",
+      "sourceSha256": "a2c058be7fc8c407070daed4f040bde6db802e8e93f9765602d5a506afdb5070",
+      "prompt": "Use case: photorealistic-natural. One bright, professional, believable editorial photograph for a Korean academy's career education. Landscape 4:3. A single coherent photographic scene, not a collage. Show the work process AND unmistakable finished result/application prominently (about half each), people small or only hands; no face portrait. High detail, realistic materials and anatomy. No actual company/university/brand marks, no watermarks, no decorative words. Avoid illegible large text, use silent visual layouts and blank UI microtext where needed. Keep important outputs inside central 85% for small 4:3 card crop. Varied color palette, clean Soft Premium feel but not beige monotony. Three-quarter view of a brand identity review pinwall and physical application counter. One invented abstract geometric SYMBOL (not a real logo, no company name) consistently applied to storefront sign prototype, business cards, stationery, a modest carton and color/type guideline spread with silent blocks. Designer's hands compare color chips with printed identity samples. Unified navy/coral/off-white brand system, a broad range of media equally important, NOT just packaging or unrelated posters; no prominent person.",
+      "derived": [
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D018-brand-designer-v2.webp",
+          "width": 640,
+          "height": 480,
+          "bytes": 45274,
+          "sha256": "e515d6506ad8cb0b30c93a1c005609ca9b4026e2d4636a640ce354bccac08bb0"
+        },
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D018-brand-designer-v2-detail.webp",
+          "width": 1440,
+          "height": 1080,
+          "bytes": 148028,
+          "sha256": "065be401df4f609cd86e5e9463fb795dcb371c276de4f74b88572de04009d76b"
+        }
+      ]
+    },
+    {
+      "id": "D019",
+      "slug": "editorial-designer",
+      "provider": "OpenAI image generation tool",
+      "generatedAt": "2026-09-19",
+      "syntheticScene": true,
+      "sourceName": "exec-57d2c362-dfcb-442c-ae67-2ac4caaed1bd.png",
+      "sourceSha256": "0ae507871aee591210bd98e3ae32b28a3ac64fac73f50a6a10fad872fcc76955",
+      "prompt": "Use case: photorealistic-natural. One bright, professional, believable editorial photograph for a Korean academy's career education. Landscape 4:3. A single coherent photographic scene, not a collage. Show the work process AND unmistakable finished result/application prominently (about half each), people small or only hands; no face portrait. High detail, realistic materials and anatomy. No actual company/university/brand marks, no watermarks, no decorative words. Avoid illegible large text, use silent visual layouts and blank UI microtext where needed. Keep important outputs inside central 85% for small 4:3 card crop. Varied color palette, clean Soft Premium feel but not beige monotony. Close top-down diagonal publishing production view. Large opened design MAGAZINE with precise multi-column grid, large editorial photo, aligned typographic blocks as subtle tiny nonreadable lines; nearby proof sheets with crop/registration marks, ruler, binding samples. At back laptop showing the exact same two-page spread with visible layout grid guides. Hand compares printed proof to finished bound magazine. Black/white and rich burgundy photography, print/binding dominate, no logos or large garbled text.",
+      "derived": [
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D019-editorial-designer-v2.webp",
+          "width": 640,
+          "height": 480,
+          "bytes": 46732,
+          "sha256": "407d73660bcc91f914210ff34f2d14bd47ca995f82a937336aa35b5c6d7b73a3"
+        },
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D019-editorial-designer-v2-detail.webp",
+          "width": 1440,
+          "height": 1080,
+          "bytes": 148170,
+          "sha256": "9233ee484d5d1c97e34a8906711bdf9fe076b6da4bf01165286d59c94a1701af"
+        }
+      ]
+    },
+    {
+      "id": "D021",
+      "slug": "advertising-designer",
+      "provider": "OpenAI image generation tool",
+      "generatedAt": "2026-09-19",
+      "syntheticScene": true,
+      "sourceName": "exec-e3a7ace6-18f6-46ba-bfb0-cf38495670b1.png",
+      "sourceSha256": "a489d0e7fd87e97013a3c1d12be213415d8270fdaa04a8f54db8e0b7041cde99",
+      "prompt": "Use case: photorealistic-natural. One bright, professional, believable editorial photograph for a Korean academy's career education. Landscape 4:3. A single coherent photographic scene, not a collage. Show the work process AND unmistakable finished result/application prominently (about half each), people small or only hands; no face portrait. High detail, realistic materials and anatomy. No actual company/university/brand marks, no watermarks, no decorative words. Avoid illegible large text, use silent visual layouts and blank UI microtext where needed. Keep important outputs inside central 85% for small 4:3 card crop. Varied color palette, clean Soft Premium feel but not beige monotony. Wide real-world advertising production scene facing a street-level campaign display through a glass storefront. One original vivid ORANGE/CYAN abstract beverage still-life campaign key visual repeats on a large outdoor billboard mock display, vertical social-media phone ad and a printed poster on a review easel. Designer small at edge arranging campaign formats. Same visual resized distinctly per medium. No actual product brand, no promotional claims or text. Clear campaign/media adaptation, unlike stationery-based branding, plenty of bright daylight.",
+      "derived": [
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D021-advertising-designer-v2.webp",
+          "width": 640,
+          "height": 480,
+          "bytes": 63138,
+          "sha256": "1e52e05fca64332641e21d9066bc0bf0182cddacd52be0d781246dc622a6a7b1"
+        },
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D021-advertising-designer-v2-detail.webp",
+          "width": 1440,
+          "height": 1080,
+          "bytes": 199886,
+          "sha256": "3d478a242510c5dfb22748c056e3245374d7f62a6a0d00f835c7650c2327a44c"
+        }
+      ]
+    },
+    {
+      "id": "D022",
+      "slug": "ux-ui-designer",
+      "provider": "OpenAI image generation tool",
+      "generatedAt": "2026-09-19",
+      "syntheticScene": true,
+      "sourceName": "exec-997d9d93-f4c5-4f19-ae34-259cb99f87d8.png",
+      "sourceSha256": "856c1f319560c4525c3aa98b257cf07a4e041e8d93c03c431bdb919e3bf137c7",
+      "prompt": "Use case: photorealistic-natural. One bright, professional, believable editorial photograph for a Korean academy's career education. Landscape 4:3. A single coherent photographic scene, not a collage. Show the work process AND unmistakable finished result/application prominently (about half each), people small or only hands; no face portrait. High detail, realistic materials and anatomy. No actual company/university/brand marks, no watermarks, no decorative words. Avoid illegible large text, use silent visual layouts and blank UI microtext where needed. Keep important outputs inside central 85% for small 4:3 card crop. Varied color palette, clean Soft Premium feel but not beige monotony. Slightly overhead user-testing scene, hands hold a smartphone showing a clean civilian transit-ticket app prototype with map, seat selector and simple functional icons. On a wall nearby a user-flow diagram connects 6 wireframe screens with arrows; tablet on stand shows finalized mobile app panels. Designer points to flow, second user's hand actually taps phone. White/blue/coral product design lab, no video-game HUD, fantasy artwork or character portraits. Phone and linked screen flow are focal, no readable gibberish.",
+      "derived": [
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D022-ux-ui-designer-v2.webp",
+          "width": 640,
+          "height": 480,
+          "bytes": 37492,
+          "sha256": "bb3e15cf3c019f00bcff71ae95f3efa622f05bde1eafc548807b21d79e9e8186"
+        },
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D022-ux-ui-designer-v2-detail.webp",
+          "width": 1440,
+          "height": 1080,
+          "bytes": 107448,
+          "sha256": "d9900f7cd1826ccde02c282bc88f3841e94d7f1c9548173d0c9f09457a9f9e97"
+        }
+      ]
+    },
+    {
+      "id": "D023",
+      "slug": "motion-graphics-designer",
+      "provider": "OpenAI image generation tool",
+      "generatedAt": "2026-09-19",
+      "syntheticScene": true,
+      "sourceName": "exec-afc8b112-384c-4dd6-92ae-7e1f36700453.png",
+      "sourceSha256": "69128644ed3f4d57f592645bca6ac2852df4d42d29ea4568a3fde684aba2be3a",
+      "prompt": "Use case: photorealistic-natural. One bright, professional, believable editorial photograph for a Korean academy's career education. Landscape 4:3. A single coherent photographic scene, not a collage. Show the work process AND unmistakable finished result/application prominently (about half each), people small or only hands; no face portrait. High detail, realistic materials and anatomy. No actual company/university/brand marks, no watermarks, no decorative words. Avoid illegible large text, use silent visual layouts and blank UI microtext where needed. Keep important outputs inside central 85% for small 4:3 card crop. Varied color palette, clean Soft Premium feel but not beige monotony. Angled close view of motion design review setup, not a generic video editing desk. Large screen shows a bold finished motion frame of kinetic geometric letters A B C and vivid magenta/cyan shapes with layered depth; below another compact display shows keyframe diamonds, easing CURVES and multiple colored animation tracks. Printed 5-frame motion progression mounted on rail. Small hand on controller, no camera. Graphic movement/animated typography is clear, no filmed live-action footage, no decorative caption outside work.",
+      "derived": [
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D023-motion-graphics-designer-v2.webp",
+          "width": 640,
+          "height": 480,
+          "bytes": 42216,
+          "sha256": "75a1efd6e6e2b38bfe879cc7c4b03df91959502989508975d121f63c51410e1b"
+        },
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D023-motion-graphics-designer-v2-detail.webp",
+          "width": 1440,
+          "height": 1080,
+          "bytes": 119448,
+          "sha256": "834b2dd538a1fb1fbeb4252c899255d23593f10c37b91730e3fb7307ae80f486"
+        }
+      ]
+    },
+    {
+      "id": "D024",
+      "slug": "video-designer",
+      "provider": "OpenAI image generation tool",
+      "generatedAt": "2026-09-19",
+      "syntheticScene": true,
+      "sourceName": "exec-fa1c8cac-843f-4c25-b06b-af5099a10eaf.png",
+      "sourceSha256": "a0a963fe988dba170ea4e0460b4af38fbf10c07ac8cf32129df4de38842bc3e4",
+      "prompt": "Use case: photorealistic-natural. One bright, professional, believable editorial photograph for a Korean academy's career education. Landscape 4:3. A single coherent photographic scene, not a collage. Show the work process AND unmistakable finished result/application prominently (about half each), people small or only hands; no face portrait. High detail, realistic materials and anatomy. No actual company/university/brand marks, no watermarks, no decorative words. Avoid illegible large text, use silent visual layouts and blank UI microtext where needed. Keep important outputs inside central 85% for small 4:3 card crop. Varied color palette, clean Soft Premium feel but not beige monotony. Bright professional live-action color grading/edit suite photographed from the side. Large monitor shows REAL filmed coastal cycling footage, secondary timeline of matching live-action clips and scopes, physical color-grading console with three trackballs; a real mirrorless camera and clapperboard with no text rest in foreground. Editor tiny at far edge. Same footage appears in final playback on wall. Natural blue/green outdoor footage and neutral studio; not abstract motion graphics, no logo, no large portrait.",
+      "derived": [
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D024-video-designer-v2.webp",
+          "width": 640,
+          "height": 480,
+          "bytes": 40170,
+          "sha256": "24856b92257453d20304beb0d2fc70d9fab504d2290c4a86d8d482489e1eec34"
+        },
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D024-video-designer-v2-detail.webp",
+          "width": 1440,
+          "height": 1080,
+          "bytes": 126748,
+          "sha256": "4af912bb2771b7c56863cd7b4e7a3d74d8638bcac1d58f0500baa3834aed3af8"
+        }
+      ]
+    },
+    {
+      "id": "D025",
+      "slug": "industrial-product-designer",
+      "provider": "OpenAI image generation tool",
+      "generatedAt": "2026-09-19",
+      "syntheticScene": true,
+      "sourceName": "exec-1b7cef1d-d372-4d76-8d58-84f3da15ae46.png",
+      "sourceSha256": "dc5a36544e2551c0fd699904d20b0111b280a5a3ae2971f49f0f494d1c50b121",
+      "prompt": "Use case: photorealistic-natural. One bright, professional, believable editorial photograph for a Korean academy's career education. Landscape 4:3. A single coherent photographic scene, not a collage. Show the work process AND unmistakable finished result/application prominently (about half each), people small or only hands; no face portrait. High detail, realistic materials and anatomy. No actual company/university/brand marks, no watermarks, no decorative words. Avoid illegible large text, use silent visual layouts and blank UI microtext where needed. Keep important outputs inside central 85% for small 4:3 card crop. Varied color palette, clean Soft Premium feel but not beige monotony. Wide oblique prototype workshop view showing the evolution of ONE distinctive compact white DESK FAN: pencil industrial-design sketches, CAD wireframe model on small screen at rear, rough carved blue foam study, assembled functioning fan on workbench. Hands measure prototype grill with calipers. Physical product and foam mockup dominate, screen less15%. Clean pale gray workshop with blue prototypes, no furniture or car, no branding/text, plausible mechanical product details.",
+      "derived": [
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D025-industrial-product-designer-v2.webp",
+          "width": 640,
+          "height": 480,
+          "bytes": 40266,
+          "sha256": "8ae912763f3356944218e142c26ce18368182ca9771e9ff2a6dd1c8722a79b96"
+        },
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D025-industrial-product-designer-v2-detail.webp",
+          "width": 1440,
+          "height": 1080,
+          "bytes": 121470,
+          "sha256": "39abb9f365e939c737935fae5751ce4fe7aedfdccf6b9dcd84f291105ac9bfb7"
+        }
+      ]
+    },
+    {
+      "id": "D026",
+      "slug": "mobility-designer",
+      "provider": "OpenAI image generation tool",
+      "generatedAt": "2026-09-19",
+      "syntheticScene": true,
+      "sourceName": "exec-cc5284e4-fc1e-4d5a-8bf4-dc4fbc160774.png",
+      "sourceSha256": "fb06e57b1de9547ab2192ce5ae055d2556ea6e2e3e751b35b8e0a2653614d847",
+      "prompt": "Use case: photorealistic-natural. One bright, professional, believable editorial photograph for a Korean academy's career education. Landscape 4:3. A single coherent photographic scene, not a collage. Show the work process AND unmistakable finished result/application prominently (about half each), people small or only hands; no face portrait. High detail, realistic materials and anatomy. No actual company/university/brand marks, no watermarks, no decorative words. Avoid illegible large text, use silent visual layouts and blank UI microtext where needed. Keep important outputs inside central 85% for small 4:3 card crop. Varied color palette, clean Soft Premium feel but not beige monotony. Low three-quarter view in spacious automotive design studio. A medium-sized CLAY CAR model on a raised platform dominates foreground; designer's hands scrape its shoulder surface with clay rake, head out of frame. Behind it huge side-profile car sketches and a full-size unbranded white vehicle prototype show the same streamlined design. Strong visible wheel arches, highlights along curvature. Bright industrial skylight, warm clay against white metal, no actual auto badges, not a toy display or ordinary desk.",
+      "derived": [
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D026-mobility-designer-v2.webp",
+          "width": 640,
+          "height": 480,
+          "bytes": 46282,
+          "sha256": "463712a5f694ec04d6161d6967ed23e7dbec6d1f711668d2d86607e42088616e"
+        },
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D026-mobility-designer-v2-detail.webp",
+          "width": 1440,
+          "height": 1080,
+          "bytes": 153758,
+          "sha256": "a1aee4081213b999c1c61767c08d4459e55860850ea6055cbbec14438949fa87"
+        }
+      ]
+    },
+    {
+      "id": "D027",
+      "slug": "interior-designer",
+      "provider": "OpenAI image generation tool",
+      "generatedAt": "2026-09-19",
+      "syntheticScene": true,
+      "sourceName": "exec-30acc330-3977-44a9-a67a-4e1cf1eed5ca.png",
+      "sourceSha256": "7f70a3d212f26207a66caba38468287a50fc0b5e2de2ef560793ac88214763ce",
+      "prompt": "Use case: photorealistic-natural. One bright, professional, believable editorial photograph for a Korean academy's career education. Landscape 4:3. A single coherent photographic scene, not a collage. Show the work process AND unmistakable finished result/application prominently (about half each), people small or only hands; no face portrait. High detail, realistic materials and anatomy. No actual company/university/brand marks, no watermarks, no decorative words. Avoid illegible large text, use silent visual layouts and blank UI microtext where needed. Keep important outputs inside central 85% for small 4:3 card crop. Varied color palette, clean Soft Premium feel but not beige monotony. View from a raised drawing stand into a completed bright contemporary reading lounge. Foreground clearly shows architectural FLOOR PLAN with furniture layout, small perspective drawing and organized wood/tile/textile material board; a designer's hand aligns a wood swatch. Beyond it the actual finished room echoes the plan: curved reading bench, shelving, lighting and windows. Physical interior fills60%; planning40%. No retail merchandise or stage curtains, cool-white/oak/soft green balanced light, no logos or fabricated text.",
+      "derived": [
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D027-interior-designer-v2.webp",
+          "width": 640,
+          "height": 480,
+          "bytes": 55262,
+          "sha256": "7b1d09188750ce84ef0afcc2d4342a26f515e129d3998e6c2c775ef0c3e73f51"
+        },
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D027-interior-designer-v2-detail.webp",
+          "width": 1440,
+          "height": 1080,
+          "bytes": 196576,
+          "sha256": "1526695a7d55e92700cf3a37171570686951024bf06d38956eea3eab7c24fa67"
+        }
+      ]
+    },
+    {
+      "id": "D028",
+      "slug": "exhibition-vmd-designer",
+      "provider": "OpenAI image generation tool",
+      "generatedAt": "2026-09-19",
+      "syntheticScene": true,
+      "sourceName": "exec-99cf5f2c-3cd2-4170-ba7d-d7647efd5c94.png",
+      "sourceSha256": "f986228557fadf7e46221db3b5fd256375f50f56b569a91d0db7cced064fa865",
+      "prompt": "Use case: photorealistic-natural. One bright, professional, believable editorial photograph for a Korean academy's career education. Landscape 4:3. A single coherent photographic scene, not a collage. Show the work process AND unmistakable finished result/application prominently (about half each), people small or only hands; no face portrait. High detail, realistic materials and anatomy. No actual company/university/brand marks, no watermarks, no decorative words. Avoid illegible large text, use silent visual layouts and blank UI microtext where needed. Keep important outputs inside central 85% for small 4:3 card crop. Varied color palette, clean Soft Premium feel but not beige monotony. Wide eye-level view of a real pop-up exhibition/retail display being installed. Small adult at edge adjusts a modular pedestal with unbranded shoes; product display plinths, freestanding exhibit partitions and overhead track lighting define a clear walking route. Foreground small scaled display layout on clipboard and material swatches, background visitors small for scale. Lavender/red/white spatial accents, actual product presentation dominates; no cozy residential lounge, no theater curtains, no ordinary computer desk.",
+      "derived": [
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D028-exhibition-vmd-designer-v2.webp",
+          "width": 640,
+          "height": 480,
+          "bytes": 44678,
+          "sha256": "4f3801a2911d18a7f7284e4727eec73d383eb256017a97a4702ca513dab5153f"
+        },
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D028-exhibition-vmd-designer-v2-detail.webp",
+          "width": 1440,
+          "height": 1080,
+          "bytes": 142866,
+          "sha256": "98a82b457c83405483e4df52a251c69dfe48aaa08e0eed495c1c2f6f1ecae231"
+        }
+      ]
+    },
+    {
+      "id": "D029",
+      "slug": "stage-designer",
+      "provider": "OpenAI image generation tool",
+      "generatedAt": "2026-09-19",
+      "syntheticScene": true,
+      "sourceName": "exec-f3bce2c1-9d09-45dd-83b9-8df413c0642e.png",
+      "sourceSha256": "5bdded7b131da6d552f829058ef88f09f974256ab61bed3ea02d77802ca8e67e",
+      "prompt": "Use case: photorealistic-natural. One bright, professional, believable editorial photograph for a Korean academy's career education. Landscape 4:3. A single coherent photographic scene, not a collage. Show the work process AND unmistakable finished result/application prominently (about half each), people small or only hands; no face portrait. High detail, realistic materials and anatomy. No actual company/university/brand marks, no watermarks, no decorative words. Avoid illegible large text, use silent visual layouts and blank UI microtext where needed. Keep important outputs inside central 85% for small 4:3 card crop. Varied color palette, clean Soft Premium feel but not beige monotony. Wide view from theater wing looking across a full-size constructed STAGE SET: monumental stair forms, archway and fabric sky backcloth lit with amber and blue theatrical light. Foreground a sharply visible miniature proscenium set model duplicates the full-size scenery, alongside lighting plan; small designer hand adjusts model step. Actual stage and model together, no audience portrait, no shop products or domestic furniture. Bright enough to inspect scenic construction, stage working lights balanced, no dark cinematic obscurity.",
+      "derived": [
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D029-stage-designer-v2.webp",
+          "width": 640,
+          "height": 480,
+          "bytes": 60210,
+          "sha256": "e636c3cdf1163870f9ef152082428c4270f3770ace097736f1e5f42082868a78"
+        },
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D029-stage-designer-v2-detail.webp",
+          "width": 1440,
+          "height": 1080,
+          "bytes": 200196,
+          "sha256": "f86f611d7fab7758febccb111a3380d35a51e7048e456606a84b2f9d407a8731"
+        }
+      ]
+    },
+    {
+      "id": "D030",
+      "slug": "fashion-designer",
+      "provider": "OpenAI image generation tool",
+      "generatedAt": "2026-09-19",
+      "syntheticScene": true,
+      "sourceName": "exec-0ff98af4-1e79-45bd-a498-e13068bff4b1.png",
+      "sourceSha256": "34ebacaca5581fac0847b6f3ef70d1e5506dc2073cadc655d9d94437e131d5d8",
+      "prompt": "Use case: photorealistic-natural. One bright, professional, believable editorial photograph for a Korean academy's career education. Landscape 4:3. A single coherent photographic scene, not a collage. Show the work process AND unmistakable finished result/application prominently (about half each), people small or only hands; no face portrait. High detail, realistic materials and anatomy. No actual company/university/brand marks, no watermarks, no decorative words. Avoid illegible large text, use silent visual layouts and blank UI microtext where needed. Keep important outputs inside central 85% for small 4:3 card crop. Varied color palette, clean Soft Premium feel but not beige monotony. Side view of a fashion atelier centered on a dress form being draped with cobalt-blue fabric; only designer hands pin a fold, face absent. Nearby an original fashion sketch, fabric shears and swatches, behind it the matching finished jacket/dress on a full-height mannequin with visible tailored seams. Garment silhouette dominates, not textile print patterns. White walls and navy/red fabric accents, natural professional light, no brand tags, no runway celebrity, no readable text.",
+      "derived": [
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D030-fashion-designer-v2.webp",
+          "width": 640,
+          "height": 480,
+          "bytes": 40856,
+          "sha256": "5bc10c76790c82afab7eafef17e4e322b99e819d773757a637b412e174ed56f4"
+        },
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D030-fashion-designer-v2-detail.webp",
+          "width": 1440,
+          "height": 1080,
+          "bytes": 130630,
+          "sha256": "b458e485d16e313b8c35038227f5e420cd1564800b4215dc4a279f31f7ec42a3"
+        }
+      ]
+    },
+    {
+      "id": "D031",
+      "slug": "textile-designer",
+      "provider": "OpenAI image generation tool",
+      "generatedAt": "2026-09-19",
+      "syntheticScene": true,
+      "sourceName": "exec-1a82e6a1-dc1b-4c16-9751-aa32d2855a3b.png",
+      "sourceSha256": "3c036b041d545c9d3b0b5ac1f57c6bca9824554de85fc1be85af2860a653a27d",
+      "prompt": "Use case: photorealistic-natural. One bright, professional, believable editorial photograph for a Korean academy's career education. Landscape 4:3. A single coherent photographic scene, not a collage. Show the work process AND unmistakable finished result/application prominently (about half each), people small or only hands; no face portrait. High detail, realistic materials and anatomy. No actual company/university/brand marks, no watermarks, no decorative words. Avoid illegible large text, use silent visual layouts and blank UI microtext where needed. Keep important outputs inside central 85% for small 4:3 card crop. Varied color palette, clean Soft Premium feel but not beige monotony. Top-down oblique textile print workshop. Hands pull a squeegee across a screen-printing frame depositing a repeating vivid green/coral botanical PATTERN onto a long roll of cloth. Alongside are colorway swatches, pattern repeat drawing, yarn samples and finished cushion/curtain panels made from the same cloth. Fabric texture and repeat pattern unmistakable, no mannequin/dress construction, no generic paint canvas. Bright neutral work surface, no text or actual logos.",
+      "derived": [
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D031-textile-designer-v2.webp",
+          "width": 640,
+          "height": 480,
+          "bytes": 74540,
+          "sha256": "7d53707b771dc7ac9e3eaf6734d832313f24e91ac83d29f31adcf825c79afe44"
+        },
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D031-textile-designer-v2-detail.webp",
+          "width": 1440,
+          "height": 1080,
+          "bytes": 288902,
+          "sha256": "c850f6fab7e8dedbd23bbdafaa0fe157e0731215d3548be3621dbc2bf97e821b"
+        }
+      ]
+    },
+    {
+      "id": "D032",
+      "slug": "jewelry-designer",
+      "provider": "OpenAI image generation tool",
+      "generatedAt": "2026-09-19",
+      "syntheticScene": true,
+      "sourceName": "exec-ede6923f-e33f-41b2-98cf-67e667592e65.png",
+      "sourceSha256": "5768d8bc8b21766c8db6d379024fde4ce7d4562f8e79157b549d21a59608a911",
+      "prompt": "Use case: photorealistic-natural. One bright, professional, believable editorial photograph for a Korean academy's career education. Landscape 4:3. A single coherent photographic scene, not a collage. Show the work process AND unmistakable finished result/application prominently (about half each), people small or only hands; no face portrait. High detail, realistic materials and anatomy. No actual company/university/brand marks, no watermarks, no decorative words. Avoid illegible large text, use silent visual layouts and blank UI microtext where needed. Keep important outputs inside central 85% for small 4:3 card crop. Varied color palette, clean Soft Premium feel but not beige monotony. Macro-leaning close photograph at a JEWELER'S bench, but broad enough for clear process and finished product. Small hands use a fine file on a silver ring at a wooden bench pin; magnifying loupe, precise ring sketch and tiny brass/silver blanks visible. Foreground finished original sculptural silver ring and pendant on charcoal pad catch crisp highlights, substantial visible polished metal. Bright controlled work light, no person's face, no oversized fantasy gemstones, no brands or text.",
+      "derived": [
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D032-jewelry-designer-v2.webp",
+          "width": 640,
+          "height": 480,
+          "bytes": 43616,
+          "sha256": "c22cddea5be68a37ef46857e35c65d22a23e09e98911f95f532a073aa5a9d6d1"
+        },
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D032-jewelry-designer-v2-detail.webp",
+          "width": 1440,
+          "height": 1080,
+          "bytes": 142590,
+          "sha256": "deea71b9c7f3b8a27c4b6787affc5aab1589fcbac07bb6f5a605374d65da894f"
+        }
+      ]
+    },
+    {
+      "id": "D033",
+      "slug": "ceramic-designer",
+      "provider": "OpenAI image generation tool",
+      "generatedAt": "2026-09-19",
+      "syntheticScene": true,
+      "sourceName": "exec-08126554-83e1-40b7-b219-76572bc29ad8.png",
+      "sourceSha256": "9a8995c681c3073c81807e1494cb7ae22a91f59ecae06922d9a3286eb767aec1",
+      "prompt": "Use case: photorealistic-natural. One bright, professional, believable editorial photograph for a Korean academy's career education. Landscape 4:3. A single coherent photographic scene, not a collage. Show the work process AND unmistakable finished result/application prominently (about half each), people small or only hands; no face portrait. High detail, realistic materials and anatomy. No actual company/university/brand marks, no watermarks, no decorative words. Avoid illegible large text, use silent visual layouts and blank UI microtext where needed. Keep important outputs inside central 85% for small 4:3 card crop. Varied color palette, clean Soft Premium feel but not beige monotony. Low side view of a ceramic studio at a pottery wheel. Hands shaping a wet clay bowl form the left foreground; finished glazed bowls and a matching pitcher on clean shelving occupy right foreground at equal size, with a fan of labeled-by-color-only glaze test tiles between. Actual wheel/clay/water texture, finished everyday functional ceramics not decorative fantasy sculpture. Bright white/daylight with teal glazes and clay brown accents, no dominant human face, no text/logos.",
+      "derived": [
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D033-ceramic-designer-v2.webp",
+          "width": 640,
+          "height": 480,
+          "bytes": 46692,
+          "sha256": "6c63366a542d3f98fbf87bb2a6b809f70f9b951da04bbe9a8af2220b2e619cb3"
+        },
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D033-ceramic-designer-v2-detail.webp",
+          "width": 1440,
+          "height": 1080,
+          "bytes": 144940,
+          "sha256": "91d17dee2280350fe21a8a2fd923db7dd1c0ab173674ea1e43a90ca5ec539be5"
+        }
+      ]
+    },
+    {
+      "id": "D034",
+      "slug": "furniture-designer",
+      "provider": "OpenAI image generation tool",
+      "generatedAt": "2026-09-19",
+      "syntheticScene": true,
+      "sourceName": "exec-5af29598-1023-490c-94e4-9cab1f486221.png",
+      "sourceSha256": "04b08daa65c59c8102cfe3ce8eb57e0dba9dbe5138cb69645cba0fed5063ac3f",
+      "prompt": "Use case: photorealistic-natural. One bright, professional, believable editorial photograph for a Korean academy's career education. Landscape 4:3. A single coherent photographic scene, not a collage. Show the work process AND unmistakable finished result/application prominently (about half each), people small or only hands; no face portrait. High detail, realistic materials and anatomy. No actual company/university/brand marks, no watermarks, no decorative words. Avoid illegible large text, use silent visual layouts and blank UI microtext where needed. Keep important outputs inside central 85% for small 4:3 card crop. Varied color palette, clean Soft Premium feel but not beige monotony. Wide furniture workshop photographed from knee height: a craftsman's small hands fit a timber chair's joint at a bench. Foreground exploded joinery sketch, wood samples and small scale prototype. To the right full-size completed sculptural ash chair and matching side table stand in a staged lived-in corner, distinct real wood texture and upholstery. Furniture occupies75%, no tiny electronic product or car, bright green/white industrial workshop background, no logo/text.",
+      "derived": [
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D034-furniture-designer-v2.webp",
+          "width": 640,
+          "height": 480,
+          "bytes": 58852,
+          "sha256": "9f6a20d33f9e874423ef4b976b4be4a483ad5abf6c7a3f26f87c80acf2fd9f8b"
+        },
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D034-furniture-designer-v2-detail.webp",
+          "width": 1440,
+          "height": 1080,
+          "bytes": 193688,
+          "sha256": "65bacae2507ad388d4c0f8a6fb6bdd31277212355cdd432d7afbe76cd9f9ed6b"
+        }
+      ]
+    },
+    {
+      "id": "D035",
+      "slug": "ai-convergence-designer",
+      "provider": "OpenAI image generation tool",
+      "generatedAt": "2026-09-19",
+      "syntheticScene": true,
+      "sourceName": "exec-91712985-d8cf-4062-aafd-c058980501c4.png",
+      "sourceSha256": "f6b037658e8883c969deae1124e0828a125794e81015944838de6e91ce314512",
+      "prompt": "Use case: photorealistic-natural. One bright, professional, believable editorial photograph for a Korean academy's career education. Landscape 4:3. A single coherent photographic scene, not a collage. Show the work process AND unmistakable finished result/application prominently (about half each), people small or only hands; no face portrait. High detail, realistic materials and anatomy. No actual company/university/brand marks, no watermarks, no decorative words. Avoid illegible large text, use silent visual layouts and blank UI microtext where needed. Keep important outputs inside central 85% for small 4:3 card crop. Varied color palette, clean Soft Premium feel but not beige monotony. Wide eye-level photograph of an INTERACTIVE MEDIA EXHIBITION in a real clean architectural gallery. A visitor small in frame raises an arm; projected colorful generative line fields and particles respond visibly to their silhouette on a huge wall and floor. Discreet depth camera/sensor on a stand and ceiling projector are visibly real, a small technician testing at edge. Show embodied interaction and finished spatial content, not chatbot, laptop desk, sci-fi hologram or UI phone. Well-lit white gallery with blue/coral responsive projection, no captions/brands.",
+      "derived": [
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D035-ai-convergence-designer-v2.webp",
+          "width": 640,
+          "height": 480,
+          "bytes": 63708,
+          "sha256": "668a62e4695f686263f32d4e854a62d4cc8c1d5b2690c36ff5327a73e670bd03"
+        },
+        {
+          "asset": "/data-core/assets/roadmap/covers/v2/D035-ai-convergence-designer-v2-detail.webp",
+          "width": 1440,
+          "height": 1080,
+          "bytes": 237180,
+          "sha256": "a28422e920a29c5427e2fa5ae4d8d99dba15972c9fd533c2479bed1e82982ecc"
+        }
+      ]
+    }
+  ]
+}

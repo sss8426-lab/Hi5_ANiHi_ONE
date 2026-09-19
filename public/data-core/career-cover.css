@@ -1,0 +1,6 @@
+/* A work scene needs more space than the former portrait-sized heading icon. */
+.roadmap-page .result-heading { display:block; }
+.roadmap-page .result-portrait { width:min(100%, 640px); margin-top:24px; border-radius:var(--core-radius-md); }
+.roadmap-page .result-portrait .job-image { display:block; width:100%; height:auto; aspect-ratio:4/3; object-fit:contain; }
+@media (max-width:680px) { .roadmap-page .result-portrait { margin-top:16px; } }
+@media print { .roadmap-page .result-portrait { max-width:100mm; } }
