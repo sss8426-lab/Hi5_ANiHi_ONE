@@ -827,3 +827,12 @@ AI 전략 분석(핵심 주제 1개 + 제목 후보 3개 + 본문 초안 1회 �
 draft(`title`/`content`/`hashtags`/`cta`)는 그대로 열리고, 새 필드는 metadata에 additive로만
 저장된다(DB migration 없음). 인스타 자동화는 코드 한 줄도 바뀌지 않았다. 세부 내용과 테스트는
 `docs/BLOG_HOMEFEED_CONTENT_STRATEGY_2026-09-14.md`를 따른다.
+
+## 직업 이미지 리뉴얼 2단계 (2026-09-19)
+
+직업 카드와 상세 상단 이미지를 현장/결과물 중심으로 갱신했다. D002/D012/D020 승인 샘플은 유지하고,
+나머지 32개는 새 생성 이미지의 versioned WebP로 연결한다. 카드 640x480, 신규 상세 1440x1080,
+4:3 contain으로 원본 장면이 잘리지 않도록 한다. 기존 cover/portrait/105개 상세 교육 이미지는 보존한다.
+D001~D035와 직업명/전공/대학/입시/실기 로드맵 및 운영 데이터는 변경하지 않는다.
+MASTER/SUPER_ADMIN 전용 `/data-core/roadmap/image-review`에서 35개와 이름 가리기를 제공한다.
+직업별 검수 및 실제 배포/검증 경계는 `docs/ROADMAP_IMAGE_REVIEW_FINAL_2026-09-19.md` 참조.
