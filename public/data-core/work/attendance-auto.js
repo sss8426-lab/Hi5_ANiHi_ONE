@@ -1,8 +1,9 @@
 import {zipSync,strToU8} from '../vendor/fflate-0.8.3.js';
+import {sparseCalendars,validateSparse,sparseTargets,reshapeSparse} from './attendance-sparse.js?v=20260919-sparse-import';
 import {openTemplate,calendarMonth,parseWeekdays,planPages,printDocument,all,child,children,
   attr,number,check,cellRef,range,address,textOf,indexSheet,areaFor,dateParts,putValue,
   mutableSheet,styleEngine,cellStyleId,mostCommon,updateTitle,ensureSheet,create,
-  setNamedRange,namedRange,dimensions,colorHex,columnName,columnNumber,shiftRangeColumns} from './attendance-template.js?v=20260915-cell-fidelity';
+  setNamedRange,namedRange,dimensions,colorHex,columnName,columnNumber,shiftRangeColumns} from './attendance-template.js?v=20260919-sparse-import';
 
 export const RECOGNITION_ERROR='이 출석부 형식을 자동으로 인식하지 못했습니다.';
 const rowValues=(grid,row,strings)=>[...grid.cells].filter(([ref])=>address(ref).r===row).map(([ref,c])=>({ref,c,value:textOf(c,strings).trim()}));
@@ -340,9 +341,12 @@ export function analyzeWorkbook(template,filename='',options={}){
     const sheet=template.read(descriptor.path),grid=indexSheet(sheet);
     const headers=[...grid.cells].filter(([ref,c])=>address(ref).r<=40&&/^(이름|학생명|성명)$/.test(textOf(c,template.strings).trim()));
     if(!headers.length)continue;
-    const area=attendanceArea(template,descriptor,sheet,grid),candidates=dateGrid(template,sheet,grid,area);
+    const area=attendanceArea(template,descriptor,sheet,grid);
+    let candidates=dateGrid(template,sheet,grid,area);
+    if(!candidates.length)candidates=sparseCalendars(template,sheet,grid,area);
     check(candidates.length===1&&headers.length===1&&!all(sheet,'sheetProtection').length,RECOGNITION_ERROR);
     const m={index:descriptor.index,name:descriptor.name,area,...candidates[0],nameCol:address(headers[0][0]).c};
+    if(m.sparse){const print=namedRange(template.workbook,descriptor.index,'_xlnm.Print_Area');if(print){const p=range(print.textContent.split('!').at(-1));m.area={...area,end:{r:p.end.r,c:Math.max(p.end.c,m.dateColumns.at(-1).c)}};}}
     m.firstStudentRow=Math.max(m.dateRow,m.weekdayRow,address(headers[0][0]).r)+1;
     m.weekdayCol=0;
     for(let r=area.r;r<m.firstStudentRow;r++)for(const cell of rowValues(grid,r,template.strings)){
@@ -364,6 +368,7 @@ export function analyzeWorkbook(template,filename='',options={}){
       return false;
     }),RECOGNITION_ERROR);
     m.period=period(template,sheet,grid,m,filename,options.sourcePeriods?.[descriptor.index]);
+    if(m.sparse)validateSparse(m);
     m.studentBlocks=analyzeStudents(template,sheet,grid,m);sheets.push(m);
   }
   check(sheets.length&&(options.allowMixedPeriods||sheets.every(s=>s.period.year===sheets[0].period.year&&s.period.month===sheets[0].period.month)),RECOGNITION_ERROR);
@@ -459,14 +464,15 @@ function generateSheet(template,m,options,styles,workbook){
   const originalSheet=template.read(template.sheets[m.index].path),originalGrid=indexSheet(originalSheet);
   const calendar=calendarMonth(options.year,options.month),oldCalendar=calendarMonth(m.period.year,m.period.month);
   const policy=weekdaySlotPolicy(m.dateColumns,oldCalendar);
-  const preserve=options.preserveColumns===true;
+  const preserve=options.preserveColumns===true&&!m.sparse;
   if(preserve)check(m.dateColumns.at(-1).day===31,'원본 날짜칸 유지에는 31일 칸이 있는 양식이 필요합니다.');
-  const targetColumns=preserve?m.dateColumns.map(d=>({...d,weekdayIndex:calendar[d.day-1].weekdayIndex,active:calendar[d.day-1].active})):targetCalendarColumns(options.year,options.month,policy);
-  let column=m.dateStart;for(const d of targetColumns)d.c=column++;
+  const sparse=m.sparse?sparseTargets(m,options.year,options.month):null;
+  const targetColumns=sparse?sparse.filter(d=>!d.separator):preserve?m.dateColumns.map(d=>({...d,weekdayIndex:calendar[d.day-1].weekdayIndex,active:calendar[d.day-1].active})):targetCalendarColumns(options.year,options.month,policy);
+  if(!sparse){let column=m.dateStart;for(const d of targetColumns)d.c=column++;}
   const styleMap=sampleCalendarStyles(originalSheet,originalGrid,m,oldCalendar);
   // reshapeCalendar mutates the raw sheet DOM (column inserts/deletes shift cell `r` attributes);
   // the mutable cell index must be built fresh afterwards, or it would resolve stale references.
-  const {area,at,delta}=preserve?{area:m.area,at:m.dateColumns.at(-1).c+1,delta:0}:reshapeCalendar(sheet,workbook,m,targetColumns,styleMap,template);
+  const {area,at,delta,sourceErrors=0}=sparse?reshapeSparse(sheet,workbook,m,sparse):preserve?{area:m.area,at:m.dateColumns.at(-1).c+1,delta:0}:reshapeCalendar(sheet,workbook,m,targetColumns,styleMap,template);
   const grid=mutableSheet(sheet);
   const differentMonth=options.year!==m.period.year||options.month!==m.period.month;
   const clearedNotes=differentMonth?clearMonthNotes(sheet,grid,originalSheet,originalGrid,se,m,targetColumns,template):0;
@@ -546,7 +552,7 @@ function generateSheet(template,m,options,styles,workbook){
   for(const ref of m.period.yearCells){const cell=grid.cells.get(remapRef(ref,at,delta));updateTitle(cell,textOf(cell,template.strings).replace(/20\d{2}(\s*(?:년|학년도))/,`${options.year}$1${m.period.confirmed?` ${options.month}월`:''}`),sheet,template);}
   for(const ref of m.period.monthCells){const cell=grid.cells.get(remapRef(ref,at,delta));putValue(cell,/월/.test(textOf(cell,template.strings))?`${options.month}월`:options.month,sheet);}
   // Keep formulas, but never show cached prior-month totals as new results.
-  for(const f of all(sheet,'f')){const v=child(f.parentNode,'v');if(v)v.parentNode.removeChild(v);}
+  for(const f of all(sheet,'f')){if(m.sparse&&address(attr(f.parentNode,'r')).r>m.area.end.r)continue;const v=child(f.parentNode,'v');if(v)v.parentNode.removeChild(v);}
   const plan=planPages(sheet,area,m,{start:area.r,end:area.end.r});
   if(!namedRange(workbook,m.index,'_xlnm.Print_Area'))setNamedRange(workbook,m.index,'_xlnm.Print_Area',`'${m.name.replace(/'/g,"''")}'!$${columnName(area.c)}$${area.r}:$${columnName(area.end.c)}$${area.end.r}`);
   const setup=ensureSheet(sheet,'pageSetup');if(!setup.hasAttribute('paperSize'))setup.setAttribute('paperSize','9');
@@ -571,7 +577,7 @@ function generateSheet(template,m,options,styles,workbook){
     yearCells:m.period.yearCells.map(ref=>remapRef(ref,at,delta)),
     monthCells:m.period.monthCells.map(ref=>remapRef(ref,at,delta))}};
   const mergeContainer=child(sheet.documentElement,'mergeCells');if(mergeContainer)mergeContainer.setAttribute('count',String(children(mergeContainer,'mergeCell').length));
-  return {sheet,styles,area,mapping,plan,template,year:options.year,month:options.month,browserPrintSafe,preserveColumns:preserve,clearedNotes};
+  return {sheet,styles,area,mapping,plan,template,year:options.year,month:options.month,browserPrintSafe,preserveColumns:preserve,clearedNotes,sourceErrors};
 }
 export function generateWorkbook(template,analysis,options){
   calendarMonth(options.year,options.month);
@@ -582,6 +588,20 @@ export function generateWorkbook(template,analysis,options){
   for(const result of results)files[template.sheets[result.mapping.index].path]=serialize(result.sheet);
   let calc=child(workbook.documentElement,'calcPr');if(!calc){calc=create(workbook,'calcPr');workbook.documentElement.appendChild(calc);}calc.setAttribute('fullCalcOnLoad','1');calc.setAttribute('forceFullCalc','1');
   files['xl/workbook.xml']=serialize(workbook);files['xl/styles.xml']=serialize(styles);
+  if(analysis.sheets.some(m=>m.sparse)){
+    // Excel rebuilds this derived index. Old entries can point to moved or replaced formulas.
+    const rels=template.read('xl/_rels/workbook.xml.rels'),types=template.read('[Content_Types].xml');
+    const chains=all(rels,'Relationship').filter(n=>attr(n,'Type').endsWith('/calcChain'));
+    for(const rel of chains){
+      const url=new URL(attr(rel,'Target'),'https://xlsx.local/xl/workbook.xml');
+      check(!attr(rel,'TargetMode')&&url.origin==='https://xlsx.local','외부 계산 체인은 지원하지 않습니다.');
+      const path=url.pathname.slice(1);
+      check(template.read(path)?.documentElement.localName==='calcChain','계산 체인 연결이 올바르지 않습니다. Excel에서 다시 저장해주세요.');
+      delete files[path];rel.parentNode.removeChild(rel);
+      for(const node of all(types,'Override'))if(attr(node,'PartName')===url.pathname)node.parentNode.removeChild(node);
+    }
+    if(chains.length){files['xl/_rels/workbook.xml.rels']=serialize(rels);files['[Content_Types].xml']=serialize(types);}
+  }
   return {bytes:zipSync(files,{level:6}),results,year:options.year,month:options.month};
 }
 export function printWorkbook(output){

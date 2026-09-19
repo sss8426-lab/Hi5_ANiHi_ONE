@@ -9,6 +9,7 @@ import {attendanceFixture} from '../tests/helpers/attendance-fixture.mjs';
 import {autoFixture} from '../tests/helpers/attendance-auto-fixture.mjs';
 import {realWorldFixture} from '../tests/helpers/attendance-real-world-fixture.mjs';
 import {fidelityFixture} from '../tests/helpers/attendance-fidelity-fixture.mjs';
+import {sparseFixture} from '../tests/helpers/attendance-sparse-fixture.mjs';
 import {unzipSync,zipSync,strFromU8,strToU8} from '../public/data-core/vendor/fflate-0.8.3.js';
 import {analyzeWorkbook,generateWorkbook,printWorkbook} from '../public/data-core/work/attendance-auto.js';
 import {openTemplate,analyzeSheet,generateAttendance,templateStudents,printDocument} from '../public/data-core/work/attendance-template.js';
@@ -23,7 +24,7 @@ const base=process.env.ATTENDANCE_ORIGIN||`http://127.0.0.1:${server.address().p
 assert.match(base,/^https?:\/\/(?:127\.0\.0\.1:\d+|[a-z0-9.-]+\.workers\.dev)$/);
 let previewShell=null;
 if(process.env.ATTENDANCE_ORIGIN){
-  for(const asset of ['data-core/index.html','data-core/app.js','data-core/work/kkumeum-nav.js','data-core/work/kkumeum.html','data-core/work/kkumeum-mobile.js','data-core/work/attendance-page.js','data-core/work/attendance.js','data-core/work/attendance-template.js','data-core/work/attendance-auto.js','data-core/work/attendance.css','data-core/vendor/fflate-0.8.3.js']){
+  for(const asset of ['data-core/index.html','data-core/app.js','data-core/work/kkumeum-nav.js','data-core/work/kkumeum.html','data-core/work/kkumeum-mobile.js','data-core/work/attendance-page.js','data-core/work/attendance.js','data-core/work/attendance-template.js','data-core/work/attendance-auto.js','data-core/work/attendance-sparse.js','data-core/work/attendance.css','data-core/vendor/fflate-0.8.3.js']){
     const response=await fetch(`${base}/${asset}`);assert.equal(response.status,200,asset);
     const deployed=await response.text();assert.equal(deployed.replace(/\r\n/g,'\n'),(await fs.readFile(path.join(root,asset),'utf8')).replace(/\r\n/g,'\n'),asset);
     if(asset==='data-core/index.html')previewShell=withNav(deployed);
@@ -190,6 +191,38 @@ try {
     // Never screenshot, persist or print real student cells, filenames or source paths.
     await page.reload();
   }
+  const sparseBytes=Buffer.from(sparseFixture({sundaySlots:3,weekdaySlots:3,staleDates:true,brokenFormula:true}).bytes);
+  for(const width of [1440,1024,390]){
+    await page.setViewportSize({width,height:900});await page.reload();await page.locator('#atFile').waitFor();
+    await page.locator('#atFile').setInputFiles({name:'SYNTHETIC_2026.09.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:sparseBytes});
+    await page.locator('#atGenerate:not([disabled])').waitFor();
+    assert.equal(await page.locator('#atLayoutOption').isVisible(),false);
+    await page.locator('#atGenerate').click();await page.locator('#atResult:visible').waitFor();
+    assert.match(await page.locator('#atSourceWarning').textContent(),/5개/);assert.match(await page.locator('#atSourceWarning').textContent(),/#REF!/);
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
+    await page.screenshot({path:path.join(out,`${width}-sparse.png`),fullPage:true});
+  }
+  checks.push({sparseTemplate:true,sourceWarnings:true,mobileWidths:[1440,1024,390]});
+  if(process.env.ATTENDANCE_PRIVATE_SOURCE){
+    const file=process.env.ATTENDANCE_PRIVATE_SOURCE,bytes=await fs.readFile(file),hash=b=>createHash('sha256').update(b).digest('hex'),before=hash(bytes);
+    await page.reload();await page.locator('#atFile').waitFor();
+    await page.locator('#atFile').setInputFiles({name:'2026.09.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:bytes});
+    await page.locator('#atRecognized:visible').waitFor();assert.match(await page.locator('#atRecognized').textContent(),/7개 출석부 확인/);
+    if(await page.locator('#atReviewPrompt').isVisible()){
+      await page.locator('#atReview').click();
+      for(const item of await page.locator('[data-review]').all())await item.locator('input[value="2"]').check();
+      await page.locator('#atReviewSave').click();
+    }
+    await page.locator('#atGenerate:not([disabled])').waitFor();await page.locator('#atGenerate').click();await page.locator('#atResult:visible').waitFor();
+    assert.equal(await page.locator('#atTabs [role=tab]').count(),7);
+    const event=page.waitForEvent('download');await page.locator('#atDownload').click();const download=await event,chunks=[];
+    for await(const chunk of await download.createReadStream())chunks.push(chunk);
+    const generated=openTemplate(Buffer.concat(chunks),{DOMParser,XMLSerializer});assert.equal(analyzeWorkbook(generated,'2026.10.xlsx').sheets.length,7);
+    await download.delete();assert.equal(hash(await fs.readFile(file)),before);
+    checks.push({privateWorkbook:true,recognized:7,generated:7,downloadReopened:true,originalUnchanged:true,testOnlyWeekdayConfirmation:true});
+    // No screenshots or persisted outputs containing real student information.
+    await page.reload();
+  }
   role='STAFF';await page.reload();await page.getByText('출석부 생성은 캠퍼스 관리자와 교사만 사용할 수 있습니다.').waitFor();
   role='ANONYMOUS';await page.reload();await page.getByText('로그인 후 출석부를 사용할 수 있습니다.').waitFor();
   checks.push({review:true,invalidFile:true,reset:true,campusIsolation:true,roles:true,february:true,printDialog:true});
@@ -246,5 +279,5 @@ try {
   }
   const unexpected=requests.filter(r=>r.method!=='GET'&&!sourcePreviewRequest(r));
   assert.deepEqual(unexpected,[]);assert.deepEqual(errors,[]);
-  const result={base,checks,errors,mutations:0,realStudentData:Boolean(process.env.ATTENDANCE_PRIVATE_DIRECTORY),authentication:'synthetic context; not a live account login'};await fs.writeFile(path.join(out,'results.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result));
+  const result={base,checks,errors,mutations:0,realStudentData:Boolean(process.env.ATTENDANCE_PRIVATE_DIRECTORY||process.env.ATTENDANCE_PRIVATE_SOURCE),authentication:'synthetic context; not a live account login'};await fs.writeFile(path.join(out,'results.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result));
 }finally{await browser.close();await new Promise(r=>server.close(r));}
