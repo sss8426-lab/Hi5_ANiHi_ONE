@@ -1,4 +1,4 @@
-import { mountAttendance } from './attendance.js?v=20260915-cell-fidelity';
+import { mountAttendance } from './attendance.js?v=20260919-sparse-import';
 
 export function mountAttendancePage(host, { context, campuses }) {
   host.replaceChildren();

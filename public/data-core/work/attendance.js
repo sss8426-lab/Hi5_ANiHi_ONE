@@ -1,5 +1,5 @@
-import {openTemplate,inspectAttendanceSheets,nextMonth,generateWorkbook,attendanceFilename,printWorkbook,RECOGNITION_ERROR} from './attendance-auto.js?v=20260915-cell-fidelity';
-import {renderTable,TABLE_CSS,escapeHtml as h} from './attendance-template.js?v=20260915-cell-fidelity';
+import {openTemplate,inspectAttendanceSheets,nextMonth,generateWorkbook,attendanceFilename,printWorkbook,RECOGNITION_ERROR} from './attendance-auto.js?v=20260919-sparse-import';
+import {renderTable,TABLE_CSS,escapeHtml as h} from './attendance-template.js?v=20260919-sparse-import';
 
 const icon=name=>`<svg class="at-icon" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#${name}"/></svg>`;
 const monthValue=({year,month})=>`${year}-${String(month).padStart(2,'0')}`;
@@ -24,6 +24,7 @@ export function mountAttendance(host){
       <h2 id="atResultTitle"></h2>
       <p id="atLayoutNotice" hidden>원본 날짜칸을 유지했습니다. 주말 다중 수업칸은 재배치되지 않으므로 Excel에서 확인해주세요.</p>
       <p id="atMonthNotice" hidden>지난달 날짜에 붙은 연휴·메모는 새 달에 옮기지 않았습니다. 보강·출결 표시는 비우고 정규 수업칸과 휴원 상태를 유지했습니다.</p>
+      <p id="atSourceWarning" hidden></p>
       <div id="atTabs" role="tablist" aria-label="출석부 시트"></div>
       <div class="at-result-heading"><span id="atEstimate"></span><button type="button" id="atSize" aria-pressed="false" title="실제 크기">${icon('ZoomIn')}</button></div>
       <div class="at-preview" id="atPreview" role="tabpanel" tabindex="0" aria-label="생성된 출석부 미리보기"><div id="atPaper"><div id="atTable"></div></div></div>
@@ -51,8 +52,15 @@ export function mountAttendance(host){
   }
   function sourceList(){
     $('atSheetSelection').hidden=inspected.length===1&&inspected[0].status==='ready';
-    $('atLayoutOption').hidden=!inspected.some(s=>s.status==='ready');
+    $('atLayoutOption').hidden=!inspected.some(s=>s.status==='ready'&&!s.mapping.sparse);
     $('atSourceSheets').innerHTML=inspected.map(s=>`<div class="at-source-sheet"><label class="at-check"><input type="checkbox" data-source-sheet="${s.index}" ${selected.has(s.index)?'checked':''} ${s.status!=='ready'?'disabled':''}><span>${h(s.name)}${s.status==='ready'?` · ${s.mapping.period.year}년 ${s.mapping.period.month}월`:''}</span></label>${s.status==='needs-period'?`<label>원본 출석부 연도·월<input type="month" data-source-period="${s.index}" aria-label="${h(s.name)} 원본 연도·월" min="1901-01" max="2100-12" value="${sourcePeriods[s.index]?monthValue(sourcePeriods[s.index]):''}"></label><button type="button" data-confirm-period="${s.index}">원본 월 확인</button>`:s.status==='unsupported'?`<small>${h(s.message)} 이 시트는 원본을 유지합니다.</small>`:''}</div>`).join('');
+  }
+  function sourceWarnings(){
+    for(const s of inspected.filter(s=>s.mapping?.sparse?.correctedDates)){
+      const note=document.createElement('small');
+      note.textContent=`원본 날짜 숫자 ${s.mapping.sparse.correctedDates}개가 요일 순서와 다릅니다. 생성본 날짜를 확인해주세요.`;
+      $('atSourceSheets').querySelector(`[data-source-sheet="${s.index}"]`)?.closest('.at-source-sheet').append(note);
+    }
   }
   $('atSourceSheets').onchange=e=>{
     if(!e.target.matches('[data-source-sheet]'))return;
@@ -68,7 +76,7 @@ export function mountAttendance(host){
     const item=inspected.find(s=>s.index===i);
     if(item.status==='ready'){selected.add(i);$('atMonth').value=monthValue(nextMonth(year,month));status('');}
     else {delete sourcePeriods[i];const message=item.message;inspected=inspectAttendanceSheets(template,filename,sourcePeriods);status(message);}
-    sourceList();selectSheets();
+    sourceList();sourceWarnings();selectSheets();
   };
   $('atFile').onchange=async e=>{
     const file=e.target.files[0],epoch=++ticket;template=null;analysis=null;Object.keys(overrides).forEach(k=>delete overrides[k]);
@@ -81,7 +89,7 @@ export function mountAttendance(host){
       template=openTemplate(bytes);inspected=inspectAttendanceSheets(template,filename);
       const ready=inspected.filter(s=>s.status==='ready'),latest=Math.max(...ready.map(s=>s.mapping.period.year*12+s.mapping.period.month));
       for(const s of ready)if(s.mapping.period.year*12+s.mapping.period.month===latest)selected.add(s.index);
-      sourceList();selectSheets();
+      sourceList();sourceWarnings();selectSheets();
       if(analysis)$('atMonth').value=monthValue(nextMonth(analysis.year,analysis.month));
       status(analysis?'':inspected.some(s=>s.status==='needs-period')?'원본 연도·월을 확인하면 계속할 수 있습니다.':inspected[0]?.message||RECOGNITION_ERROR);
     }catch(error){template=null;analysis=null;status(`${error?.message||RECOGNITION_ERROR} 다른 파일을 선택해주세요.`);}
@@ -108,9 +116,12 @@ export function mountAttendance(host){
       $('atResultTitle').textContent=`${year}년 ${month}월 출석부`;
       $('atLayoutNotice').hidden=!result.results.some(r=>r.preserveColumns&&r.mapping.dateColumns.some(d=>d.slot>0));
       $('atMonthNotice').hidden=!result.results.some(r=>r.clearedNotes);
+      const sparseSheets=result.results.filter(r=>r.mapping.sparse),corrected=sparseSheets.reduce((n,r)=>n+r.mapping.sparse.correctedDates,0),formulaErrors=result.results.reduce((n,r)=>n+r.sourceErrors,0);
+      $('atSourceWarning').hidden=!sparseSheets.length&&!formulaErrors;
+      $('atSourceWarning').textContent=[sparseSheets.length?'원본 주간 양식의 휴무요일 생략과 구분 열을 유지했습니다.':'',corrected?`원본 날짜 숫자 ${corrected}개가 요일과 달랐습니다. 생성본은 달력에 맞춰 표시하므로 날짜를 확인해주세요.`:'',formulaErrors?'원본에 이미 끊어진 집계 수식(#REF!)이 있습니다. Excel에서 해당 수식을 확인해주세요.':''].filter(Boolean).join(' ');
       $('atTabs').innerHTML=result.results.map((r,i)=>`<button type="button" role="tab" id="atTab${i}" aria-controls="atPreview" data-sheet="${i}">${h(r.mapping.name)}</button>`).join('');
       $('atResult').hidden=false;$('atForm').hidden=true;$('atPrintNotice').hidden=result.results.every(r=>r.browserPrintSafe);showSheet();status('');
-    }catch(error){invalidate();$('atForm').hidden=false;status(`${error?.message||'출석부를 만들지 못했습니다.'}${/수식|그림·표·개체/.test(error?.message||'')?' 원본 날짜칸 유지를 선택하거나 해당 시트를 제외한 뒤 다시 만들어주세요.':''}`);}
+    }catch(error){invalidate();$('atForm').hidden=false;status(`${error?.message||'출석부를 만들지 못했습니다.'}${/수식|그림·표·개체/.test(error?.message||'')?$('atLayoutOption').hidden?' 해당 시트를 제외하거나 Excel에서 원본 수식을 확인해주세요.':' 원본 날짜칸 유지를 선택하거나 해당 시트를 제외한 뒤 다시 만들어주세요.':''}`);}
     finally{busy=false;if(!disposed)sync();}
   };
   function fit(){
