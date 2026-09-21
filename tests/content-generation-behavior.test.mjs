@@ -72,10 +72,18 @@ test('content generation requires authentication and rejects unsupported channel
 });
 
 test('provider absence returns explicit 503 instead of fabricated generated content', async () => {
-  const { mf, post } = await harness();
+  const { mf, env, post } = await harness();
   try {
+    await post(ADMIN,{sourceApp:'blog'});
+    await env.DB.prepare(`INSERT INTO file_objects
+      (id,organization_id,campus_id,area,category,source_app,r2_key,original_file_name,mime_type,size_bytes,visibility,created_at)
+      VALUES ('synthetic-absence',?,?,'academy-public','class-photo','instagram','synthetic/absence','synthetic.png','image/png',10,'campus',?)`)
+      .bind(ORGANIZATION_ID,CAMPUS_A,new Date().toISOString()).run();
     const result = await post(ADMIN, {
       sourceApp: 'instagram',
+      campusId:CAMPUS_A,
+      selectedFileIds:['synthetic-absence'],
+      material:{materialKind:'ai-support',usePermission:'allowed',externalAiConsent:true},
       contentPurpose: 'class-story',
       coreMessage: '수업 성장 기록',
     });
