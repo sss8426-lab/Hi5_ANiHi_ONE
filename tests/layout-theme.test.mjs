@@ -10,6 +10,7 @@ test('signed-in DATA CORE staff shells load the shared versioned visual layer af
     const sharedIndex=styles.findIndex(style=>/layout-theme\.css\?v=20260909-bright-layout/.test(style));
     assert.ok(sharedIndex>0);
     if(['index','content','work/kkumeum'].includes(file)) assert.match(styles.pop(),/image-gallery\.css\?v=/);
+    if(file==='content') assert.match(styles.pop(),/instagram-carousel\.css\?v=/);
     if(file==='accounts') assert.match(styles.pop(),/accounts\.css\?v=/);
     if(file==='work/kkumeum') assert.match(styles.pop(),/family\/kkumeum-mobile\.css/);
     assert.match(styles.at(-1),/design-system\.css\?v=/);
