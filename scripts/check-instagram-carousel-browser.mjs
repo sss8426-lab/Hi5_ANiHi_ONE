@@ -3,10 +3,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import http from 'node:http';
 import {pathToFileURL} from 'node:url';
+import {createHash} from 'node:crypto';
 import {encode,decode} from 'fast-png';
 import {libraryHarness,users,A} from '../tests/support/library-harness.mjs';
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE?pathToFileURL(process.env.PLAYWRIGHT_MODULE).href:'playwright');
 const out=path.resolve('outputs/instagram-carousel'),root=path.resolve('public');await fs.mkdir(out,{recursive:true});
+const previewOrigin=process.argv.includes('--preview')?new URL(process.argv[process.argv.indexOf('--preview')+1]).origin:null;
+const checked=new Set(),assetErrors=[];
 const h=await libraryHarness(),realFetch=globalThis.fetch;
 let textCalls=0,imageCalls=0,failText=false;
 const pixels=Uint8Array.from({length:320*120*4},(_,i)=>{const n=Math.floor(i/4),x=n%320,y=Math.floor(n/320);return i%4===3?255:(x<4||x>=316||y<4||y>=116?[220,60,50]:[110,178,154])[i%4];});
@@ -31,8 +34,15 @@ const server=http.createServer(async(req,res)=>{
     }
     const pathname=/^\/data-core\/content\/(instagram|blog)$/.test(url.pathname)?'/data-core/content.html':url.pathname,file=path.resolve(root,'.'+pathname);
     if(!file.startsWith(root+path.sep)){res.writeHead(403).end();return;}
-    const bytes=await fs.readFile(file);res.writeHead(200,{'content-type':types[path.extname(file)]||'application/octet-stream'}).end(bytes);
-  }catch{res.writeHead(404).end();}
+    const bytes=await fs.readFile(file);
+    if(previewOrigin&&!checked.has(pathname)){
+      const remote=await realFetch(previewOrigin+pathname);
+      assert.equal(remote.status,200,pathname);
+      const hash=data=>createHash('sha256').update(/\.(html|js|css|svg|json)$/.test(pathname)?data.toString('utf8').replace(/\r\n/g,'\n'):data).digest('hex');
+      assert.equal(hash(Buffer.from(await remote.arrayBuffer())),hash(bytes),'Preview asset mismatch '+pathname);checked.add(pathname);
+    }
+    res.writeHead(200,{'content-type':types[path.extname(file)]||'application/octet-stream'}).end(bytes);
+  }catch(error){if(previewOrigin&&error.code!=='ENOENT')assetErrors.push(error.message);res.writeHead(404).end();}
 });
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 const browser=await chromium.launch({headless:true,channel:'chrome'}),errors=[];
@@ -109,5 +119,5 @@ try{
   await page.goto(origin+'/data-core/content/blog');await page.locator(`[data-folder="category:${A}:class-photo"]`).click();await page.locator(`[data-folder="${folder.id}"]`).click();
   await page.locator('[data-pick-file]').nth(0).click();await page.locator('[data-pick-file]').nth(1).click();
   assert.equal(await page.locator('[data-pick-file][aria-pressed="true"]').count(),2);assert.equal(await page.locator('#igGenerate').count(),0);
-  assert.deepEqual(errors,[]);console.log(JSON.stringify({passed:true,widths:[320,390,768,1024,1440,1920],textCalls,imageCalls,sets:[1,5,10],outputs:out}));
+  assert.deepEqual(errors,[]);assert.deepEqual(assetErrors,[]);console.log(JSON.stringify({passed:true,widths:[320,390,768,1024,1440,1920],textCalls,imageCalls,sets:[1,5,10],previewAssets:checked.size,outputs:out}));
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));globalThis.fetch=realFetch;await h.mf.dispose();}

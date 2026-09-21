@@ -25,9 +25,9 @@ export function mountInstagramProduction({state,api,$,toast,canWrite}) {
   const post=(path,body,signal)=>api('/api/data-core/content'+(path?'/'+path:''),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body),signal:signal||AbortSignal.timeout(150000)});
   function buttons(){ $('igGenerate').disabled=busy||!canWrite()||!state.selectedFileIds.length||!$('draftCampus').value;
     $('igComplete').disabled=busy||!items.length||items.length!==state.selectedFileIds.length||signature!==snapshot()||Boolean(currentSet);
-    $('igGenerate').textContent=originalMode()?'이미지 만들기':'AI로 이미지 만들기';$('igCancel').hidden=!busy; }
+    $('igGenerate').textContent=originalMode()?'이미지 만들기':'AI로 이미지 만들기';$('igCancel').hidden=!busy||!controller; }
   function lock(value){busy=value;state.busy=value;$('photoHeading').closest('.workflow-section').inert=value;command.inert=value;$('igLogos').inert=value;$('igMode').disabled=value;history.inert=value;result.querySelectorAll('button,textarea').forEach(el=>el.disabled=value);buttons();}
-  function clear(){generation++;items=[];currentSet=null;signature='';requestId='';result.hidden=true;$('igPreview').removeAttribute('src');$('igSlides').replaceChildren();$('igDownloads').replaceChildren();$('igCaptionSection').hidden=true;$('igCaptionText').value='';$('igCaptionStatus').textContent='';$('igCaptionRetry').hidden=true;buttons();}
+  function clear(){generation++;items=[];currentSet=null;signature='';requestId='';result.hidden=true;$('igPreview').removeAttribute('src');$('igSlides').replaceChildren();$('igDownloads').replaceChildren();$('igCaptionSection').hidden=true;$('igCaptionText').value='';$('igCaptionStatus').textContent='';$('igStatus').textContent='';$('igSaved').textContent='';$('igCaptionRetry').hidden=true;buttons();}
   async function logos(){
     const epoch=++policyEpoch,campusId=$('draftCampus').value;policy=null;$('igCampusLabel').textContent='';
     if(!campusId)return;
@@ -78,12 +78,12 @@ export function mountInstagramProduction({state,api,$,toast,canWrite}) {
   };
   async function downloads(){
     $('igDownloads').replaceChildren(...items.map((item,index)=>{
-      const button=document.createElement('button');button.className='secondary-btn';button.type='button';button.textContent=`${index+1}번 PNG 다운로드`;
-      button.onclick=async()=>{button.disabled=true;try{
+      const button=document.createElement('button');let downloading=false;button.className='secondary-btn';button.type='button';button.textContent=`${index+1}번 PNG 다운로드`;
+      button.onclick=async()=>{if(downloading)return;downloading=true;button.disabled=true;try{
         const response=await fetch(`/api/data-core/content/instagram/${item.draftId}/export`,{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({renderId:item.renderId,fingerprint:item.fingerprint})});
         if(!response.ok)throw Error((await response.json()).error||'다운로드하지 못했습니다.');
         const url=URL.createObjectURL(await response.blob()),link=document.createElement('a');link.href=url;link.download=`instagram-${index+1}-1080x1350.png`;link.click();setTimeout(()=>URL.revokeObjectURL(url),10000);
-      }catch(error){toast(error.message,'error');}finally{button.disabled=false;}};return button;
+      }catch(error){toast(error.message,'error');}finally{downloading=false;button.disabled=false;}};return button;
     }));
   }
   async function caption(){
