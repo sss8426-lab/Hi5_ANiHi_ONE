@@ -236,12 +236,15 @@ export async function uploadDataCoreFile(
   db: D1Database,
   files: R2Bucket,
   context: DataCoreAccessContext,
+  parsedForm?: FormData,
 ) {
   requireWriteAccess(context);
   if (!context.user) throw new DataCoreAccessError(401, "로그인이 필요합니다.");
   await ensureDataCoreDatabase(db);
 
-  const form = await request.formData();
+  // The library adapter already parsed and canonicalized the form. Reuse its File bytes
+  // without encoding and parsing a second multipart request; all authorization still runs.
+  const form = parsedForm ?? await request.formData();
   const file = form.get("file");
   if (!(file instanceof File)) throw new DataCoreAccessError(400, "업로드할 파일이 필요합니다.");
   if (file.size <= 0) throw new DataCoreAccessError(400, "빈 파일은 업로드할 수 없습니다.");

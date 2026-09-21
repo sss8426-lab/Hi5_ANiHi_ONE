@@ -248,6 +248,15 @@ try {
   await page.locator('#libraryRefresh').click();await settled();await page.locator(`[data-library-file="${newFile.id}"] .lb-image-ready`).waitFor();
   assert.ok(imageNetwork.some(r=>r.path===newFile.thumbnailUrl&&r.status===304&&r.bytes===0));
   result.imagePerformance.thumbnailRepeat={status:304,bodyBytes:0};
+  // Eight originals must all finish with independently saved previews and unchanged bytes.
+  await page.locator('#libraryFileInput').setInputFiles(Array.from({length:8},(_,i)=>({name:`synthetic-batch-${i}.jpg`,mimeType:'image/jpeg',buffer:jpeg})));
+  await page.locator('#libraryCloseProgress').waitFor({state:'visible'});
+  assert.match(await page.locator('#libraryProgressCount').innerText(),/8개 파일 · 100% · 완료 8개 · 실패 0개/);
+  await page.locator('#libraryCloseProgress').click();
+  const batch=(await h.list(imagesFolder,role)).body.files.filter(f=>f.fileName.startsWith('synthetic-batch-'));
+  assert.equal(batch.length,8);
+  for(const file of batch){assert.ok(file.thumbnailUrl);const row=await h.file(file.id);assert.deepEqual(Buffer.from(await (await h.env.FILES.get(row.r2_key)).arrayBuffer()),jpeg);}
+  result.flows.push('eight-file upload with persisted thumbnails, original names and byte-identical originals');
   // Fail only the optional derivative request; the original remains a successful single upload.
   expectedThumbnailFailure=true;
   await page.route('**/api/data-core/library/files/*/thumbnail',route=>route.fulfill({status:400,contentType:'application/json',body:'{"error":"synthetic thumbnail failure"}'}));

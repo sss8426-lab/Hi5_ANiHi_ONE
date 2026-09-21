@@ -401,8 +401,8 @@ export async function handleLibraryApi(request: Request, db: D1Database, bucket:
     folder = await materialize(tree, folder);
     form.set('recordId', folder.id); form.set('campusId', folder.campusId || ''); form.set('category', folder.category!);
     form.set('sourceApp', LIBRARY_SOURCE); form.set('ownerId', 'shared');
-    const canonical = new Request(new URL('/api/data-core/files', url), { method: 'POST', headers: { origin: url.origin }, body: form });
-    return json({ file: await uploadDataCoreFile(canonical, db, bucket, context) }, 201);
+    const canonical = new Request(new URL('/api/data-core/files', url), { method: 'POST', headers: { origin: url.origin } });
+    return json({ file: await uploadDataCoreFile(canonical, db, bucket, context, form) }, 201);
   }
   const thumbnailMatch = /^\/api\/data-core\/library\/files\/([^/]+)\/thumbnail$/.exec(url.pathname);
   if (thumbnailMatch && request.method === 'POST') {

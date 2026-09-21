@@ -40,7 +40,7 @@ class DataCoreUploadQueue {
     return { total, loaded, success, failed, count: this.items.length, running: this.running, cancelled: this.cancelled,
       percent: success === this.items.length ? 100 : Math.min(99, Math.floor(total ? loaded / total * 100 : 0)),
       current: active.map(i => i.file.name).join(', '),
-      currentItems: active.map(i => ({ name: i.file.name, loaded: Math.min(i.loaded, i.total), total: i.total })) };
+      currentItems: active.map(i => ({ name: i.file.name, loaded: Math.min(i.loaded, i.total), total: i.total, phase:i.phase || 'upload' })) };
   }
   notify() { this.onChange(this.snapshot()); }
   cancel() {
