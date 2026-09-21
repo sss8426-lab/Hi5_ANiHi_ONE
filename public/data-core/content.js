@@ -1,3 +1,5 @@
+import {instagramImageMime} from './instagram-image-formats.js';
+
 const state = {
   context: null,
   health: null,
@@ -245,13 +247,16 @@ async function loadFiles() {
     if ([...$('draftCampus').options].some(option => option.value === folderCampusId) && $('draftCampus').value !== folderCampusId) {
       $('draftCampus').value = folderCampusId;
       resetDraftForm();
+      instagramProduction?.refresh();
       void loadDefaults();
     }
     $('photoBreadcrumb').innerHTML = (view.breadcrumbs || []).map(item => `<button type="button" data-folder="${h(item.id)}">${h(item.title)}</button>`).join('<span aria-hidden="true">/</span>');
     $('photoFolders').innerHTML = window.DataCoreLibraryClient.folderGroups(view, $('fileSearchInput').value).map(([group, folders]) =>
       `<section class="photo-folder-group"><h3>${h(group)}</h3><div class="photo-folder-grid">${folders.map(folder => `<button type="button" data-folder="${h(folder.id)}"><svg aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Folder"></use></svg><strong>${h(folder.title)}</strong></button>`).join('')}</div></section>`).join('');
     document.querySelectorAll('[data-folder]').forEach(button => { button.onclick = () => { if (state.busy) return; state.folderId = button.dataset.folder; state.page = 1; $('fileSearchInput').value = ''; void loadFiles(); }; });
-    state.files = (listing.files || []).filter(file => ['image/jpeg','image/png','image/webp'].includes(file.mimeType));
+    state.files = (listing.files || []).filter(file => state.sourceApp === 'instagram'
+      ? instagramImageMime(file.mimeType, file.fileName)
+      : ['image/jpeg','image/png','image/webp'].includes(file.mimeType));
     state.files.forEach((file) => state.knownFiles.set(String(file.id), file));
     $('pickerStatus').textContent = state.files.length ? '' : '이 폴더에 선택할 사진이 없습니다.';
     $('photoPages').innerHTML = `<button type="button" class="ghost-btn" id="photoPrev" ${state.page <= 1 ? 'disabled' : ''} aria-label="이전 사진 페이지">←</button><span>${state.page}</span><button type="button" class="ghost-btn" id="photoNext" ${listing.hasMore ? '' : 'disabled'} aria-label="다음 사진 페이지">→</button>`;
@@ -526,6 +531,7 @@ function bindEvents() {
     state.selectedFileIds = []; state.selectedDerivedFileIds = [];
     state.folderId = $('draftCampus').value ? 'campus:' + $('draftCampus').value : 'root'; state.page = 1;
     renderSelectedFiles(); void loadFiles(); void loadDefaults();
+    instagramProduction?.refresh();
   };
   $('refreshDraftsBtn').onclick = loadDrafts;
   $('draftStatusFilter').onchange = loadDrafts;
@@ -913,7 +919,7 @@ async function downloadImage() {
 }
 
 async function init() {
-  const { mountInstagramProduction } = await import(state.sourceApp==='instagram'?'/data-core/instagram-carousel.js?v=20260921-carousel':'/data-core/instagram-production.js?v=20260921-brand');
+  const { mountInstagramProduction } = await import(state.sourceApp==='instagram'?'/data-core/instagram-carousel.js?v=20260921-carousel-fix2':'/data-core/instagram-production.js?v=20260921-brand');
   instagramProduction = mountInstagramProduction({state,api,$,toast,canWrite,saveDraft,setWorkspaceBusy:setAiBusy});
   if($('igCaption'))$('igCaption').onclick = () => runAi(true);
   derivativeEditor = window.HI5InstagramDerivative.mount({

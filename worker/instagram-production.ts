@@ -1,4 +1,4 @@
-import { encode, decode } from 'fast-png';
+import { encode } from 'fast-png';
 import pica from 'pica';
 import { DEFAULT_ORGANIZATION_ID as ORG } from './data-core';
 import { DataCoreAccessContext, DataCoreAccessError, requireWriteAccess, requireCampusAccess, isCampusAdmin, managesCampus } from './data-core-access';
@@ -7,6 +7,7 @@ import { canReadRegisteredFile, derivativeMetadata, DERIVATIVE_CATEGORY, DERIVAT
 import { boundedDerivativeForm, persistImageDerivative, validateOutput } from './data-core-derivatives';
 import { campusDisplayName } from './campus-directory';
 import { BRAND_VERSION, LOGOS, TEMPLATES, HUMAN_CHECKS, getInstagramCampusLogoLabel, normalizeDesign, designChecks } from '../public/data-core/instagram-brand-policy.js';
+import { instagramImageMime } from '../public/data-core/instagram-image-formats.js';
 
 export const INSTAGRAM_RENDER = 'instagram-reviewed-render';
 export const INSTAGRAM_SET = 'instagram-carousel-set';
@@ -39,7 +40,7 @@ async function productionDraft(db:D1Database, context:DataCoreAccessContext, id:
   if (ids.length !== 1 || typeof ids[0] !== 'string') fail(400,'대표 원본 이미지 1장을 선택하세요.');
   const source = await db.prepare('SELECT * FROM file_objects WHERE id=? AND organization_id=? AND deleted_at IS NULL').bind(ids[0],ORG).first<Record<string,unknown>>();
   if (!source || !await canReadRegisteredFile(db,context,source) || (source.campus_id && source.campus_id !== draft.campusId)) fail(403,'원본 자료를 사용할 권한이 없습니다.');
-  if (source!.category === DERIVATIVE_CATEGORY || !['image/png','image/jpeg','image/webp'].includes(String(source!.mime_type))) fail(400,'원본 이미지를 선택하세요.');
+  if (source!.category === DERIVATIVE_CATEGORY || !instagramImageMime(source!.mime_type, String(source!.original_file_name||''))) fail(400,'PNG, JPG, JPEG, WebP, GIF, AVIF, BMP 원본 이미지를 선택하세요.');
   // Include all editable metadata and the live campus projection: generic record edits also invalidate approval.
   // New logo choices must not invalidate previously approved single-image renders.
   const fingerprintPolicy=design.workflow==='carousel-v2'?policy:{...policy,logos:{anihi:LOGOS.anihi,hi5:LOGOS.hi5,combined:LOGOS.combined}};
@@ -120,7 +121,7 @@ export async function saveInstagramSetCaption(db:D1Database,context:DataCoreAcce
 }
 
 export async function saveInstagramRender(request:Request,db:D1Database,files:R2Bucket,context:DataCoreAccessContext,id:string) {
-  const current = await productionDraft(db,context,id), form = await boundedDerivativeForm(request);
+  const current = await productionDraft(db,context,id), form = await boundedDerivativeForm(request,16*1024*1024);
   if (form.get('fingerprint') !== current.fingerprint) fail(409,'초안이 변경되었습니다. 다시 저장하고 미리보기를 만드세요.');
   const backgroundId = String(form.get('backgroundFileId') || current.source.id);
   if (backgroundId !== current.source.id) {
@@ -130,7 +131,7 @@ export async function saveInstagramRender(request:Request,db:D1Database,files:R2
     if (!editable || !row || !provenance || provenance.derivedFromFileId !== current.source.id || !await canReadRegisteredFile(db,context,row)) fail(403,'학생 작품과 보호 자료는 원본 그대로 배치해야 합니다.');
   }
   const file = form.get('file');
-  if (!(file instanceof File) || file.type !== 'image/png') fail(400,'PNG 미리보기가 필요합니다.');
+  if (!(file instanceof File) || file.type !== 'image/png' || !file.size || file.size>16*1024*1024) fail(400,'16MB 이하 PNG 미리보기가 필요합니다.');
   const bytes = new Uint8Array(await (file as File).arrayBuffer()); validateOutput(bytes);
   if (!await files.head(String(current.source.r2_key))) fail(404,'원본 이미지가 없습니다.');
   const output = await persistImageDerivative(db,files,context,current.source,bytes,{
@@ -194,8 +195,8 @@ export async function exportInstagram(db:D1Database,files:R2Bucket,context:DataC
   const row=await db.prepare('SELECT r2_key FROM file_objects WHERE id=? AND organization_id=? AND deleted_at IS NULL').bind(report.masterFileId,ORG).first<{r2_key:string}>();
   const object=row && await files.get(row.r2_key);
   if (!object) fail(404,'승인된 이미지가 없습니다.');
-  const bytes=new Uint8Array(await object!.arrayBuffer());validateOutput(bytes);
-  const image=decode(bytes,{checkCrc:true}),rgba=new Uint8Array(2160*2700*4);
+  const bytes=new Uint8Array(await object!.arrayBuffer());
+  const image=validateOutput(bytes),rgba=new Uint8Array(2160*2700*4);
   for(let i=0;i<2160*2700;i++){rgba[i*4]=image.data[i*image.channels];rgba[i*4+1]=image.data[i*image.channels+1];rgba[i*4+2]=image.data[i*image.channels+2];rgba[i*4+3]=image.channels===4?image.data[i*4+3]:255;}
   const data=await pica({features:['js']}).resizeBuffer({src:rgba,width:2160,height:2700,toWidth:1080,toHeight:1350,filter:'lanczos3'});
   // Recheck after expensive rendering so concurrent edits cannot reuse old approval.

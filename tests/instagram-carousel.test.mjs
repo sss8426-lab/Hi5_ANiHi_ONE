@@ -4,9 +4,20 @@ import {encode,decode} from 'fast-png';
 import {libraryHarness,users,A} from './support/library-harness.mjs';
 import {imageBox} from '../public/data-core/instagram-layout.js';
 import {LOGOS,normalizeDesign} from '../public/data-core/instagram-brand-policy.js';
+import {instagramImageMime} from '../public/data-core/instagram-image-formats.js';
 
 const png=(w,h)=>encode({width:w,height:h,channels:4,depth:8,data:new Uint8Array(w*h*4).fill(185)});
 const material={workflow:'carousel-v2',logoType:'horizontal',materialKind:'student-artwork',usePermission:'allowed'};
+
+test('raster formats and legacy JPEG aliases are supported without accepting active documents',()=>{
+  for(const [mime,name,expected] of [['image/png','a.png','image/png'],['image/jpg','a.jpg','image/jpeg'],['IMAGE/JPEG','a.jpeg','image/jpeg'],
+    ['application/octet-stream','a.JPEG','image/jpeg'],['','a.webp','image/webp'],['image/gif','a.gif','image/gif'],['image/avif','a.avif','image/avif'],['image/x-ms-bmp','a.bmp','image/bmp']]){
+    assert.equal(instagramImageMime(mime,name),expected);
+  }
+  assert.equal(instagramImageMime('image/svg+xml','fake.png'),'');
+  assert.equal(instagramImageMime('text/html','fake.jpg'),'');
+  assert.equal(instagramImageMime('','fake.svg'),'');
+});
 test('five official choices, artwork contained and photos fill the same master frame',()=>{
   assert.equal(Object.keys(LOGOS).length,5);
   assert.equal(imageBox('student-artwork').fit,'contain');

@@ -14,3 +14,16 @@
 
 When upgrading, replace the complete upstream file and license together, update
 the versioned import and validate the workbook/PDF regression fixtures.
+
+## Instagram PNG encoder
+
+`fast-png-8.0.0-encoder.js` is a tree-shaken browser bundle of the existing locked
+`fast-png@8.0.0` encoder and its locked `fflate`/`iobuffer` dependencies. The bundle
+is 17KB uncompressed and has no external requests. Reproduce it and the combined
+license file with `node scripts/build-instagram-png-encoder.mjs` after `npm ci`.
+`FAST-PNG-LICENSES.txt` contains all bundled dependency licenses.
+
+The Instagram compositor runs this encoder in a same-origin module Worker. It
+serializes only the finished RGB canvas pixels, without source EXIF/text/profile
+chunks. Browser-native PNG metadata, palette and chunk splitting cannot alter
+the server's strict 2160x2700 true-color PNG contract. Originals remain untouched.

@@ -61,6 +61,8 @@ jobs:
           node --check public/data-core/instagram-production.js
           node --check public/data-core/instagram-carousel.js
           node --check public/data-core/instagram-layout.js
+          node --check public/data-core/instagram-image-formats.js
+          node --check public/data-core/instagram-png-worker.js
           node --check public/data-core/operations.js
           node --check public/data-core/roadmap.js
           node --check public/data-core/roadmap-model.js

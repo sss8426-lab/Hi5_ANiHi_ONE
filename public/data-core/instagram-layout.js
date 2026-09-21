@@ -4,7 +4,21 @@ export function imageBox(kind){return {x:56,y:340,width:2048,height:2304,fit:kin
 export async function loadBitmap(url,signal){
   const response=await fetch(url,{credentials:'same-origin',signal});if(!response.ok)throw Error('이미지를 불러오지 못했습니다.');
   const blob=await response.blob();if(blob.size>20*1024*1024)throw Error('20MB 이하 이미지를 선택하세요.');
-  const image=await createImageBitmap(blob);if(image.width*image.height>40000000){image.close();throw Error('이미지가 너무 큽니다.');}return image;
+  try{
+    const image=await createImageBitmap(blob,{imageOrientation:'from-image'});if(image.width*image.height>100000000){image.close();throw Error('1억 화소 이하 이미지를 선택하세요.');}return image;
+  }catch(error){if(error.name==='AbortError'||error.message.includes('화소'))throw error;throw Error('이미지를 읽을 수 없습니다. PNG, JPG, JPEG, WebP, GIF, AVIF, BMP 파일인지 확인하세요.');}
+}
+export function encodeMaster(canvas,signal){
+  signal?.throwIfAborted();
+  return new Promise((resolve,reject)=>{
+    const worker=new Worker(new URL('./instagram-png-worker.js',import.meta.url),{type:'module'});
+    const finish=(error,blob)=>{worker.terminate();signal?.removeEventListener('abort',abort);if(error)reject(error);else resolve(blob);};
+    const abort=()=>finish(new DOMException('작업을 중단했습니다.','AbortError'));
+    signal?.addEventListener('abort',abort,{once:true});
+    worker.onerror=()=>finish(Error('PNG 변환에 실패했습니다. 새로고침 후 다시 시도하세요.'));
+    worker.onmessage=({data})=>data.error?finish(Error(data.error)):finish(null,new Blob([data.bytes],{type:'image/png'}));
+    try{const pixels=canvas.getContext('2d').getImageData(0,0,MASTER.width,MASTER.height).data;worker.postMessage({...MASTER,pixels:pixels.buffer},[pixels.buffer]);}catch(error){finish(error);}
+  });
 }
 function fitted(ctx,image,x,y,w,h,cover=false){const scale=(cover?Math.max:Math.min)(w/image.width,h/image.height);ctx.save();ctx.beginPath();ctx.rect(x,y,w,h);ctx.clip();ctx.drawImage(image,x+(w-image.width*scale)/2,y+(h-image.height*scale)/2,image.width*scale,image.height*scale);ctx.restore();}
 // Tight measured lockups. The marks themselves are original user-supplied raster pixels.
@@ -45,6 +59,6 @@ export async function composeInstagram(sourceUrl,design,label,signal){
     await drawLogo(logo,design.logoType,label,signal);const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,2160,2700);
     fitted(ctx,logo,110,32,1940,260);
     const box=imageBox(design.materialKind);fitted(ctx,image,box.x,box.y,box.width,box.height,box.fit==='cover');
-    const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(!blob)throw Error('이미지를 만들지 못했습니다.');return blob;
+    return await encodeMaster(canvas,signal);
   }finally{image.close();canvas.width=canvas.height=1;logo.width=logo.height=1;}
 }

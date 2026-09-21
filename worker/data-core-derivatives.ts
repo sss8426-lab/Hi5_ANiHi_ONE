@@ -8,7 +8,7 @@ import { canReadRegisteredFile, DERIVATIVE_CATEGORY, DERIVATIVE_RECORD_TYPE } fr
 const MAX_BYTES = 8 * 1024 * 1024;
 export async function boundedDerivativeForm(request: Request, maxBytes = MAX_BYTES) {
   const limit = maxBytes + 65536;
-  const message = maxBytes === MAX_BYTES ? '파생 이미지는 8MB 이하여야 합니다.' : '썸네일은 256KB 이하여야 합니다.';
+  const message = maxBytes === 256*1024 ? '썸네일은 256KB 이하여야 합니다.' : `파생 이미지는 ${maxBytes/1024/1024}MB 이하여야 합니다.`;
   if (Number(request.headers.get('content-length')) > limit) throw new DataCoreAccessError(413, message);
   if (!request.body) throw new DataCoreAccessError(400, '파생 이미지 파일이 필요합니다.');
   const reader = request.body.getReader(), chunks: Uint8Array[] = [];
@@ -54,6 +54,7 @@ export function validateOutput(bytes: Uint8Array) {
     if (inflateSync(Buffer.concat(chunks), { maxOutputLength: expected }).length !== expected) throw new Error();
     const image = decode(bytes, { checkCrc: true });
     if (image.width !== 2160 || image.height !== 2700) throw new Error();
+    return image;
   } catch { throw new DataCoreAccessError(400, '2160 x 2700 크기의 올바른 PNG 이미지만 저장할 수 있습니다.'); }
 }
 

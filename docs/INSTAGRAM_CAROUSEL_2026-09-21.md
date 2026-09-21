@@ -67,3 +67,43 @@ Run `npm test`, `npx tsc --noEmit`, `npx wrangler deploy --dry-run`.
 For browser evidence: `node scripts/check-instagram-carousel-browser.mjs` with Playwright available (or set `PLAYWRIGHT_MODULE` to the installed module path). This new harness supersedes the old single-image Instagram assertions in `check-content-ai-browser.mjs`; that older script documents the previous UI contract.
 
 Official v2 source preparation is reproducible with `node scripts/prepare-instagram-v2-assets.mjs <attachment-directory>`. It uses only the explicitly supplied logo references. Keep all prior brand assets for rollback.
+
+## Follow-up: campus logos and input/PNG compatibility
+
+The user reported empty logos after choosing a campus and the save error
+`2160 x 2700 크기의 올바른 PNG 이미지만 저장할 수 있습니다.`
+
+- Confirmed: the MASTER landing selection is organization scope (empty campus),
+  and neither campus change nor library navigation refreshed logo policy. Both
+  paths now refresh it. A stale policy response cannot replace the current campus.
+- Render logo buttons independently; one unavailable preview no longer hides
+  all five choices. The server remains authoritative for campus access and labels.
+- The PNG error was a generic catch for dimensions, PNG chunk types, decompression
+  and CRC, not evidence that the input photograph had to be 2160x2700 or PNG.
+  The exact rejected user PNG bytes were not supplied. Rather than weaken CRC or
+  pixel checks, the compositor now encodes RGB pixels using the same locked codec
+  as the server, in a separate browser Worker. Native browser metadata/chunk
+  variants are no longer passed through to the strict validator.
+- The reviewed-render endpoint accepts up to 16MiB (previously 8MiB), with both
+  bounded request reading and per-file checks. Other derivative/AI/thumbnail
+  budgets are unchanged. Worst-case detailed synthetic frames above 8MiB pass
+  actual workerd validation; corrupted/wrong-dimension outputs still fail.
+- Export reuses the validation decode instead of decoding the same master twice.
+- Shared raster metadata detection supports PNG, JPG/JPEG, WebP, GIF, AVIF and
+  BMP, including common legacy JPEG aliases and generic MIME + image extension.
+  Explicit SVG/HTML/document types are not reinterpreted as images. All existing
+  source/campus/private permission checks remain. Animated inputs become a still.
+- Deterministic auto-fit does not require a direction prompt. Artwork is contained
+  without cutting edges; academy-photo mode fills the frame with proportional crop.
+  Input safety bounds are 20MiB / 100 megapixels, not unlimited allocation. Phone
+  EXIF orientation is decoded by the browser. Outputs are still 2160x2700 masters
+  and 1080x1350 downloadable PNGs.
+- AI photo correction retains the existing supported JPEG/PNG/WebP and provider
+  budgets/consent gates. No key replacement or model change. No paid provider call
+  was made in this follow-up; image/caption provider responses in tests are mocks.
+
+Additional browser coverage: MASTER organization -> campus, campus folder navigation,
+rapid campus switching with a delayed stale response, six real encoded raster formats
+at portrait/landscape/square ratios, prompt-free deterministic generation, and existing
+1/5/10 image sets plus downloads/permissions/preview identity. Synthetic only, isolated
+D1/R2. No migrations, real-file edits, IDs changed or production content writes.

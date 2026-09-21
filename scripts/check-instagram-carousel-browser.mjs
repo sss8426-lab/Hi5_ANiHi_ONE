@@ -5,13 +5,14 @@ import http from 'node:http';
 import {pathToFileURL} from 'node:url';
 import {createHash} from 'node:crypto';
 import {encode,decode} from 'fast-png';
-import {libraryHarness,users,A} from '../tests/support/library-harness.mjs';
+import sharp from 'sharp';
+import {libraryHarness,users,A,B} from '../tests/support/library-harness.mjs';
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE?pathToFileURL(process.env.PLAYWRIGHT_MODULE).href:'playwright');
 const out=path.resolve('outputs/instagram-carousel'),root=path.resolve('public');await fs.mkdir(out,{recursive:true});
 const previewOrigin=process.argv.includes('--preview')?new URL(process.argv[process.argv.indexOf('--preview')+1]).origin:null;
 const checked=new Set(),assetErrors=[];
 const h=await libraryHarness(),realFetch=globalThis.fetch;
-let textCalls=0,imageCalls=0,failText=false;
+let textCalls=0,imageCalls=0,failText=false,activeUser=users.staff;
 const pixels=Uint8Array.from({length:320*120*4},(_,i)=>{const n=Math.floor(i/4),x=n%320,y=Math.floor(n/320);return i%4===3?255:(x<4||x>=316||y<4||y>=116?[220,60,50]:[110,178,154])[i%4];});
 const png=encode({width:320,height:120,channels:4,depth:8,data:pixels});
 globalThis.fetch=async(url,options)=>{
@@ -23,6 +24,18 @@ globalThis.fetch=async(url,options)=>{
 h.env.OPENAI_API_KEY='synthetic-only';
 const folder=(await h.folder('category:'+A+':class-photo','SYNTHETIC carousel browser',users.staff)).body.folder,files=[];
 for(let i=0;i<11;i++)files.push((await h.upload(folder.id,users.staff,{name:`SYNTHETIC-${i}.png`,mime:'image/png',bytes:png})).body.file);
+const formatFolder=(await h.folder('category:'+A+':class-photo','SYNTHETIC raster formats',users.staff)).body.folder,formatFiles=[];
+for(const [ext,mime,width,height] of [['png','image/png',300,1600],['jpg','image/jpeg',2200,300],['jpeg','image/jpeg',700,700],['webp','image/webp',800,1400],['gif','image/gif',400,200],['avif','image/avif',300,600]]){
+  const bytes=await sharp({create:{width,height,channels:3,background:'#409b82'}}).toFormat(ext==='jpg'?'jpeg':ext).toBuffer();
+  const response=await h.upload(formatFolder.id,users.staff,{name:`SYNTHETIC.${ext}`,mime,bytes});assert.equal(response.status,201,JSON.stringify(response.body));formatFiles.push(response.body.file);
+}
+// Small uncompressed BMP fixture; also exercise historical metadata, without rewriting production rows.
+const bmp=Buffer.alloc(70);bmp.write('BM');bmp.writeUInt32LE(70,2);bmp.writeUInt32LE(54,10);bmp.writeUInt32LE(40,14);
+bmp.writeInt32LE(2,18);bmp.writeInt32LE(2,22);bmp.writeUInt16LE(1,26);bmp.writeUInt16LE(24,28);bmp.fill(120,54);
+const bmpUpload=await h.upload(formatFolder.id,users.staff,{name:'SYNTHETIC.bmp',mime:'image/bmp',bytes:bmp});
+assert.equal(bmpUpload.status,201,JSON.stringify(bmpUpload.body));formatFiles.push(bmpUpload.body.file);
+await h.env.DB.prepare('UPDATE file_objects SET mime_type=? WHERE id=?').bind('image/jpg',formatFiles[1].id).run();
+await h.env.DB.prepare('UPDATE file_objects SET mime_type=? WHERE id=?').bind('application/octet-stream',formatFiles[3].id).run();
 const types={'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml','.png':'image/png','.webp':'image/webp'};
 const server=http.createServer(async(req,res)=>{
   try{
@@ -30,7 +43,7 @@ const server=http.createServer(async(req,res)=>{
     if(url.pathname.startsWith('/api/')){
       const chunks=[];for await(const chunk of req)chunks.push(chunk);const bytes=Buffer.concat(chunks);
       const body=bytes.length?(String(req.headers['content-type']).startsWith('multipart/form-data')?await new Request('http://localhost',{method:'POST',headers:req.headers,body:bytes}).formData():JSON.parse(bytes.toString())):undefined;
-      const result=await h.raw(req.method,url.pathname+url.search,users.staff,body);res.writeHead(result.status,Object.fromEntries(result.headers)).end(Buffer.from(await result.arrayBuffer()));return;
+      const result=await h.raw(req.method,url.pathname+url.search,activeUser,body);res.writeHead(result.status,Object.fromEntries(result.headers)).end(Buffer.from(await result.arrayBuffer()));return;
     }
     const pathname=/^\/data-core\/content\/(instagram|blog)$/.test(url.pathname)?'/data-core/content.html':url.pathname,file=path.resolve(root,'.'+pathname);
     if(!file.startsWith(root+path.sep)){res.writeHead(403).end();return;}
@@ -50,6 +63,22 @@ try{
   const context=await browser.newContext({serviceWorkers:'block',permissions:['clipboard-read','clipboard-write']}),page=await context.newPage();page.setDefaultTimeout(30000);
   page.on('pageerror',e=>errors.push(e.message));page.on('dialog',dialog=>dialog.accept());
   const origin='http://127.0.0.1:'+server.address().port;
+  // MASTER starts with organization scope, unlike the single-campus fixtures used before.
+  activeUser=users.master;
+  await page.goto(origin+'/data-core/content/instagram');
+  await page.waitForFunction(()=>document.querySelector('#draftCampus').options.length>2);
+  assert.equal(await page.locator('#draftCampus').inputValue(),'');
+  await page.locator('#draftCampus').selectOption(A);
+  await page.waitForFunction(()=>document.querySelectorAll('[data-logo]').length===5&&document.querySelector('#igCampusLabel').textContent==='부천 입시본원');
+  await page.route('**/instagram-policy?campusId='+B,async route=>{await new Promise(resolve=>setTimeout(resolve,700));await route.continue();});
+  const stalePolicy=page.waitForResponse(response=>response.url().endsWith('instagram-policy?campusId='+B));
+  await page.locator('#draftCampus').selectOption(B);await page.locator('#draftCampus').selectOption(A);
+  await page.waitForFunction(()=>document.querySelectorAll('[data-logo]').length===5&&document.querySelector('#igCampusLabel').textContent==='부천 입시본원');
+  await stalePolicy;await page.unroute('**/instagram-policy?campusId='+B);
+  await page.locator('#draftCampus').selectOption('');assert.equal(await page.locator('[data-logo]').count(),0);
+  await page.locator('[data-folder="campus:'+A+'"]').click();
+  await page.waitForFunction(()=>document.querySelectorAll('[data-logo]').length===5&&document.querySelector('#igCampusLabel').textContent==='부천 입시본원');
+  activeUser=users.staff;
   async function open(){
     await page.goto(origin+'/data-core/content/instagram');
     await page.locator(`[data-folder="category:${A}:class-photo"]`).click();await page.locator(`[data-folder="${folder.id}"]`).click();
@@ -117,6 +146,14 @@ try{
   failText=true;await generate(1,'photo');assert.equal(imageCalls,1);assert.equal(await page.locator('#igCaptionRetry').isVisible(),true);
   failText=false;await page.locator('#igCaptionRetry').click();await page.waitForFunction(()=>document.querySelector('#igCaptionStatus').textContent.includes('작성 완료'));
   assert.equal(imageCalls,1,'caption retry never edits images again');
+  await page.goto(origin+'/data-core/content/instagram');
+  await page.locator(`[data-folder="category:${A}:class-photo"]`).click();await page.locator(`[data-folder="${formatFolder.id}"]`).click();
+  for(const file of formatFiles)await page.locator(`[data-pick-file="${file.id}"]`).click();
+  // No direction is required for deterministic auto-fit. No external image call is made.
+  await page.locator('#igGenerate').click();
+  await page.waitForFunction(()=>document.querySelector('#igStatus').textContent==='7장 제작 완료',null,{timeout:180000});
+  assert.equal(imageCalls,1);assert.equal(await page.locator('#igSlides button').count(),7);
+  await page.screenshot({path:path.join(out,'formats-auto-fit.png'),fullPage:true});
   // Shared picker remains multi-select in the blog editor, without the Instagram controls.
   await page.goto(origin+'/data-core/content/blog');await page.locator(`[data-folder="category:${A}:class-photo"]`).click();await page.locator(`[data-folder="${folder.id}"]`).click();
   await page.locator('[data-pick-file]').nth(0).click();await page.locator('[data-pick-file]').nth(1).click();
