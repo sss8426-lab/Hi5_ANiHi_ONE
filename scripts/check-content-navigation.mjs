@@ -16,7 +16,7 @@ for(let i=0;i<50;i++){
   const form=new FormData();form.set('file',new Blob([thumb],{type:'image/webp'}),'thumb.webp');
   assert.equal((await h.request('POST','/api/data-core/library/files/'+file.id+'/thumbnail',users.staff,form)).status,201);
 }
-let before=false,failFiles=false,deny=false;const assets=new Map();let counts={},active=0;
+let before=false,failFiles=false,deny=false;const assets=new Map();let counts={},active=0,apiBytes=0;
 const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const server=http.createServer(async(req,res)=>{active++;try{
   const url=new URL(req.url,'http://localhost');
@@ -28,7 +28,8 @@ const server=http.createServer(async(req,res)=>{active++;try{
     if(deny){res.writeHead(401,{'content-type':'application/json'}).end('{"error":"Synthetic expired session"}');return;}
     if(failFiles&&key==='/api/data-core/library/files'){res.writeHead(503,{'content-type':'application/json'}).end('{"error":"Synthetic files unavailable"}');return;}
     const result=await h.raw(req.method,url.pathname+url.search,users.staff);
-    res.writeHead(result.status,Object.fromEntries(result.headers)).end(Buffer.from(await result.arrayBuffer()));return;
+    const responseBytes=Buffer.from(await result.arrayBuffer());apiBytes+=responseBytes.length;
+    res.writeHead(result.status,Object.fromEntries(result.headers)).end(responseBytes);return;
   }
   const pathname=url.pathname.startsWith('/data-core/content/')?'/data-core/content.html':url.pathname;
   const file=path.resolve(root,'.'+pathname);if(!file.startsWith(root+path.sep)){res.writeHead(403).end();return;}
@@ -43,21 +44,25 @@ try{
   for(const baseline of [true,false]){
     before=baseline;counts={};const context=await browser.newContext({serviceWorkers:'block'}),page=await context.newPage();
     await page.addInitScript(()=>{let Cache;Object.defineProperty(window,'DataCorePrivateImageCache',{configurable:true,get(){return Cache;},set(Value){Cache=class extends Value{constructor(...args){super(...args);window.__thumbnailCache=this;}};}});});
-    await page.goto(origin+'/data-core/content/instagram');await page.locator(`[data-folder="category:${A}:class-photo"]`).waitFor();await wait(1500);counts={};
+    await page.goto(origin+'/data-core/content/instagram');await page.locator(`[data-folder="category:${A}:class-photo"]`).waitFor();await wait(1500);counts={};apiBytes=0;
     const initial=performance.now();await page.reload();await page.locator(`#photoFolders [data-folder="category:${A}:class-photo"]`).waitFor();
     const initialMs=Math.round(performance.now()-initial);
     await page.locator(`[data-folder="category:${A}:class-photo"]`).click();await page.locator(`#photoFolders [data-folder="${folder.id}"]`).waitFor();
     let started=performance.now();await page.locator(`[data-folder="${folder.id}"]`).click();await page.locator('[data-pick-file]').first().waitFor();
     const filesMs=Math.round(performance.now()-started);await page.locator('#filePickList').scrollIntoViewIfNeeded();await page.waitForFunction(()=>Array.from(document.querySelectorAll('#filePickList img')).some(img=>img.naturalWidth));
     const firstThumbnailMs=Math.round(performance.now()-started),visits=[];
+    const cdp=await context.newCDPSession(page);
+    const memory=async()=>{await cdp.send('HeapProfiler.collectGarbage');return {...await cdp.send('Memory.getDOMCounters'),heapBytes:(await cdp.send('Runtime.getHeapUsage')).usedSize};};
+    await wait(500);const memoryBefore=await memory();
     for(let i=0;i<30;i++){
       started=performance.now();await page.locator(`[data-folder="category:${A}:class-photo"]`).click();await page.locator(`#photoFolders [data-folder="${folder.id}"]`).waitFor();visits.push(Math.round(performance.now()-started));
       await page.locator(`#photoFolders [data-folder="${folder.id}"]`).click();await page.waitForFunction(id=>document.querySelector('#photoBreadcrumb button:last-child')?.dataset.folder===id&&document.querySelectorAll('[data-pick-file]').length===50,folder.id);
     }
+    await wait(500);const memoryAfter=await memory();
     const sorted=[...visits].sort((a,b)=>a-b),cache=await page.evaluate(()=>window.__thumbnailCache?{entries:window.__thumbnailCache.entries.size,bytes:window.__thumbnailCache.bytes,active:window.__thumbnailCache.active}:null);
     if(cache){assert.ok(cache.entries<=50);assert.ok(cache.bytes<=8*1024*1024);}
     const originalReads=Object.entries(counts).filter(([key])=>originals.has(key.split('/').pop())).reduce((sum,[,n])=>sum+n,0);assert.equal(originalReads,0);
-    results[baseline?'before':'after']={initialMs,filesMs,firstThumbnailMs,revisitMedianMs:sorted[15],revisitP95Ms:sorted[28],requests:Object.values(counts).reduce((a,b)=>a+b,0),originalReads,cache};
+    results[baseline?'before':'after']={initialMs,filesMs,firstThumbnailMs,revisitMedianMs:sorted[15],revisitP95Ms:sorted[28],requests:Object.values(counts).reduce((a,b)=>a+b,0),apiBytes,originalReads,cache,memoryBefore,memoryAfter};
     if(!baseline){
       failFiles=true;await page.locator(`[data-folder="category:${A}:class-photo"]`).click();await page.locator(`[data-folder="${folder.id}"]`).waitFor();
       await page.waitForFunction(()=>document.querySelector('#pickerStatus').textContent.includes('Synthetic files unavailable'));
