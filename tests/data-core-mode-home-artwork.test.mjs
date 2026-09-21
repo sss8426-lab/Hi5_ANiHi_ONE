@@ -16,7 +16,7 @@ assert.match(enhancement, /login-chip-action/);
 assert.match(nav, /mode-home-artwork\.js/);
 assert.match(html, /work-visuals\/story-v1\.webp/);
 assert.match(html, /work-visuals\/operations-v1\.webp/);
-assert.match(html, /styles\.css\?v=20260912-award-preview/);
+assert.match(html, /styles\.css\?v=20260921-calendar/);
 assert.match(html, /mode-grid photographic-modes/);
 assert.equal((html.match(/work-visuals\/story-v1\.webp/g) || []).length, 1);
 assert.match(html, /data-brand-image="dream" src="\/data-core\/assets\/counseling\/dream-roadmap-field-v1\.webp"/);
@@ -25,7 +25,7 @@ assert.match(styles, /\.photographic-modes \.mode-card img \{[\s\S]*?aspect-rati
 assert.match(html, /href="\/data-core\/counseling" data-mode-card="counseling"/);
 assert.match(html, /href="\/data-core\/work" data-mode-card="work"/);
 assert.match(html, /mode-artwork-arrow/);
-assert.match(html, /mode-home-artwork\.js\?v=20260909-counseling/);
+assert.match(html, /mode-home-artwork\.js\?v=20260921-calendar/);
 assert.doesNotMatch(app, /querySelectorAll\('\[data-mode-card\]'\)/);
 assert.match(styles, /object-fit:\s*cover/);
 assert.match(styles, /mode-sidebar\.svg\?v=20260908-mode-home/);

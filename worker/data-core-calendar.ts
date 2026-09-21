@@ -41,7 +41,7 @@ function cleanText(value: unknown, maxLength: number): string {
 }
 
 function parseDate(value: unknown, field: string): string {
-  const normalized = cleanText(value, 10);
+  const normalized = String(value ?? "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
     throw new DataCoreAccessError(400, `${field}은 YYYY-MM-DD 형식이어야 합니다.`);
   }
@@ -57,7 +57,7 @@ function calendarMetadata(value: unknown, fallback: Partial<CalendarMetadata> = 
     ? value as Record<string, unknown>
     : {};
   const startDate = parseDate(input.startDate ?? fallback.startDate, "startDate");
-  const endDate = cleanText(input.endDate ?? fallback.endDate, 10) || startDate;
+  const endDate = String(input.endDate ?? fallback.endDate ?? "").trim() || startDate;
   parseDate(endDate, "endDate");
   if (endDate < startDate) {
     throw new DataCoreAccessError(400, "endDate는 startDate보다 빠를 수 없습니다.");
@@ -77,6 +77,14 @@ function calendarMetadata(value: unknown, fallback: Partial<CalendarMetadata> = 
     ...(sourceRecordId ? { sourceRecordId } : {}),
     ...(sourceApp ? { sourceApp } : {}),
   };
+}
+
+// Home uses metadata; older clients (including FAMILY) send top-level dates.
+function calendarInput(body: Record<string, unknown>): Record<string, unknown> {
+  const nested = body.metadata;
+  return nested && typeof nested === "object" && !Array.isArray(nested)
+    ? { ...body, ...nested as Record<string, unknown> }
+    : body;
 }
 
 function ensureCalendarRecord(record: CalendarRecord): CalendarRecord {
@@ -174,7 +182,7 @@ export async function createAcademyCalendarEvent(
     visibility: scope.visibility,
     title: cleanText(body.title, 240),
     summary: cleanText(body.summary, 10_000) || null,
-    metadata: calendarMetadata(body),
+    metadata: calendarMetadata(calendarInput(body)),
   });
   return calendarEvent(record);
 }
@@ -197,9 +205,7 @@ export async function updateAcademyCalendarEvent(
     typeof existing.visibility === "string" ? existing.visibility : undefined,
   );
   const existingMetadata = calendarMetadata(existing.metadata);
-  const metadataInput = body.metadata && typeof body.metadata === "object" && !Array.isArray(body.metadata)
-    ? { ...existingMetadata, ...(body.metadata as Record<string, unknown>) }
-    : existingMetadata;
+  const metadataInput = calendarInput(body);
   const record = await updateDataRecord(db, context, recordId, {
     recordType: CALENDAR_RECORD_TYPE,
     sourceApp: CALENDAR_SOURCE_APP,

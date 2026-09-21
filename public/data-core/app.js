@@ -28,6 +28,9 @@ const state = {
   calendarEvents: [],
   calendarMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   calendarSelectedDate: null,
+  calendarLoadId: 0,
+  calendarAbort: null,
+  calendarSaving: false,
   currentMode: 'mode',
   currentView: 'mode-home',
   droppedFiles: [],
@@ -525,6 +528,7 @@ function openModal(id) {
 }
 
 function closeModal(id) {
+  if (id === 'calendarModal' && state.calendarSaving) return;
   if ($(id) instanceof HTMLDialogElement) return $(id).close();
   if (id === 'uploadModal') {
     if (uploadQueue?.running) {
@@ -1552,24 +1556,33 @@ function renderCalendar() {
 }
 
 async function loadCalendar() {
+  const loadId = ++state.calendarLoadId;
+  state.calendarAbort?.abort();
+  state.calendarAbort = null;
   if (!state.context?.authenticated) {
     state.calendarEvents = [];
     renderCalendar();
     return;
   }
   const { from, to } = calendarRange();
+  const controller = new AbortController();
+  state.calendarAbort = controller;
+  renderCalendar();
   try {
-    const response = await api(`/api/data-core/calendar?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+    const response = await api(`/api/data-core/calendar?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { signal: controller.signal });
+    if (loadId !== state.calendarLoadId) return;
     state.calendarEvents = response.events || [];
   } catch (error) {
-    state.calendarEvents = [];
+    if (loadId !== state.calendarLoadId || error.name === 'AbortError') return;
     if (error.status !== 401) toast(error.message, 'error');
+  } finally {
+    if (loadId === state.calendarLoadId) state.calendarAbort = null;
   }
   renderCalendar();
 }
 
 function openCalendarModal(event = null) {
-  if (!canWrite()) return;
+  if (!canWrite() || state.calendarSaving) return;
   const date = state.calendarSelectedDate || calendarRange().from;
   const metadata = event?.metadata || {};
   $('calendarModalTitle').textContent = event ? '일정 수정' : '일정 등록';
@@ -1579,12 +1592,28 @@ function openCalendarModal(event = null) {
   $('calendarEndDate').value = metadata.endDate || '';
   $('calendarEventType').value = metadata.eventType || 'other';
   $('calendarSummary').value = event?.summary || '';
-  $('calendarCampus').value = event?.campusId || '';
+  const campusSelect = $('calendarCampus');
+  const campusIds = new Set((state.context?.memberships || []).map((membership) => membership.campusId).filter(Boolean));
+  const campuses = orderedCampuses().filter((campus) => isSuperAdmin() || campusIds.has(campus.id));
+  campusSelect.innerHTML = (isSuperAdmin() ? '<option value="">조직 공통</option>' : '')
+    + campuses.map((campus) => `<option value="${h(campus.id)}">${h(campusDisplayName(campus))}</option>`).join('');
+  campusSelect.value = event ? event.campusId || '' : isSuperAdmin() ? '' : campuses[0]?.id || '';
+  $('calendarFormError').textContent = '';
   openModal('calendarModal');
+  $('calendarTitle').focus({ preventScroll: true });
 }
 
 async function saveCalendarEvent(event) {
   event.preventDefault();
+  if (state.calendarSaving) return;
+  const errorLabel = $('calendarFormError');
+  errorLabel.textContent = '';
+  if (!$('calendarForm').reportValidity()) return;
+  if ($('calendarEndDate').value && $('calendarEndDate').value < $('calendarStartDate').value) {
+    errorLabel.textContent = '종료일은 시작일과 같거나 이후여야 합니다.';
+    $('calendarEndDate').focus();
+    return;
+  }
   const id = $('calendarEventId').value;
   const campusId = $('calendarCampus').value || null;
   const payload = {
@@ -1594,27 +1623,47 @@ async function saveCalendarEvent(event) {
     visibility: campusId ? 'campus' : 'organization',
     metadata: {
       startDate: $('calendarStartDate').value,
-      endDate: $('calendarEndDate').value || undefined,
+      endDate: $('calendarEndDate').value || '',
       allDay: true,
       eventType: $('calendarEventType').value,
     },
   };
   const button = $('calendarSubmitBtn');
+  state.calendarSaving = true;
+  const controls = [...$('calendarForm').elements];
+  const disabled = controls.map((control) => control.disabled);
+  controls.forEach((control) => { control.disabled = true; });
   button.disabled = true;
+  button.textContent = '저장 중...';
+  $('calendarForm').setAttribute('aria-busy', 'true');
   try {
-    await api(id ? `/api/data-core/calendar/${encodeURIComponent(id)}` : '/api/data-core/calendar', {
+    const response = await api(id ? `/api/data-core/calendar/${encodeURIComponent(id)}` : '/api/data-core/calendar', {
       method: id ? 'PATCH' : 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(payload),
     });
+    // Only confirmed writes update the calendar; older GETs must not undo them.
+    ++state.calendarLoadId;
+    state.calendarAbort?.abort();
+    state.calendarEvents = state.calendarEvents.filter((item) => item.id !== response.event.id);
+    state.calendarEvents.push(response.event);
     state.calendarSelectedDate = payload.metadata.startDate;
+    const [year, month] = payload.metadata.startDate.split('-').map(Number);
+    const changedMonth = year !== state.calendarMonth.getFullYear() || month !== state.calendarMonth.getMonth() + 1;
+    state.calendarMonth = new Date(year, month - 1, 1);
+    state.calendarSaving = false;
     closeModal('calendarModal');
-    await loadCalendar();
+    renderCalendar();
+    if (changedMonth) void loadCalendar();
     toast(id ? '일정을 수정했습니다.' : '일정을 등록했습니다.');
   } catch (error) {
+    errorLabel.textContent = error.message;
     toast(error.message, 'error');
   } finally {
-    button.disabled = false;
+    state.calendarSaving = false;
+    controls.forEach((control, index) => { control.disabled = disabled[index]; });
+    button.textContent = '일정 저장';
+    $('calendarForm').removeAttribute('aria-busy');
   }
 }
 

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>HI5·ANiHi DATA CORE</title>
-  <link rel="stylesheet" href="/data-core/styles.css?v=20260912-award-preview">
+  <link rel="stylesheet" href="/data-core/styles.css?v=20260921-calendar">
   <link rel="stylesheet" href="/data-core/layout-theme.css?v=20260909-bright-layout">
   <link rel="stylesheet" href="/data-core/counseling-refinements.css?v=20260909-1">
   <link rel="stylesheet" href="/data-core/curriculum.css?v=20260913-soft-premium">
@@ -491,7 +491,7 @@
   </div>
 
   <div class="modal-backdrop hidden" id="calendarModal">
-    <div class="modal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="calendarModalTitle">
       <div class="modal-head">
         <div><h3 id="calendarModalTitle">일정 등록</h3><p>등록한 일정은 권한이 있는 DATA CORE 화면에만 표시됩니다.</p></div>
         <button class="icon-btn" type="button" data-close-modal="calendarModal" aria-label="닫기">×</button>
@@ -504,6 +504,7 @@
         <label><span>유형</span><select id="calendarEventType"><option value="class">수업</option><option value="admission">입시</option><option value="competition">공모전</option><option value="marketing">홍보</option><option value="holiday">휴일</option><option value="meeting">회의</option><option value="other">기타</option></select></label>
         <label><span>공유 범위</span><select id="calendarCampus"></select></label>
         <label class="span-2"><span>메모</span><textarea id="calendarSummary" rows="4" maxlength="10000"></textarea></label>
+        <p class="span-2" id="calendarFormError" role="alert"></p>
         <div class="form-actions span-2"><button class="primary-btn" type="submit" id="calendarSubmitBtn">일정 저장</button></div>
       </form>
     </div>
@@ -546,8 +547,8 @@
   <script src="/data-core/curriculum-library.js?v=20260913-folder-covers"></script>
   <script src="/data-core/curriculum.js?v=20260913-work-v1"></script>
   <script src="/data-core/brand-home.js?v=20260913-brand-home"></script>
-  <script src="/data-core/app.js?v=20260920-award-shared"></script>
-  <script src="/data-core/mode-home-artwork.js?v=20260909-counseling"></script>
+  <script src="/data-core/app.js?v=20260921-calendar"></script>
+  <script src="/data-core/mode-home-artwork.js?v=20260921-calendar"></script>
   <script type="module" src="/data-core/design-shell.js?v=20260912-campus"></script>
 </body>
 </html>

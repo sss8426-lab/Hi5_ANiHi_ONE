@@ -332,6 +332,9 @@ td strong { font-size: 12px; }
 .modal-backdrop { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 24px; background: rgba(15,23,42,.46); backdrop-filter: blur(5px); }
 .modal { width: min(520px, 100%); max-height: calc(100vh - 48px); overflow: auto; background: #fff; border-radius: 20px; padding: 22px; box-shadow: var(--shadow); }
 .modal-wide { width: min(760px, 100%); }
+#calendarModal { backdrop-filter: none; }
+#calendarFormError { margin: 0; color: #b42318; }
+#calendarFormError:empty { display: none; }
 .modal-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; margin-bottom: 20px; }
 .modal-head h3 { margin: 0; font-size: 18px; }
 .modal-head p { margin: 5px 0 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
