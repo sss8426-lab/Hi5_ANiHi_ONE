@@ -15,8 +15,8 @@ test('글 방향 선택(균형형 기본)과 바로 글 만들기 버튼은 블�
 test('runAi는 quick 파라미터로 바로 글 만들기와 단계별(제목 선택) 흐름을 분기하고, 인스타 경로는 그대로 유지한다', () => {
   assert.match(content, /async function runAi\(captionOnly = false, quick = false\) \{/u);
   assert.match(content, /\$\('quickGenerateAi'\)\.onclick = \(\) => runAi\(false, true\);/u);
-  // Instagram's own generate call is byte-for-byte unchanged from before this feature.
-  assert.match(content, /if \(instagram\) \{\s*\n\s*result = await post\('generate', \{ selectedFileIds: ids, notes: direction \}\);/u);
+  // Instagram remains JSON-based, with additive material/consent policy.
+  assert.match(content, /if \(instagram\) \{\s*\n\s*result = await post\('generate', \{ selectedFileIds: ids, notes: direction, material \}\);/u);
   // Blog sends strategyMode/recentTitles alongside the existing fields; multipart shape otherwise unchanged.
   assert.match(content, /form\.set\('input', JSON\.stringify\(\{ selectedFileIds: ids, notes: direction, sourceApp, campusId, strategyMode: \$\('strategyMode'\)\.value, recentTitles, requestId: crypto\.randomUUID\(\) \}\)\);/u);
   assert.match(content, /const recentTitles = await recentBlogTitles\(\);/u);

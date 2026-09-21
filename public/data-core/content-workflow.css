@@ -79,3 +79,15 @@
 .publish-checklist li.ok { color: var(--core-ink); }
 .publish-checklist li.warn { color: #9a5b12; }
 @media (max-width: 600px) { .title-option { grid-template-columns: auto 1fr; } }
+/* Instagram-only composer; artwork and brand areas never overlap. */
+.instagram-production .instagram-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.instagram-production label{display:flex;flex-direction:column;gap:8px;margin-bottom:14px;min-width:0}
+.instagram-production .ig-check{flex-direction:row;align-items:flex-start;gap:10px;line-height:1.6}
+.instagram-production .ig-check input{width:20px;height:20px;flex:0 0 20px;margin-top:3px}
+.instagram-production input,.instagram-production select{width:100%;min-width:0;box-sizing:border-box}
+.instagram-production canvas{display:block;width:100%;max-width:540px;height:auto;aspect-ratio:4/5;margin:24px auto;border:1px solid var(--core-border,#dedcd5)}
+.instagram-production canvas[hidden]{display:none}
+.instagram-production fieldset{border:0;padding:0;margin:20px 0}
+.instagram-production #igChecks{padding-left:22px;line-height:1.8;overflow-wrap:anywhere}
+.instagram-production .form-actions{flex-wrap:wrap}
+@media(max-width:600px){.instagram-production .instagram-fields{grid-template-columns:1fr}}

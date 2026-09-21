@@ -62,6 +62,7 @@ import { campusPresence } from './campus-presence';
 import { handleKkumeumApi } from "./kkumeum-router";
 import { aiModels, boundedJson, ContentAiError, editInstagramImage, openAiContentProvider, unavailable, type OpenAiEnv } from './content-openai-provider';
 import { contentDefaults, contentScope, withAiRequest } from './content-ai-settings';
+import { instagramPolicy, saveInstagramRender, reviewInstagram, approveInstagram, exportInstagram, assertInstagramAiUse } from './instagram-production';
 import { AI_PHOTO_LIMIT } from './content-ai-images';
 
 interface Env extends OpenAiEnv {
@@ -478,6 +479,18 @@ async function handleContentApi(request: Request, env: Env) {
     if (request.method === 'GET') return jsonResponse({ defaults: await contentDefaults(env.DB, context, Object.fromEntries(url.searchParams)) });
     if (request.method === 'PUT') return jsonResponse({ defaults: await contentDefaults(env.DB, context, await contentJson(request), true) });
   }
+  if (url.pathname === '/api/data-core/content/instagram-policy' && request.method === 'GET') return jsonResponse(await instagramPolicy(env.DB,context,url.searchParams.get('campusId') || ''));
+  const productionMatch=url.pathname.match(/^\/api\/data-core\/content\/instagram\/([^/]+)\/(review|render|approve|export)$/);
+  if (productionMatch) {
+    const [,id,action]=productionMatch;
+    if(action==='review' && request.method==='GET') return jsonResponse(await reviewInstagram(env.DB,context,id,url.searchParams.get('renderId') || undefined));
+    if(request.method!=='POST') return jsonResponse({error:'지원하지 않는 요청입니다.'},{status:405});
+    if(action==='render' && env.FILES) return jsonResponse(await saveInstagramRender(request,env.DB,env.FILES,context,id),{status:201});
+    const input=await contentJson(request);
+    if(action==='approve') return jsonResponse(await approveInstagram(env.DB,context,id,input));
+    if(action==='export' && env.FILES) return exportInstagram(env.DB,env.FILES,context,id,input);
+    throw new DataCoreAccessError(503,'파일 저장소를 확인하세요.');
+  }
 
   if (url.pathname === "/api/data-core/content") {
     if (request.method === "GET") {
@@ -505,6 +518,7 @@ async function handleContentApi(request: Request, env: Env) {
     const input = parsedInput as ContentGenerationInput;
     const scope = contentScope(context, input);
     if (photos && scope.sourceApp !== 'blog') throw new DataCoreAccessError(400, '사진 업로드 방식이 이 콘텐츠 종류와 맞지 않습니다.');
+    if(scope.sourceApp==='instagram') await assertInstagramAiUse(env.DB,context,input.selectedFileIds || [],parsedInput);
     const provider = env.FILES ? openAiContentProvider(env, env.DB, env.FILES, context, request.signal) : undefined;
     try {
       const run = () => generateContentWithProvider(env.DB!, context, input, provider, photos);
@@ -539,6 +553,7 @@ async function handleContentApi(request: Request, env: Env) {
     const input = await contentJson(request);
     const { campusId, sourceApp } = contentScope(context, input);
     if (sourceApp !== 'instagram' || typeof input.sourceFileId !== 'string' || input.sourceFileId.length > 120 || typeof input.direction !== 'string' || !input.direction.trim() || input.direction.length > 4000) throw new DataCoreAccessError(400, '대표 사진 1장과 홍보 방향을 입력하세요.');
+    await assertInstagramAiUse(env.DB,context,[input.sourceFileId],input,true);
     try {
       if (!env.FILES || !env.OPENAI_API_KEY) throw unavailable();
       const file = await withAiRequest(env.DB, context, input.requestId, campusId, () => editInstagramImage(env, env.DB!, env.FILES!, context, input.sourceFileId, campusId, input.direction, request.signal));

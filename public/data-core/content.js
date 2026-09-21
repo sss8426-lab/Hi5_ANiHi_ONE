@@ -44,7 +44,7 @@ const AI_OPTIMIZE_STEPS = [
 const AI_OPTIMIZE_TARGET_BYTES = 1.5 * 1024 * 1024;
 const AI_OPTIMIZE_HARD_CAP_BYTES = 2 * 1024 * 1024;
 
-let derivativeEditor;
+let derivativeEditor, instagramProduction;
 
 const $ = (id) => document.getElementById(id);
 
@@ -176,14 +176,16 @@ function setSourceApp(sourceApp) {
   const instagram = state.sourceApp === 'instagram';
   $('draftContent').rows = instagram ? 5 : 12;
   $('commandLabel').textContent = instagram ? '어떤 느낌으로 편집할까요?' : '어떤 글을 만들까요?';
-  $('aiCommand').placeholder = instagram ? '학생과 그림은 그대로 유지하고, 밝고 고급스러운 학원 홍보 이미지로 편집해줘.' : '고1 칸만화 수업 사진입니다. 인체와 장면 연출을 연습한 내용을 학부모가 이해하기 쉽게 작성해줘.';
-  $('generateAi').textContent = instagram ? 'AI로 인스타 이미지 만들기' : 'AI로 블로그 글 작성';
+  $('aiCommand').placeholder = instagram ? 'AI 보조 배경을 밝고 차분하게 보정해줘. 실제 수업·학생 작품·성과처럼 보이는 내용과 글자는 추가하지 말아줘.' : '고1 칸만화 수업 사진입니다. 인체와 장면 연출을 연습한 내용을 학부모가 이해하기 쉽게 작성해줘.';
+  $('generateAi').textContent = instagram ? 'AI 보조 이미지 편집' : 'AI로 블로그 글 작성';
   $('regenerateAi').textContent = instagram ? '다시 편집' : '다시 작성';
   $('copyContent').textContent = instagram ? '문구 복사' : '전체 복사';
   $('aiPrivacy').textContent = instagram ? 'AI 이미지 편집은 선택한 대표 사진 1장에 대해 실행됩니다.' : '선택한 사진은 AI 분석에 맞게 자동 최적화되어 전송됩니다. 자료보관함 원본 파일은 변경되지 않습니다.';
   $('strategyModeField').hidden = instagram;
   $('quickGenerateAi').hidden = instagram;
+  $('downloadImage').hidden = instagram;
   resetDraftForm(false);
+  instagramProduction?.refresh();
 }
 
 function selectedFiles() {
@@ -191,6 +193,7 @@ function selectedFiles() {
 }
 
 function renderSelectedFiles() {
+  instagramProduction?.selectionChanged();
   const rows = selectedFiles();
   derivativeEditor?.update(rows, state.sourceApp === 'instagram');
   $('selectedDerivatives').innerHTML = state.selectedDerivedFileIds.map((id) => {
@@ -317,6 +320,7 @@ function renderFilePicker() {
 
 function draftPayload() {
   const metadata = { footer: $('resultFooter').value, callToAction: $('resultFooter').value || null };
+  if (state.sourceApp === 'instagram') metadata.instagramDesign = instagramProduction?.read();
   if (state.sourceApp === 'blog') {
     metadata.strategyMode = $('strategyMode').value;
     if (state.blogStrategy) metadata.strategy = state.blogStrategy;
@@ -359,6 +363,8 @@ async function saveDraft(event) {
     state.editingDraftId = response.draft.id;
     $('newDraftBtn').classList.remove('hidden');
     await loadDrafts();
+    instagramProduction?.invalidated();
+    return response.draft;
   } catch (error) {
     toast(error.message, 'error');
   } finally {
@@ -369,6 +375,7 @@ async function saveDraft(event) {
 
 function resetDraftForm(clearSource = true) {
   state.editingDraftId = null;
+  instagramProduction?.load({});
   state.selectedFileIds = [];
   state.selectedDerivedFileIds = [];
   derivativeEditor?.reset();
@@ -436,6 +443,8 @@ function loadDraftIntoForm(draft) {
   renderFilePicker();
   renderNextTopics();
   renderPublishChecklist();
+  instagramProduction?.load(metadata.instagramDesign);
+  if (state.sourceApp === 'instagram') void instagramProduction?.restore(draft.id);
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -806,8 +815,10 @@ function renderTitlePicker() {
 
 async function runAi(captionOnly = false, quick = false) {
   if (state.busy || !canWrite()) return;
-  const ids = captionOnly && state.aiSourceId ? [state.aiSourceId] : [...state.selectedFileIds], direction = $('aiCommand').value.trim();
+  const ids = [...state.selectedFileIds], direction = $('aiCommand').value.trim();
   const instagram = state.sourceApp === 'instagram';
+  const material = instagramProduction?.read();
+  if (instagram && (material?.usePermission !== 'allowed' || !material.externalAiConsent || (captionOnly ? !['real-photo','ai-support'].includes(material.materialKind) : material.materialKind !== 'ai-support'))) return toast('학생 작품은 로고 합성으로 제작하세요. AI는 자료 유형·홍보 권한·별도 AI 처리 동의를 확인한 경우에만 사용합니다.', 'error');
   if (!ids.length || (instagram && ids.length !== 1)) return toast('사용할 사진을 선택하세요.', 'error');
   if (!direction) return toast('원하는 내용을 입력해주세요.', 'error');
   const campusId = $('draftCampus').value || null, sourceApp = state.sourceApp;
@@ -823,7 +834,7 @@ async function runAi(captionOnly = false, quick = false) {
   const post = (path, body) => api('/api/data-core/content/' + path, { method: 'POST', headers: { 'content-type': 'application/json' }, signal, body: JSON.stringify({ ...body, sourceApp, campusId, requestId: crypto.randomUUID() }) });
   try {
     if (instagram && !captionOnly) {
-      const result = await post('image-edit', { sourceFileId: ids[0], direction });
+      const result = await post('image-edit', { sourceFileId: ids[0], direction, material });
       state.aiFile = result.file; state.aiSourceId = ids[0]; state.selectedDerivedFileIds = [result.file.id];
       state.knownFiles.set(result.file.id, result.file); imageSaved = true;
       $('aiImageResult').hidden = false; $('aiResult').hidden = false;
@@ -839,7 +850,7 @@ async function runAi(captionOnly = false, quick = false) {
     }
     let result;
     if (instagram) {
-      result = await post('generate', { selectedFileIds: ids, notes: direction });
+      result = await post('generate', { selectedFileIds: ids, notes: direction, material });
     } else {
       const photoFiles = ids.map((id) => state.knownFiles.get(String(id))).filter(Boolean);
       if (photoFiles.length !== ids.length) throw new Error('선택한 사진 정보를 확인할 수 없습니다. 사진을 다시 선택해주세요.');
@@ -905,6 +916,9 @@ async function downloadImage() {
 }
 
 async function init() {
+  const { mountInstagramProduction } = await import('/data-core/instagram-production.js?v=20260921-brand');
+  instagramProduction = mountInstagramProduction({state,api,$,toast,canWrite,saveDraft,setWorkspaceBusy:setAiBusy});
+  $('igCaption').onclick = () => runAi(true);
   derivativeEditor = window.HI5InstagramDerivative.mount({
     canWrite,
     onError: (message) => toast(message, 'error'),
@@ -921,6 +935,7 @@ async function init() {
   setSourceApp(state.sourceApp);
   await loadHealthAndContext();
   renderCampusSelectors();
+  instagramProduction.refresh();
   renderSelectedFiles();
   if (state.context?.authenticated) {
     state.folderId = $('draftCampus').value ? 'campus:' + $('draftCampus').value : 'root';

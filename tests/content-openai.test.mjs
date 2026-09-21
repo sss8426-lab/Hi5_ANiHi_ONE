@@ -76,7 +76,7 @@ test('Image Edit adapter normalizes, stores provenance, protects original and pe
       assert.ok(!options.body.get('prompt').includes(file.id));
       return Response.json({data:[{b64_json:Buffer.from(png()).toString('base64')}]});
     };
-    const body={sourceApp:'instagram',campusId:A,sourceFileId:file.id,direction:'밝게 보정',requestId:crypto.randomUUID()};
+    const body={sourceApp:'instagram',campusId:A,sourceFileId:file.id,direction:'밝게 보정',material:{materialKind:'ai-support',usePermission:'allowed',externalAiConsent:true},requestId:crypto.randomUUID()};
     const result=await h.request('POST','/api/data-core/content/image-edit',users.staff,body);
     assert.equal(result.status,201,JSON.stringify(result.body));
     const output=result.body.file;
@@ -122,6 +122,8 @@ test('AI rejects unauthorized, non-image, private, cross-campus, forged provenan
 
 test('sanitized JPEG/WebP retain orientation but never original EXIF; provider failures remain allowlisted',async()=>{
   const h=await libraryHarness(), originalFetch=globalThis.fetch;
+  const originalError=console.error,logs=[];
+  console.error=(...values)=>logs.push(JSON.stringify(values));
   try {
     h.env.OPENAI_API_KEY='synthetic-test-only';
     for(const format of ['jpeg','webp']) {
@@ -147,8 +149,10 @@ test('sanitized JPEG/WebP retain orientation but never original EXIF; provider f
     assert.equal((await h.request('POST','/api/data-core/content/generate',users.staff,input(file.id))).status,502);
     delete h.env.OPENAI_API_KEY;
     const absent=await h.request('POST','/api/data-core/content/generate',users.staff,input(file.id));assert.equal(absent.status,503);assert.equal(absent.body.available,false);
+    assert.ok(!logs.join('\n').includes('SECRET-SYNTHETIC'));
+    assert.ok(!logs.join('\n').includes('synthetic-test-only'));
     assert.equal((await h.env.DB.prepare('SELECT COUNT(*) count FROM file_objects WHERE category=? AND organization_id=?').bind('instagram-derived',ORG).first()).count,0);
-  }finally{globalThis.fetch=originalFetch;await h.mf.dispose();}
+  }finally{console.error=originalError;globalThis.fetch=originalFetch;await h.mf.dispose();}
 });
 
 test('blog multipart path: 10 browser-optimized photos bypass R2 entirely, still enforce per-file/total hard caps and reject non-blog use',async()=>{

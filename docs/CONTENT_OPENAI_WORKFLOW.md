@@ -1,5 +1,13 @@
 # Blog / Instagram OpenAI Workflow
 
+## Instagram Brand/Approval Update (2026-09-21)
+
+Existing `OPENAI_API_KEY` and provider adapter are reused, without key rotation or model changes.
+Instagram image edits are now restricted to explicitly consented AI-support sources; student artwork,
+logos and factual documents are not sent to AI. Official logo composition, separate campus labels,
+human review and version-bound 1080x1350 export are documented in
+`INSTAGRAM_BRAND_REVIEW_2026-09-21.md`. Earlier live-provider results below are historical, not a new probe.
+
 ## Production Acceptance (2026-09-14)
 
 - Source baseline: `1ea3db84e1e0e12663c8cfbb57efe7ad2de3729d`. Worker tested: `58a9cc6c-783c-4091-b3e8-57b7fbe3c7e8` (100%, deployed 2026-09-14 05:33 UTC).
