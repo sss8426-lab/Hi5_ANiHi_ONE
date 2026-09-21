@@ -1,4 +1,4 @@
-import { mountAttendance } from './attendance.js?v=20260919-sparse-import';
+import { mountAttendance } from './attendance.js?v=20260921-weekend-selection';
 
 export function mountAttendancePage(host, { context, campuses }) {
   host.replaceChildren();

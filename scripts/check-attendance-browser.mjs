@@ -10,9 +10,10 @@ import {autoFixture} from '../tests/helpers/attendance-auto-fixture.mjs';
 import {realWorldFixture} from '../tests/helpers/attendance-real-world-fixture.mjs';
 import {fidelityFixture} from '../tests/helpers/attendance-fidelity-fixture.mjs';
 import {sparseFixture} from '../tests/helpers/attendance-sparse-fixture.mjs';
+import {multiSlotFixture} from '../tests/helpers/attendance-multi-slot-fixture.mjs';
 import {unzipSync,zipSync,strFromU8,strToU8} from '../public/data-core/vendor/fflate-0.8.3.js';
 import {analyzeWorkbook,generateWorkbook,printWorkbook} from '../public/data-core/work/attendance-auto.js';
-import {openTemplate,analyzeSheet,generateAttendance,templateStudents,printDocument} from '../public/data-core/work/attendance-template.js';
+import {openTemplate,analyzeSheet,generateAttendance,templateStudents,printDocument,indexSheet,cellRef,styleEngine} from '../public/data-core/work/attendance-template.js';
 
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE?pathToFileURL(process.env.PLAYWRIGHT_MODULE).href:'playwright');
 const root=path.resolve('public'),out=path.resolve(process.env.ATTENDANCE_ORIGIN?'outputs/attendance-preview':'outputs/attendance-browser');
@@ -24,7 +25,7 @@ const base=process.env.ATTENDANCE_ORIGIN||`http://127.0.0.1:${server.address().p
 assert.match(base,/^https?:\/\/(?:127\.0\.0\.1:\d+|[a-z0-9.-]+\.workers\.dev)$/);
 let previewShell=null;
 if(process.env.ATTENDANCE_ORIGIN){
-  for(const asset of ['data-core/index.html','data-core/app.js','data-core/work/kkumeum-nav.js','data-core/work/kkumeum.html','data-core/work/kkumeum-mobile.js','data-core/work/attendance-page.js','data-core/work/attendance.js','data-core/work/attendance-template.js','data-core/work/attendance-auto.js','data-core/work/attendance-sparse.js','data-core/work/attendance.css','data-core/vendor/fflate-0.8.3.js']){
+  for(const asset of ['data-core/index.html','data-core/app.js','data-core/work/kkumeum-nav.js','data-core/work/kkumeum.html','data-core/work/kkumeum-mobile.js','data-core/work/attendance-page.js','data-core/work/attendance.js','data-core/work/attendance-template.js','data-core/work/attendance-auto.js','data-core/work/attendance-schedule.js','data-core/work/attendance-sparse.js','data-core/work/attendance.css','data-core/vendor/fflate-0.8.3.js']){
     const response=await fetch(`${base}/${asset}`);assert.equal(response.status,200,asset);
     const deployed=await response.text();assert.equal(deployed.replace(/\r\n/g,'\n'),(await fs.readFile(path.join(root,asset),'utf8')).replace(/\r\n/g,'\n'),asset);
     if(asset==='data-core/index.html')previewShell=withNav(deployed);
@@ -114,6 +115,27 @@ try {
   for(const item of await page.locator('[data-review]').all())await item.locator('input[value="1"]').check();
   await page.locator('#atReviewSave').click();await page.locator('#atGenerate').click();await page.locator('#atResult:visible').waitFor();
   await page.locator('#atAgain').click();
+  // Count-based confirmation must survive UI -> XLSX -> recognition, at every device width.
+  for(const width of [1920,1440,1280,1024,820,768,430,390,320]){
+    await page.setViewportSize({width,height:900});
+    await page.locator('#atFile').setInputFiles({name:'2026.09.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:Buffer.from(multiSlotFixture({students:1,needsReview:true,saturdaySlots:1,sundaySlots:1}).bytes)});
+    await page.locator('#atReviewPrompt:visible').waitFor();await page.locator('#atReview').click();
+    const student=page.locator('[data-review]');
+    assert.equal(await student.locator('input[value="6"]').count(),3);assert.equal(await student.locator('input[value="0"]').count(),3);
+    for(const box of await student.locator('input[value="6"]').all())await box.check();
+    for(const box of (await student.locator('input[value="0"]').all()).slice(0,2))await box.check();
+    assert.equal(await page.locator('#atReviewDialog').evaluate(el=>el.scrollWidth>el.clientWidth+1),false);
+    await page.screenshot({path:path.join(out,`${width}-weekend-review.png`),fullPage:true});
+    await page.locator('#atReviewSave').click();await page.locator('#atReview').click();
+    assert.equal(await student.locator('input[value="6"]:checked').count(),3);assert.equal(await student.locator('input[value="0"]:checked').count(),2);
+    await page.locator('#atReviewSave').click();await page.locator('#atGenerate').click();await page.locator('#atResult:visible').waitFor();
+    const event=page.waitForEvent('download');await page.locator('#atDownload').click();const download=await event;
+    const bytes=await fs.readFile(await download.path()),t=openTemplate(bytes,{DOMParser,XMLSerializer}),a=analyzeWorkbook(t,download.suggestedFilename()),m=a.sheets[0];
+    assert.equal(m.dateColumns.filter(d=>d.day===3).length,3);assert.equal(m.dateColumns.filter(d=>d.day===4).length,2);
+    const grid=indexSheet(t.read(t.sheets[0].path)),styles=styleEngine(t.styles,t);
+    for(const day of [3,4])for(const col of m.dateColumns.filter(d=>d.day===day))assert.equal(styles.fillColor(styles.fillId(grid.cells.get(cellRef(col.c,m.studentBlocks[0].start)))),'#E8F0EC');
+    checks.push({width,weekendConfirmation:true,weekendDownload:true});await page.locator('#atAgain').click();
+  }
   // Missing source periods and partial/mixed workbooks are real UI recovery paths, not engine-only tests.
   await page.locator('#atFile').setInputFiles({name:'SYNTHETIC.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:Buffer.from(realWorldFixture({titleText:'2026년 출석부'}))});
   await page.locator('[data-source-period="0"]').waitFor();

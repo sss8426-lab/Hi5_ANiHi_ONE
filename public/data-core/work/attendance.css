@@ -25,6 +25,7 @@
 .at-app dialog::backdrop{background:#11131180}.at-app dialog fieldset{margin:0 0 20px;padding:0;border:0}.at-app dialog legend{margin-bottom:8px}.at-app dialog small{color:var(--core-text-secondary,#747872);margin-left:8px}
 .at-weekdays{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}.at-weekdays label{position:relative;cursor:pointer}.at-weekdays input{position:absolute;opacity:0;inset:0;cursor:pointer;margin:0}
 .at-weekdays span{display:grid;place-items:center;min-height:44px;border:1px solid var(--core-border,#dedcd5);border-radius:4px}.at-weekdays input:checked+span{background:var(--core-green,#174f44);color:#fff}.at-weekdays input:focus-visible+span{outline:2px solid var(--core-green,#174f44);outline-offset:2px}
+.at-review-weekdays{grid-template-columns:repeat(5,minmax(0,1fr))}.at-review-weekend{grid-template-columns:repeat(3,minmax(0,1fr));margin-top:6px}
 .at-icon{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .at-work-link{display:flex;align-items:center;gap:12px;width:100%;padding:16px 18px;margin:16px 0 24px;border:1px solid var(--core-border,#dedcd5);border-radius:8px;background:var(--core-surface,#fff);color:var(--core-text,#171917);font:inherit;text-align:left;cursor:pointer}
 .at-work-link>.at-icon:last-child{margin-left:auto;color:var(--core-green,#174f44)}.at-work-link:hover{border-color:var(--core-green,#174f44)}.at-work-link:focus-visible{outline:2px solid var(--core-green,#174f44);outline-offset:3px}
