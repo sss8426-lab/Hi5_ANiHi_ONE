@@ -846,3 +846,10 @@ MASTER/SUPER_ADMIN 전용 `/data-core/roadmap/image-review`에서 35개와 이�
 썸네일/확대 GET은 다운로드 이력이 아니며 private/student-private/FAMILY 보호는 유지한다.
 새 DB/migration 없이 기존 records/files/audit 구조를 확장했다. 상세 계약과 검증 경계는
 `docs/AWARD_SHARED_WORKSPACE_2026-09-20.md` 참조. 운영 mutation smoke는 별도 확인 전 완료로 간주하지 않는다.
+
+## 캠퍼스 비밀번호 재접속 보완 (2026-09-21)
+
+최초 변경 대기 세션의 재로그인 차단과 만료된 잠금 재계산을 수정하고, 비밀번호·세션·감사 기록을 atomic batch로 저장한다.
+MASTER는 캠퍼스별 확인 창에서 12자 이상 새 비밀번호를 직접 지정할 수 있다. 기존 비밀번호 조회/평문 저장은 제공하지 않는다.
+초기화는 확인 후 실행하며 다음 로그인 변경은 기본 유지, 명시적으로 해제 가능하다. 기존 운영 계정/비밀번호 자동 변경은 없다.
+안산 신고의 운영 read-only 증거, 합성 10계정 재로그인 및 브라우저 검증 경계는 `docs/CAMPUS_PASSWORD_RECOVERY_2026-09-21.md` 참조.

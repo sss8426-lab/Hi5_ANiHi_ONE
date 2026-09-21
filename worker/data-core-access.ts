@@ -34,6 +34,7 @@ export type DataCoreAccessContext = {
     internalUserId: string;
     email: string;
     displayName: string;
+    loginId?: string;
   };
   memberships: DataCoreMembership[];
   isSuperAdmin: boolean;

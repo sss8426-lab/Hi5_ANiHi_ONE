@@ -704,8 +704,9 @@ test("standalone accounts use secure sessions, enforce first password change, lo
     const initialSession = await h.request("GET", "/api/auth/session", undefined, undefined, auth);
     assert.equal(initialSession.body.authenticated, true);
     assert.equal(initialSession.body.mustChangePassword, true);
-    const blockedSecondLogin = await h.request("POST", "/api/auth/login", undefined, { loginId: "campus-a-teacher", password: temporaryPassword }, auth);
-    assert.equal(blockedSecondLogin.response.status, 403);
+    const secondLogin = await h.request("POST", "/api/auth/login", undefined, { loginId: "campus-a-teacher", password: temporaryPassword }, auth);
+    assert.equal(secondLogin.response.status, 200, 'a pending-change cookie cannot block credential authentication');
+    assert.equal(secondLogin.body.mustChangePassword, true);
     const blockedWrite = await h.request("POST", "/api/data-core/content", undefined, { campusId: CAMPUS_A, sourceApp: "blog", title: "blocked", content: "blocked" }, auth);
     assert.equal(blockedWrite.response.status, 403);
     for (const route of [

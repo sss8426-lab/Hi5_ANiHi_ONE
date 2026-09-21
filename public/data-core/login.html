@@ -29,16 +29,18 @@
         <p class="eyebrow">첫 로그인</p>
         <h2>비밀번호 변경</h2>
         <form id="passwordForm">
+          <label>로그인 ID<input id="changeLoginId" name="username" autocomplete="username" readonly></label>
           <label>현재 비밀번호<input id="currentPassword" type="password" autocomplete="current-password" required></label>
           <label>새 비밀번호<input id="nextPassword" type="password" autocomplete="new-password" minlength="12" required></label>
           <label>새 비밀번호 확인<input id="confirmPassword" type="password" autocomplete="new-password" minlength="12" required></label>
           <p class="message" id="passwordMessage" role="alert"></p>
           <button type="submit">변경 후 시작하기</button>
         </form>
+        <button id="switchAccount" type="button">다른 계정으로 로그인</button>
       </div>
       <a class="back" href="/data-core/counseling">공개 상담 화면으로 돌아가기</a>
     </section>
   </main>
-  <script type="module" src="/data-core/login.js?v=20260912-campus"></script>
+  <script type="module" src="/data-core/login.js?v=20260921-password"></script>
 </body>
 </html>

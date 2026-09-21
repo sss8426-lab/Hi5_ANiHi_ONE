@@ -146,6 +146,7 @@ async function handleStandaloneAuthApi(request: Request, env: Env) {
   await ensureDataCoreMigrations(env.DB);
   const context = await resolveDataCoreAccess(request, env.DB, env.DATA_CORE_SUPER_ADMIN_EMAILS);
   const passwordChangeRoute =
+    (url.pathname === "/api/auth/login" && request.method === "POST") ||
     (url.pathname === "/api/auth/session" && request.method === "GET") ||
     (url.pathname === "/api/auth/password" && request.method === "PUT") ||
     (url.pathname === "/api/auth/logout" && request.method === "POST");

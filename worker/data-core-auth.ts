@@ -118,17 +118,18 @@ export async function standaloneSessionIdentity(db: D1Database, request: Request
   const tokenHash = await sha256(rawToken);
   const now = new Date().toISOString();
   const row = await db.prepare(
-    `SELECT s.id AS session_id, u.id AS user_id, u.email, u.display_name, a.must_change_password
+    `SELECT s.id AS session_id, u.id AS user_id, u.email, u.display_name, a.login_id, a.must_change_password
      FROM auth_sessions s INNER JOIN users u ON u.id = s.user_id
      INNER JOIN auth_accounts a ON a.user_id = u.id
      WHERE s.token_hash = ? AND s.revoked_at IS NULL AND s.expires_at > ? AND a.status = 'active' AND u.status = 'active'`,
-  ).bind(tokenHash, now).first<{ session_id: string; user_id: string; email: string | null; display_name: string; must_change_password: number }>();
+  ).bind(tokenHash, now).first<{ session_id: string; user_id: string; email: string | null; display_name: string; login_id: string; must_change_password: number }>();
   if (!row) return null;
   return {
     userId: row.user_id,
     internalUserId: row.user_id,
     email: row.email || row.user_id,
     displayName: row.display_name,
+    loginId: row.login_id,
     mustChangePassword: Boolean(row.must_change_password),
   };
 }
@@ -146,11 +147,14 @@ export async function recordStandaloneActivity(db: D1Database, request: Request,
   return { ok: true };
 }
 
-async function audit(db: D1Database, userId: string | null, action: string, resourceId: string | null, metadata: Record<string, unknown> = {}) {
-  await db.prepare(
+function auditStatement(db: D1Database, userId: string | null, action: string, resourceId: string | null, metadata: Record<string, unknown> = {}) {
+  return db.prepare(
     `INSERT INTO audit_logs (id, organization_id, actor_user_id, action, resource_type, resource_id, metadata_json, created_at)
      VALUES (?, ?, ?, ?, 'auth_account', ?, ?, ?)`,
-  ).bind(crypto.randomUUID(), DEFAULT_ORGANIZATION_ID, userId, action, resourceId, JSON.stringify(metadata), new Date().toISOString()).run();
+  ).bind(crypto.randomUUID(), DEFAULT_ORGANIZATION_ID, userId, action, resourceId, JSON.stringify(metadata), new Date().toISOString());
+}
+async function audit(db: D1Database, userId: string | null, action: string, resourceId: string | null, metadata: Record<string, unknown> = {}) {
+  await auditStatement(db, userId, action, resourceId, metadata).run();
 }
 
 async function createSession(db: D1Database, userId: string) {
@@ -180,12 +184,12 @@ export async function loginStandalone(db: D1Database, request: Request, body: { 
   }
   const candidate = await passwordHash(password, account.password_salt, account.password_iterations);
   if (!timingSafeEqual(candidate, account.password_hash)) {
-    const failures = account.failed_login_count + 1;
+    const failures = (account.locked_until ? 0 : account.failed_login_count) + 1;
     const lockedUntil = failures >= MAX_FAILED_LOGINS ? new Date(now.getTime() + LOCK_MINUTES * 60_000).toISOString() : null;
     await db.prepare("UPDATE auth_accounts SET failed_login_count = ?, locked_until = ?, updated_at = ? WHERE id = ?")
       .bind(failures, lockedUntil, now.toISOString(), account.id).run();
     await audit(db, account.user_id, "login_failed", account.id, { failures });
-    throw new DataCoreAccessError(401, "로그인 ID 또는 비밀번호가 올바르지 않습니다.");
+    throw new DataCoreAccessError(401, lockedUntil ? "로그인 시도가 잠시 잠겼습니다. 15분 후 다시 시도하거나 마스터에게 비밀번호 변경을 요청하세요." : "로그인 ID 또는 비밀번호가 올바르지 않습니다.");
   }
   await db.prepare("UPDATE auth_accounts SET failed_login_count = 0, locked_until = NULL, last_login_at = ?, updated_at = ? WHERE id = ?")
     .bind(now.toISOString(), now.toISOString(), account.id).run();
@@ -216,12 +220,18 @@ export async function changeStandalonePassword(db: D1Database, request: Request,
   const salt = toBase64(crypto.getRandomValues(new Uint8Array(16)));
   const hash = await passwordHash(nextPassword, salt, PASSWORD_ITERATIONS);
   const now = new Date().toISOString();
-  await db.prepare("UPDATE auth_accounts SET password_hash = ?, password_salt = ?, password_iterations = ?, must_change_password = 0, failed_login_count = 0, locked_until = NULL, updated_at = ? WHERE id = ?")
-    .bind(hash, salt, PASSWORD_ITERATIONS, now, account.id).run();
-  await db.prepare("UPDATE auth_sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL")
-    .bind(now, account.user_id).run();
-  const session = await createSession(db, account.user_id);
-  await audit(db, account.user_id, "password_changed", account.id);
+  const rawToken = toBase64(crypto.getRandomValues(new Uint8Array(32)));
+  const session = { rawToken, expiresAt: new Date(Date.parse(now) + SESSION_MAX_AGE_SECONDS * 1000).toISOString() };
+  // A failed session/audit write must not leave a changed password behind.
+  await db.batch([
+    db.prepare("UPDATE auth_accounts SET password_hash = ?, password_salt = ?, password_iterations = ?, must_change_password = 0, failed_login_count = 0, locked_until = NULL, updated_at = ? WHERE id = ?")
+      .bind(hash, salt, PASSWORD_ITERATIONS, now, account.id),
+    db.prepare("UPDATE auth_sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL").bind(now, account.user_id),
+    db.prepare("INSERT INTO auth_sessions (id, token_hash, user_id, created_at, expires_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?)")
+      .bind(crypto.randomUUID(), await sha256(rawToken), account.user_id, now, session.expiresAt, now),
+    db.prepare("INSERT INTO audit_logs (id, organization_id, actor_user_id, action, resource_type, resource_id, metadata_json, created_at) VALUES (?, ?, ?, 'password_changed', 'auth_account', ?, '{}', ?)")
+      .bind(crypto.randomUUID(), DEFAULT_ORGANIZATION_ID, account.user_id, account.id, now),
+  ]);
   return { ok: true, session };
 }
 
@@ -277,7 +287,7 @@ export async function updateStandaloneAccount(
   request: Request,
   context: DataCoreAccessContext,
   accountId: string,
-  input: { status?: unknown; temporaryPassword?: unknown; revokeSessions?: unknown },
+  input: { status?: unknown; temporaryPassword?: unknown; newPassword?: unknown; mustChangePassword?: unknown; revokeSessions?: unknown },
 ) {
   assertSameOrigin(request);
   requireAuthenticatedAccess(context);
@@ -288,13 +298,19 @@ export async function updateStandaloneAccount(
   const now = new Date().toISOString();
   const status = text(input.status, 20);
   const temporaryPassword = String(input.temporaryPassword || "");
+  const directChange = input.newPassword !== undefined;
+  const replacementPassword = directChange ? String(input.newPassword || "") : temporaryPassword;
+  if (directChange && request.headers.get('origin') !== new URL(request.url).origin) throw new DataCoreAccessError(403, '동일 출처 요청만 허용됩니다.');
+  if (directChange && (temporaryPassword || replacementPassword.length < 12 || (input.mustChangePassword !== undefined && typeof input.mustChangePassword !== 'boolean'))) throw new DataCoreAccessError(400, '새 비밀번호는 12자 이상이어야 하며 변경 방식을 확인해야 합니다.');
+  const mustChange = directChange ? input.mustChangePassword !== false : true;
   const revokeSessions = input.revokeSessions === true;
   if (status && !["active", "disabled"].includes(status)) throw new DataCoreAccessError(400, "계정 상태가 올바르지 않습니다.");
   if (temporaryPassword && temporaryPassword.length < 12) throw new DataCoreAccessError(400, "임시 비밀번호는 12자 이상이어야 합니다.");
   const targetIsSuperAdmin = Boolean(await db.prepare(
     "SELECT 1 FROM memberships WHERE user_id = ? AND organization_id = ? AND role IN ('SUPER_ADMIN', 'MASTER') LIMIT 1",
   ).bind(account.user_id, DEFAULT_ORGANIZATION_ID).first());
-  if (account.user_id === actor.internalUserId && (status === "disabled" || revokeSessions || temporaryPassword)) {
+  if (directChange && (targetIsSuperAdmin || !await db.prepare("SELECT 1 FROM memberships WHERE user_id = ? AND organization_id = ? AND campus_id IS NOT NULL LIMIT 1").bind(account.user_id, DEFAULT_ORGANIZATION_ID).first())) throw new DataCoreAccessError(403, '직접 비밀번호 변경은 캠퍼스 계정에만 사용할 수 있습니다.');
+  if (account.user_id === actor.internalUserId && (status === "disabled" || revokeSessions || replacementPassword)) {
     throw new DataCoreAccessError(400, "본인 계정의 비활성화, 세션 해제, 임시 비밀번호 재설정은 다른 마스터 관리자가 처리해야 합니다.");
   }
   if (status === "disabled" && account.status === "active" && targetIsSuperAdmin) {
@@ -309,17 +325,17 @@ export async function updateStandaloneAccount(
     }
   }
   const statements: D1PreparedStatement[] = [];
-  if (temporaryPassword) {
+  if (replacementPassword) {
     const salt = toBase64(crypto.getRandomValues(new Uint8Array(16)));
     statements.push(db.prepare(
-      "UPDATE auth_accounts SET password_hash = ?, password_salt = ?, password_iterations = ?, must_change_password = 1, failed_login_count = 0, locked_until = NULL, updated_at = ? WHERE id = ?",
-    ).bind(await passwordHash(temporaryPassword, salt, PASSWORD_ITERATIONS), salt, PASSWORD_ITERATIONS, now, accountId));
+      "UPDATE auth_accounts SET password_hash = ?, password_salt = ?, password_iterations = ?, must_change_password = ?, failed_login_count = 0, locked_until = NULL, updated_at = ? WHERE id = ?",
+    ).bind(await passwordHash(replacementPassword, salt, PASSWORD_ITERATIONS), salt, PASSWORD_ITERATIONS, mustChange ? 1 : 0, now, accountId));
   }
   if (status) statements.push(db.prepare("UPDATE auth_accounts SET status = ?, updated_at = ? WHERE id = ?").bind(status, now, accountId));
-  if (status === "disabled" || revokeSessions || temporaryPassword) {
+  if (status === "disabled" || revokeSessions || replacementPassword) {
     statements.push(db.prepare("UPDATE auth_sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL").bind(now, account.user_id));
   }
-  if (statements.length) await db.batch(statements);
-  await audit(db, actor.internalUserId, "account_updated", accountId, { status: status || undefined, passwordReset: Boolean(temporaryPassword), sessionsRevoked: Boolean(status === "disabled" || revokeSessions || temporaryPassword) });
-  return { id: accountId, status: status || account.status, passwordReset: Boolean(temporaryPassword) };
+  statements.push(auditStatement(db, actor.internalUserId, "account_updated", accountId, { status: status || undefined, passwordReset: Boolean(replacementPassword), passwordSetByMaster: directChange, mustChangePassword: replacementPassword ? mustChange : undefined, sessionsRevoked: Boolean(status === "disabled" || revokeSessions || replacementPassword) }));
+  await db.batch(statements);
+  return { id: accountId, status: status || account.status, passwordReset: Boolean(replacementPassword) };
 }

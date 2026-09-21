@@ -55,7 +55,11 @@ test('ten campus accounts: normalized login, forced change, own CRUD, cross-camp
       assert.equal((await request('/api/data',{cookie:login.cookie})).status,403);
       const changed=await request('/api/auth/password',{cookie:login.cookie,method:'PUT',body:{currentPassword:temporary,nextPassword:permanent}});
       assert.equal(changed.status,200);
-      const cookie=changed.cookie;
+      assert.equal((await request('/api/auth/logout',{cookie:changed.cookie,method:'POST'})).status,200);
+      const relogin=await request('/api/auth/login',{method:'POST',body:{loginId:id,password:permanent}});
+      assert.equal(relogin.status,200,'changed password permits a fresh login');
+      assert.equal(relogin.body.mustChangePassword,false);
+      const cookie=relogin.cookie;
       const context=await request('/api/auth/session',{cookie});
       assert.deepEqual(context.body.campusIds,[campus]);
       assert.equal(context.body.memberships[0].campusCode,code);
@@ -121,7 +125,7 @@ test('ten campus accounts: normalized login, forced change, own CRUD, cross-camp
     assert.deepEqual(await (await FILES.get('state/admissions-data.json')).json(),h.legacy);
     const presence=await request('/api/auth/campuses',{admin:true});assert.equal(presence.status,200);
     assert.equal(presence.body.summary.total,10);assert.equal(presence.body.summary.online,10);assert.equal(presence.body.summary.today,10);
-    assert.equal(presence.body.recentLogins.length,10);
+    assert.equal(presence.body.recentLogins.length,20,'initial login and fresh post-change login for all ten campuses');
     assert.ok(!/password|token_hash|salt|email/.test(JSON.stringify(presence.body)));
     const account=accounts[0],old=new Date(Date.now()-16*60000).toISOString();
     await DB.prepare('UPDATE auth_sessions SET last_seen_at=? WHERE user_id=?').bind(old,account.user).run();

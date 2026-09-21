@@ -47,3 +47,14 @@ body.campus-accounts table th { background:var(--core-surface-soft); }
 .retired-accounts-filter { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 13px; }
 .retired-accounts-filter[hidden] { display: none; }
 .retired-accounts-filter input { width: 18px; height: 18px; }
+#passwordDialog { width: 440px; max-width: calc(100vw - 32px); max-height: calc(100dvh - 32px); overflow: auto; padding: 24px; border: 1px solid var(--line); border-radius: 8px; background: var(--core-surface); color: var(--core-ink); }
+#passwordDialog::backdrop { background: rgb(0 0 0 / 35%); }
+.password-dialog-form { display: grid; gap: 14px; min-width: 0; }
+.password-dialog-form h2, .password-dialog-form p { margin: 0; overflow-wrap: anywhere; }
+.password-dialog-form h2 { font-size: 22px; }
+.password-dialog-form label { display: grid; gap: 6px; font-size: 14px; }
+.password-dialog-form input:not([type=checkbox]) { width: 100%; min-width: 0; box-sizing: border-box; min-height: 42px; background: var(--core-surface); color: var(--core-ink); border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
+.password-dialog-form .password-option { display: flex; align-items: center; min-height: 36px; }
+.password-dialog-form input[type=checkbox] { width: 20px; height: 20px; flex: 0 0 auto; }
+.password-note { color: var(--muted); font-size: 13px; line-height: 1.6; }
+.password-dialog-form [hidden] { display: none; }
