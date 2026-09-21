@@ -1,5 +1,5 @@
 (() => {
-  const COMPETITION_LIVE_SRC = '/data-core/competition-live-enhancement.js?v=20260921-calendar';
+  const COMPETITION_LIVE_SRC = '/data-core/competition-live-enhancement.js?v=20260921-calendar-details';
 
   function modeHomeIsActive() {
     return document.getElementById('view-mode-home')?.classList.contains('active') || false;

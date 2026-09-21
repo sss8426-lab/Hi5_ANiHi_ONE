@@ -1141,7 +1141,7 @@ test("academy calendar shares validated events while enforcing campus ownership 
     assert.equal(created.body.event.recordType, "academy-calendar-event");
     assert.equal(created.body.event.sourceApp, "academy-calendar");
     assert.equal(created.body.event.metadata.schemaVersion, 1);
-    assert.equal(created.body.event.metadata.allDay, true);
+    assert.equal(created.body.event.metadata.allDay, false);
     assert.equal(created.body.event.metadata.endDate, "2026-10-12");
     const eventId = created.body.event.id;
 

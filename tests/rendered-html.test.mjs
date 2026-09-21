@@ -96,7 +96,7 @@ test("wires the DATA CORE counseling and work mode split", async () => {
   assert.doesNotMatch(appScript, /CAMPUS_PRESENTATION/);
   assert.match(appScript, /return state\.campuses/);
   assert.match(appScript, /data-campus-group/);
-  assert.match(dataCoreIndex, /app\.js\?v=20260921-weekend-selection/);
+  assert.match(dataCoreIndex, /app\.js\?v=20260921-calendar-details/);
   assert.match(dataCoreIndex, /id="view-attendance"/);
   assert.match(dataCoreIndex, /class="at-work-link" data-view="attendance"/);
   assert.match(appScript, /params\.set\('sourceApp', sourceApp\)/);
@@ -107,7 +107,8 @@ test("wires the DATA CORE counseling and work mode split", async () => {
   assert.match(dataCoreIndex, /data-calendar-home="work"/);
   assert.match(dataCoreIndex, /data-calendar-prev/);
   assert.match(dataCoreIndex, /data-calendar-add/);
-  assert.match(appScript, /\/api\/data-core\/calendar/);
+  assert.match(appScript, /AcademyCalendar/);
+  assert.match(await readFile(new URL('../public/data-core/calendar.js', import.meta.url), 'utf8'), /\/api\/data-core\/calendar/);
   assert.match(appScript, /calendarRange\(\)/);
   assert.match(appScript, /calendarSelectedDate/);
   assert.match(styles, /\.calendar-grid/);
