@@ -109,7 +109,9 @@ try{
     await page.setViewportSize({width,height:1000});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
     await page.locator('#igResult').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(out,'result-'+width+'.png'),fullPage:true});
   }
+  await page.route('**/api/data-core/context',async route=>{await new Promise(resolve=>setTimeout(resolve,1200));await route.continue();});
   await page.reload();await page.getByText('저장한 이미지 세트',{exact:true}).click();await page.locator('#igHistory button').first().click();
+  await page.unroute('**/api/data-core/context');
   await page.waitForFunction(()=>document.querySelector('#igSaved').textContent==='저장된 최종본');assert.equal(await page.locator('#igDownloads button').count(),10);
   assert.ok((await page.locator('#igCaptionText').inputValue()).includes('합성 공간'));
   failText=true;await generate(1,'photo');assert.equal(imageCalls,1);assert.equal(await page.locator('#igCaptionRetry').isVisible(),true);

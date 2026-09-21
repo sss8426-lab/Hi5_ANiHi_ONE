@@ -113,13 +113,15 @@ export function mountInstagramProduction({state,api,$,toast,canWrite}) {
   $('igCopy').onclick=async()=>{try{await navigator.clipboard.writeText($('igCaptionText').value);toast('복사했습니다.');}catch{toast('클립보드 권한을 확인해주세요.','error');}};
   $('igCaptionSave').onclick=async()=>{if(busy)return;lock(true);try{await saveCaption();$('igCaptionStatus').textContent='문구 저장 완료';}catch(error){$('igCaptionStatus').textContent=error.message;}finally{lock(false);}};
   $('igCaptionRetry').onclick=caption;
-  history.ontoggle=async()=>{
+  async function loadHistory(){
     if(!history.open||!$('draftCampus').value)return;
-    try{const data=await api('/api/data-core/content/instagram-sets?campusId='+encodeURIComponent($('draftCampus').value));$('igHistory').replaceChildren(...data.sets.map(item=>{
+    const campusId=$('draftCampus').value;$('igHistory').textContent='불러오는 중...';
+    try{const data=await api('/api/data-core/content/instagram-sets?campusId='+encodeURIComponent(campusId));if(campusId!==$('draftCampus').value||!history.open)return;$('igHistory').replaceChildren(...data.sets.map(item=>{
       const button=document.createElement('button');button.type='button';button.className='ghost-btn';button.textContent=`${item.title} · ${item.createdAt.slice(0,10)}`;
       button.onclick=async()=>{if(busy)return;lock(true);try{const saved=await api('/api/data-core/content/instagram-sets/'+encodeURIComponent(item.id));clear();currentSet=saved;items=saved.items;preview();await downloads();$('igSaved').textContent='저장된 최종본';$('igCaptionText').value=saved.caption;$('igCaptionSection').hidden=false;}catch(error){toast(error.message,'error');}finally{lock(false);}};return button;
-    }));if(!data.sets.length)$('igHistory').textContent='저장된 이미지 세트가 없습니다.';}catch(error){$('igHistory').textContent=error.message;}
-  };
-  function refresh(){void logos();buttons();}
+    }));if(!data.sets.length)$('igHistory').textContent='저장된 이미지 세트가 없습니다.';}catch(error){if(campusId===$('draftCampus').value)$('igHistory').textContent=error.message;}
+  }
+  history.ontoggle=loadHistory;
+  function refresh(){void logos();void loadHistory();buttons();}
   return {read,refresh,invalidated:clear,load:()=>{if(!busy)clear();},selectionChanged(){const key=JSON.stringify(state.selectedFileIds);if(key!==selected){selected=key;clear();}buttons();},restore:async()=>{toast('이전 단일 초안입니다. 사진을 선택해 새 이미지 세트로 제작하세요.');}};
 }
