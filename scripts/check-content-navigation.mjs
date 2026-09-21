@@ -42,6 +42,11 @@ try{
   for(const baseline of [true,false]){
     before=baseline;counts={};const context=await browser.newContext({serviceWorkers:'block'}),page=await context.newPage();
     await page.addInitScript(()=>{let Cache;window.__thumbnailCaches=[];Object.defineProperty(window,'DataCorePrivateImageCache',{configurable:true,get(){return Cache;},set(Value){Cache=class extends Value{constructor(...args){super(...args);window.__thumbnailCaches.push(this);}};}});});
+    await page.goto(origin+'/data-core/content/blog');await page.locator(`[data-folder="category:${A}:class-photo"]`).waitFor();
+    // Warm both static-asset servers; git-show process time is not application latency.
+    await wait(1500);const blogStarted=performance.now();
+    await page.reload();await page.locator(`[data-folder="category:${A}:class-photo"]`).waitFor();
+    const blogInitialMs=Math.round(performance.now()-blogStarted);
     await page.goto(origin+'/data-core/content/instagram');await page.locator(`[data-folder="category:${A}:class-photo"]`).waitFor();await wait(1500);counts={};apiBytes=0;
     const initial=performance.now();await page.reload();await page.locator(`#photoFolders [data-folder="category:${A}:class-photo"]`).waitFor();
     const initialMs=Math.round(performance.now()-initial);
@@ -60,7 +65,7 @@ try{
     const sorted=[...visits].sort((a,b)=>a-b),cache=await page.evaluate(()=>window.__thumbnailCaches.map(c=>({entries:c.entries.size,bytes:c.bytes,active:c.active,maxEntries:c.maxEntries,maxBytes:c.maxBytes})));
     for(const c of cache){assert.ok(c.entries<=c.maxEntries);assert.ok(c.bytes<=c.maxBytes);}
     const originalReads=Object.entries(counts).filter(([key])=>originals.has(key.split('/').pop())).reduce((sum,[,n])=>sum+n,0);assert.equal(originalReads,0);
-    results[baseline?'before':'after']={initialMs,filesMs,firstThumbnailMs,revisitMedianMs:sorted[15],revisitP95Ms:sorted[28],requests:Object.values(counts).reduce((a,b)=>a+b,0),apiBytes,originalReads,cache,memoryBefore,memoryAfter};
+    results[baseline?'before':'after']={blogInitialMs,initialMs,filesMs,firstThumbnailMs,revisitMedianMs:sorted[15],revisitP95Ms:sorted[28],requests:Object.values(counts).reduce((a,b)=>a+b,0),apiBytes,originalReads,cache,memoryBefore,memoryAfter};
     if(!baseline){
       failFiles=true;await page.locator(`[data-folder="category:${A}:class-photo"]`).click();await page.locator(`[data-folder="${folder.id}"]`).waitFor();
       await page.waitForFunction(()=>document.querySelector('#pickerStatus').textContent.includes('Synthetic files unavailable'));

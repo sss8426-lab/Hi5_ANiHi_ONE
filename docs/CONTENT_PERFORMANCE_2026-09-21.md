@@ -40,6 +40,7 @@ All measurements below are **local synthetic**, not production latency. Windows,
 - `scripts/measure-content-server.mjs`: baseline Worker versus changed Worker, identical fixtures; actual DB and R2 method counters. Set completion repeats three times for 1/5/10 masters. Exports use three different first exports and their repeats.
 - `scripts/check-instagram-carousel-browser.mjs --measure-only [--baseline]`: baseline frontend assets versus changed assets, both against the same changed Worker to isolate frontend effects. Three repetitions per image count. Includes the cost of real legacy thumbnail creation introduced here.
 - `scripts/check-content-navigation.mjs`: baseline/current assets against the same Worker, 50 registered thumbnails, 30 return visits, AI usage response intentionally delayed 4 seconds. No artificial folder/health/file latency. Initial visit numbers are a single observation, not a statistical median.
+- Initial blog/Instagram measurements reload the application after warming both static-asset servers. Otherwise baseline `git show` process startup would be misreported as browser application cost. These are not cold internet-cache or production timings.
 - With only three repetitions, nearest-rank p95 is the maximum. These small samples are directional, not an SLA.
 
 ### Browser Results
@@ -48,10 +49,11 @@ Times are milliseconds; paired values are median / p95 unless marked single samp
 
 | Function | Before | After | Samples per version | Remaining work |
 |---|---:|---:|---:|---|
-| Initial folders, single sample | 350 | 318 | 1 | Actual network/auth latency |
-| File tiles, single sample | 259 | 255 | 1 | File metadata is little changed |
-| First real registered thumbnail, single sample | 450 | 398 | 1 | Authenticated thumbnail request |
-| Return to parent folder | 352 / 417 | 347 / 389 | 30 | Server folder query remains |
+| Blog initial folders, single sample | 333 | 321 | 1 | Actual network/auth latency |
+| Instagram initial folders, single sample | 333 | 303 | 1 | Actual network/auth latency |
+| File tiles, single sample | 268 | 195 | 1 | Single observation, server metadata query remains |
+| First real registered thumbnail, single sample | 456 | 433 | 1 | Authenticated thumbnail request |
+| Return to parent folder | 358 / 403 | 346 / 394 | 30 | Server folder query remains |
 | Compose + upload 1 image | 859 / 1044 | 1076 / 1500 | 3 | New legacy thumbnails add first-visit work; not improved |
 | Compose + upload 5 images | 4162 / 4211 | 3199 / 3539 | 3 | PNG encoding + individual writes |
 | Compose + upload 10 images | 8230 / 8264 | 6412 / 6477 | 3 | PNG encoding + individual writes |
@@ -59,7 +61,7 @@ Times are milliseconds; paired values are median / p95 unless marked single samp
 | Mocked caption 5 images | 886 / 921 | 846 / 862 | 3 | Current source ACL metadata |
 | Mocked caption 10 images | 1620 / 1641 | 1595 / 1610 | 3 | Current source ACL metadata |
 
-30 visits: API requests 243 -> 240, response bytes 946991 -> 945842; original image requests **0 -> 0** for registered thumbnails. After-change listeners 202 -> 202; cached thumbnail entries 18, bytes 3600. Heap changed 2.43 -> 2.58 MB during the test; this is not proof of zero long-term memory growth. Late pending queues drained.
+30 visits: API requests 243 -> 240, response bytes 947314 -> 945842; original image requests **0 -> 0** for registered thumbnails. After-change listeners 202 -> 202; cached thumbnail entries 18, bytes 3600. Heap changed 2.43 -> 2.58 MB during the test; this is not proof of zero long-term memory growth. After-change queues were empty at measurement; the baseline had one active request which drained before teardown.
 
 ### Server Results and Limits
 
@@ -89,3 +91,22 @@ Synthetic fixtures only: cross-campus ACL, private rows preceding 51 visible row
 Browser evidence is under ignored `outputs/instagram-carousel`, `outputs/calendar-browser`, `outputs/content-navigation`, and `outputs/content-performance`. Preview asset hash checks establish deployed assets, not production write verification. Live authenticated page checks and final CI/release results are recorded below after execution.
 
 Calendar browser tests passed at 320/390/430/768/820/1024/1280/1440/1920: work-created events edited in counseling and reflected back in work, create/edit/copy/search/filter/list/detail, dynamic late roots, 30 round trips with one expected query set per navigation and no duplicate controls. Synthetic date input took 6-16 ms; this is not real network save latency. Screenshot review included 320px editor and 1440px long-detail layout.
+
+## Preview Verification
+
+- Implementation commit: `62a1ea0d5ca0dd9ae1487c42799f393fe9504332`, PR #242.
+- Manually uploaded Preview version: `3b807fca-599a-45b5-ba9e-14bc9b97fb57`; `wrangler versions upload --preview-alias feat-instagram-carousel --keep-vars`, not a production deploy.
+- Live signed-in MASTER verification: `/data-core/work`, `/data-core/counseling`, `/data-core/content/blog`, `/data-core/content/instagram`.
+- Work: full shared menu and calendar; opened and closed the editor without saving. Counseling: same filters, month/list toggle and calendar editor entry.
+- Blog and Instagram: same work/admin menu items, working campus folder navigation, diagnostics at the bottom, collapsed initially. Instagram campus selection displayed all six logo options; no live image generation was invoked.
+- Expanded live usage showed recent API response status but no cost/percentage and a project-setting-required message. The official OpenAI management link points to `/home`. No budget was invented or saved.
+- Automated writes and paid-provider substitutes remain isolated synthetic tests. Actual production records/images were not used for mutation smoke tests. Production remains unchanged and deployment awaits approval.
+
+## Validation Commands
+
+- `npm ci`: passed; existing dependency audit reports 4 moderate and 8 high advisories. Dependencies were not broadly upgraded in this scoped change.
+- `npm run build`, `npx tsc --noEmit`, all 80 public browser JavaScript `node --check` commands, `wrangler deploy --dry-run`: passed.
+- Full `npm test`: 529 passed, 0 failed, 0 skipped. The first run exposed five obsolete static-HTML/cache-version assertions; these were updated to the shared registry contract and the complete suite was rerun successfully.
+- Additional `node --test tests/instagram-carousel.test.mjs`: 4 passed, including changing an already-exported source to another owner's private file and measuring 403 before any R2 read.
+- Local Instagram browser suite: passed, six widths, 1/5/10 sets, seven raster inputs, mocked provider failure, caption pending controls and stale-result isolation, current saved-set reload, image pixel/dimension/source preservation.
+- Implementation GitHub CI: https://github.com/sss8426-lab/Hi5_ANiHi_ONE/actions/runs/35606229619 passed; Cloudflare Workers Builds passed. Latest-head checks and final deployed-asset replay are also reported on PR #242.

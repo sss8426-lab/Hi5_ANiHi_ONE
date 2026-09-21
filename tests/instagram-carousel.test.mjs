@@ -74,6 +74,12 @@ test('carousel saves 1/5/10 images, rejects 11, preserves originals, access and 
     assert.equal(parallel.filter(r=>/encode;desc="1"/.test(r.headers.get('server-timing'))).length,1,'D1 lease permits exactly one conversion');
     await Promise.all(parallel.map(r=>r.arrayBuffer()));assert.equal(puts,2);
     assert.equal((await h.raw('POST','/api/data-core/content/instagram/'+items[1].draftId+'/export',users.foreign,items[1])).status,403);
+    const foreignOwner=await h.env.DB.prepare('SELECT id FROM users WHERE email=?').bind(users.foreign.email).first();
+    await h.env.DB.prepare("UPDATE file_objects SET visibility='private',owner_user_id=? WHERE id=?").bind(foreignOwner.id,originals[1].id).run();
+    const readsBeforeRevocation=gets;
+    assert.equal((await h.raw('POST','/api/data-core/content/instagram/'+items[1].draftId+'/export',users.staff,items[1])).status,403,'cached export cannot bypass newly private source ownership');
+    assert.equal(gets,readsBeforeRevocation,'revoked source is rejected before cached R2 bytes are read');
+    await h.env.DB.prepare('UPDATE file_objects SET visibility=?,owner_user_id=? WHERE id=?').bind(originals[1].visibility,originals[1].owner_user_id,originals[1].id).run();
     // Change the draft between validation and the batch; the guarded batch rolls back.
     const db=h.env.DB;let raced=false;
     h.env.DB=new Proxy(db,{get(target,key){if(key==='batch')return async statements=>{if(!raced){raced=true;await db.prepare("UPDATE data_records SET updated_at='2099-01-01',summary='SYNTHETIC race' WHERE id=?").bind(items[2].draftId).run();}return target.batch(statements);};const value=target[key];return typeof value==='function'?value.bind(target):value;}});
