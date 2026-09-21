@@ -167,7 +167,8 @@ try {
     assert.equal(await page.locator('#igLogo').inputValue(),logo);
     await page.locator('#igRender').click();
     await page.waitForFunction(()=>document.querySelector('#igStatus').textContent.includes('저장 완료'));
-    await page.locator('#igCanvas').screenshot({path:path.join(out,'artwork-'+logo+'.png')});
+    const rendered=await page.locator('#igCanvas').evaluate(c=>c.toDataURL('image/png').split(',')[1]);
+    await fs.writeFile(path.join(out,'artwork-'+logo+'.png'),Buffer.from(rendered,'base64'));
     const sample=await page.locator('#igCanvas').evaluate(c=>{const ctx=c.getContext('2d');return [[1080,1400],[1080,530],[1080,2350]].map(([x,y])=>Array.from(ctx.getImageData(x,y,1,1).data));});
     assert.deepEqual(sample[0],[110,178,154,255]);
     assert.deepEqual(sample[1],[255,255,255,255]);assert.deepEqual(sample[2],[255,255,255,255]);
@@ -177,7 +178,9 @@ try {
   assert.deepEqual([textCalls,imageCalls],beforeArtwork);
   for(const checkbox of await page.locator('[data-ig-check]').all())await checkbox.check();
   await page.locator('#igApprove').click();await page.waitForFunction(()=>!document.querySelector('#igExport').disabled);
-  await page.reload();await page.waitForSelector('[data-open-draft]',{state:'attached'});
+  await page.reload();await page.waitForFunction(()=>document.querySelector('#draftCampus').options.length>0);
+  await page.locator('#pastWork summary').click();
+  await page.waitForSelector('[data-open-draft]',{state:'attached'});
   await page.locator('[data-open-draft]').first().evaluate(el=>el.click());
   await page.waitForFunction(()=>!document.querySelector('#igCanvas').hidden&&!document.querySelector('#igExport').disabled);
   await page.locator('#igLogo').selectOption('hi5');
