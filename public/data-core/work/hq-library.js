@@ -285,7 +285,7 @@
     $('libraryProgressCount').textContent=`${p.count}개 파일 · ${p.percent}% · 완료 ${p.success}개 · 실패 ${p.failed}개`;
     $('libraryProgress').value=p.percent;
     const active=p.currentItems?.[0];
-    $('libraryProgressCurrent').textContent=active?`${active.name}\n${size(active.loaded)} / ${size(active.total)}`:p.current;
+    $('libraryProgressCurrent').textContent=active?`${active.name}\n${active.phase==='thumbnail'?'원본 저장 완료 · 미리보기 준비 중':`${size(active.loaded)} / ${size(active.total)}`}`:p.current;
     $('libraryProgressCurrent').style.whiteSpace='pre-line';
     $('libraryCancelUpload').hidden=!p.running; $('libraryCloseProgress').hidden=p.running; $('libraryRetry').hidden=p.running||!p.failed||p.cancelled;
     $('libraryUploadErrors').innerHTML=state.queue?.items.filter(i=>i.status==='failed').map(i=>`<li>${h(i.file.name)}: ${h(i.error)}</li>`).join('')||'';
