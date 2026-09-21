@@ -125,15 +125,13 @@
   }
 
   function observeCalendars() {
-    calendarObservers = [];
-    document.querySelectorAll('[data-calendar-home]').forEach((home) => {
-      const observer = new MutationObserver(() => {
-        observer.disconnect();
-        renderCalendarDeadlines();
-        observer.observe(home, { childList: true, subtree: true });
-      });
-      observer.observe(home, { childList: true, subtree: true });
-      calendarObservers.push(observer);
+    const homes = document.querySelectorAll('[data-calendar-home]');
+    // Reuse observers instead of leaking a second subscription on each redraw.
+    if (!calendarObservers.length) {
+      calendarObservers = Array.from(homes, () => new MutationObserver(renderCalendarDeadlines));
+    }
+    homes.forEach((home, index) => {
+      calendarObservers[index]?.observe(home, { childList: true, subtree: true });
     });
   }
 

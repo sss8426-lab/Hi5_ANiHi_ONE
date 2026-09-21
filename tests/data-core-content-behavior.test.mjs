@@ -1191,6 +1191,43 @@ test("academy calendar shares validated events while enforcing campus ownership 
   }
 });
 
+test("calendar home metadata payload creates, edits and clears end dates without losing permissions", async () => {
+  const h = await createHarness();
+  try {
+    const path = '/api/data-core/calendar';
+    const input = {
+      title: 'SYNTHETIC_EXHIBITION', campusId: CAMPUS_A, visibility: 'campus',
+      metadata: { startDate: '2026-10-24', endDate: '2026-10-25', eventType: 'other', allDay: true },
+    };
+    assert.equal((await h.request('POST', path, null, input)).response.status, 401);
+    assert.equal((await h.request('POST', path, users.a, { ...input, campusId: CAMPUS_B })).response.status, 403);
+    const created = await h.request('POST', path, users.a, input);
+    assert.equal(created.response.status, 201, JSON.stringify(created.body));
+    assert.equal(created.body.event.metadata.startDate, '2026-10-24');
+    const eventPath = `${path}/${created.body.event.id}`;
+    const cleared = await h.request('PATCH', eventPath, users.a, { metadata: { startDate: '2026-11-01', endDate: '' } });
+    assert.equal(cleared.response.status, 200, JSON.stringify(cleared.body));
+    assert.equal(cleared.body.event.metadata.endDate, undefined);
+    const legacy = await h.request('PATCH', eventPath, users.a, { startDate: '2026-11-02', eventType: 'meeting' });
+    assert.equal(legacy.response.status, 200);
+    assert.equal(legacy.body.event.metadata.startDate, '2026-11-02');
+    assert.equal(legacy.body.event.metadata.eventType, 'meeting');
+    const unchanged = await h.env.DB.prepare('SELECT * FROM data_records WHERE id = ?').bind(created.body.event.id).first();
+    for (const metadata of [
+      { startDate: '2026-02-30' }, { startDate: '2026-10-24garbage' },
+      { startDate: '', endDate: '' }, { startDate: '2026-10-24', endDate: '2026-10-23' },
+      { startDate: '2026-10-24', endDate: '2026-10-25garbage' },
+    ]) {
+      assert.equal((await h.request('POST', path, users.a, { ...input, metadata })).response.status, 400);
+      assert.equal((await h.request('PATCH', eventPath, users.a, { metadata })).response.status, 400);
+    }
+    assert.equal((await h.request('PATCH', eventPath, users.b, { metadata: input.metadata })).response.status, 403);
+    assert.deepEqual(await h.env.DB.prepare('SELECT * FROM data_records WHERE id = ?').bind(created.body.event.id).first(), unchanged);
+    const visible = await h.request('GET', `${path}?from=2026-11-01&to=2026-11-30`, users.a);
+    assert.equal(visible.body.events.find(event => event.id === created.body.event.id).metadata.startDate, '2026-11-02');
+  } finally { await h.mf.dispose(); }
+});
+
 test("competition source preview and import keep raw HTML out while preserving safe provenance", async () => {
   const h = await createHarness();
   const originalFetch = globalThis.fetch;
