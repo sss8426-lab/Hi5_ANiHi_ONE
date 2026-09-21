@@ -30,8 +30,6 @@ const state = {
   blogWarnings: [],
   blogRecentTitlesCache: [],
 };
-// Instagram never reaches this: it always replaces the selection with a single photo (see
-// renderFilePicker's pick handler), so this only ever gates the blog "AI로 글 작성" flow.
 const BLOG_PHOTO_LIMIT = 10;
 // Adaptive long-edge/quality ladder tried in order until the JPEG lands at or under the soft
 // target; the browser never upscales a smaller original past its own size.
@@ -205,7 +203,7 @@ function renderSelectedFiles() {
       renderSelectedFiles(); renderFilePicker();
     };
   });
-  $('photoCount').textContent = state.sourceApp === 'instagram' ? `대표 사진 ${rows.length}장 선택` : `사진 ${rows.length}/${BLOG_PHOTO_LIMIT}장 선택`;
+  $('photoCount').textContent = state.sourceApp === 'instagram' ? `선택 ${rows.length} / 10` : `사진 ${rows.length}/${BLOG_PHOTO_LIMIT}장 선택`;
   $('selectedFiles').innerHTML = rows.map((file, index) => `<button data-remove-file="${h(file.id)}" type="button" aria-label="선택 사진 ${index + 1} 제외" title="선택 해제"><img src="${h(file.thumbnailUrl || file.previewUrl || '/api/data-core/files/' + encodeURIComponent(file.id))}" alt=""></button>`).join('');
   document.querySelectorAll('[data-remove-file]').forEach((button) => {
     button.onclick = () => {
@@ -303,8 +301,7 @@ function renderFilePicker() {
       if (state.busy) return;
       const id = String(button.dataset.pickFile);
       if (state.selectedFileIds.includes(id)) state.selectedFileIds = state.selectedFileIds.filter(item => item !== id);
-      else if (state.sourceApp === 'instagram') state.selectedFileIds = [id];
-      else if (state.selectedFileIds.length >= BLOG_PHOTO_LIMIT) return toast(`블로그 AI 분석은 최대 ${BLOG_PHOTO_LIMIT}장까지 선택할 수 있습니다.`, 'error');
+      else if (state.selectedFileIds.length >= BLOG_PHOTO_LIMIT) return toast(`사진은 최대 ${BLOG_PHOTO_LIMIT}장까지 선택할 수 있습니다.`, 'error');
       else state.selectedFileIds.push(id);
       renderFilePicker();
       renderSelectedFiles();
@@ -916,9 +913,9 @@ async function downloadImage() {
 }
 
 async function init() {
-  const { mountInstagramProduction } = await import('/data-core/instagram-production.js?v=20260921-brand');
+  const { mountInstagramProduction } = await import(state.sourceApp==='instagram'?'/data-core/instagram-carousel.js?v=20260921-carousel':'/data-core/instagram-production.js?v=20260921-brand');
   instagramProduction = mountInstagramProduction({state,api,$,toast,canWrite,saveDraft,setWorkspaceBusy:setAiBusy});
-  $('igCaption').onclick = () => runAi(true);
+  if($('igCaption'))$('igCaption').onclick = () => runAi(true);
   derivativeEditor = window.HI5InstagramDerivative.mount({
     canWrite,
     onError: (message) => toast(message, 'error'),

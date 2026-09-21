@@ -246,7 +246,8 @@ async function responsesCall(env: OpenAiEnv, instructions: string, content: unkn
 export function openAiContentProvider(env: OpenAiEnv, db: D1Database, files: R2Bucket, context: DataCoreAccessContext, signal?: AbortSignal): ContentGenerationProvider | undefined {
   if (!env.OPENAI_API_KEY) return undefined;
   return { async generate(input: ContentGenerationProviderRequest, photos?: Map<string, BlogAiPhoto>) {
-    const images = input.sourceApp === 'blog' && photos
+    // The authorized Instagram text-only route deliberately omits private image bytes.
+    const images = input.sourceApp === 'instagram' && !input.selectedFiles.length ? [] : input.sourceApp === 'blog' && photos
       ? await blogAiImages(db, context, input.selectedFiles, photos, input.campusId)
       : await selectedAiImages(db, files, context, input.selectedFiles.map(file => file.id), input.campusId);
     const content = [{ type: 'input_text', text: input.notes + (input.coreMessage ? '\n' + input.coreMessage : '') },

@@ -12,7 +12,7 @@ export const DERIVATIVE_CATEGORY = 'instagram-derived';
 export const THUMBNAIL_RECORD_TYPE = 'image-thumbnail';
 export const THUMBNAIL_CATEGORY = 'image-thumbnail';
 export function assertMutableRecordType(type: unknown) {
-  if ([DERIVATIVE_RECORD_TYPE, THUMBNAIL_RECORD_TYPE,'admissions-legacy-thumbnail','content-ai-request','content-defaults','instagram-reviewed-render'].includes(String(type).trim())) throw new DataCoreAccessError(403, '보호된 데이터는 전용 기능에서만 변경할 수 있습니다.');
+  if ([DERIVATIVE_RECORD_TYPE, THUMBNAIL_RECORD_TYPE,'admissions-legacy-thumbnail','content-ai-request','content-defaults','instagram-reviewed-render','instagram-carousel-set'].includes(String(type).trim())) throw new DataCoreAccessError(403, '보호된 데이터는 전용 기능에서만 변경할 수 있습니다.');
 }
 
 export function validThumbnail(row: Record<string, any>, metadata: any, source: Record<string, any>) {

@@ -9,7 +9,8 @@ import { campusDisplayName } from './campus-directory';
 import { BRAND_VERSION, LOGOS, TEMPLATES, HUMAN_CHECKS, getInstagramCampusLogoLabel, normalizeDesign, designChecks } from '../public/data-core/instagram-brand-policy.js';
 
 export const INSTAGRAM_RENDER = 'instagram-reviewed-render';
-type Approval = { fingerprint:string; approvedBy:string; approvedAt:string; checks:string[] };
+export const INSTAGRAM_SET = 'instagram-carousel-set';
+type Approval = { fingerprint:string; approvedBy:string; approvedAt:string; checks:string[]; mode?:string };
 type RenderMetadata = { draftId:string; fingerprint:string; masterFileId:string; backgroundFileId:string; exportFileId?:string; approval?:Approval };
 const fail = (status:number, text:string):never => { throw new DataCoreAccessError(status,text); };
 const parse = (text:unknown) => { try { return JSON.parse(String(text || '{}')); } catch { return {}; } };
@@ -40,7 +41,9 @@ async function productionDraft(db:D1Database, context:DataCoreAccessContext, id:
   if (!source || !await canReadRegisteredFile(db,context,source) || (source.campus_id && source.campus_id !== draft.campusId)) fail(403,'원본 자료를 사용할 권한이 없습니다.');
   if (source!.category === DERIVATIVE_CATEGORY || !['image/png','image/jpeg','image/webp'].includes(String(source!.mime_type))) fail(400,'원본 이미지를 선택하세요.');
   // Include all editable metadata and the live campus projection: generic record edits also invalidate approval.
-  const fingerprint = await hash({id:draft.id,campusId:draft.campusId,title:draft.title,summary:draft.summary,content:draft.content,tags:draft.tags,metadata,policy});
+  // New logo choices must not invalidate previously approved single-image renders.
+  const fingerprintPolicy=design.workflow==='carousel-v2'?policy:{...policy,logos:{anihi:LOGOS.anihi,hi5:LOGOS.hi5,combined:LOGOS.combined}};
+  const fingerprint = await hash({id:draft.id,campusId:draft.campusId,title:draft.title,summary:draft.summary,content:draft.content,tags:draft.tags,metadata,policy:fingerprintPolicy});
   return { draft, design, policy, source:source!, fingerprint };
 }
 
@@ -55,6 +58,67 @@ async function audit(db:D1Database,context:DataCoreAccessContext,campusId:string
     .bind(crypto.randomUUID(),ORG,campusId,context.user!.internalUserId,action,id,new Date().toISOString());
 }
 
+type SetItem = {draftId:string;renderId:string;fingerprint:string};
+async function ownedSet(db:D1Database,context:DataCoreAccessContext,id:string) {
+  requireWriteAccess(context);
+  const row=await db.prepare('SELECT * FROM data_records WHERE id=? AND organization_id=? AND record_type=? AND deleted_at IS NULL').bind(id,ORG,INSTAGRAM_SET).first<Record<string,unknown>>();
+  if(!row)fail(404,'저장된 이미지 세트를 찾을 수 없습니다.');
+  requireCampusAccess(context,String(row!.campus_id));
+  if(!context.isSuperAdmin&&!(isCampusAdmin(context)&&managesCampus(context,row!.campus_id))&&context.user!.internalUserId!==row!.created_by_user_id)fail(403,'이 작업을 열 권한이 없습니다.');
+  return {row:row!,meta:parse(row!.metadata_json)};
+}
+export async function getInstagramSet(db:D1Database,context:DataCoreAccessContext,id:string) {
+  const {row,meta}=await ownedSet(db,context,id),items=[];
+  for(const item of meta.items as SetItem[]){
+    const report=await reviewInstagram(db,context,item.draftId,item.renderId);
+    if(!report.approved||report.fingerprint!==item.fingerprint)fail(409,'원본 권한 또는 제작 버전이 변경되었습니다.');
+    items.push({...item,masterFileId:report.masterFileId});
+  }
+  return {id:row.id,campusId:row.campus_id,title:row.title,createdAt:row.created_at,items,caption:String(row.content_text||'')};
+}
+export async function listInstagramSets(db:D1Database,context:DataCoreAccessContext,campusId:string) {
+  await instagramPolicy(db,context,campusId);
+  const owner=context.isSuperAdmin||managesCampus(context,campusId)?'':' AND created_by_user_id=?';
+  const bindings=[ORG,INSTAGRAM_SET,campusId,...(owner?[context.user!.internalUserId]:[])];
+  const result=await db.prepare(`SELECT id,title,created_at AS createdAt FROM data_records WHERE organization_id=? AND record_type=? AND campus_id=? AND deleted_at IS NULL${owner} ORDER BY created_at DESC,id DESC LIMIT 30`).bind(...bindings).all();
+  return {sets:result.results||[]};
+}
+export async function completeInstagramSet(db:D1Database,context:DataCoreAccessContext,input:Record<string,unknown>) {
+  requireWriteAccess(context);
+  const items=input.items as SetItem[],requestId=String(input.requestId||'');
+  if(!/^[0-9a-f-]{36}$/i.test(requestId)||!Array.isArray(items)||items.length<1||items.length>10||new Set(items.map(i=>i?.renderId)).size!==items.length)fail(400,'1~10장의 완성 이미지를 선택하세요.');
+  const id=`instagram-set:${context.user!.internalUserId}:${requestId}`;
+  const existing=await db.prepare('SELECT id,metadata_json FROM data_records WHERE id=? AND organization_id=?').bind(id,ORG).first<{id:string;metadata_json:string}>();
+  if(existing){if(JSON.stringify(parse(existing.metadata_json).items)!==JSON.stringify(items))fail(409,'다른 저장 요청입니다.');return getInstagramSet(db,context,id);}
+  let campusId='',logo='';const sources=new Set(),statements:D1PreparedStatement[]=[];const now=new Date().toISOString();
+  for(const item of items){
+    if(!item||typeof item.draftId!=='string'||typeof item.renderId!=='string')fail(400,'제작 버전을 확인하세요.');
+    const report=await reviewInstagram(db,context,item.draftId,item.renderId);
+    if(report.design.workflow!=='carousel-v2'||!report.canApprove||report.fingerprint!==item.fingerprint)fail(409,'현재 미리보기와 저장 버전이 일치하지 않습니다.');
+    if(campusId&&campusId!==report.campusId||logo&&logo!==report.design.logoType)fail(400,'같은 캠퍼스와 로고의 이미지 세트만 저장할 수 있습니다.');
+    campusId=report.campusId;logo=report.design.logoType;
+    const {row,meta}=await renderRow(db,item.draftId,item.renderId),source=await productionDraft(db,context,item.draftId);
+    if(sources.has(source.source.id))fail(400,'중복 원본을 확인하세요.');sources.add(source.source.id);
+    meta.approval={fingerprint:report.fingerprint,approvedBy:context.user!.internalUserId,approvedAt:now,checks:[],mode:'user-finalized-set'};
+    statements.push(db.prepare('UPDATE data_records SET metadata_json=?,updated_at=? WHERE id=? AND organization_id=? AND metadata_json=?').bind(JSON.stringify(meta),now,row.id,ORG,row.metadata_json));
+  }
+  statements.push(db.prepare(`INSERT INTO data_records(id,organization_id,campus_id,created_by_user_id,record_type,source_app,title,visibility,status,metadata_json,created_at,updated_at) VALUES (?,?,?,?,?,'instagram',?,'private','active',?,?,?)`).bind(id,ORG,campusId,context.user!.internalUserId,INSTAGRAM_SET,`인스타 이미지 ${items.length}장`,JSON.stringify({schemaVersion:1,items,completedAt:now}),now,now));
+  statements.push(await audit(db,context,campusId,'instagram.complete-set',id));
+  try{await db.batch(statements);}catch(error){
+    // Concurrent duplicate clicks reuse the committed set, never manufacture a second one.
+    const committed=await db.prepare('SELECT metadata_json FROM data_records WHERE id=? AND organization_id=?').bind(id,ORG).first<{metadata_json:string}>();
+    if(committed){if(JSON.stringify(parse(committed.metadata_json).items)!==JSON.stringify(items))fail(409,'다른 저장 요청입니다.');return getInstagramSet(db,context,id);}
+    throw error;
+  }
+  return getInstagramSet(db,context,id);
+}
+export async function saveInstagramSetCaption(db:D1Database,context:DataCoreAccessContext,id:string,input:Record<string,unknown>){
+  await getInstagramSet(db,context,id);
+  if(typeof input.caption!=='string'||input.caption.length>12000)fail(400,'홍보 문구를 확인하세요.');
+  await db.prepare('UPDATE data_records SET content_text=?,updated_at=? WHERE id=? AND organization_id=? AND record_type=?').bind(input.caption,new Date().toISOString(),id,ORG,INSTAGRAM_SET).run();
+  return {saved:true};
+}
+
 export async function saveInstagramRender(request:Request,db:D1Database,files:R2Bucket,context:DataCoreAccessContext,id:string) {
   const current = await productionDraft(db,context,id), form = await boundedDerivativeForm(request);
   if (form.get('fingerprint') !== current.fingerprint) fail(409,'초안이 변경되었습니다. 다시 저장하고 미리보기를 만드세요.');
@@ -62,7 +126,8 @@ export async function saveInstagramRender(request:Request,db:D1Database,files:R2
   if (backgroundId !== current.source.id) {
     const row = await db.prepare('SELECT * FROM file_objects WHERE id=? AND organization_id=? AND deleted_at IS NULL').bind(backgroundId,ORG).first<Record<string,unknown>>();
     const provenance = row && await derivativeMetadata(db,row);
-    if (current.design.materialKind !== 'ai-support' || !row || !provenance || provenance.derivedFromFileId !== current.source.id || !await canReadRegisteredFile(db,context,row)) fail(403,'학생 작품과 실제 사진은 원본 그대로 배치해야 합니다.');
+    const editable=current.design.materialKind==='ai-support'||(current.design.workflow==='carousel-v2'&&current.design.materialKind==='real-photo'&&current.design.externalAiConsent);
+    if (!editable || !row || !provenance || provenance.derivedFromFileId !== current.source.id || !await canReadRegisteredFile(db,context,row)) fail(403,'학생 작품과 보호 자료는 원본 그대로 배치해야 합니다.');
   }
   const file = form.get('file');
   if (!(file instanceof File) || file.type !== 'image/png') fail(400,'PNG 미리보기가 필요합니다.');
@@ -153,9 +218,20 @@ export async function exportInstagram(db:D1Database,files:R2Bucket,context:DataC
 }
 
 export async function assertInstagramAiUse(db:D1Database,context:DataCoreAccessContext,ids:string[],input:Record<string,unknown>,edit=false) {
-  if(!Array.isArray(ids) || ids.length!==1 || typeof ids[0]!=='string' || ids[0].length>120) fail(400,'대표 원본 이미지 1장을 선택하세요.');
   const design=normalizeDesign(input.material);
-  if (design.usePermission !== 'allowed' || !design.externalAiConsent || (edit && design.materialKind !== 'ai-support') || ['student-artwork','brand-asset','fact-document'].includes(design.materialKind)) fail(403,'자료 유형과 별도의 외부 AI 처리 동의를 확인하세요. 학생 작품·로고·사실 자료는 AI에 전송하지 않습니다.');
+  const textOnly=!edit&&design.workflow==='carousel-v2'&&input.textOnly===true;
+  const max=textOnly?10:design.workflow==='carousel-v2'&&!edit?6:1;
+  if(!Array.isArray(ids)||ids.length<1||ids.length>max||new Set(ids).size!==ids.length||ids.some(id=>typeof id!=='string'||id.length>120))fail(400,'선택한 원본 이미지 수를 확인하세요.');
+  if(textOnly){
+    if(design.usePermission!=='allowed')fail(403,'홍보 사용 권한을 확인하세요.');
+    for(const id of ids){
+      const row=await db.prepare('SELECT * FROM file_objects WHERE id=? AND organization_id=? AND deleted_at IS NULL').bind(id,ORG).first<Record<string,unknown>>();
+      if(!row||!await canReadRegisteredFile(db,context,row)||(row.campus_id&&row.campus_id!==input.campusId))fail(403,'이 자료를 사용할 권한이 없습니다.');
+    }
+    return;
+  }
+  const editable=design.materialKind==='ai-support'||(design.workflow==='carousel-v2'&&design.materialKind==='real-photo');
+  if (design.usePermission !== 'allowed' || !design.externalAiConsent || (edit && !editable) || ['student-artwork','brand-asset','fact-document'].includes(design.materialKind)) fail(403,'자료 유형과 별도의 외부 AI 처리 동의를 확인하세요. 학생 작품·로고·사실 자료는 AI에 전송하지 않습니다.');
   for(const id of ids){
     const row=await db.prepare('SELECT * FROM file_objects WHERE id=? AND organization_id=? AND deleted_at IS NULL').bind(id,ORG).first<Record<string,unknown>>();
     if(!row || !await canReadRegisteredFile(db,context,row) || /student|artwork|award|admission|document|logo/.test(String(row.category)) || row.area==='student-private') fail(403,'이 자료는 외부 AI 처리에 사용할 수 없습니다.');

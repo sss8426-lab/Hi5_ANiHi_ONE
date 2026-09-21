@@ -62,7 +62,7 @@ import { campusPresence } from './campus-presence';
 import { handleKkumeumApi } from "./kkumeum-router";
 import { aiModels, boundedJson, ContentAiError, editInstagramImage, openAiContentProvider, unavailable, type OpenAiEnv } from './content-openai-provider';
 import { contentDefaults, contentScope, withAiRequest } from './content-ai-settings';
-import { instagramPolicy, saveInstagramRender, reviewInstagram, approveInstagram, exportInstagram, assertInstagramAiUse } from './instagram-production';
+import { instagramPolicy, saveInstagramRender, reviewInstagram, approveInstagram, exportInstagram, assertInstagramAiUse, completeInstagramSet, getInstagramSet, listInstagramSets, saveInstagramSetCaption } from './instagram-production';
 import { AI_PHOTO_LIMIT } from './content-ai-images';
 
 interface Env extends OpenAiEnv {
@@ -480,6 +480,16 @@ async function handleContentApi(request: Request, env: Env) {
     if (request.method === 'PUT') return jsonResponse({ defaults: await contentDefaults(env.DB, context, await contentJson(request), true) });
   }
   if (url.pathname === '/api/data-core/content/instagram-policy' && request.method === 'GET') return jsonResponse(await instagramPolicy(env.DB,context,url.searchParams.get('campusId') || ''));
+  if(url.pathname==='/api/data-core/content/instagram-sets'){
+    if(request.method==='POST')return jsonResponse(await completeInstagramSet(env.DB,context,await contentJson(request)),{status:201});
+    if(request.method==='GET')return jsonResponse(await listInstagramSets(env.DB,context,url.searchParams.get('campusId')||''));
+  }
+  const setMatch=url.pathname.match(/^\/api\/data-core\/content\/instagram-sets\/([^/]+)$/);
+  if(setMatch){
+    const id=decodeURIComponent(setMatch[1]);
+    if(request.method==='GET')return jsonResponse(await getInstagramSet(env.DB,context,id));
+    if(request.method==='PATCH')return jsonResponse(await saveInstagramSetCaption(env.DB,context,id,await contentJson(request)));
+  }
   const productionMatch=url.pathname.match(/^\/api\/data-core\/content\/instagram\/([^/]+)\/(review|render|approve|export)$/);
   if (productionMatch) {
     const [,id,action]=productionMatch;
@@ -519,6 +529,8 @@ async function handleContentApi(request: Request, env: Env) {
     const scope = contentScope(context, input);
     if (photos && scope.sourceApp !== 'blog') throw new DataCoreAccessError(400, '사진 업로드 방식이 이 콘텐츠 종류와 맞지 않습니다.');
     if(scope.sourceApp==='instagram') await assertInstagramAiUse(env.DB,context,input.selectedFileIds || [],parsedInput);
+    // Artwork captions use only the explicit command, never artwork bytes or file descriptors.
+    if(scope.sourceApp==='instagram'&&parsedInput.textOnly===true)input.selectedFileIds=[];
     const provider = env.FILES ? openAiContentProvider(env, env.DB, env.FILES, context, request.signal) : undefined;
     try {
       const run = () => generateContentWithProvider(env.DB!, context, input, provider, photos);

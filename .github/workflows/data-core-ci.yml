@@ -59,6 +59,8 @@ jobs:
           node --check public/data-core/instagram-derivative.js
           node --check public/data-core/instagram-brand-policy.js
           node --check public/data-core/instagram-production.js
+          node --check public/data-core/instagram-carousel.js
+          node --check public/data-core/instagram-layout.js
           node --check public/data-core/operations.js
           node --check public/data-core/roadmap.js
           node --check public/data-core/roadmap-model.js
