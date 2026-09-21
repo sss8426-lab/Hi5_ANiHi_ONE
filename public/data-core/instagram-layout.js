@@ -53,12 +53,18 @@ export async function drawLogo(canvas,type,label,signal){
   }finally{logo.close();}
 }
 export async function composeInstagram(sourceUrl,design,label,signal){
+  const start=performance.now();
   const image=await loadBitmap(sourceUrl,signal),logo=document.createElement('canvas'),canvas=document.createElement('canvas');
+  const loaded=performance.now();
   canvas.width=MASTER.width;canvas.height=MASTER.height;
   try{
     const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,2160,2700);
     if(design.logoType!=='none'){await drawLogo(logo,design.logoType,label,signal);fitted(ctx,logo,110,32,1940,260);}
     const box=imageBox(design.materialKind,design.logoType);fitted(ctx,image,box.x,box.y,box.width,box.height,box.fit==='cover');
-    return await encodeMaster(canvas,signal);
+    const composed=performance.now(),blob=await encodeMaster(canvas,signal),encoded=performance.now();
+    for(const [name,from,to]of [['source',start,loaded],['compose',loaded,composed],['png',composed,encoded]]){
+      performance.clearMeasures('instagram.'+name);performance.measure('instagram.'+name,{start:from,end:to});
+    }
+    return blob;
   }finally{image.close();canvas.width=canvas.height=1;logo.width=logo.height=1;}
 }

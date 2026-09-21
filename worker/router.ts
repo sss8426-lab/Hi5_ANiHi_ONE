@@ -482,7 +482,10 @@ async function handleContentApi(request: Request, env: Env) {
   }
   if (url.pathname === '/api/data-core/content/instagram-policy' && request.method === 'GET') return jsonResponse(await instagramPolicy(env.DB,context,url.searchParams.get('campusId') || ''));
   if(url.pathname==='/api/data-core/content/instagram-sets'){
-    if(request.method==='POST')return jsonResponse(await completeInstagramSet(env.DB,context,await contentJson(request)),{status:201});
+    if(request.method==='POST'){
+      const start=performance.now(),result=await completeInstagramSet(env.DB,context,await contentJson(request));
+      return jsonResponse(result,{status:201,headers:{'server-timing':`complete;dur=${(performance.now()-start).toFixed(1)}`}});
+    }
     if(request.method==='GET')return jsonResponse(await listInstagramSets(env.DB,context,url.searchParams.get('campusId')||''));
   }
   if(url.pathname==='/api/data-core/content/ai-usage'&&request.method==='GET')return jsonResponse(await aiUsage(env.DB,context,env),{headers:{'cache-control':'private, no-store'}});
@@ -498,7 +501,10 @@ async function handleContentApi(request: Request, env: Env) {
     const [,id,action]=productionMatch;
     if(action==='review' && request.method==='GET') return jsonResponse(await reviewInstagram(env.DB,context,id,url.searchParams.get('renderId') || undefined));
     if(request.method!=='POST') return jsonResponse({error:'지원하지 않는 요청입니다.'},{status:405});
-    if(action==='render' && env.FILES) return jsonResponse(await saveInstagramRender(request,env.DB,env.FILES,context,id),{status:201});
+    if(action==='render' && env.FILES){
+      const start=performance.now(),result=await saveInstagramRender(request,env.DB,env.FILES,context,id);
+      return jsonResponse(result,{status:201,headers:{'server-timing':`store;dur=${(performance.now()-start).toFixed(1)}`}});
+    }
     const input=await contentJson(request);
     if(action==='approve') return jsonResponse(await approveInstagram(env.DB,context,id,input));
     if(action==='export' && env.FILES) return exportInstagram(env.DB,env.FILES,context,id,input);

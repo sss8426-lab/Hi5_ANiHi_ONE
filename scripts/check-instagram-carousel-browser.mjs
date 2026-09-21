@@ -4,6 +4,7 @@ import path from 'node:path';
 import http from 'node:http';
 import {pathToFileURL} from 'node:url';
 import {createHash} from 'node:crypto';
+import {execFileSync} from 'node:child_process';
 import {encode,decode} from 'fast-png';
 import sharp from 'sharp';
 import {libraryHarness,users,A,B} from '../tests/support/library-harness.mjs';
@@ -11,6 +12,7 @@ const {chromium}=await import(process.env.PLAYWRIGHT_MODULE?pathToFileURL(proces
 const out=path.resolve('outputs/instagram-carousel'),root=path.resolve('public');await fs.mkdir(out,{recursive:true});
 const previewOrigin=process.argv.includes('--preview')?new URL(process.argv[process.argv.indexOf('--preview')+1]).origin:null;
 const checked=new Set(),assetErrors=[];
+const baseline=process.argv.includes('--baseline'),measureOnly=process.argv.includes('--measure-only'),measurements=[],assets=new Map();
 const h=await libraryHarness(),realFetch=globalThis.fetch;
 let textCalls=0,imageCalls=0,failText=false,activeUser=users.staff,failSetOnce=true;
 let lastRendered=null,avoidedPreviewBytes=0;const fileReads=new Map();
@@ -57,7 +59,8 @@ const server=http.createServer(async(req,res)=>{
     }
     const pathname=/^\/data-core\/content\/(instagram|blog)$/.test(url.pathname)?'/data-core/content.html':url.pathname,file=path.resolve(root,'.'+pathname);
     if(!file.startsWith(root+path.sep)){res.writeHead(403).end();return;}
-    const bytes=await fs.readFile(file);
+    if(!assets.has(pathname))assets.set(pathname,baseline?execFileSync('git',['show','818dbc9:public'+pathname],{maxBuffer:20*1024*1024,stdio:['ignore','pipe','ignore']}):await fs.readFile(file));
+    const bytes=assets.get(pathname);
     if(previewOrigin&&!checked.has(pathname)){
       const remote=await realFetch(previewOrigin+pathname);
       assert.equal(remote.status,200,pathname);
@@ -97,6 +100,7 @@ try{
   async function generate(count,mode='original',logo='anihi'){
     await open();for(let i=0;i<count;i++)await page.locator(`[data-pick-file="${files[i].id}"]`).click();
     await page.locator('#aiCommand').fill('합성 공간의 밝고 차분한 분위기');await page.locator('#igMode').selectOption(mode);await page.locator(`[data-logo="${logo}"]`).click();
+    const started=performance.now();
     await page.locator('#igGenerate').evaluate(button=>{button.click();button.click();});
     await page.waitForFunction(()=>document.querySelector('#igStatus').textContent.endsWith('장 제작 완료'),null,{timeout:180000});
     assert.equal(await page.locator('#igSlides button').count(),count);assert.equal(await page.locator('#igDownloads button').count(),0);
@@ -105,10 +109,15 @@ try{
     assert.match(preview,/^blob:/,'reuse the generated pixels rather than download the just-uploaded master');
     await page.waitForFunction(()=>document.querySelector('#igPreview').naturalWidth===2160);
     const expectFailure=failSetOnce;
+    const generated=performance.now();
     await page.locator('#igComplete').evaluate(button=>{button.click();button.click();});
     if(expectFailure){await page.waitForFunction(()=>document.querySelector('#igSaved').textContent.includes('저장 실패'));assert.equal(await page.locator('#igDownloads button').count(),0);await page.locator('#igComplete').click();}
     await page.waitForFunction(()=>document.querySelector('#igSaved').textContent==='저장 완료');
+    const completed=performance.now();
     await page.waitForFunction(()=>!document.querySelector('#igGenerate').disabled,null,{timeout:180000});
+    await page.waitForFunction(()=>/작성 완료|작성하지 못했습니다/.test(document.querySelector('#igCaptionStatus').textContent),null,{timeout:180000});
+    measurements.push({count,mode,logo,generateMs:generated-started,completeMs:completed-generated,captionMs:performance.now()-completed,
+      stages:await page.evaluate(()=>performance.getEntriesByType('measure').filter(e=>e.name.startsWith('instagram.')).map(e=>({name:e.name,ms:e.duration})))});
     assert.equal(await page.locator('#igPreview').getAttribute('src'),preview);
     assert.equal(await page.locator('#igDownloads button').count(),count);
     const masterPath='/api/data-core/files/'+lastRendered.id;
@@ -116,6 +125,12 @@ try{
     avoidedPreviewBytes+=lastRendered.sizeBytes;
     return masterPath;
   }
+  if(measureOnly){
+    failSetOnce=false;
+    for(const count of [1,5,10])for(let repeat=0;repeat<3;repeat++)await generate(count);
+    await fs.writeFile(path.join(out,baseline?'timings-before.json':'timings-after.json'),JSON.stringify({baseline:'818dbc9',server:'same current Worker in isolated D1/R2; frontend comparison',measurements},null,2));
+    console.log(JSON.stringify(measurements));
+  }else{
   await open();assert.equal(await page.locator('#igGenerate').isDisabled(),true);
   for(const logo of ['anihi','hi5','combined','slogan','horizontal','none']){
     await page.locator(`[data-logo="${logo}"]`).click();assert.equal(await page.locator(`[data-logo="${logo}"]`).getAttribute('aria-pressed'),'true');
@@ -132,6 +147,13 @@ try{
     const boxes=await page.locator('.defaults-grid textarea').evaluateAll(els=>els.map(el=>{const r=el.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width};}));
     assert.equal(boxes[0].y,boxes[1].y,'defaults stay side by side');assert.ok(boxes[1].x>boxes[0].x+boxes[0].width);
     assert.ok(await page.locator('#aiCommand').evaluate(el=>Boolean(el.compareDocumentPosition(document.querySelector('#igLogos'))&Node.DOCUMENT_POSITION_FOLLOWING)));
+    await page.waitForFunction(()=>{
+      const box=document.querySelector('#filePickList').getBoundingClientRect();
+      return [...document.querySelectorAll('#filePickList img[data-thumbnail],#selectedFiles img[data-thumbnail]')].filter(img=>{
+        if(img.closest('#selectedFiles'))return true;
+        const r=img.getBoundingClientRect();return r.bottom>box.top&&r.top<box.bottom;
+      }).every(img=>img.complete&&img.naturalWidth>0);
+    },null,{timeout:30000});
     await page.screenshot({path:path.join(out,'input-'+width+'.png'),fullPage:true});
   }
   await page.setViewportSize({width:1440,height:1000});
@@ -170,10 +192,16 @@ try{
   await page.waitForFunction(()=>document.querySelector('#igSaved').textContent==='저장된 최종본');assert.equal(await page.locator('#igDownloads button').count(),10);
   assert.ok((await page.locator('#igCaptionText').inputValue()).includes('합성 공간'));
   failText=true;await generate(1,'photo');assert.equal(imageCalls,1);assert.equal(await page.locator('#igCaptionRetry').isVisible(),true);
-  failText=false;await page.locator('#igCaptionRetry').click();await page.waitForFunction(()=>document.querySelector('#igCaptionStatus').textContent.includes('작성 완료'));
-  await page.waitForFunction(()=>!document.querySelector('#igGenerate').disabled);
+  let releaseCaption,markCaptionHeld;
+  const captionHeld=new Promise(resolve=>markCaptionHeld=resolve);
+  await page.route('**/api/data-core/content/generate',async route=>{markCaptionHeld();await new Promise(release=>releaseCaption=release);await route.fulfill({json:{generated:{title:'STALE',body:'STALE',hashtags:[]}}}).catch(()=>{});});
+  failText=false;await page.locator('#igCaptionRetry').click();await captionHeld;
+  assert.equal(await page.locator('#igDownloads button').first().isEnabled(),true);
+  assert.equal(await page.locator('#igGenerate').isEnabled(),true);
   assert.equal(imageCalls,1,'caption retry never edits images again');
   await page.locator('[data-logo="none"]').click();assert.match(await page.locator('#igStatus').textContent(),/미저장/);
+  releaseCaption();await page.waitForTimeout(100);await page.unroute('**/api/data-core/content/generate');
+  assert.equal(await page.locator('#igCaptionText').inputValue(),'','late caption cannot overwrite the changed selection');
   await page.locator('#igGenerate').click();await page.waitForFunction(()=>document.querySelector('#igStatus').textContent==='1장 제작 완료',null,{timeout:180000});
   assert.equal(imageCalls,1,'logo-only changes reuse the authorized AI intermediate');
   const oldPreview=await page.locator('#igPreview').getAttribute('src');
@@ -202,4 +230,5 @@ try{
   await page.locator('[data-pick-file]').nth(0).click();await page.locator('[data-pick-file]').nth(1).click();
   assert.equal(await page.locator('[data-pick-file][aria-pressed="true"]').count(),2);assert.equal(await page.locator('#igGenerate').count(),0);
   assert.deepEqual(errors,[]);assert.deepEqual(assetErrors,[]);console.log(JSON.stringify({passed:true,widths:[320,390,768,1024,1440,1920],textCalls,imageCalls,sets:[1,5,10],previewAssets:checked.size,avoidedPreviewBytes,outputs:out}));
+  }
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));globalThis.fetch=realFetch;await h.mf.dispose();}

@@ -4,14 +4,14 @@ import { readFile } from 'node:fs/promises';
 
 const contentHtml = await readFile(new URL('../public/data-core/content.html', import.meta.url), 'utf8');
 const adminNavScript = await readFile(new URL('../public/data-core/content-admin-nav.js', import.meta.url), 'utf8');
+const navigation = await readFile(new URL('../public/data-core/work-navigation.js', import.meta.url), 'utf8');
 
 test('work content sidebar stays work-only and hides admin links by default', () => {
   assert.doesNotMatch(contentHtml, /꿈·전공 로드맵/);
-  assert.match(contentHtml, /href="\/data-core\/work\/library"/);
-  assert.match(contentHtml, /href="\/data-core\/content\/blog"/);
-  assert.match(contentHtml, /href="\/data-core\/content\/instagram"/);
-  assert.match(contentHtml, /class="nav-item hidden" href="\/data-core\/operations" data-super-admin-nav/);
-  assert.match(contentHtml, /class="nav-item hidden" href="\/data-core\/accounts" data-super-admin-nav/);
+  assert.match(contentHtml, /data-work-navigation="work"/);
+  assert.match(contentHtml, /class="[^"]*hidden[^"]*" data-work-navigation="admin"/);
+  for (const path of ['/data-core/work/library', '/data-core/content/blog', '/data-core/content/instagram', '/data-core/operations', '/data-core/accounts']) assert.ok(navigation.includes(path));
+  assert.match(navigation, /!context\?\.authenticated\|\|!context.isSuperAdmin/);
   assert.match(adminNavScript, /context\?\.authenticated && context\?\.isSuperAdmin/);
 });
 

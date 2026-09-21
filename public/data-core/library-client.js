@@ -43,10 +43,11 @@
       return [...groups];
     },
     async browse(api, { id = 'root', q = '', page = 1 } = {}, options = {}) {
-      const {onView, skipFolders=false, counts=true, ...requestOptions} = options;
+      const {onView,onListing,skipFolders=false,counts=true,skipEmptyRoot=false, ...requestOptions} = options;
       const folder = skipFolders ? Promise.resolve(null) : request(api,`/api/data-core/library/folders?parentId=${encodeURIComponent(id)}${counts?'':'&counts=0'}`,requestOptions)
         .then(view => {if(!requestOptions.signal?.aborted)onView?.(view);return view;});
-      const results = await Promise.allSettled([folder,request(api,`/api/data-core/library/files?folderId=${encodeURIComponent(id)}&q=${encodeURIComponent(q)}&page=${page}`,requestOptions)]);
+      const files=skipEmptyRoot&&(id==='root'||id.startsWith('campus:'))?Promise.resolve({files:[],hasMore:false}):request(api,`/api/data-core/library/files?folderId=${encodeURIComponent(id)}&q=${encodeURIComponent(q)}&page=${page}`,requestOptions);
+      const results = await Promise.allSettled([folder,files.then(listing=>{if(!requestOptions.signal?.aborted)onListing?.(listing);return listing;})]);
       const rejected=results.find(result=>result.status==='rejected');if(rejected)throw rejected.reason;
       const [view,listing]=results.map(result=>result.value);
       return { view, listing };

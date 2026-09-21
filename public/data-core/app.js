@@ -177,6 +177,7 @@ function updateSidebar() {
   document.querySelectorAll('.nav-item[data-view]').forEach((button) => {
     button.classList.toggle('active', button.dataset.view === state.currentView);
   });
+  window.DataCoreWorkNavigation?.select(state.currentView);
 }
 
 function switchView(view, options = {}) {
@@ -202,6 +203,7 @@ function switchView(view, options = {}) {
       'work-home': '/data-core/work',
       library: '/data-core/work/library',
       attendance: '/data-core/work/attendance',
+      admin: '/data-core/work?view=admin',
       competitions: '/data-core/counseling/competitions',
       curriculum: '/data-core/curriculum',
     })[view];
@@ -229,6 +231,7 @@ function switchView(view, options = {}) {
 
 function initialViewFromPath() {
   const path = location.pathname.replace(/\/+$/, '');
+  if(path==='/data-core/work'&&new URLSearchParams(location.search).get('view')==='admin')return 'admin';
   if (/^\/data-core\/curriculum(?:\/(content|design)(?:\/(basic|advanced|admission))?)?$/.test(path)) return 'curriculum';
   if (path === '/data-core/counseling') return 'counseling-home';
   if (path === '/data-core/counseling/competitions') return 'competitions';
@@ -1534,26 +1537,6 @@ function bindEvents() {
   });
   $('membershipForm').onsubmit = grantMembership;
   $('refreshMembershipsBtn').onclick = loadMemberships;
-  document.querySelectorAll('[data-calendar-prev]').forEach((button) => {
-    button.onclick = () => {
-      state.calendarMonth = new Date(state.calendarMonth.getFullYear(), state.calendarMonth.getMonth() - 1, 1);
-      state.calendarSelectedDate = calendarRange().from;
-      loadCalendar();
-    };
-  });
-  document.querySelectorAll('[data-calendar-next]').forEach((button) => {
-    button.onclick = () => {
-      state.calendarMonth = new Date(state.calendarMonth.getFullYear(), state.calendarMonth.getMonth() + 1, 1);
-      state.calendarSelectedDate = calendarRange().from;
-      loadCalendar();
-    };
-  });
-  document.querySelectorAll('[data-calendar-today]').forEach((button) => {
-    button.onclick = () => window.AcademyCalendar.today();
-  });
-  document.querySelectorAll('[data-calendar-add]').forEach((button) => {
-    button.onclick = () => openCalendarModal();
-  });
   $('calendarForm').onsubmit = saveCalendarEvent;
   $('memberRole').onchange = () => {
     $('memberCampus').disabled = $('memberRole').value === 'SUPER_ADMIN';

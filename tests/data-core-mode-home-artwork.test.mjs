@@ -16,7 +16,7 @@ assert.match(enhancement, /login-chip-action/);
 assert.match(nav, /mode-home-artwork\.js/);
 assert.match(html, /work-visuals\/story-v1\.webp/);
 assert.match(html, /work-visuals\/operations-v1\.webp/);
-assert.match(html, /styles\.css\?v=20260921-calendar/);
+assert.match(html, /styles\.css\?v=20260921-performance/);
 assert.match(html, /mode-grid photographic-modes/);
 assert.equal((html.match(/work-visuals\/story-v1\.webp/g) || []).length, 1);
 assert.match(html, /data-brand-image="dream" src="\/data-core\/assets\/counseling\/dream-roadmap-field-v1\.webp"/);

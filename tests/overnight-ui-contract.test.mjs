@@ -8,11 +8,13 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
 test('work automation sidebar contains only work-domain navigation', async () => {
   const html = await read('public/data-core/content.html');
-  assert.match(html, /자료보관함/);
-  assert.match(html, /블로그 자동화/);
-  assert.match(html, /인스타 자동화/);
+  const navigation = await read('public/data-core/work-navigation.js');
+  assert.match(html, /data-work-navigation="work"/);
+  assert.match(navigation, /자료보관함/);
+  assert.match(navigation, /블로그 자동화/);
+  assert.match(navigation, /인스타 자동화/);
   assert.doesNotMatch(html, /꿈·전공 로드맵/);
-  assert.match(html, /업무용 홈으로 돌아가기/);
+  assert.match(navigation, /업무용 홈/);
 });
 
 test('admissions shell is branded as 대학 합격 로드맵 without duplicate awards nav', async () => {

@@ -1,5 +1,5 @@
 import {LOGOS,normalizeDesign} from './instagram-brand-policy.js';
-import {composeInstagram,drawLogo} from './instagram-layout.js';
+import {composeInstagram,drawLogo} from './instagram-layout.js?v=20260921-performance';
 import {assembleCaption} from './content-caption.js';
 
 export function mountInstagramProduction({state,api,$,toast,canWrite}) {
@@ -23,6 +23,8 @@ export function mountInstagramProduction({state,api,$,toast,canWrite}) {
   let logoType='anihi',policy=null,policyEpoch=0,generation=0,busy=false,items=[],currentSet=null,controller=null,selected='',signature='',requestId='',activeIndex=0;
   let localPreview=null;
   let imageState='new',hasSaved=false;
+  let captionBusy=false,captionEpoch=0,captionController=null;
+  function captionLock(value){captionBusy=value;for(const id of ['igCaptionText','igCaptionSave','igCaptionRetry'])$(id).disabled=value;}
   const backgrounds=new Map();
   const previewUrl=item=>localPreview?.fileId===item.masterFileId?localPreview.url:'/api/data-core/files/'+encodeURIComponent(item.masterFileId);
   function releasePreview(){if(localPreview)URL.revokeObjectURL(localPreview.url);localPreview=null;}
@@ -32,11 +34,11 @@ export function mountInstagramProduction({state,api,$,toast,canWrite}) {
   const post=(path,body,signal)=>api('/api/data-core/content'+(path?'/'+path:''),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body),signal:signal||AbortSignal.timeout(150000)});
   function buttons(){ $('igGenerate').disabled=busy||!canWrite()||!state.selectedFileIds.length||!$('draftCampus').value;
     $('igComplete').disabled=busy||!items.length||items.length!==state.selectedFileIds.length||signature!==snapshot()||Boolean(currentSet);
-    const saved=Boolean(currentSet);$('igComplete').innerHTML=saved?'<svg aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Check"></use></svg>저장 완료':imageState==='saving'?'저장 중…':imageState==='failed'?'다시 저장':hasSaved?'변경사항 저장':'완료 및 저장';
+    const saved=Boolean(currentSet);$('igComplete').innerHTML=saved?'<svg aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Check"></use></svg>완료':imageState==='saving'?'저장 중…':imageState==='failed'?'다시 저장':hasSaved?'변경사항 저장':'완료 및 저장';
     $('igComplete').setAttribute('aria-busy',String(imageState==='saving'));
     $('igGenerate').textContent=originalMode()?'이미지 만들기':'AI로 이미지 만들기';$('igCancel').hidden=!busy||!controller; }
   function lock(value){busy=value;state.busy=value;$('photoHeading').closest('.workflow-section').inert=value;command.inert=value;$('igLogos').inert=value;$('igMode').disabled=value;history.inert=value;result.querySelectorAll('button,textarea').forEach(el=>el.disabled=value);buttons();}
-  function clear(keepBackgrounds=false){if(keepBackgrounds!==true)backgrounds.clear();releasePreview();generation++;items=[];currentSet=null;signature='';requestId='';imageState='new';result.hidden=true;$('igPreview').removeAttribute('src');$('igSlides').replaceChildren();$('igDownloads').replaceChildren();$('igCaptionSection').hidden=true;$('igCaptionText').value='';$('igCaptionStatus').textContent='';$('igStatus').textContent=hasSaved?'변경사항 미저장':'';$('igSaved').textContent=hasSaved?'변경사항 미저장':'저장 전';$('igCaptionRetry').hidden=true;buttons();}
+  function clear(keepBackgrounds=false){captionEpoch++;captionController?.abort();captionLock(false);if(keepBackgrounds!==true)backgrounds.clear();releasePreview();generation++;items=[];currentSet=null;signature='';requestId='';imageState='new';result.hidden=true;$('igPreview').removeAttribute('src');$('igSlides').replaceChildren();$('igDownloads').replaceChildren();$('igCaptionSection').hidden=true;$('igCaptionText').value='';$('igCaptionStatus').textContent='';$('igStatus').textContent=hasSaved?'변경사항 미저장':'';$('igSaved').textContent=hasSaved?'변경사항 미저장':'저장 전';$('igCaptionRetry').hidden=true;buttons();}
   async function logos(){
     const campusId=$('draftCampus').value;
     if(policy?.campusId===campusId&&$('igLogos').children.length===Object.keys(LOGOS).length)return;
@@ -81,10 +83,13 @@ export function mountInstagramProduction({state,api,$,toast,canWrite}) {
           try{backgroundId=backgrounds.get(backgroundKey(ids[i]))||(await post('image-edit',{sourceApp:'instagram',campusId,sourceFileId:ids[i],direction,material:design,requestId:crypto.randomUUID()},controller.signal)).file.id;backgrounds.set(backgroundKey(ids[i]),backgroundId);}finally{clearTimeout(timer);}
         }
         stage=`${i+1} / ${ids.length} 로고 합성`;$('igStatus').textContent=stage+' 중...';
-        const blob=await composeInstagram('/api/data-core/files/'+encodeURIComponent(backgroundId),design,policy.campusLogoLabel,controller.signal);
+        // Only one decoded image at a time; metadata work can overlap composition.
+        const [blob,report]=await Promise.all([
+          composeInstagram('/api/data-core/files/'+encodeURIComponent(backgroundId),design,policy.campusLogoLabel,controller.signal),
+          (async()=>{const draft=(await post('',{sourceApp:'instagram',campusId,title:`인스타 이미지 ${i+1}`,summary:direction,relatedFileIds:[ids[i]],metadata:{instagramDesign:design}},controller.signal)).draft;return {draft,...await api(`/api/data-core/content/instagram/${draft.id}/review`,{signal:controller.signal})};})(),
+        ]);
         stage=`${i+1} / ${ids.length} 이미지 저장`;$('igStatus').textContent=stage+' 중...';
-        const draft=(await post('',{sourceApp:'instagram',campusId,title:`인스타 이미지 ${i+1}`,summary:direction,relatedFileIds:[ids[i]],metadata:{instagramDesign:design}},controller.signal)).draft;
-        const report=await api(`/api/data-core/content/instagram/${draft.id}/review`,{signal:controller.signal});
+        const draft=report.draft;
         const form=new FormData();form.set('file',blob,'instagram-master.png');form.set('fingerprint',report.fingerprint);form.set('backgroundFileId',backgroundId);
         const saved=await api(`/api/data-core/content/instagram/${draft.id}/render`,{method:'POST',body:form,signal:controller.signal});
         if(epoch!==generation)return;
@@ -109,21 +114,29 @@ export function mountInstagramProduction({state,api,$,toast,canWrite}) {
     }));
   }
   async function caption(){
-    if(!currentSet||busy)return;lock(true);$('igDownloads').querySelectorAll('button').forEach(button=>button.disabled=false);$('igCancel').hidden=true;$('igCaptionSection').hidden=false;$('igCaptionRetry').hidden=true;$('igCaptionStatus').textContent='홍보글을 작성하고 있습니다...';
+    if(!currentSet||busy||captionBusy)return;
+    const target=currentSet,epoch=++captionEpoch,design=read(),textOnly=originalMode(),ids=[...state.selectedFileIds],direction=$('aiCommand').value.trim(),label=policy.campusLogoLabel,footer=$('defaultFooter').value,hashtags=$('defaultHashtags').value;
+    const valid=()=>epoch===captionEpoch&&currentSet?.id===target.id;
+    const abort=new AbortController();captionController=abort;captionLock(true);
+    $('igCaptionSection').hidden=false;$('igCaptionRetry').hidden=true;$('igCaptionStatus').textContent='홍보글을 작성하고 있습니다...';
     try{
       let body='',title='',tags=[];
-      const batches=originalMode()?[state.selectedFileIds]:[state.selectedFileIds.slice(0,5),state.selectedFileIds.slice(5)].filter(ids=>ids.length);
+      const batches=textOnly?[ids]:[ids.slice(0,5),ids.slice(5)].filter(ids=>ids.length);
       for(const ids of batches){
-          const generated=(await post('generate',{sourceApp:'instagram',campusId:currentSet.campusId,selectedFileIds:ids,textOnly:originalMode(),notes:`${$('aiCommand').value.trim()}\n${policy.campusLogoLabel}. ${originalMode()?'사진은 제공하지 않았습니다. 사용자가 명시한 내용만 사용하세요.':'사진에서 확인 가능한 내용만 사용하세요.'} 제목형 도입과 본문 ${batches.length>1?'3':'3~6'}문장으로 작성하고 전화번호·날짜·실적은 만들지 마세요.`,material:read(),requestId:crypto.randomUUID()})).generated;
+          const generated=(await post('generate',{sourceApp:'instagram',campusId:target.campusId,selectedFileIds:ids,textOnly,notes:`${direction}\n${label}. ${textOnly?'사진은 제공하지 않았습니다. 사용자가 명시한 내용만 사용하세요.':'사진에서 확인 가능한 내용만 사용하세요.'} 제목형 도입과 본문 ${batches.length>1?'3':'3~6'}문장으로 작성하고 전화번호·날짜·실적은 만들지 마세요.`,material:design,requestId:crypto.randomUUID()},abort.signal)).generated;
+          if(!valid())return;
           title ||= generated.title;body += (body?'\n':'')+(generated.body||generated.content||'');tags.push(...(generated.hashtags||generated.keywords||[]));
       }
-      $('igCaptionStatus').textContent=originalMode()?'사진 전송 없이 작성 완료 · 게시 전에 내용을 확인하세요.':'홍보글 작성 완료 · 게시 전에 내용을 확인하세요.';
-      $('igCaptionText').value=assembleCaption([title,body].filter(Boolean).join('\n\n'),$('defaultFooter').value,$('defaultHashtags').value,tags);
-      await saveCaption();
-    }catch{$('igCaptionStatus').textContent='이미지 저장은 완료되었습니다. 홍보글은 작성하지 못했습니다. 다시 작성하거나 직접 입력할 수 있습니다.';$('igCaptionRetry').hidden=false;}
-    finally{lock(false);}
+      if(!valid())return;
+      $('igCaptionText').value=assembleCaption([title,body].filter(Boolean).join('\n\n'),footer,hashtags,tags);
+      $('igCaptionStatus').textContent='홍보글 저장 중…';
+      await saveCaption(target.id,$('igCaptionText').value,abort.signal);
+      if(valid())target.caption=$('igCaptionText').value;
+      if(valid())$('igCaptionStatus').textContent=textOnly?'사진 전송 없이 작성 완료 · 게시 전에 내용을 확인하세요.':'홍보글 작성 완료 · 게시 전에 내용을 확인하세요.';
+    }catch{if(valid()){$('igCaptionStatus').textContent='이미지 저장은 완료되었습니다. 홍보글은 작성하지 못했습니다. 다시 작성하거나 직접 입력할 수 있습니다.';$('igCaptionRetry').hidden=false;}}
+    finally{if(valid()){captionController=null;captionLock(false);}}
   }
-  async function saveCaption(){if(!currentSet)return;await api('/api/data-core/content/instagram-sets/'+encodeURIComponent(currentSet.id),{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({caption:$('igCaptionText').value})});}
+  async function saveCaption(id,text,signal){await api('/api/data-core/content/instagram-sets/'+encodeURIComponent(id),{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({caption:text}),signal});}
   $('igComplete').onclick=async()=>{
     if(busy||currentSet||signature!==snapshot()||items.length!==state.selectedFileIds.length)return;
     imageState='saving';lock(true);$('igSaved').textContent='저장 중…';let completed=false;
@@ -133,7 +146,7 @@ export function mountInstagramProduction({state,api,$,toast,canWrite}) {
   };
   $('igCopy').onclick=async()=>{try{await navigator.clipboard.writeText($('igCaptionText').value);toast('복사했습니다.');}catch{toast('클립보드 권한을 확인해주세요.','error');}};
   $('igCaptionText').addEventListener('input',()=>{$('igCaptionStatus').textContent='문구 변경사항 미저장';});
-  $('igCaptionSave').onclick=async()=>{if(busy)return;lock(true);$('igDownloads').querySelectorAll('button').forEach(button=>button.disabled=false);try{await saveCaption();$('igCaptionStatus').textContent='문구 저장 완료';}catch(error){$('igCaptionStatus').textContent=error.message;}finally{lock(false);}};
+  $('igCaptionSave').onclick=async()=>{if(busy||captionBusy||!currentSet)return;const target=currentSet.id,epoch=captionEpoch,text=$('igCaptionText').value;captionLock(true);try{await saveCaption(target,text);if(epoch===captionEpoch){$('igCaptionStatus').textContent='문구 저장 완료';currentSet.caption=text;}}catch(error){if(epoch===captionEpoch)$('igCaptionStatus').textContent=error.message;}finally{if(epoch===captionEpoch)captionLock(false);}};
   $('igCaptionRetry').onclick=caption;
   async function loadHistory(){
     if(!history.open||!$('draftCampus').value)return;
@@ -145,5 +158,5 @@ export function mountInstagramProduction({state,api,$,toast,canWrite}) {
   }
   history.ontoggle=loadHistory;
   function refresh(){void logos();void loadHistory();buttons();}
-  return {read,refresh,invalidated:clear,load:()=>{if(!busy)clear();},selectionChanged(){const key=JSON.stringify(state.selectedFileIds);if(key!==selected){selected=key;clear();}buttons();},restore:async()=>{toast('이전 단일 초안입니다. 사진을 선택해 새 이미지 세트로 제작하세요.');}};
+  return {read,refresh,hasUnsaved:()=>Boolean(busy||(!currentSet&&(items.length||$('aiCommand').value.trim()))||(currentSet&&$('igCaptionText').value!==(currentSet.caption||''))),invalidated:clear,load:()=>{if(!busy)clear();},selectionChanged(){const key=JSON.stringify(state.selectedFileIds);if(key!==selected){selected=key;clear();}buttons();},restore:async()=>{toast('이전 단일 초안입니다. 사진을 선택해 새 이미지 세트로 제작하세요.');}};
 }

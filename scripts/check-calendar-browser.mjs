@@ -137,7 +137,11 @@ try {
   await page.locator('#calendarModal').waitFor({ state:'hidden' });
   await home.locator('[data-calendar-list]').getByText('SYNTHETIC_원종캠퍼스 전시회', { exact: true }).waitFor();
   await refreshed;
-  await home.locator('[data-calendar-list] [data-calendar-event]').click();
+  const visit=async path=>page.evaluate(path=>{history.pushState({},'',path);dispatchEvent(new PopStateEvent('popstate'));},path);
+  await visit('/data-core/counseling');
+  const counterpart=page.locator('#view-counseling-home');
+  await counterpart.locator('[data-calendar-status]').getByText(/전체 조회 완료/).waitFor();
+  await counterpart.locator('[data-calendar-list] [data-calendar-event]').click();
   await page.locator('[data-detail-edit]').waitFor();
   const readsBeforeEdit = reads;
   await page.locator('[data-detail-edit]').click();
@@ -147,8 +151,9 @@ try {
   await page.locator('#calendarModal').waitFor({ state:'hidden' });
   await page.locator('#calendarDetailTitle').getByText('SYNTHETIC_수정 완료',{exact:true}).waitFor();
   await page.keyboard.press('Escape');
-  await home.locator('[data-calendar-list]').getByText('SYNTHETIC_수정 완료', { exact: true }).waitFor();
   assert.equal(reads, readsBeforeEdit, 'same-month save does not wait for a redundant GET');
+  await visit('/data-core/work');
+  await home.locator('[data-calendar-list]').getByText('SYNTHETIC_수정 완료', { exact: true }).waitFor();
   const listed = await h.request('GET', '/api/data-core/calendar?from=2026-10-01&to=2026-10-31', role);
   assert.equal(listed.body.events.length, 1);
   assert.equal(listed.body.events[0].metadata.endDate, undefined);
@@ -255,6 +260,23 @@ try {
   await page.keyboard.press('Escape');await home.locator('[data-calendar-upcoming]').getByText('SYNTHETIC_TODAY',{exact:true}).click();await page.locator('[data-detail-edit]').waitFor();
   releaseRead();await page.waitForTimeout(100);assert.equal(await page.locator('#calendarDetailTitle').textContent(),'SYNTHETIC_TODAY');await page.keyboard.press('Escape');
   // A colleague may read but not edit somebody else's record. No synthetic role bypass in the API.
+  const listenersBeforeTrips=await page.evaluate(()=>window.calendarMetrics.listeners),readsBeforeTrips=reads;
+  for(let i=0;i<30;i++)for(const mode of ['counseling','work']){
+    await visit('/data-core/'+mode);await page.evaluate(()=>window.AcademyCalendar.load());
+    await page.locator(`#view-${mode}-home [data-calendar-status]`).getByText(/전체 조회 완료/).waitFor();
+  }
+  assert.equal(await page.locator('#calendarDetail').count(),1);
+  assert.equal(await page.locator('[data-calendar-home] .calendar-tools').count(),2);
+  assert.equal(await page.evaluate(()=>window.calendarMetrics.listeners),listenersBeforeTrips);
+  assert.equal(reads-readsBeforeTrips,180,'one paginated month plus one summary query per visit, not per hidden root');
+  await page.evaluate(()=>{
+    const root=document.querySelector('[data-calendar-home]').cloneNode(true);root.id='synthetic-late-calendar';
+    root.querySelectorAll('.calendar-tools,[data-calendar-status],[data-calendar-agenda],.calendar-summary').forEach(node=>node.remove());
+    document.querySelector('main').append(root);
+  });
+  await page.locator('#synthetic-late-calendar .calendar-tools').waitFor();
+  assert.equal(await page.locator('#synthetic-late-calendar .calendar-tools').count(),1);
+  await page.evaluate(()=>document.querySelector('#synthetic-late-calendar').remove());
   role=users.teacher;await page.goto(origin+'/data-core/work');await home.locator('[data-calendar-upcoming]').getByText('SYNTHETIC_TODAY',{exact:true}).click();
   await page.locator('[data-detail-copy]').waitFor();assert.equal(await page.locator('[data-detail-edit]').count(),0);assert.equal(await page.locator('[data-detail-delete]').count(),0);
   await page.evaluate(()=>window.AcademyCalendar.reset());assert.equal(await page.locator('#calendarDetail').isVisible(),false);assert.equal(await page.locator('#calendarDetailBody').textContent(),'');

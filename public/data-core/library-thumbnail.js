@@ -33,7 +33,7 @@
       const response=await fetch(endpoint || `/api/data-core/library/files/${encodeURIComponent(id)}/thumbnail`,{
         method:'POST',body,signal:controller.signal,credentials:'same-origin',cache:'no-store',
       });
-      if(!response.ok)throw new Error('Thumbnail upload failed');
+      if(!response.ok)throw Object.assign(new Error('Thumbnail upload failed'),{status:response.status});
       return await response.json();
     } finally {clearTimeout(timeout);signal.removeEventListener('abort',abort);}
   }
@@ -58,5 +58,5 @@
       return result;
     } finally {preparation.abort();signal.removeEventListener('abort',abort);if(item)item.phase='';}
   }
-  globalThis.DataCoreLibraryThumbnail={send,create};
+  globalThis.DataCoreLibraryThumbnail={send,create,prepare,persist};
 })();

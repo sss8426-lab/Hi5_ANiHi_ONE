@@ -1,5 +1,5 @@
 import {instagramImageMime} from './instagram-image-formats.js';
-import {mountAiUsage} from './ai-usage.js';
+import {mountAiUsage} from './ai-usage.js?v=20260921-performance';
 
 const state = {
   context: null,
@@ -47,12 +47,27 @@ const AI_OPTIMIZE_HARD_CAP_BYTES = 2 * 1024 * 1024;
 
 let derivativeEditor, instagramProduction, aiUsagePanel;
 let browseController, renderedFolder='', defaultsEdited=0;
+let savedDraftSnapshot='',savedDefaultsSnapshot='';
+const draftSnapshot=()=>JSON.stringify(['draftTitle','draftSummary','draftContent','draftTags','resultFooter','publishStatus','contentPurpose'].map(id=>$(id).value));
+const defaultsSnapshot=()=>JSON.stringify([$('defaultHashtags').value,$('defaultFooter').value]);
 const thumbnailCache = new window.DataCorePrivateImageCache({maxBytes:8*1024*1024,maxEntries:50,concurrency:3,onUnauthorized:clearPrivateState});
+const legacyThumbnails = new window.DataCorePrivateImageCache({maxBytes:32*1024*1024,maxEntries:50,concurrency:2,onUnauthorized:clearPrivateState,transform:async(blob,path,signal)=>{
+  const thumbnail=await window.DataCoreLibraryThumbnail.prepare(blob,signal);
+  const file=state.knownFiles.get(decodeURIComponent(path.split('/').at(-1)));
+  if(file?.canMove){
+    // Reuse the existing authenticated, idempotent derivative endpoint, never mutate the original.
+    try{await window.DataCoreLibraryThumbnail.persist(thumbnail,file.id,signal);}catch(error){if([401,403].includes(error.status)){clearPrivateState();throw error;}if(signal.aborted)throw error;}
+  }
+  return thumbnail;
+}});
+const thumbnailFor=file=>file.thumbnailUrl||file.previewUrl;
+const cacheFor=path=>state.files.some(file=>!file.thumbnailUrl&&file.previewUrl===path)||[...state.knownFiles.values()].some(file=>!file.thumbnailUrl&&file.previewUrl===path)?legacyThumbnails:thumbnailCache;
 let thumbnailObserver;
 
 function clearPrivateState() {
   browseController?.abort();state.browseGeneration++;state.defaultsGeneration++;
   thumbnailObserver?.disconnect();thumbnailCache.clear();renderedFolder='';
+  legacyThumbnails.clear();
   aiUsagePanel?.clear();
   state.files=[];state.selectedFileIds=[];state.selectedDerivedFileIds=[];state.knownFiles.clear();
   $('photoFolders')?.replaceChildren();$('photoBreadcrumb')?.replaceChildren();$('photoPages')?.replaceChildren();
@@ -63,7 +78,7 @@ function observeThumbnails() {
   const epoch=state.browseGeneration;
   thumbnailObserver=new IntersectionObserver(entries=>entries.forEach(entry=>{
     if(!entry.isIntersecting)return;const img=entry.target;thumbnailObserver.unobserve(img);
-    void thumbnailCache.get(img.dataset.thumbnail).then(url=>{if(epoch===state.browseGeneration&&img.isConnected)img.src=url;}).catch(()=>{if(img.isConnected)img.alt='미리보기 없음';});
+    void cacheFor(img.dataset.thumbnail).get(img.dataset.thumbnail).then(url=>{if(epoch===state.browseGeneration&&img.isConnected)img.src=url;}).catch(error=>{if(img.isConnected&&error.name!=='AbortError')img.alt=error.code==='unsupported_preview'?'미리보기를 지원하지 않는 형식':'미리보기 생성 실패 · 확대해서 확인하세요';});
   }),{root:$('filePickList'),rootMargin:'80px'});
   $('filePickList').querySelectorAll('img[data-thumbnail]').forEach(img=>thumbnailObserver.observe(img));
 }
@@ -229,8 +244,8 @@ function renderSelectedFiles() {
     };
   });
   $('photoCount').textContent = state.sourceApp === 'instagram' ? `선택 ${rows.length} / 10` : `사진 ${rows.length}/${BLOG_PHOTO_LIMIT}장 선택`;
-  $('selectedFiles').innerHTML = rows.map((file, index) => `<button data-remove-file="${h(file.id)}" type="button" aria-label="선택 사진 ${index + 1} 제외" title="선택 해제">${file.thumbnailUrl ? `<img data-thumbnail="${h(file.thumbnailUrl)}" alt="선택 ${index+1}">` : `<span>${index+1}</span>`}</button>`).join('');
-  $('selectedFiles').querySelectorAll('img[data-thumbnail]').forEach(img=>{void thumbnailCache.get(img.dataset.thumbnail).then(url=>{if(img.isConnected)img.src=url;}).catch(()=>{});});
+  $('selectedFiles').innerHTML = rows.map((file, index) => `<button data-remove-file="${h(file.id)}" type="button" aria-label="선택 사진 ${index + 1} 제외" title="선택 해제">${thumbnailFor(file) ? `<img data-thumbnail="${h(thumbnailFor(file))}" alt="선택 ${index+1}">` : `<span>${index+1}</span>`}</button>`).join('');
+  $('selectedFiles').querySelectorAll('img[data-thumbnail]').forEach(img=>{void cacheFor(img.dataset.thumbnail).get(img.dataset.thumbnail,{priority:true}).then(url=>{if(img.isConnected)img.src=url;}).catch(()=>{});});
   document.querySelectorAll('[data-remove-file]').forEach((button) => {
     button.onclick = () => {
       if (state.busy) return;
@@ -247,6 +262,7 @@ async function loadHealthAndContext() {
   const accessKey=value=>JSON.stringify([value?.user?.id,value?.user?.internalUserId,value?.user?.email,value?.memberships,value?.isSuperAdmin,value?.canWrite]);
   if(state.context&&accessKey(state.context)!==accessKey(next))clearPrivateState();
   state.context=next;
+  window.DataCoreWorkNavigation?.setContext(next);
   renderUser();
   if (!state.context?.authenticated) return;
   try {
@@ -265,12 +281,13 @@ async function loadFiles() {
   const token = ++state.browseGeneration;
   browseController?.abort();browseController=new AbortController();
   thumbnailObserver?.disconnect();thumbnailCache.cancelPending();thumbnailCache.blocked=false;
+  legacyThumbnails.cancelPending();legacyThumbnails.blocked=false;
   const id=state.folderId,skipFolders=renderedFolder===id;
   state.files=[];renderFilePicker();$('photoPages').replaceChildren();
   if(!skipFolders){$('photoFolders').replaceChildren();$('photoBreadcrumb').setAttribute('aria-busy','true');}
   $('pickerStatus').textContent = '사진을 불러오고 있습니다.';
   try {
-    const { listing } = await window.DataCoreLibraryClient.browse(api, { id, page: state.page, q: $('fileSearchInput').value.trim() },{signal:browseController.signal,skipFolders,counts:false,onView:view=>{
+    await window.DataCoreLibraryClient.browse(api, { id, page: state.page, q: $('fileSearchInput').value.trim() },{signal:browseController.signal,skipFolders,counts:false,skipEmptyRoot:true,onView:view=>{
     if (token !== state.browseGeneration) return;renderedFolder=id;
     $('photoBreadcrumb').removeAttribute('aria-busy');
     const folderCampusId = view.folder.campusId || '';
@@ -284,7 +301,7 @@ async function loadFiles() {
     $('photoFolders').innerHTML = window.DataCoreLibraryClient.folderGroups(view, $('fileSearchInput').value).map(([group, folders]) =>
       `<section class="photo-folder-group"><h3>${h(group)}</h3><div class="photo-folder-grid">${folders.map(folder => `<button type="button" data-folder="${h(folder.id)}"><svg aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Folder"></use></svg><strong>${h(folder.title)}</strong></button>`).join('')}</div></section>`).join('');
     document.querySelectorAll('[data-folder]').forEach(button => { button.onclick = () => { if (state.busy) return; renderedFolder='';state.folderId = button.dataset.folder; state.page = 1; $('fileSearchInput').value = ''; const crumb=document.createElement('span');crumb.textContent=button.textContent.trim();$('photoBreadcrumb').replaceChildren(crumb);void loadFiles(); }; });
-    }});
+    },onListing:listing=>{
     if (token !== state.browseGeneration) return;
     state.files = (listing.files || []).filter(file => state.sourceApp === 'instagram'
       ? instagramImageMime(file.mimeType, file.fileName)
@@ -297,6 +314,7 @@ async function loadFiles() {
     $('photoNext').onclick = () => { if (state.busy) return; state.page++; void loadFiles(); };
     renderFilePicker();
     renderSelectedFiles();
+    }});
   } catch (error) {
     if (token !== state.browseGeneration || error.name==='AbortError') return;
     if(error.status===404)clearPrivateState();
@@ -329,7 +347,7 @@ function renderFilePicker() {
     const selected = [...state.selectedFileIds, ...state.selectedDerivedFileIds].includes(String(file.id));
     return `<article class="photo-tile">
       <button data-pick-file="${h(file.id)}" type="button" aria-label="사진 ${index + 1} 선택" aria-pressed="${selected}">
-        ${file.thumbnailUrl?`<img data-thumbnail="${h(file.thumbnailUrl)}" alt="자료보관함 사진 ${index+1}" decoding="async">`:'<svg class="photo-placeholder" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Image"></use></svg>'}
+        ${thumbnailFor(file)?`<img data-thumbnail="${h(thumbnailFor(file))}" alt="자료보관함 사진 ${index+1}" decoding="async">`:'<svg class="photo-placeholder" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Image"></use></svg>'}
         <span class="photo-check" aria-hidden="true">${selected ? '✓' : ''}</span>
       </button>
       <button class="photo-zoom" data-preview="${h(file.id)}" type="button" aria-label="사진 ${index + 1} 확대" title="확대"><svg><use href="/data-core/assets/core-icons.svg#Search"></use></svg></button>
@@ -387,6 +405,7 @@ async function saveDraft(event) {
   button.textContent = state.editingDraftId ? '수정 중...' : '저장 중...';
   try {
     const payload = draftPayload();
+    const submitted=draftSnapshot();
     const url = state.editingDraftId
       ? `/api/data-core/content/${encodeURIComponent(state.editingDraftId)}`
       : '/api/data-core/content';
@@ -397,6 +416,7 @@ async function saveDraft(event) {
     });
     toast(`${sourceLabel(state.sourceApp)} 초안을 저장했습니다.`);
     state.editingDraftId = response.draft.id;
+    savedDraftSnapshot=submitted;
     $('newDraftBtn').classList.remove('hidden');
     await loadDrafts();
     instagramProduction?.invalidated();
@@ -436,6 +456,7 @@ function resetDraftForm(clearSource = true) {
   $('titlePickerStatus').textContent = '';
   $('nextTopics').hidden = true;
   $('publishChecklist').hidden = true;
+  savedDraftSnapshot=draftSnapshot();
   renderSelectedFiles();
   renderFilePicker();
 }
@@ -482,6 +503,7 @@ function loadDraftIntoForm(draft) {
   instagramProduction?.load(metadata.instagramDesign);
   if (state.sourceApp === 'instagram') void instagramProduction?.restore(draft.id);
   window.scrollTo({ top: 0, behavior: 'smooth' });
+  savedDraftSnapshot=draftSnapshot();
 }
 
 async function loadDrafts() {
@@ -628,22 +650,25 @@ async function loadDefaults() {
   const token = ++state.defaultsGeneration;
   const edit=defaultsEdited;
   $('defaultHashtags').value = ''; $('defaultFooter').value = '';
+  savedDefaultsSnapshot=defaultsSnapshot();
   $('defaultsStatus').textContent = '';
   try {
     const params = new URLSearchParams({ sourceApp: state.sourceApp, campusId: $('draftCampus').value });
     const result = await api('/api/data-core/content/defaults?' + params);
     if (token !== state.defaultsGeneration || edit!==defaultsEdited) return;
     $('defaultHashtags').value = result.defaults.hashtags; $('defaultFooter').value = result.defaults.footer;
+    savedDefaultsSnapshot=defaultsSnapshot();
   } catch (error) { if (token === state.defaultsGeneration) $('defaultsStatus').textContent = error.message; }
 }
 
 async function saveDefaults() {
   $('saveDefaults').disabled = true;
   const token = state.defaultsGeneration;
+  const submitted=defaultsSnapshot();
   try {
     await api('/api/data-core/content/defaults', { method: 'PUT', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ sourceApp: state.sourceApp, campusId: $('draftCampus').value || null, hashtags: $('defaultHashtags').value, footer: $('defaultFooter').value }) });
-    if (token === state.defaultsGeneration) $('defaultsStatus').textContent = '기본 문구가 저장되었습니다.';
+    if (token === state.defaultsGeneration){$('defaultsStatus').textContent = '기본 문구가 저장되었습니다.';savedDefaultsSnapshot=submitted;}
   } catch (error) { if (token === state.defaultsGeneration) $('defaultsStatus').textContent = error.message; }
   finally { $('saveDefaults').disabled = !canWrite(); }
 }
@@ -951,10 +976,6 @@ async function downloadImage() {
 }
 
 async function init() {
-  $('photoHeading').closest('.workflow-section').before($('aiDiagnostics'));
-  const { mountInstagramProduction } = await import(state.sourceApp==='instagram'?'/data-core/instagram-carousel.js?v=20260921-usability':'/data-core/instagram-production.js?v=20260921-brand');
-  instagramProduction = mountInstagramProduction({state,api,$,toast,canWrite,saveDraft,setWorkspaceBusy:setAiBusy});
-  if($('igCaption'))$('igCaption').onclick = () => runAi(true);
   derivativeEditor = window.HI5InstagramDerivative.mount({
     canWrite,
     onError: (message) => toast(message, 'error'),
@@ -971,11 +992,17 @@ async function init() {
   setSourceApp(state.sourceApp);
   await loadHealthAndContext();
   renderCampusSelectors();
-  instagramProduction.refresh();
   renderSelectedFiles();
   if (state.context?.authenticated) {
     state.folderId = $('draftCampus').value ? 'campus:' + $('draftCampus').value : 'root';
-    void loadDefaults();void loadAiStatus();await loadFiles();
+    void loadDefaults();void loadAiStatus();
+    const listing=loadFiles();
+    if(state.sourceApp==='instagram'){
+      const {mountInstagramProduction}=await import('/data-core/instagram-carousel.js?v=20260921-performance');
+      instagramProduction=mountInstagramProduction({state,api,$,toast,canWrite,saveDraft,setWorkspaceBusy:setAiBusy});
+      instagramProduction.refresh();
+    }
+    await listing;
   }
 }
 
@@ -983,4 +1010,9 @@ init().catch((error) => {
   showNotice(error.status === 401 ? '로그인이 필요합니다.' : '자동화 작업실을 시작하지 못했습니다. 새로고침해주세요.');
 });
 window.addEventListener('pagehide',clearPrivateState);
+window.addEventListener('beforeunload',event=>{
+  const dirty=state.busy||(state.sourceApp==='instagram'?instagramProduction?.hasUnsaved():$('aiResult').hidden?Boolean($('aiCommand').value.trim()):draftSnapshot()!==savedDraftSnapshot)
+    ||Boolean(savedDefaultsSnapshot&&defaultsSnapshot()!==savedDefaultsSnapshot);
+  if(dirty){event.preventDefault();event.returnValue='';}
+});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!state.busy){void loadHealthAndContext().then(()=>{renderedFolder='';void loadFiles();}).catch(clearPrivateState);}});

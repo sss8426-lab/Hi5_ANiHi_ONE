@@ -1,6 +1,6 @@
 export function mountAiUsage({api,element}) {
-  element.hidden=false;element.open=true;
-  element.innerHTML='<summary>AI 연결 상태 · 월간 사용률</summary><div class="ai-usage-summary" role="status">확인 중…</div><div class="ai-usage-details"></div><div class="ai-usage-budget"></div>';
+  element.hidden=false;element.open=false;
+  element.innerHTML='<summary>AI 연결 상태 · 월간 사용률 <span class="ai-usage-summary" role="status">—</span></summary><a href="https://platform.openai.com/home" target="_blank" rel="noopener noreferrer">OpenAI 관리 페이지</a><div class="ai-usage-details"></div><div class="ai-usage-budget"></div>';
   const status=element.querySelector('.ai-usage-summary'),details=element.querySelector('.ai-usage-details'),settings=element.querySelector('.ai-usage-budget');
   let busy=false,last=null,epoch=0;
   const when=value=>value?new Intl.DateTimeFormat('ko-KR',{dateStyle:'short',timeStyle:'short',timeZone:'Asia/Seoul'}).format(new Date(value)):'확인 전';
@@ -29,5 +29,8 @@ export function mountAiUsage({api,element}) {
     }
   }
   async function load(){if(busy)return;busy=true;const token=epoch;try{const value=await api('/api/data-core/content/ai-usage');if(token!==epoch)return;last=value;render(last);}catch{if(token!==epoch)return;if(last){render(last);line('갱신 실패 · 마지막 정상값입니다.');}else status.textContent='AI 사용량 확인 필요';}finally{busy=false;}}
-  void load();return {refresh:load,clear(){epoch++;last=null;details.replaceChildren();settings.replaceChildren();status.textContent='AI 사용량 확인 필요';}};
+  const observer=new IntersectionObserver(entries=>{if(entries.some(entry=>entry.isIntersecting)){observer.disconnect();void load();}},{rootMargin:'80px'});
+  observer.observe(element);
+  element.addEventListener('toggle',()=>{if(element.open&&!last)void load();});
+  return {refresh:load,clear(){epoch++;last=null;details.replaceChildren();settings.replaceChildren();status.textContent='AI 사용량 확인 필요';}};
 }

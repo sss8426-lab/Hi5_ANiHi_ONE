@@ -43,6 +43,8 @@ test('carousel saves 1/5/10 images, rejects 11, preserves originals, access and 
       items.push({draftId,renderId:render.body.renderId,fingerprint:render.body.fingerprint});
     }
     const endpoint='/api/data-core/content/instagram-sets',payload={items,requestId:crypto.randomUUID()};
+    const bucket=h.env.FILES;let gets=0,puts=0;
+    h.env.FILES=new Proxy(bucket,{get(target,key){const value=target[key];if(typeof value!=='function')return value;return(...args)=>{if(key==='get')gets++;if(key==='put')puts++;return value.apply(target,args);};}});
     assert.equal((await h.request('POST',endpoint,users.foreign,payload)).status,403);
     assert.equal((await h.request('POST',endpoint,null,payload)).status,401);
     assert.equal((await h.request('POST',endpoint,users.staff,payload,'https://attacker.test')).status,403);
@@ -61,8 +63,22 @@ test('carousel saves 1/5/10 images, rejects 11, preserves originals, access and 
     assert.equal((await h.request('POST',endpoint,users.staff,{items:[...items,items[0]],requestId:crypto.randomUUID()})).status,400);
     assert.equal((await h.request('POST',endpoint,users.staff,{items:[items[0],items[0]],requestId:crypto.randomUUID()})).status,400);
     assert.equal((await h.request('GET',endpoint+'?campusId='+A,users.staff)).body.sets.length,3);
+    assert.equal(puts,0,'completion and caption saves never reupload a master');assert.equal(gets,0,'completion never rereads image bytes');
     const result=await h.raw('POST','/api/data-core/content/instagram/'+items[0].draftId+'/export',users.staff,items[0]);
     assert.equal(result.status,200);const decoded=decode(new Uint8Array(await result.arrayBuffer()));assert.deepEqual([decoded.width,decoded.height],[1080,1350]);
+    const repeat=await h.raw('POST','/api/data-core/content/instagram/'+items[0].draftId+'/export',users.staff,items[0]);
+    assert.equal(repeat.status,200);assert.match(repeat.headers.get('server-timing'),/encode;desc="0"/);assert.match(repeat.headers.get('server-timing'),/reuse;desc="1"/);
+    assert.deepEqual(decode(new Uint8Array(await repeat.arrayBuffer())).data,decoded.data);assert.equal(puts,1,'cached publish is streamed without another write');
+    const parallel=await Promise.all([1,2].map(()=>h.raw('POST','/api/data-core/content/instagram/'+items[1].draftId+'/export',users.staff,items[1])));
+    assert.ok(parallel.every(r=>r.status===200));
+    assert.equal(parallel.filter(r=>/encode;desc="1"/.test(r.headers.get('server-timing'))).length,1,'D1 lease permits exactly one conversion');
+    await Promise.all(parallel.map(r=>r.arrayBuffer()));assert.equal(puts,2);
+    assert.equal((await h.raw('POST','/api/data-core/content/instagram/'+items[1].draftId+'/export',users.foreign,items[1])).status,403);
+    // Change the draft between validation and the batch; the guarded batch rolls back.
+    const db=h.env.DB;let raced=false;
+    h.env.DB=new Proxy(db,{get(target,key){if(key==='batch')return async statements=>{if(!raced){raced=true;await db.prepare("UPDATE data_records SET updated_at='2099-01-01',summary='SYNTHETIC race' WHERE id=?").bind(items[2].draftId).run();}return target.batch(statements);};const value=target[key];return typeof value==='function'?value.bind(target):value;}});
+    const conflict=await h.request('POST',endpoint,users.staff,{requestId:crypto.randomUUID(),items:[items[2]]});assert.equal(conflict.status,409,JSON.stringify(conflict.body));
+    h.env.DB=db;
     for(const original of originals){assert.deepEqual(await h.file(original.id),original);assert.deepEqual(new Uint8Array(await(await h.env.FILES.get(original.r2_key)).arrayBuffer()),png(40,50));}
     await h.request('PATCH','/api/data-core/content/'+items[0].draftId,users.staff,{summary:'Changed'});
     assert.equal((await h.raw('POST','/api/data-core/content/instagram/'+items[0].draftId+'/export',users.staff,items[0])).status,409);

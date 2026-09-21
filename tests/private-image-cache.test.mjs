@@ -51,3 +51,14 @@ test('401/403 clear and block subsequent cache use; oversized images never alloc
   }
   const h=harness(async()=>new Response('0123456789',{headers:{'content-type':'image/jpeg'}}));await assert.rejects(h.cache.get(path('large')));assert.equal(h.cache.entries.size,0);
 });
+
+test('legacy thumbnail transform is deduplicated, bounded and cancelled before caching',async()=>{
+  let transforms=0,release;
+  const h=harness(async()=>response(),{transform:async blob=>{transforms++;await new Promise(resolve=>release=resolve);return blob;}});
+  const first=h.cache.get(path('legacy'));assert.equal(first,h.cache.get(path('legacy')));
+  const result=assert.rejects(first,{name:'AbortError'});
+  while(!release)await new Promise(resolve=>setTimeout(resolve,0));
+  h.cache.clear();release();await result;assert.equal(transforms,1);assert.equal(h.cache.entries.size,0);
+  const oversized=harness(async()=>response(),{transform:async()=>new Blob(['123456789'])});
+  await assert.rejects(oversized.cache.get(path('legacy')),/memory budget/);assert.equal(oversized.cache.entries.size,0);
+});

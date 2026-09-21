@@ -82,9 +82,14 @@ test("wires the DATA CORE counseling and work mode split", async () => {
   assert.doesNotMatch(counselingMenu, /자료보관함|블로그 자동화|인스타 자동화/);
 
   const workMenu = section(dataCoreIndex, 'aria-label="업무용 메뉴"');
+  assert.match(dataCoreIndex, /data-work-navigation="work"/);
   assert.match(workMenu, /자료보관함/);
   assert.match(workMenu, /블로그 자동화/);
   assert.match(workMenu, /인스타 자동화/);
+  const navigation = await readFile(new URL('../public/data-core/work-navigation.js', import.meta.url), 'utf8');
+  assert.match(navigation, /자료보관함/);
+  assert.match(navigation, /블로그 자동화/);
+  assert.match(navigation, /인스타 자동화/);
   assert.doesNotMatch(workMenu, /공모전·실기대회|꿈·전공 로드맵|대학합격 로드맵/);
 
   assert.match(appScript, /orderedCampuses\(\)/);
@@ -96,7 +101,7 @@ test("wires the DATA CORE counseling and work mode split", async () => {
   assert.doesNotMatch(appScript, /CAMPUS_PRESENTATION/);
   assert.match(appScript, /return state\.campuses/);
   assert.match(appScript, /data-campus-group/);
-  assert.match(dataCoreIndex, /app\.js\?v=20260921-calendar-details/);
+  assert.match(dataCoreIndex, /app\.js\?v=20260921-performance/);
   assert.match(dataCoreIndex, /id="view-attendance"/);
   assert.match(dataCoreIndex, /class="at-work-link" data-view="attendance"/);
   assert.match(appScript, /params\.set\('sourceApp', sourceApp\)/);
@@ -215,13 +220,15 @@ test("wires the DATA CORE blog and Instagram automation routes", async () => {
     readFile(new URL("../.github/workflows/data-core-ci.yml", import.meta.url), "utf8"),
   ]);
 
-  assert.match(dataCoreIndex, /href="\/data-core\/content\/blog"/);
-  assert.match(dataCoreIndex, /href="\/data-core\/content\/instagram"/);
+  const navigation = await readFile(new URL('../public/data-core/work-navigation.js', import.meta.url), 'utf8');
+  assert.ok(navigation.includes('/data-core/content/blog'));
+  assert.ok(navigation.includes('/data-core/content/instagram'));
+  assert.match(dataCoreIndex, /work-navigation\.js/);
   assert.doesNotMatch(dataCoreIndex, /콘텐츠 허브/);
-  assert.match(contentHtml, /data-content-nav="blog"/);
-  assert.match(contentHtml, /data-content-nav="instagram"/);
+  assert.match(contentHtml, /work-navigation\.js/);
+  assert.match(navigation, /node.dataset.contentNav=id/);
   assert.match(contentHtml, /블로그 자동화/);
-  assert.match(contentHtml, /인스타 자동화/);
+  assert.match(navigation, /인스타 자동화/);
   assert.doesNotMatch(contentHtml, /콘텐츠 허브/);
   assert.match(contentHtml, /content\.css/);
   assert.match(contentHtml, /content\.js/);

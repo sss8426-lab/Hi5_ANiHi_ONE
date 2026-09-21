@@ -22,9 +22,7 @@ const server=http.createServer(async(req,res)=>{active++;try{
   const url=new URL(req.url,'http://localhost');
   if(url.pathname.startsWith('/api/')){
     const key=url.pathname;counts[key]=(counts[key]||0)+1;
-    if(key==='/api/data-core/health')await wait(900);
-    if(key==='/api/data-core/library/files')await wait(350);
-    if(key==='/api/data-core/library/folders')await wait(30);
+    if(key==='/api/data-core/content/ai-usage')await wait(4000);
     if(deny){res.writeHead(401,{'content-type':'application/json'}).end('{"error":"Synthetic expired session"}');return;}
     if(failFiles&&key==='/api/data-core/library/files'){res.writeHead(503,{'content-type':'application/json'}).end('{"error":"Synthetic files unavailable"}');return;}
     const result=await h.raw(req.method,url.pathname+url.search,users.staff);
@@ -34,7 +32,7 @@ const server=http.createServer(async(req,res)=>{active++;try{
   const pathname=url.pathname.startsWith('/data-core/content/')?'/data-core/content.html':url.pathname;
   const file=path.resolve(root,'.'+pathname);if(!file.startsWith(root+path.sep)){res.writeHead(403).end();return;}
   const key=(before?'before:':'after:')+pathname;
-  if(!assets.has(key))assets.set(key,before?execFileSync('git',['show','af4a61d:public'+pathname],{maxBuffer:20*1024*1024,stdio:['ignore','pipe','ignore']}):await fs.readFile(file));
+  if(!assets.has(key))assets.set(key,before?execFileSync('git',['show','818dbc9:public'+pathname],{maxBuffer:20*1024*1024,stdio:['ignore','pipe','ignore']}):await fs.readFile(file));
   res.writeHead(200,{'content-type':({'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml','.png':'image/png'})[path.extname(file)]||'application/octet-stream'}).end(assets.get(key));
 }catch{res.writeHead(404).end();}finally{active--;}});
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
@@ -43,7 +41,7 @@ const origin='http://127.0.0.1:'+server.address().port;
 try{
   for(const baseline of [true,false]){
     before=baseline;counts={};const context=await browser.newContext({serviceWorkers:'block'}),page=await context.newPage();
-    await page.addInitScript(()=>{let Cache;Object.defineProperty(window,'DataCorePrivateImageCache',{configurable:true,get(){return Cache;},set(Value){Cache=class extends Value{constructor(...args){super(...args);window.__thumbnailCache=this;}};}});});
+    await page.addInitScript(()=>{let Cache;window.__thumbnailCaches=[];Object.defineProperty(window,'DataCorePrivateImageCache',{configurable:true,get(){return Cache;},set(Value){Cache=class extends Value{constructor(...args){super(...args);window.__thumbnailCaches.push(this);}};}});});
     await page.goto(origin+'/data-core/content/instagram');await page.locator(`[data-folder="category:${A}:class-photo"]`).waitFor();await wait(1500);counts={};apiBytes=0;
     const initial=performance.now();await page.reload();await page.locator(`#photoFolders [data-folder="category:${A}:class-photo"]`).waitFor();
     const initialMs=Math.round(performance.now()-initial);
@@ -59,8 +57,8 @@ try{
       await page.locator(`#photoFolders [data-folder="${folder.id}"]`).click();await page.waitForFunction(id=>document.querySelector('#photoBreadcrumb button:last-child')?.dataset.folder===id&&document.querySelectorAll('[data-pick-file]').length===50,folder.id);
     }
     await wait(500);const memoryAfter=await memory();
-    const sorted=[...visits].sort((a,b)=>a-b),cache=await page.evaluate(()=>window.__thumbnailCache?{entries:window.__thumbnailCache.entries.size,bytes:window.__thumbnailCache.bytes,active:window.__thumbnailCache.active}:null);
-    if(cache){assert.ok(cache.entries<=50);assert.ok(cache.bytes<=8*1024*1024);}
+    const sorted=[...visits].sort((a,b)=>a-b),cache=await page.evaluate(()=>window.__thumbnailCaches.map(c=>({entries:c.entries.size,bytes:c.bytes,active:c.active,maxEntries:c.maxEntries,maxBytes:c.maxBytes})));
+    for(const c of cache){assert.ok(c.entries<=c.maxEntries);assert.ok(c.bytes<=c.maxBytes);}
     const originalReads=Object.entries(counts).filter(([key])=>originals.has(key.split('/').pop())).reduce((sum,[,n])=>sum+n,0);assert.equal(originalReads,0);
     results[baseline?'before':'after']={initialMs,filesMs,firstThumbnailMs,revisitMedianMs:sorted[15],revisitP95Ms:sorted[28],requests:Object.values(counts).reduce((a,b)=>a+b,0),apiBytes,originalReads,cache,memoryBefore,memoryAfter};
     if(!baseline){
@@ -68,11 +66,11 @@ try{
       await page.waitForFunction(()=>document.querySelector('#pickerStatus').textContent.includes('Synthetic files unavailable'));
       assert.equal(await page.locator(`[data-folder="${folder.id}"]`).isEnabled(),true);failFiles=false;
       await page.locator(`[data-folder="${folder.id}"]`).click();await page.locator('[data-pick-file]').first().waitFor();
-      deny=true;await page.locator('#fileSearchBtn').click();await page.waitForFunction(()=>document.querySelectorAll('[data-pick-file]').length===0&&window.__thumbnailCache.entries.size===0);deny=false;
+      deny=true;await page.locator('#fileSearchBtn').click();await page.waitForFunction(()=>document.querySelectorAll('[data-pick-file]').length===0&&window.__thumbnailCaches.every(c=>c.entries.size===0));deny=false;
       await page.goto(origin+'/data-core/content/blog');await page.locator(`[data-folder="category:${A}:class-photo"]`).waitFor();
       await page.screenshot({path:path.join(out,'blog-shared-picker.png'),fullPage:true});
     }
     await context.close();
   }
-  await fs.writeFile(path.join(out,'metrics.json'),JSON.stringify({fixture:{files:50,visits:30,healthDelayMs:900,fileDelayMs:350,folderDelayMs:30},...results},null,2));console.log(JSON.stringify(results));
+  await fs.writeFile(path.join(out,'metrics.json'),JSON.stringify({fixture:{baseline:'818dbc9',files:50,visits:30,aiUsageDelayMs:4000,healthDelayMs:0,fileDelayMs:0,folderDelayMs:0},...results},null,2));console.log(JSON.stringify(results));
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));while(active)await wait(20);await h.mf.dispose();}

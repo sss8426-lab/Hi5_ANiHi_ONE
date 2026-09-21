@@ -13,6 +13,7 @@
   }
 
   async function syncAdminNavigation() {
+    if(window.DataCoreWorkNavigation)return;
     const adminLinks = Array.from(document.querySelectorAll('[data-super-admin-nav]'));
     if (!adminLinks.length) return;
 
