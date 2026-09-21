@@ -157,10 +157,12 @@ try{
   assert.ok((await page.locator('#igCaptionText').inputValue()).includes('합성 공간'));
   failText=true;await generate(1,'photo');assert.equal(imageCalls,1);assert.equal(await page.locator('#igCaptionRetry').isVisible(),true);
   failText=false;await page.locator('#igCaptionRetry').click();await page.waitForFunction(()=>document.querySelector('#igCaptionStatus').textContent.includes('작성 완료'));
+  await page.waitForFunction(()=>!document.querySelector('#igGenerate').disabled);
   assert.equal(imageCalls,1,'caption retry never edits images again');
   const oldPreview=await page.locator('#igPreview').getAttribute('src');
   await page.locator('#aiCommand').fill('새 방향');
-  assert.equal(await page.evaluate(async url=>{try{await fetch(url);return false;}catch{return true;}},oldPreview),true,'clearing the draft releases the local image');
+  assert.equal(await page.locator('#igResult').isVisible(),false,'changing the command invalidates the preview');
+  assert.equal(await page.evaluate(async url=>{try{await fetch(url,{cache:'no-store'});return false;}catch{return true;}},oldPreview),true,'clearing the draft releases the local image');
   await page.goto(origin+'/data-core/content/instagram');
   await page.locator(`[data-folder="category:${A}:class-photo"]`).click();await page.locator(`[data-folder="${formatFolder.id}"]`).click();
   for(const file of formatFiles)await page.locator(`[data-pick-file="${file.id}"]`).click();
