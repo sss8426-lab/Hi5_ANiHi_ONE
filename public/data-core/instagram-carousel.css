@@ -16,5 +16,15 @@
 #igCaptionText{width:100%;box-sizing:border-box;line-height:1.7;}
 #igHistory{display:grid;gap:8px;padding:12px 0;}
 #igStatus,#igSaved,#igCaptionStatus{overflow-wrap:anywhere;}
+.instagram-carousel-mode .defaults-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
+.instagram-carousel-mode .defaults-grid label{min-width:0;}
+.instagram-carousel-mode .defaults-grid textarea{width:100%;box-sizing:border-box;min-height:100px;}
+.ig-result-actions,.ig-download-actions{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin:16px 0;}
+.ig-result-actions button,.ig-download-actions button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;max-width:100%;white-space:normal;}
+.ig-result-actions svg,.ig-download-actions svg{width:20px;height:20px;flex-shrink:0;}
+.ig-result-actions #igSaved{position:static;}
+.ig-no-logo{display:grid;place-items:center;height:84px;}
+.ig-no-logo svg{width:42px;height:42px;color:var(--muted);}
+.ig-no-logo svg,.ig-result-actions svg,.ig-download-actions svg{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
 @media(max-width:768px){.ig-logo-options{grid-template-columns:repeat(2,minmax(0,1fr));}}
 @media(max-width:390px){.ig-logo-options{grid-template-columns:minmax(0,1fr);}.ig-options select{max-width:100%;}.ig-options{display:block;}}

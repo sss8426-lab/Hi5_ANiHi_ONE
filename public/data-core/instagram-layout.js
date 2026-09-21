@@ -1,6 +1,6 @@
 import {LOGOS} from './instagram-brand-policy.js';
 export const MASTER={width:2160,height:2700};
-export function imageBox(kind){return {x:56,y:340,width:2048,height:2304,fit:kind==='student-artwork'||kind==='fact-document'?'contain':'cover'};}
+export function imageBox(kind,logoType){return {x:56,y:logoType==='none'?56:340,width:2048,height:logoType==='none'?2588:2304,fit:kind==='student-artwork'||kind==='fact-document'?'contain':'cover'};}
 export async function loadBitmap(url,signal){
   const response=await fetch(url,{credentials:'same-origin',signal});if(!response.ok)throw Error('이미지를 불러오지 못했습니다.');
   const blob=await response.blob();if(blob.size>20*1024*1024)throw Error('20MB 이하 이미지를 선택하세요.');
@@ -56,9 +56,9 @@ export async function composeInstagram(sourceUrl,design,label,signal){
   const image=await loadBitmap(sourceUrl,signal),logo=document.createElement('canvas'),canvas=document.createElement('canvas');
   canvas.width=MASTER.width;canvas.height=MASTER.height;
   try{
-    await drawLogo(logo,design.logoType,label,signal);const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,2160,2700);
-    fitted(ctx,logo,110,32,1940,260);
-    const box=imageBox(design.materialKind);fitted(ctx,image,box.x,box.y,box.width,box.height,box.fit==='cover');
+    const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,2160,2700);
+    if(design.logoType!=='none'){await drawLogo(logo,design.logoType,label,signal);fitted(ctx,logo,110,32,1940,260);}
+    const box=imageBox(design.materialKind,design.logoType);fitted(ctx,image,box.x,box.y,box.width,box.height,box.fit==='cover');
     return await encodeMaster(canvas,signal);
   }finally{image.close();canvas.width=canvas.height=1;logo.width=logo.height=1;}
 }

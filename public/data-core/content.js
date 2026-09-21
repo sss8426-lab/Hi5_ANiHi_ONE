@@ -1,4 +1,5 @@
 import {instagramImageMime} from './instagram-image-formats.js';
+import {mountAiUsage} from './ai-usage.js';
 
 const state = {
   context: null,
@@ -44,7 +45,28 @@ const AI_OPTIMIZE_STEPS = [
 const AI_OPTIMIZE_TARGET_BYTES = 1.5 * 1024 * 1024;
 const AI_OPTIMIZE_HARD_CAP_BYTES = 2 * 1024 * 1024;
 
-let derivativeEditor, instagramProduction;
+let derivativeEditor, instagramProduction, aiUsagePanel;
+let browseController, renderedFolder='', defaultsEdited=0;
+const thumbnailCache = new window.DataCorePrivateImageCache({maxBytes:8*1024*1024,maxEntries:50,concurrency:3,onUnauthorized:clearPrivateState});
+let thumbnailObserver;
+
+function clearPrivateState() {
+  browseController?.abort();state.browseGeneration++;state.defaultsGeneration++;
+  thumbnailObserver?.disconnect();thumbnailCache.clear();renderedFolder='';
+  aiUsagePanel?.clear();
+  state.files=[];state.selectedFileIds=[];state.selectedDerivedFileIds=[];state.knownFiles.clear();
+  $('photoFolders')?.replaceChildren();$('photoBreadcrumb')?.replaceChildren();$('photoPages')?.replaceChildren();
+  renderFilePicker();renderSelectedFiles();instagramProduction?.invalidated();
+}
+function observeThumbnails() {
+  thumbnailObserver?.disconnect();
+  const epoch=state.browseGeneration;
+  thumbnailObserver=new IntersectionObserver(entries=>entries.forEach(entry=>{
+    if(!entry.isIntersecting)return;const img=entry.target;thumbnailObserver.unobserve(img);
+    void thumbnailCache.get(img.dataset.thumbnail).then(url=>{if(epoch===state.browseGeneration&&img.isConnected)img.src=url;}).catch(()=>{if(img.isConnected)img.alt='미리보기 없음';});
+  }),{root:$('filePickList'),rootMargin:'80px'});
+  $('filePickList').querySelectorAll('img[data-thumbnail]').forEach(img=>thumbnailObserver.observe(img));
+}
 
 const $ = (id) => document.getElementById(id);
 
@@ -59,6 +81,7 @@ async function api(url, options = {}) {
   const type = response.headers.get('content-type') || '';
   const body = type.includes('application/json') ? await response.json() : await response.text();
   if (!response.ok) {
+    if ([401,403].includes(response.status)) clearPrivateState();
     const message = typeof body === 'object' ? (body?.error || body?.message || '요청을 완료하지 못했습니다.') : '요청을 완료하지 못했습니다.';
     const error = new Error(message);
     error.status = response.status;
@@ -206,7 +229,8 @@ function renderSelectedFiles() {
     };
   });
   $('photoCount').textContent = state.sourceApp === 'instagram' ? `선택 ${rows.length} / 10` : `사진 ${rows.length}/${BLOG_PHOTO_LIMIT}장 선택`;
-  $('selectedFiles').innerHTML = rows.map((file, index) => `<button data-remove-file="${h(file.id)}" type="button" aria-label="선택 사진 ${index + 1} 제외" title="선택 해제"><img src="${h(file.thumbnailUrl || file.previewUrl || '/api/data-core/files/' + encodeURIComponent(file.id))}" alt=""></button>`).join('');
+  $('selectedFiles').innerHTML = rows.map((file, index) => `<button data-remove-file="${h(file.id)}" type="button" aria-label="선택 사진 ${index + 1} 제외" title="선택 해제">${file.thumbnailUrl ? `<img data-thumbnail="${h(file.thumbnailUrl)}" alt="선택 ${index+1}">` : `<span>${index+1}</span>`}</button>`).join('');
+  $('selectedFiles').querySelectorAll('img[data-thumbnail]').forEach(img=>{void thumbnailCache.get(img.dataset.thumbnail).then(url=>{if(img.isConnected)img.src=url;}).catch(()=>{});});
   document.querySelectorAll('[data-remove-file]').forEach((button) => {
     button.onclick = () => {
       if (state.busy) return;
@@ -218,19 +242,19 @@ function renderSelectedFiles() {
 }
 
 async function loadHealthAndContext() {
-  const [healthResult, contextResult] = await Promise.allSettled([
-    api('/api/data-core/health'),
-    api('/api/data-core/context'),
-  ]);
-  state.health = healthResult.status === 'fulfilled' ? healthResult.value : null;
-  state.context = contextResult.status === 'fulfilled' ? contextResult.value : null;
-  renderConnection();
+  void api('/api/data-core/health').then(value=>{state.health=value;renderConnection();}).catch(()=>{state.health=null;renderConnection();});
+  const next=await api('/api/data-core/context');
+  const accessKey=value=>JSON.stringify([value?.user?.id,value?.user?.internalUserId,value?.user?.email,value?.memberships,value?.isSuperAdmin,value?.canWrite]);
+  if(state.context&&accessKey(state.context)!==accessKey(next))clearPrivateState();
+  state.context=next;
   renderUser();
   if (!state.context?.authenticated) return;
   try {
     const response = await api('/api/data-core/campuses');
     state.campuses = response.campuses || [];
+    const selectedCampus=$('draftCampus').value;
     renderCampusSelectors();
+    if([...$('draftCampus').options].some(option=>option.value===selectedCampus))$('draftCampus').value=selectedCampus;
   } catch (error) {
     toast(error.message, 'error');
   }
@@ -239,10 +263,16 @@ async function loadHealthAndContext() {
 async function loadFiles() {
   if (!state.context?.authenticated || state.busy) return;
   const token = ++state.browseGeneration;
+  browseController?.abort();browseController=new AbortController();
+  thumbnailObserver?.disconnect();thumbnailCache.cancelPending();thumbnailCache.blocked=false;
+  const id=state.folderId,skipFolders=renderedFolder===id;
+  state.files=[];renderFilePicker();$('photoPages').replaceChildren();
+  if(!skipFolders){$('photoFolders').replaceChildren();$('photoBreadcrumb').setAttribute('aria-busy','true');}
   $('pickerStatus').textContent = '사진을 불러오고 있습니다.';
   try {
-    const { view, listing } = await window.DataCoreLibraryClient.browse(api, { id: state.folderId, page: state.page, q: $('fileSearchInput').value.trim() });
-    if (token !== state.browseGeneration) return;
+    const { listing } = await window.DataCoreLibraryClient.browse(api, { id, page: state.page, q: $('fileSearchInput').value.trim() },{signal:browseController.signal,skipFolders,counts:false,onView:view=>{
+    if (token !== state.browseGeneration) return;renderedFolder=id;
+    $('photoBreadcrumb').removeAttribute('aria-busy');
     const folderCampusId = view.folder.campusId || '';
     if ([...$('draftCampus').options].some(option => option.value === folderCampusId) && $('draftCampus').value !== folderCampusId) {
       $('draftCampus').value = folderCampusId;
@@ -253,11 +283,14 @@ async function loadFiles() {
     $('photoBreadcrumb').innerHTML = (view.breadcrumbs || []).map(item => `<button type="button" data-folder="${h(item.id)}">${h(item.title)}</button>`).join('<span aria-hidden="true">/</span>');
     $('photoFolders').innerHTML = window.DataCoreLibraryClient.folderGroups(view, $('fileSearchInput').value).map(([group, folders]) =>
       `<section class="photo-folder-group"><h3>${h(group)}</h3><div class="photo-folder-grid">${folders.map(folder => `<button type="button" data-folder="${h(folder.id)}"><svg aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Folder"></use></svg><strong>${h(folder.title)}</strong></button>`).join('')}</div></section>`).join('');
-    document.querySelectorAll('[data-folder]').forEach(button => { button.onclick = () => { if (state.busy) return; state.folderId = button.dataset.folder; state.page = 1; $('fileSearchInput').value = ''; void loadFiles(); }; });
+    document.querySelectorAll('[data-folder]').forEach(button => { button.onclick = () => { if (state.busy) return; renderedFolder='';state.folderId = button.dataset.folder; state.page = 1; $('fileSearchInput').value = ''; const crumb=document.createElement('span');crumb.textContent=button.textContent.trim();$('photoBreadcrumb').replaceChildren(crumb);void loadFiles(); }; });
+    }});
+    if (token !== state.browseGeneration) return;
     state.files = (listing.files || []).filter(file => state.sourceApp === 'instagram'
       ? instagramImageMime(file.mimeType, file.fileName)
       : ['image/jpeg','image/png','image/webp'].includes(file.mimeType));
     state.files.forEach((file) => state.knownFiles.set(String(file.id), file));
+    for(const key of state.knownFiles.keys())if(state.knownFiles.size>100&&!state.selectedFileIds.includes(key)&&!state.files.some(file=>file.id===key))state.knownFiles.delete(key);
     $('pickerStatus').textContent = state.files.length ? '' : '이 폴더에 선택할 사진이 없습니다.';
     $('photoPages').innerHTML = `<button type="button" class="ghost-btn" id="photoPrev" ${state.page <= 1 ? 'disabled' : ''} aria-label="이전 사진 페이지">←</button><span>${state.page}</span><button type="button" class="ghost-btn" id="photoNext" ${listing.hasMore ? '' : 'disabled'} aria-label="다음 사진 페이지">→</button>`;
     $('photoPrev').onclick = () => { if (state.busy) return; state.page--; void loadFiles(); };
@@ -265,7 +298,8 @@ async function loadFiles() {
     renderFilePicker();
     renderSelectedFiles();
   } catch (error) {
-    if (token !== state.browseGeneration) return;
+    if (token !== state.browseGeneration || error.name==='AbortError') return;
+    if(error.status===404)clearPrivateState();
     state.files = []; renderFilePicker();
     $('pickerStatus').textContent = error.message;
     if ([401,403].includes(error.status)) { state.selectedFileIds = []; state.knownFiles.clear(); renderSelectedFiles(); }
@@ -295,7 +329,7 @@ function renderFilePicker() {
     const selected = [...state.selectedFileIds, ...state.selectedDerivedFileIds].includes(String(file.id));
     return `<article class="photo-tile">
       <button data-pick-file="${h(file.id)}" type="button" aria-label="사진 ${index + 1} 선택" aria-pressed="${selected}">
-        <img src="${h(file.thumbnailUrl || file.previewUrl)}" data-original="${h(file.previewUrl)}" alt="자료보관함 사진 ${index + 1}" loading="${index < 6 ? 'eager' : 'lazy'}" decoding="async">
+        ${file.thumbnailUrl?`<img data-thumbnail="${h(file.thumbnailUrl)}" alt="자료보관함 사진 ${index+1}" decoding="async">`:'<svg class="photo-placeholder" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Image"></use></svg>'}
         <span class="photo-check" aria-hidden="true">${selected ? '✓' : ''}</span>
       </button>
       <button class="photo-zoom" data-preview="${h(file.id)}" type="button" aria-label="사진 ${index + 1} 확대" title="확대"><svg><use href="/data-core/assets/core-icons.svg#Search"></use></svg></button>
@@ -312,7 +346,7 @@ function renderFilePicker() {
       renderSelectedFiles();
     };
   });
-  list.querySelectorAll('img').forEach(img => { img.onerror = () => { if (img.src !== new URL(img.dataset.original, location.origin).href) img.src = img.dataset.original; }; });
+  observeThumbnails();
   list.querySelectorAll('[data-preview]').forEach(button => { button.onclick = () => {
     window.DataCoreImageGallery.open({scope:'content-photos',title:'사진',anchor:button,
       index:state.files.findIndex(file=>file.id===button.dataset.preview),
@@ -538,6 +572,7 @@ function bindEvents() {
   $('draftSearchInput').onkeydown = (event) => { if (event.key === 'Enter') loadDrafts(); };
   $('pastWork').ontoggle = () => { if ($('pastWork').open) void loadDrafts(); };
   $('saveDefaults').onclick = saveDefaults;
+  for(const id of ['defaultHashtags','defaultFooter'])$(id).addEventListener('input',()=>{defaultsEdited++;$('defaultsStatus').textContent='기본 문구 변경사항 미저장';});
   $('generateAi').onclick = () => runAi();
   $('quickGenerateAi').onclick = () => runAi(false, true);
   $('regenerateAi').onclick = () => runAi();
@@ -591,12 +626,13 @@ function normalizedHashtags(...values) {
 
 async function loadDefaults() {
   const token = ++state.defaultsGeneration;
+  const edit=defaultsEdited;
   $('defaultHashtags').value = ''; $('defaultFooter').value = '';
   $('defaultsStatus').textContent = '';
   try {
     const params = new URLSearchParams({ sourceApp: state.sourceApp, campusId: $('draftCampus').value });
     const result = await api('/api/data-core/content/defaults?' + params);
-    if (token !== state.defaultsGeneration) return;
+    if (token !== state.defaultsGeneration || edit!==defaultsEdited) return;
     $('defaultHashtags').value = result.defaults.hashtags; $('defaultFooter').value = result.defaults.footer;
   } catch (error) { if (token === state.defaultsGeneration) $('defaultsStatus').textContent = error.message; }
 }
@@ -613,12 +649,8 @@ async function saveDefaults() {
 }
 
 async function loadAiStatus() {
-  if (!isSuperAdmin()) return;
-  $('aiDiagnostics').hidden = false;
-  try {
-    const status = await api('/api/data-core/content/ai-status');
-    $('aiDiagnosticStatus').textContent = `API key: ${status.configured ? '설정됨' : '설정 필요'} · Text: ${status.models.text} · Image: ${status.models.image}`;
-  } catch { $('aiDiagnosticStatus').textContent = '연결 설정을 확인할 수 없습니다.'; }
+  if(!state.context?.canWrite)return;
+  if(!aiUsagePanel)aiUsagePanel=mountAiUsage({api,element:$('aiDiagnostics')});else void aiUsagePanel.refresh();
 }
 
 function setAiBusy(busy) {
@@ -919,7 +951,8 @@ async function downloadImage() {
 }
 
 async function init() {
-  const { mountInstagramProduction } = await import(state.sourceApp==='instagram'?'/data-core/instagram-carousel.js?v=20260921-carousel-fix2':'/data-core/instagram-production.js?v=20260921-brand');
+  $('photoHeading').closest('.workflow-section').before($('aiDiagnostics'));
+  const { mountInstagramProduction } = await import(state.sourceApp==='instagram'?'/data-core/instagram-carousel.js?v=20260921-usability':'/data-core/instagram-production.js?v=20260921-brand');
   instagramProduction = mountInstagramProduction({state,api,$,toast,canWrite,saveDraft,setWorkspaceBusy:setAiBusy});
   if($('igCaption'))$('igCaption').onclick = () => runAi(true);
   derivativeEditor = window.HI5InstagramDerivative.mount({
@@ -942,10 +975,12 @@ async function init() {
   renderSelectedFiles();
   if (state.context?.authenticated) {
     state.folderId = $('draftCampus').value ? 'campus:' + $('draftCampus').value : 'root';
-    await Promise.all([loadFiles(), loadDefaults(), loadAiStatus()]);
+    void loadDefaults();void loadAiStatus();await loadFiles();
   }
 }
 
 init().catch((error) => {
   showNotice(error.status === 401 ? '로그인이 필요합니다.' : '자동화 작업실을 시작하지 못했습니다. 새로고침해주세요.');
 });
+window.addEventListener('pagehide',clearPrivateState);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!state.busy){void loadHealthAndContext().then(()=>{renderedFolder='';void loadFiles();}).catch(clearPrivateState);}});

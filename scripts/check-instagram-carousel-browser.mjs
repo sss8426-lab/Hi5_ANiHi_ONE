@@ -12,7 +12,7 @@ const out=path.resolve('outputs/instagram-carousel'),root=path.resolve('public')
 const previewOrigin=process.argv.includes('--preview')?new URL(process.argv[process.argv.indexOf('--preview')+1]).origin:null;
 const checked=new Set(),assetErrors=[];
 const h=await libraryHarness(),realFetch=globalThis.fetch;
-let textCalls=0,imageCalls=0,failText=false,activeUser=users.staff;
+let textCalls=0,imageCalls=0,failText=false,activeUser=users.staff,failSetOnce=true;
 let lastRendered=null,avoidedPreviewBytes=0;const fileReads=new Map();
 const pixels=Uint8Array.from({length:320*120*4},(_,i)=>{const n=Math.floor(i/4),x=n%320,y=Math.floor(n/320);return i%4===3?255:(x<4||x>=316||y<4||y>=116?[220,60,50]:[110,178,154])[i%4];});
 const png=encode({width:320,height:120,channels:4,depth:8,data:pixels});
@@ -48,6 +48,9 @@ const server=http.createServer(async(req,res)=>{
       if(req.method==='GET'&&url.pathname.startsWith('/api/data-core/files/'))fileReads.set(url.pathname,(fileReads.get(url.pathname)||0)+1);
       const chunks=[];for await(const chunk of req)chunks.push(chunk);const bytes=Buffer.concat(chunks);
       const body=bytes.length?(String(req.headers['content-type']).startsWith('multipart/form-data')?await new Request('http://localhost',{method:'POST',headers:req.headers,body:bytes}).formData():JSON.parse(bytes.toString())):undefined;
+      if(failSetOnce&&req.method==='POST'&&url.pathname==='/api/data-core/content/instagram-sets'){
+        failSetOnce=false;res.writeHead(503,{'content-type':'application/json'}).end('{"error":"Synthetic save failure"}');return;
+      }
       const result=await h.raw(req.method,url.pathname+url.search,activeUser,body);
       if(req.method==='POST'&&url.pathname.endsWith('/render')&&result.ok)lastRendered=(await result.clone().json()).file;
       res.writeHead(result.status,Object.fromEntries(result.headers)).end(Buffer.from(await result.arrayBuffer()));return;
@@ -76,24 +79,24 @@ try{
   await page.waitForFunction(()=>document.querySelector('#draftCampus').options.length>2);
   assert.equal(await page.locator('#draftCampus').inputValue(),'');
   await page.locator('#draftCampus').selectOption(A);
-  await page.waitForFunction(()=>document.querySelectorAll('[data-logo]').length===5&&document.querySelector('#igCampusLabel').textContent==='부천 입시본원');
+  await page.waitForFunction(()=>document.querySelectorAll('[data-logo]').length===6&&document.querySelector('#igCampusLabel').textContent==='부천 입시본원');
   await page.route('**/instagram-policy?campusId='+B,async route=>{await new Promise(resolve=>setTimeout(resolve,700));await route.continue();});
   const stalePolicy=page.waitForResponse(response=>response.url().endsWith('instagram-policy?campusId='+B));
   await page.locator('#draftCampus').selectOption(B);await page.locator('#draftCampus').selectOption(A);
-  await page.waitForFunction(()=>document.querySelectorAll('[data-logo]').length===5&&document.querySelector('#igCampusLabel').textContent==='부천 입시본원');
+  await page.waitForFunction(()=>document.querySelectorAll('[data-logo]').length===6&&document.querySelector('#igCampusLabel').textContent==='부천 입시본원');
   await stalePolicy;await page.unroute('**/instagram-policy?campusId='+B);
   await page.locator('#draftCampus').selectOption('');assert.equal(await page.locator('[data-logo]').count(),0);
   await page.locator('[data-folder="campus:'+A+'"]').click();
-  await page.waitForFunction(()=>document.querySelectorAll('[data-logo]').length===5&&document.querySelector('#igCampusLabel').textContent==='부천 입시본원');
+  await page.waitForFunction(()=>document.querySelectorAll('[data-logo]').length===6&&document.querySelector('#igCampusLabel').textContent==='부천 입시본원');
   activeUser=users.staff;
   async function open(){
     await page.goto(origin+'/data-core/content/instagram');
     await page.locator(`[data-folder="category:${A}:class-photo"]`).click();await page.locator(`[data-folder="${folder.id}"]`).click();
-    await page.waitForFunction(()=>document.querySelectorAll('[data-pick-file]').length===11&&document.querySelectorAll('[data-logo]').length===5);
+    await page.waitForFunction(()=>document.querySelectorAll('[data-pick-file]').length===11&&document.querySelectorAll('[data-logo]').length===6);
   }
-  async function generate(count,mode='original'){
+  async function generate(count,mode='original',logo='anihi'){
     await open();for(let i=0;i<count;i++)await page.locator(`[data-pick-file="${files[i].id}"]`).click();
-    await page.locator('#aiCommand').fill('합성 공간의 밝고 차분한 분위기');await page.locator('#igMode').selectOption(mode);
+    await page.locator('#aiCommand').fill('합성 공간의 밝고 차분한 분위기');await page.locator('#igMode').selectOption(mode);await page.locator(`[data-logo="${logo}"]`).click();
     await page.locator('#igGenerate').evaluate(button=>{button.click();button.click();});
     await page.waitForFunction(()=>document.querySelector('#igStatus').textContent.endsWith('장 제작 완료'),null,{timeout:180000});
     assert.equal(await page.locator('#igSlides button').count(),count);assert.equal(await page.locator('#igDownloads button').count(),0);
@@ -101,7 +104,9 @@ try{
     const preview=await page.locator('#igPreview').getAttribute('src');
     assert.match(preview,/^blob:/,'reuse the generated pixels rather than download the just-uploaded master');
     await page.waitForFunction(()=>document.querySelector('#igPreview').naturalWidth===2160);
+    const expectFailure=failSetOnce;
     await page.locator('#igComplete').evaluate(button=>{button.click();button.click();});
+    if(expectFailure){await page.waitForFunction(()=>document.querySelector('#igSaved').textContent.includes('저장 실패'));assert.equal(await page.locator('#igDownloads button').count(),0);await page.locator('#igComplete').click();}
     await page.waitForFunction(()=>document.querySelector('#igSaved').textContent==='저장 완료');
     await page.waitForFunction(()=>!document.querySelector('#igGenerate').disabled,null,{timeout:180000});
     assert.equal(await page.locator('#igPreview').getAttribute('src'),preview);
@@ -112,7 +117,7 @@ try{
     return masterPath;
   }
   await open();assert.equal(await page.locator('#igGenerate').isDisabled(),true);
-  for(const logo of ['anihi','hi5','combined','slogan','horizontal']){
+  for(const logo of ['anihi','hi5','combined','slogan','horizontal','none']){
     await page.locator(`[data-logo="${logo}"]`).click();assert.equal(await page.locator(`[data-logo="${logo}"]`).getAttribute('aria-pressed'),'true');
     assert.equal(await page.locator('[data-logo][aria-pressed="true"]').count(),1);
   }
@@ -124,11 +129,20 @@ try{
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'overflow '+width);
     assert.equal(await page.locator('#manualWork').isVisible(),false);
     assert.equal(await page.locator('#pastWork').isVisible(),false);
+    const boxes=await page.locator('.defaults-grid textarea').evaluateAll(els=>els.map(el=>{const r=el.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width};}));
+    assert.equal(boxes[0].y,boxes[1].y,'defaults stay side by side');assert.ok(boxes[1].x>boxes[0].x+boxes[0].width);
     assert.ok(await page.locator('#aiCommand').evaluate(el=>Boolean(el.compareDocumentPosition(document.querySelector('#igLogos'))&Node.DOCUMENT_POSITION_FOLLOWING)));
     await page.screenshot({path:path.join(out,'input-'+width+'.png'),fullPage:true});
   }
   await page.setViewportSize({width:1440,height:1000});
+  await page.locator('#defaultHashtags').fill('#미술 #합성 #미술');await page.locator('#defaultFooter').fill('합성 문의\n032-000-0000\n');
+  await page.locator('#saveDefaults').click();await page.waitForFunction(()=>document.querySelector('#defaultsStatus').textContent.includes('저장되었습니다'));
+  await page.reload();await page.waitForFunction(()=>document.querySelector('#defaultFooter').value==='합성 문의\n032-000-0000\n');
+  await page.route('**/api/data-core/content/defaults',route=>route.fulfill({status:503,contentType:'application/json',body:'{"error":"Synthetic defaults failure"}'}));
+  await page.locator('#defaultFooter').fill('보존할 입력\n');await page.locator('#saveDefaults').click();await page.waitForFunction(()=>document.querySelector('#defaultsStatus').textContent.includes('Synthetic defaults failure'));
+  assert.equal(await page.locator('#defaultFooter').inputValue(),'보존할 입력\n');await page.unroute('**/api/data-core/content/defaults');
   const artwork=await generate(1);assert.equal(imageCalls,0);assert.equal(textCalls,1);
+  const captionValue=await page.locator('#igCaptionText').inputValue();assert.ok(captionValue.includes('합성 문의\n032-000-0000\n'));assert.ok(captionValue.endsWith('#미술 #합성'));
   const master=decode(new Uint8Array(await(await h.raw('GET',artwork,users.staff)).arrayBuffer()));
   assert.deepEqual([master.width,master.height],[2160,2700]);
   // Landscape artwork retains all four original corners inside the centered contain box.
@@ -159,6 +173,9 @@ try{
   failText=false;await page.locator('#igCaptionRetry').click();await page.waitForFunction(()=>document.querySelector('#igCaptionStatus').textContent.includes('작성 완료'));
   await page.waitForFunction(()=>!document.querySelector('#igGenerate').disabled);
   assert.equal(imageCalls,1,'caption retry never edits images again');
+  await page.locator('[data-logo="none"]').click();assert.match(await page.locator('#igStatus').textContent(),/미저장/);
+  await page.locator('#igGenerate').click();await page.waitForFunction(()=>document.querySelector('#igStatus').textContent==='1장 제작 완료',null,{timeout:180000});
+  assert.equal(imageCalls,1,'logo-only changes reuse the authorized AI intermediate');
   const oldPreview=await page.locator('#igPreview').getAttribute('src');
   await page.locator('#aiCommand').fill('새 방향');
   assert.equal(await page.locator('#igResult').isVisible(),false,'changing the command invalidates the preview');
@@ -171,6 +188,15 @@ try{
   await page.waitForFunction(()=>document.querySelector('#igStatus').textContent==='7장 제작 완료',null,{timeout:180000});
   assert.equal(imageCalls,1);assert.equal(await page.locator('#igSlides button').count(),7);
   await page.screenshot({path:path.join(out,'formats-auto-fit.png'),fullPage:true});
+  for(const count of [1,5,10]){
+    const resource=await generate(count,count===1?'original':'photo-layout','none');
+    const noLogo=decode(new Uint8Array(await(await h.raw('GET',resource,users.staff)).arrayBuffer()));
+    if(count===1){for(const [x,y]of [[62,972],[2098,972],[62,1728],[2098,1728]]){const p=(y*2160+x)*noLogo.channels;assert.deepEqual(Array.from(noLogo.data.slice(p,p+3)),[220,60,50],'all artwork corners survive');}}
+    else for(const [x,y]of [[1080,60],[1080,250],[1080,2630]]){const p=(y*2160+x)*noLogo.channels;assert.notDeepEqual(Array.from(noLogo.data.slice(p,p+3)),[255,255,255],'no blank logo header');}
+    const stored=await h.env.DB.prepare("SELECT metadata_json FROM data_records WHERE record_type='instagram-carousel-set' ORDER BY created_at DESC LIMIT 1").first();
+    const first=JSON.parse(stored.metadata_json).items[0];const draft=await h.env.DB.prepare('SELECT metadata_json FROM data_records WHERE id=?').bind(first.draftId).first();
+    assert.equal(JSON.parse(draft.metadata_json).instagramDesign.logoType,'none');
+  }
   // Shared picker remains multi-select in the blog editor, without the Instagram controls.
   await page.goto(origin+'/data-core/content/blog');await page.locator(`[data-folder="category:${A}:class-photo"]`).click();await page.locator(`[data-folder="${folder.id}"]`).click();
   await page.locator('[data-pick-file]').nth(0).click();await page.locator('[data-pick-file]').nth(1).click();

@@ -6,6 +6,7 @@ export const LOGOS = {
   combined: { label: 'Hi5·ANiHi', src: '/data-core/assets/brand/combined-20260921.png', tagline: '' },
   slogan: { label: '디자인은 Hi5 / 만화.애니는 ANiHi', src: '/data-core/assets/brand/slogan-20260921-v2.png', tagline: '' },
   horizontal: { label: 'Hi5·ANiHi 가로형', src: '/data-core/assets/brand/horizontal-mark-20260921-v2.png', tagline: '' },
+  none: { label: '로고 없음', src: '', tagline: '' },
 };
 const CAMPUS_LABELS = {
   '부천 디자인 입시본원': '부천 입시본원', '부천 애니 입시본원': '부천 입시본원',

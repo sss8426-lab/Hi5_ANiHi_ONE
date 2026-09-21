@@ -1,4 +1,5 @@
 import baseWorker from "./index";
+import {aiUsage,saveAiBudget} from './content-ai-usage';
 import {
   DataCoreAccessError,
   requireCampusAccess,
@@ -484,6 +485,8 @@ async function handleContentApi(request: Request, env: Env) {
     if(request.method==='POST')return jsonResponse(await completeInstagramSet(env.DB,context,await contentJson(request)),{status:201});
     if(request.method==='GET')return jsonResponse(await listInstagramSets(env.DB,context,url.searchParams.get('campusId')||''));
   }
+  if(url.pathname==='/api/data-core/content/ai-usage'&&request.method==='GET')return jsonResponse(await aiUsage(env.DB,context,env),{headers:{'cache-control':'private, no-store'}});
+  if(url.pathname==='/api/data-core/content/ai-budget'&&request.method==='PUT')return jsonResponse(await saveAiBudget(env.DB,context,env,await contentJson(request)));
   const setMatch=url.pathname.match(/^\/api\/data-core\/content\/instagram-sets\/([^/]+)$/);
   if(setMatch){
     const id=decodeURIComponent(setMatch[1]);

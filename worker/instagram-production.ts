@@ -43,7 +43,10 @@ async function productionDraft(db:D1Database, context:DataCoreAccessContext, id:
   if (source!.category === DERIVATIVE_CATEGORY || !instagramImageMime(source!.mime_type, String(source!.original_file_name||''))) fail(400,'PNG, JPG, JPEG, WebP, GIF, AVIF, BMP 원본 이미지를 선택하세요.');
   // Include all editable metadata and the live campus projection: generic record edits also invalidate approval.
   // New logo choices must not invalidate previously approved single-image renders.
-  const fingerprintPolicy=design.workflow==='carousel-v2'?policy:{...policy,logos:{anihi:LOGOS.anihi,hi5:LOGOS.hi5,combined:LOGOS.combined}};
+  // Preserve the five-logo registry used by already saved carousel fingerprints.
+  const fingerprintPolicy=design.workflow==='carousel-v2'
+    ? {...policy,logos:design.logoType==='none'?LOGOS:Object.fromEntries(Object.entries(LOGOS).filter(([id])=>id!=='none'))}
+    : {...policy,logos:{anihi:LOGOS.anihi,hi5:LOGOS.hi5,combined:LOGOS.combined}};
   const fingerprint = await hash({id:draft.id,campusId:draft.campusId,title:draft.title,summary:draft.summary,content:draft.content,tags:draft.tags,metadata,policy:fingerprintPolicy});
   return { draft, design, policy, source:source!, fingerprint };
 }

@@ -8,13 +8,13 @@ class DataCorePrivateImageCache {
     const entry=this.entries.get(key); if(!entry)return;
     URL.revokeObjectURL(entry.url); this.bytes-=entry.size; this.entries.delete(key);
   }
-  clear() {
+  cancelPending() {
     this.generation++;
     for(const controller of this.controllers)controller.abort();
     for(const job of this.queue)job.reject(new DOMException('Cancelled','AbortError'));
     this.queue=[]; this.pending.clear();
-    for(const key of this.entries.keys())this.evict(key);
   }
+  clear() {this.cancelPending();for(const key of this.entries.keys())this.evict(key);}
   peek(path) {
     const entry=this.entries.get(path);
     if(entry&&Date.now()-entry.created<this.ttl)return entry.url;

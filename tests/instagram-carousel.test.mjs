@@ -18,8 +18,8 @@ test('raster formats and legacy JPEG aliases are supported without accepting act
   assert.equal(instagramImageMime('text/html','fake.jpg'),'');
   assert.equal(instagramImageMime('','fake.svg'),'');
 });
-test('five official choices, artwork contained and photos fill the same master frame',()=>{
-  assert.equal(Object.keys(LOGOS).length,5);
+test('five official logos plus no-logo, artwork contained and photos fill the same master frame',()=>{
+  assert.equal(Object.keys(LOGOS).length,6);
   assert.equal(imageBox('student-artwork').fit,'contain');
   assert.equal(imageBox('real-photo').fit,'cover');
   assert.equal(normalizeDesign(material).workflow,'carousel-v2');
@@ -85,6 +85,9 @@ test('text-only captions never transmit artwork and verify campus before provide
     const input={sourceApp:'instagram',campusId:A,selectedFileIds:[file.id],textOnly:true,material,notes:'합성 사진 소개',requestId:crypto.randomUUID()};
     const result=await h.request('POST','/api/data-core/content/generate',users.staff,input);
     assert.equal(result.status,200,JSON.stringify(result.body));assert.equal(calls,1);
+    const usage=await h.request('GET','/api/data-core/content/ai-usage',users.staff);assert.equal(usage.body.calls.attempts,1);assert.equal(usage.body.calls.confirmed,1);
+    await h.request('POST','/api/data-core/content/generate',users.staff,input);
+    assert.equal((await h.request('GET','/api/data-core/content/ai-usage',users.staff)).body.calls.attempts,1,'idempotent response does not duplicate provider ledger');
     assert.equal((await h.request('POST','/api/data-core/content/generate',users.foreign,{...input,requestId:crypto.randomUUID()})).status,403);
     assert.equal((await h.request('POST','/api/data-core/content/generate',users.staff,{...input,textOnly:false,requestId:crypto.randomUUID()})).status,403);
     assert.equal(calls,1);

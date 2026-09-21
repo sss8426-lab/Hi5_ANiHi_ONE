@@ -1,5 +1,6 @@
 import {LOGOS,normalizeDesign} from './instagram-brand-policy.js';
 import {composeInstagram,drawLogo} from './instagram-layout.js';
+import {assembleCaption} from './content-caption.js';
 
 export function mountInstagramProduction({state,api,$,toast,canWrite}) {
   document.body.classList.add('instagram-carousel-mode');
@@ -11,26 +12,31 @@ export function mountInstagramProduction({state,api,$,toast,canWrite}) {
   command.after(section);
   const result=document.createElement('section');result.className='workflow-section ig-carousel';result.id='igResult';result.hidden=true;
   result.innerHTML=`<h2>결과 미리보기</h2><div id="igSlides" class="ig-slide-tabs" aria-label="이미지 순서"></div><figure class="ig-preview"><img id="igPreview" alt="인스타 최종 이미지 미리보기" width="2160" height="2700"></figure>
-    <div class="form-actions"><button id="igComplete" type="button" class="primary-btn" disabled>완료 및 저장</button><span id="igSaved" role="status"></span></div>
-    <div id="igDownloads" class="form-actions"></div>
+    <div class="ig-result-actions"><button id="igComplete" type="button" class="primary-btn" disabled>완료 및 저장</button><span id="igSaved" role="status">저장 전</span></div>
+    <div id="igDownloads" class="ig-download-actions"></div>
     <section id="igCaptionSection" hidden><h2>인스타 홍보용 글</h2><textarea id="igCaptionText" rows="8" maxlength="12000" aria-label="인스타 홍보용 글"></textarea><div class="form-actions"><button id="igCopy" type="button" class="secondary-btn">문구 복사</button><button id="igCaptionSave" type="button" class="ghost-btn">문구 저장</button><button id="igCaptionRetry" type="button" class="ghost-btn" hidden>홍보글 다시 작성</button></div><p id="igCaptionStatus" role="status"></p></section>`;
   section.after(result);
   const history=document.createElement('details');history.className='workflow-details';history.innerHTML='<summary>저장한 이미지 세트</summary><div id="igHistory"></div>';result.after(history);
-  const defaults=document.createElement('details');defaults.className='workflow-details';defaults.innerHTML='<summary>기본 해시태그·문의 문구</summary>';
-  defaults.append(command.querySelector('.defaults-grid'),command.querySelector('.defaults-actions'));$('igCaptionSection').append(defaults);
+  command.querySelector('.defaults-grid label:first-child span').textContent='고정 해시태그';
+  command.querySelector('.defaults-grid label:last-child span').textContent='고정 마지막 문구';
+  $('defaultHashtags').placeholder='#학원소식 #수업기록';$('defaultFooter').placeholder='문의 안내 등 마지막에 넣을 문구';
   let logoType='anihi',policy=null,policyEpoch=0,generation=0,busy=false,items=[],currentSet=null,controller=null,selected='',signature='',requestId='',activeIndex=0;
   let localPreview=null;
+  let imageState='new',hasSaved=false;
+  const backgrounds=new Map();
   const previewUrl=item=>localPreview?.fileId===item.masterFileId?localPreview.url:'/api/data-core/files/'+encodeURIComponent(item.masterFileId);
   function releasePreview(){if(localPreview)URL.revokeObjectURL(localPreview.url);localPreview=null;}
   const originalMode=()=>$('igMode').value!=='photo';
-  const read=()=>normalizeDesign({workflow:'carousel-v2',logoType,templateId:'academy',materialKind:$('igMode').value==='original'?'student-artwork':'real-photo',usePermission:'allowed',externalAiConsent:!originalMode(),contact:$('defaultFooter').value});
+  const read=()=>normalizeDesign({workflow:'carousel-v2',logoType,templateId:'academy',materialKind:$('igMode').value==='original'?'student-artwork':'real-photo',usePermission:'allowed',externalAiConsent:!originalMode()});
   const snapshot=()=>JSON.stringify([state.selectedFileIds,$('draftCampus').value,$('aiCommand').value,logoType,$('igMode').value]);
   const post=(path,body,signal)=>api('/api/data-core/content'+(path?'/'+path:''),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body),signal:signal||AbortSignal.timeout(150000)});
   function buttons(){ $('igGenerate').disabled=busy||!canWrite()||!state.selectedFileIds.length||!$('draftCampus').value;
     $('igComplete').disabled=busy||!items.length||items.length!==state.selectedFileIds.length||signature!==snapshot()||Boolean(currentSet);
+    const saved=Boolean(currentSet);$('igComplete').innerHTML=saved?'<svg aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Check"></use></svg>저장 완료':imageState==='saving'?'저장 중…':imageState==='failed'?'다시 저장':hasSaved?'변경사항 저장':'완료 및 저장';
+    $('igComplete').setAttribute('aria-busy',String(imageState==='saving'));
     $('igGenerate').textContent=originalMode()?'이미지 만들기':'AI로 이미지 만들기';$('igCancel').hidden=!busy||!controller; }
   function lock(value){busy=value;state.busy=value;$('photoHeading').closest('.workflow-section').inert=value;command.inert=value;$('igLogos').inert=value;$('igMode').disabled=value;history.inert=value;result.querySelectorAll('button,textarea').forEach(el=>el.disabled=value);buttons();}
-  function clear(){releasePreview();generation++;items=[];currentSet=null;signature='';requestId='';result.hidden=true;$('igPreview').removeAttribute('src');$('igSlides').replaceChildren();$('igDownloads').replaceChildren();$('igCaptionSection').hidden=true;$('igCaptionText').value='';$('igCaptionStatus').textContent='';$('igStatus').textContent='';$('igSaved').textContent='';$('igCaptionRetry').hidden=true;buttons();}
+  function clear(keepBackgrounds=false){if(keepBackgrounds!==true)backgrounds.clear();releasePreview();generation++;items=[];currentSet=null;signature='';requestId='';imageState='new';result.hidden=true;$('igPreview').removeAttribute('src');$('igSlides').replaceChildren();$('igDownloads').replaceChildren();$('igCaptionSection').hidden=true;$('igCaptionText').value='';$('igCaptionStatus').textContent='';$('igStatus').textContent=hasSaved?'변경사항 미저장':'';$('igSaved').textContent=hasSaved?'변경사항 미저장':'저장 전';$('igCaptionRetry').hidden=true;buttons();}
   async function logos(){
     const campusId=$('draftCampus').value;
     if(policy?.campusId===campusId&&$('igLogos').children.length===Object.keys(LOGOS).length)return;
@@ -42,7 +48,8 @@ export function mountInstagramProduction({state,api,$,toast,canWrite}) {
       for(const [id,spec]of Object.entries(LOGOS)){
         const button=document.createElement('button');button.type='button';button.className='ig-logo-choice';button.dataset.logo=id;button.setAttribute('aria-pressed',String(id===logoType));
         const canvas=document.createElement('canvas'),label=document.createElement('span');label.textContent=spec.label;button.append(canvas,label);$('igLogos').append(button);
-        button.onclick=()=>{if(busy)return;logoType=id;clear();$('igLogos').querySelectorAll('button').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.logo===id)));};
+        button.onclick=()=>{if(busy||logoType===id)return;logoType=id;clear(true);$('igLogos').querySelectorAll('button').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.logo===id)));};
+        if(id==='none'){canvas.replaceWith(Object.assign(document.createElement('span'),{className:'ig-no-logo',innerHTML:'<svg aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Image"></use></svg>'}));button.title='로고 없이 이미지만 제작';continue;}
         void drawLogo(canvas,id,value.campusLogoLabel).catch(()=>{if(epoch===policyEpoch){canvas.replaceWith(Object.assign(document.createElement('img'),{src:spec.src,alt:spec.label}));button.title='로고 미리보기를 다시 불러오려면 캠퍼스를 다시 선택하세요.';}});
       }
     }catch(error){if(epoch===policyEpoch)$('igCampusLabel').textContent=error.message;}
@@ -58,9 +65,11 @@ export function mountInstagramProduction({state,api,$,toast,canWrite}) {
     if(busy||!canWrite()||state.selectedFileIds.length<1||state.selectedFileIds.length>10)return;
     if(!originalMode()&&!$('aiCommand').value.trim())return toast('원하는 느낌을 입력해주세요.','error');
     const ids=[...state.selectedFileIds],campusId=$('draftCampus').value,design=read(),direction=$('aiCommand').value.trim()||'선택한 원본을 인스타그램 4:5 규격으로 배치';
-    if(!originalMode()&&!confirm(`선택한 ${ids.length}장의 사진만 외부 AI에 전송합니다. 학생 작품·로고·성적 자료가 아니며 홍보 사용과 AI 처리 동의가 확인된 사진인가요?`))return;
+    const backgroundKey=id=>JSON.stringify([campusId,id,direction,$('igMode').value]);
+    const pending=ids.filter(id=>!backgrounds.has(backgroundKey(id)));
+    if(!originalMode()&&pending.length&&!confirm(`선택한 ${pending.length}장의 사진만 외부 AI에 전송합니다. 학생 작품·로고·성적 자료가 아니며 홍보 사용과 AI 처리 동의가 확인된 사진인가요?`))return;
     if(originalMode()&&!confirm(`선택한 ${ids.length}장의 홍보 사용 권한을 확인했나요? 원본을 보존하며, 홍보글 작성에는 사진 없이 입력한 방향만 AI에 전송합니다.`))return;
-    clear();signature=snapshot();requestId=crypto.randomUUID();const epoch=generation;controller=new AbortController();lock(true);
+    clear(true);signature=snapshot();requestId=crypto.randomUUID();const epoch=generation;controller=new AbortController();lock(true);
     let stage='캠퍼스 확인';
     try{
       await logos();if(!policy||policy.campusId!==campusId)throw Error('캠퍼스 정보를 확인하세요.');
@@ -69,7 +78,7 @@ export function mountInstagramProduction({state,api,$,toast,canWrite}) {
         if(design.externalAiConsent){
           stage=`${i+1} / ${ids.length} AI 사진 보정`;$('igStatus').textContent=stage+' 중...';
           const timer=setTimeout(()=>controller?.abort(),290000);
-          try{backgroundId=(await post('image-edit',{sourceApp:'instagram',campusId,sourceFileId:ids[i],direction,material:design,requestId:crypto.randomUUID()},controller.signal)).file.id;}finally{clearTimeout(timer);}
+          try{backgroundId=backgrounds.get(backgroundKey(ids[i]))||(await post('image-edit',{sourceApp:'instagram',campusId,sourceFileId:ids[i],direction,material:design,requestId:crypto.randomUUID()},controller.signal)).file.id;backgrounds.set(backgroundKey(ids[i]),backgroundId);}finally{clearTimeout(timer);}
         }
         stage=`${i+1} / ${ids.length} 로고 합성`;$('igStatus').textContent=stage+' 중...';
         const blob=await composeInstagram('/api/data-core/files/'+encodeURIComponent(backgroundId),design,policy.campusLogoLabel,controller.signal);
@@ -84,14 +93,14 @@ export function mountInstagramProduction({state,api,$,toast,canWrite}) {
         releasePreview();localPreview={fileId:saved.file.id,url:URL.createObjectURL(blob)};
         items.push({draftId:draft.id,renderId:saved.renderId,fingerprint:saved.fingerprint,masterFileId:saved.file.id});preview(i);
       }
-      $('igStatus').textContent=`${items.length}장 제작 완료`;$('igSaved').textContent='';
+      $('igStatus').textContent=`${items.length}장 제작 완료`;$('igSaved').textContent=hasSaved?'변경사항 미저장':'저장 전';
     }catch(error){$('igStatus').textContent=error.name==='AbortError'?'작업을 중단했습니다. 이미 전송된 AI 작업은 과금될 수 있습니다.':`${stage}: ${error.message}`;
       if(items.length)$('igSaved').textContent=`${items.length}장만 제작되었습니다. 전체 제작 완료 후 저장할 수 있습니다.`;
     }finally{controller=null;lock(false);}
   };
   async function downloads(){
     $('igDownloads').replaceChildren(...items.map((item,index)=>{
-      const button=document.createElement('button');let downloading=false;button.className='secondary-btn';button.type='button';button.textContent=`${index+1}번 PNG 다운로드`;
+      const button=document.createElement('button');let downloading=false;button.className='secondary-btn';button.type='button';button.innerHTML=`<svg aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Download"></use></svg>${index+1}번 이미지 다운로드`;
       button.onclick=async()=>{if(downloading)return;downloading=true;button.disabled=true;try{
         const response=await fetch(`/api/data-core/content/instagram/${item.draftId}/export`,{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({renderId:item.renderId,fingerprint:item.fingerprint})});
         if(!response.ok)throw Error((await response.json()).error||'다운로드하지 못했습니다.');
@@ -109,8 +118,7 @@ export function mountInstagramProduction({state,api,$,toast,canWrite}) {
           title ||= generated.title;body += (body?'\n':'')+(generated.body||generated.content||'');tags.push(...(generated.hashtags||generated.keywords||[]));
       }
       $('igCaptionStatus').textContent=originalMode()?'사진 전송 없이 작성 완료 · 게시 전에 내용을 확인하세요.':'홍보글 작성 완료 · 게시 전에 내용을 확인하세요.';
-      tags=[...new Set([...tags,...$('defaultHashtags').value.split(/[\s,#]+/)].map(t=>t.replace(/^#/,'' )).filter(Boolean))].slice(0,30);
-      $('igCaptionText').value=[title,body,$('defaultFooter').value||'궁금한 점은 DM으로 문의해주세요.',tags.map(t=>'#'+t).join(' ')].filter(Boolean).join('\n\n');
+      $('igCaptionText').value=assembleCaption([title,body].filter(Boolean).join('\n\n'),$('defaultFooter').value,$('defaultHashtags').value,tags);
       await saveCaption();
     }catch{$('igCaptionStatus').textContent='이미지 저장은 완료되었습니다. 홍보글은 작성하지 못했습니다. 다시 작성하거나 직접 입력할 수 있습니다.';$('igCaptionRetry').hidden=false;}
     finally{lock(false);}
@@ -118,13 +126,14 @@ export function mountInstagramProduction({state,api,$,toast,canWrite}) {
   async function saveCaption(){if(!currentSet)return;await api('/api/data-core/content/instagram-sets/'+encodeURIComponent(currentSet.id),{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({caption:$('igCaptionText').value})});}
   $('igComplete').onclick=async()=>{
     if(busy||currentSet||signature!==snapshot()||items.length!==state.selectedFileIds.length)return;
-    lock(true);let completed=false;
-    try{currentSet=await post('instagram-sets',{requestId,items:items.map(({draftId,renderId,fingerprint})=>({draftId,renderId,fingerprint}))});$('igSaved').textContent='저장 완료';await downloads();completed=true;}
-    catch(error){$('igSaved').textContent=error.message;}finally{lock(false);}
+    imageState='saving';lock(true);$('igSaved').textContent='저장 중…';let completed=false;
+    try{currentSet=await post('instagram-sets',{requestId,items:items.map(({draftId,renderId,fingerprint})=>({draftId,renderId,fingerprint}))});hasSaved=true;imageState='saved';$('igSaved').textContent='저장 완료';await downloads();completed=true;}
+    catch(error){imageState='failed';$('igSaved').textContent='저장 실패 · '+error.message;}finally{lock(false);}
     if(completed)await caption();
   };
   $('igCopy').onclick=async()=>{try{await navigator.clipboard.writeText($('igCaptionText').value);toast('복사했습니다.');}catch{toast('클립보드 권한을 확인해주세요.','error');}};
-  $('igCaptionSave').onclick=async()=>{if(busy)return;lock(true);try{await saveCaption();$('igCaptionStatus').textContent='문구 저장 완료';}catch(error){$('igCaptionStatus').textContent=error.message;}finally{lock(false);}};
+  $('igCaptionText').addEventListener('input',()=>{$('igCaptionStatus').textContent='문구 변경사항 미저장';});
+  $('igCaptionSave').onclick=async()=>{if(busy)return;lock(true);$('igDownloads').querySelectorAll('button').forEach(button=>button.disabled=false);try{await saveCaption();$('igCaptionStatus').textContent='문구 저장 완료';}catch(error){$('igCaptionStatus').textContent=error.message;}finally{lock(false);}};
   $('igCaptionRetry').onclick=caption;
   async function loadHistory(){
     if(!history.open||!$('draftCampus').value)return;

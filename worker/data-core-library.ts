@@ -71,6 +71,13 @@ async function children(tree: LibraryTree, parent: LibraryFolder, includeArchive
     }
   }
   if (parent.id.startsWith('campus:') || parent.id === 'organization') {
+    // Batch absent projections, including malformed legacy rows so validation
+    // still rejects them rather than silently replacing them with virtual roots.
+    const missing=LIBRARY_CATEGORIES.map(([key])=>`category:${parent.campusId || 'organization'}:${key}`).filter(id=>!tree.rows.has(id));
+    if(missing.length){
+      const stored=(await tree.db.prepare(`SELECT * FROM data_records WHERE organization_id=? AND deleted_at IS NULL AND id IN (${missing.map(()=>'?').join(',')})`).bind(ORG,...missing).all<Record<string,unknown>>()).results||[];
+      for(const id of missing)tree.rows.set(id,stored.find(row=>row.id===id)||null);
+    }
     for (const [key] of LIBRARY_CATEGORIES) {
       try { output.unshift(await tree.resolve(`category:${parent.campusId || 'organization'}:${key}`)); }
       catch (e) { if (!(e instanceof DataCoreAccessError)) throw e; }
@@ -345,8 +352,9 @@ export async function handleLibraryApi(request: Request, db: D1Database, bucket:
     const archived = url.searchParams.get('archived') === '1';
     if (archived) requireLibraryWrite(tree.context, folder);
     const folders = (await children(tree, folder, archived)).filter(f => (folder.id !== 'root' || f.parentId !== 'hq') && (!archived || f.archived));
-    const counts = await fileCounts(tree, folders.filter(f => f.category));
-    return json({ folder: serialize(tree, folder), breadcrumbs: await tree.breadcrumbs(folder), folders: folders.map(f => ({...serialize(tree, f), fileCount: f.category ? counts.get(f.id) || 0 : null})) });
+    const includeCounts = url.searchParams.get('counts') !== '0';
+    const counts = includeCounts ? await fileCounts(tree, folders.filter(f => f.category)) : new Map<string,number>();
+    return json({ folder: serialize(tree, folder), breadcrumbs: await tree.breadcrumbs(folder), folders: folders.map(f => ({...serialize(tree, f), fileCount: f.category && includeCounts ? counts.get(f.id) || 0 : null})) });
   }
   if (url.pathname === '/api/data-core/library/folders' && request.method === 'POST') {
     let input; try { input = await request.json(); } catch { error(400, 'JSON 요청을 확인하세요.'); }
