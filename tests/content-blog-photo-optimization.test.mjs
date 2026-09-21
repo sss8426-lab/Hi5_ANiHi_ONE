@@ -34,5 +34,6 @@ test('블로그 사진은 브라우저에서 자동 최적화된 뒤 multipart�
   assert.match(content, /await api\('\/api\/data-core\/content\/generate', \{ method: 'POST', signal, body: form \}\);/u);
 
   // Image edit still uses JSON, with explicit source kind and consent.
-  assert.match(carousel, /post\('image-edit',\{sourceApp:'instagram',campusId,sourceFileId:ids\[i\],direction,material:design/u);
+  assert.match(carousel, /if\(itemDesign\.externalAiConsent\)/u);
+  assert.match(carousel, /post\('image-edit',\{sourceApp:'instagram',campusId,sourceFileId:ids\[i\],direction,material:itemDesign/u);
 });
