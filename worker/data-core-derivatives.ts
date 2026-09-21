@@ -28,7 +28,7 @@ export async function boundedDerivativeForm(request: Request, maxBytes = MAX_BYT
   try { return await new Request(request.url, { method: 'POST', headers: request.headers, body }).formData(); }
   catch { throw new DataCoreAccessError(400, '파생 이미지 요청 형식이 올바르지 않습니다.'); }
 }
-function validateOutput(bytes: Uint8Array) {
+export function validateOutput(bytes: Uint8Array) {
   try {
     if (!hasPngSignature(bytes) || bytes.length < 45) throw new Error();
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
