@@ -1,4 +1,5 @@
-import {openTemplate,inspectAttendanceSheets,nextMonth,generateWorkbook,attendanceFilename,printWorkbook,RECOGNITION_ERROR} from './attendance-auto.js?v=20260919-sparse-import';
+import {openTemplate,inspectAttendanceSheets,nextMonth,generateWorkbook,attendanceFilename,printWorkbook,RECOGNITION_ERROR} from './attendance-auto.js?v=20260921-weekend-selection';
+import {reviewSchedule} from './attendance-schedule.js?v=20260921-weekend-selection';
 import {renderTable,TABLE_CSS,escapeHtml as h} from './attendance-template.js?v=20260919-sparse-import';
 
 const icon=name=>`<svg class="at-icon" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#${name}"/></svg>`;
@@ -34,12 +35,14 @@ export function mountAttendance(host){
     <dialog id="atReviewDialog" aria-labelledby="atReviewTitle"><form method="dialog"><h2 id="atReviewTitle">수업요일 확인</h2><div id="atReviewStudents"></div><p id="atReviewError" role="status"></p><div class="at-actions"><button value="cancel">취소</button><button type="button" id="atReviewSave" class="at-primary">확인</button></div></form></dialog>
   </section>`;
   const $=id=>host.querySelector(`#${id}`),status=text=>{if(!disposed)$('atStatus').textContent=text;};
-  const pending=()=>analysis?.sheets.flatMap(s=>s.studentBlocks.filter(b=>b.name&&b.needsReview&&!overrides[b.id]).map(b=>({...b,sheet:s.name})))||[];
+  const reviewable=()=>analysis?.sheets.flatMap(s=>s.studentBlocks.filter(b=>b.name&&b.needsReview).map(b=>({...b,sheet:s.name})))||[];
+  const pending=()=>reviewable().filter(b=>!overrides[b.id]);
   function sync(){
     $('atFile').disabled=busy;$('atMonth').disabled=busy;$('atPreserveColumns').disabled=busy;$('atGenerate').disabled=busy||!analysis?.sheets.length||pending().length>0;
     $('atSheetSelection').disabled=busy;
     $('atGenerate').textContent=busy?'처리 중...':`${Number($('atMonth').value.slice(5))||''}월 출석부 만들기`;
-    $('atReviewPrompt').hidden=!pending().length;$('atReviewCount').textContent=`수업요일 확인이 필요한 학생이 ${pending().length}명 있습니다.`;
+    $('atReviewPrompt').hidden=!reviewable().length;$('atReviewCount').textContent=pending().length?`수업요일 확인이 필요한 학생이 ${pending().length}명 있습니다.`:'수업요일 확인 완료';
+    $('atReview').disabled=busy;$('atReview').textContent=pending().length?'확인':'수정';
     $('atPrint').disabled=busy||!result?.results.every(r=>r.browserPrintSafe);$('atDownload').disabled=busy||!result;
   }
   function invalidate(){result=null;$('atResult').hidden=true;$('atTable').replaceChildren();for(const url of urls)URL.revokeObjectURL(url);urls.clear();sync();}
@@ -98,13 +101,15 @@ export function mountAttendance(host){
   $('atMonth').oninput=()=>{invalidate();status('');};
   $('atPreserveColumns').onchange=()=>{invalidate();status('');};
   $('atReview').onclick=()=>{
-    $('atReviewStudents').innerHTML=pending().map(b=>`<fieldset data-review="${h(b.id)}"><legend>${h(b.name)} <small>${h(b.sheet)}</small></legend><div class="at-weekdays">${[1,2,3,4,5,6,0].map(d=>`<label><input type="checkbox" value="${d}"${b.weekdays.includes(d)?' checked':''}><span>${'일월화수목금토'[d]}</span></label>`).join('')}</div></fieldset>`).join('');
+    const choices=(b,days)=>days.map((d,i)=>`<label><input type="checkbox" value="${d}"${(overrides[b.id]?.counts[d]??(b.weekdays.includes(d)?1:0))>i-days.indexOf(d)?' checked':''}><span>${'일월화수목금토'[d]}${d===6||d===0?`(${i%3+1})`:''}</span></label>`).join('');
+    $('atReviewStudents').innerHTML=reviewable().map(b=>`<fieldset data-review="${h(b.id)}"><legend>${h(b.name)} <small>${h(b.sheet)}</small></legend><div class="at-weekdays at-review-weekdays">${choices(b,[1,2,3,4,5])}</div><div class="at-weekdays at-review-weekend">${choices(b,[6,6,6])}</div><div class="at-weekdays at-review-weekend">${choices(b,[0,0,0])}</div></fieldset>`).join('');
     $('atReviewError').textContent='';$('atReviewDialog').showModal();
   };
   $('atReviewSave').onclick=()=>{
-    const values=[...host.querySelectorAll('[data-review]')].map(el=>[el.dataset.review,[...el.querySelectorAll('input:checked')].map(c=>'일월화수목금토'[Number(c.value)]).join('')]);
-    if(values.some(([,v])=>!v)){$('atReviewError').textContent='학생별 수업요일을 선택해주세요.';return;}
-    Object.assign(overrides,Object.fromEntries(values));$('atReviewDialog').close();sync();$('atGenerate').focus();
+    let values;
+    try{values=[...host.querySelectorAll('[data-review]')].map(el=>[el.dataset.review,reviewSchedule([...el.querySelectorAll('input:checked')].map(c=>Number(c.value)))]);}
+    catch(error){$('atReviewError').textContent=error.message;return;}
+    Object.assign(overrides,Object.fromEntries(values));$('atReviewDialog').close();invalidate();$('atGenerate').focus();
   };
   $('atForm').onsubmit=async e=>{
     e.preventDefault();if(busy||!analysis?.sheets.length||pending().length)return;

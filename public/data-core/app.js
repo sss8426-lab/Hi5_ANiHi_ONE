@@ -50,7 +50,7 @@ async function renderAttendance() {
   host.textContent = '불러오는 중...';
   if (state.context === null) return;
   try {
-    const { mountAttendancePage } = await import('./work/attendance-page.js?v=20260919-sparse-import');
+    const { mountAttendancePage } = await import('./work/attendance-page.js?v=20260921-weekend-selection');
     if (epoch !== attendanceEpoch) return;
     attendanceCleanup = mountAttendancePage(host, { context: state.context, campuses: state.campuses });
   } catch {

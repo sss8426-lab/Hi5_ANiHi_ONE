@@ -1,5 +1,6 @@
 import {zipSync,strToU8} from '../vendor/fflate-0.8.3.js';
-import {sparseCalendars,validateSparse,sparseTargets,reshapeSparse} from './attendance-sparse.js?v=20260919-sparse-import';
+import {sparseCalendars,validateSparse,sparseTargets,reshapeSparse} from './attendance-sparse.js?v=20260921-weekend-selection';
+import {confirmedCounts} from './attendance-schedule.js?v=20260921-weekend-selection';
 import {openTemplate,calendarMonth,parseWeekdays,planPages,printDocument,all,child,children,
   attr,number,check,cellRef,range,address,textOf,indexSheet,areaFor,dateParts,putValue,
   mutableSheet,styleEngine,cellStyleId,mostCommon,updateTitle,ensureSheet,create,
@@ -463,12 +464,24 @@ function generateSheet(template,m,options,styles,workbook){
   const sheet=template.read(template.sheets[m.index].path),se=styleEngine(styles,template);
   const originalSheet=template.read(template.sheets[m.index].path),originalGrid=indexSheet(originalSheet);
   const calendar=calendarMonth(options.year,options.month),oldCalendar=calendarMonth(m.period.year,m.period.month);
-  const policy=weekdaySlotPolicy(m.dateColumns,oldCalendar);
+  const policy=m.sparse?{...m.sparse.policy}:weekdaySlotPolicy(m.dateColumns,oldCalendar);
+  const confirmations=new Map(m.studentBlocks.map(b=>[b.id,confirmedCounts(options.weekdays?.[b.id])]));
+  for(const b of m.studentBlocks){
+    const counts=confirmations.get(b.id);if(!counts||b.inactive||!b.name)continue;
+    for(let day=0;day<7;day++)policy[day]=Math.max(policy[day],Math.ceil(counts[day]/(b.end-b.start+1)));
+  }
   const preserve=options.preserveColumns===true&&!m.sparse;
   if(preserve)check(m.dateColumns.at(-1).day===31,'원본 날짜칸 유지에는 31일 칸이 있는 양식이 필요합니다.');
-  const sparse=m.sparse?sparseTargets(m,options.year,options.month):null;
+  const sparse=m.sparse?sparseTargets(m,options.year,options.month,policy):null;
   const targetColumns=sparse?sparse.filter(d=>!d.separator):preserve?m.dateColumns.map(d=>({...d,weekdayIndex:calendar[d.day-1].weekdayIndex,active:calendar[d.day-1].active})):targetCalendarColumns(options.year,options.month,policy);
+  if(m.headerMode==='single'&&targetColumns.some(d=>d.slot>0))m={...m,headerMode:'merged'};
   if(!sparse){let column=m.dateStart;for(const d of targetColumns)d.c=column++;}
+  const slotsByDay=new Map();for(const d of targetColumns)slotsByDay.set(d.day,(slotsByDay.get(d.day)||0)+1);
+  for(const b of m.studentBlocks){
+    const counts=confirmations.get(b.id);if(!counts||b.inactive||!b.name)continue;
+    for(const day of calendar.filter(d=>d.active))check((slotsByDay.get(day.day)||0)*(b.end-b.start+1)>=counts[day.weekdayIndex],
+      '선택한 수업 횟수보다 원본 날짜칸이 부족합니다. 원본 날짜칸 유지를 해제한 뒤 다시 만들어주세요.');
+  }
   const styleMap=sampleCalendarStyles(originalSheet,originalGrid,m,oldCalendar);
   // reshapeCalendar mutates the raw sheet DOM (column inserts/deletes shift cell `r` attributes);
   // the mutable cell index must be built fresh afterwards, or it would resolve stale references.
@@ -477,7 +490,7 @@ function generateSheet(template,m,options,styles,workbook){
   const differentMonth=options.year!==m.period.year||options.month!==m.period.month;
   const clearedNotes=differentMonth?clearMonthNotes(sheet,grid,originalSheet,originalGrid,se,m,targetColumns,template):0;
   for(const b of m.studentBlocks){
-    const override=options.weekdays?.[b.id],weekdays=override?parseWeekdays(override):b.weekdays;
+    const override=options.weekdays?.[b.id],counts=confirmations.get(b.id),weekdays=counts?Object.keys(counts).map(Number).filter(d=>counts[d]):override?parseWeekdays(override):b.weekdays;
     check(!b.name||b.inactive||weekdays.length&&(!b.needsReview||override),'수업요일 확인이 필요한 학생이 있습니다.');
     for(let row=b.start;row<=b.end;row++){
       if(b.statusMerge){
@@ -498,12 +511,14 @@ function generateSheet(template,m,options,styles,workbook){
         // (that row-level weekday list merges marks from every slot). Every slot, including 0,
         // must resolve through its own per-slot weekday list.
         const slotDays=override?days:channel?.slots.find(s=>s.slot===d.slot)?.weekdays||[];
-        const selected=b.name&&!b.inactive&&slotDays.includes(cal.weekdayIndex)&&cal.active;
+        const daySlots=slotsByDay.get(d.day);
+        const scheduled=counts?(row-b.start)*daySlots+d.slot<counts[cal.weekdayIndex]:slotDays.includes(cal.weekdayIndex);
+        const selected=b.name&&!b.inactive&&scheduled&&cal.active;
         let id=samples.byKey.get(`${cal.weekdayIndex}:${d.slot}`)??samples.byKey.get(`${cal.weekdayIndex}:0`)??samples.first;
         const sampledFill=number(se.xf(id),'fillId',0);
         const background=!cal.active?se.addFill('FFF1F1F1'):chromatic(se.fillColor(sampledFill))?samples.plain:sampledFill;
         id=se.withFill(id,selected?fill.lesson:background);
-        if(!differentMonth&&cal.active){
+        if(!differentMonth&&!override&&cal.active){
           const source=m.dateColumns.find(s=>s.day===d.day&&s.slot===d.slot),original=source&&originalGrid.cells.get(cellRef(source.c,row));
           if(original&&!exceptionalMark(textOf(original,template.strings)))id=cellStyleId(originalSheet,original,source.c);
         }

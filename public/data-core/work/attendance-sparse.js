@@ -87,16 +87,16 @@ function expandFormulas(sheet,maxRow){
   }
 }
 
-export function sparseTargets(m,year,month){
+export function sparseTargets(m,year,month,policy=m.sparse.policy){
   const result=[],calendar=calendarMonth(year,month),sourceCalendar=calendarMonth(m.period.year,m.period.month);
   const samples=new Map();
   for(const d of m.dateColumns.filter(d=>d.day<=28)){
     const weekday=sourceCalendar[d.day-1].weekdayIndex,key=`${weekday}:${d.slot}`;
     if(!samples.has(key))samples.set(key,d.c);
   }
-  for(const d of calendar.filter(d=>d.active&&m.sparse.policy[d.weekdayIndex])){
+  for(const d of calendar.filter(d=>d.active&&policy[d.weekdayIndex])){
     if(result.length&&d.weekdayIndex===m.sparse.weekStart)result.push({separator:true,sourceC:m.sparse.separators[0]});
-    for(let slot=0;slot<m.sparse.policy[d.weekdayIndex];slot++)result.push({...d,slot,sourceC:samples.get(`${d.weekdayIndex}:${slot}`)});
+    for(let slot=0;slot<policy[d.weekdayIndex];slot++)result.push({...d,slot,sourceC:samples.get(`${d.weekdayIndex}:${slot}`)??samples.get(`${d.weekdayIndex}:0`)??m.dateColumns[0].c});
   }
   let c=m.dateStart;return result.map(d=>({...d,c:c++}));
 }
