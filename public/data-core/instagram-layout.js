@@ -19,7 +19,16 @@ export async function drawLogo(canvas,type,label,signal){
       const ref=await loadBitmap(`/data-core/assets/brand/${type}-reference-20260921-v2.png`,signal);
       try{fitted(ctx,ref,0,0,1800,340);}finally{ref.close();}return;
     }
-    ctx.fillStyle=type==='combined'?'#dd002b':'#383634';ctx.textBaseline='middle';
+    ctx.fillStyle='#383634';ctx.textBaseline='middle';
+    const regionalLabel=label.match(/^(.*?)\s*(입시본원|캠퍼스)$/);
+    if(type==='combined'&&regionalLabel){
+      // The red official mark sits between black region/type labels, as in the supplied lockup.
+      ctx.font='700 132px sans-serif';const prefix=regionalLabel[1].trim(),suffix=regionalLabel[2];
+      const left=ctx.measureText(prefix).width,right=ctx.measureText(suffix).width,markHeight=210,markWidth=markHeight*logo.width/logo.height,gap=28;
+      const total=left+gap+markWidth+gap+right,scale=Math.min(1,1740/total);
+      ctx.save();ctx.translate((1800-total*scale)/2,(340-markHeight*scale)/2);ctx.scale(scale,scale);
+      ctx.fillText(prefix,0,126);ctx.drawImage(logo,left+gap,0,markWidth,markHeight);ctx.fillText(suffix,left+gap+markWidth+gap,126);ctx.restore();return;
+    }
     const twoLine=['anihi','hi5'].includes(type),font=twoLine?122:132;ctx.font=`700 ${font}px sans-serif`;
     const textWidth=ctx.measureText(label).width,markHeight=twoLine?250:210,markWidth=markHeight*logo.width/logo.height,gap=twoLine?34:28;
     const total=markWidth+gap+Math.max(textWidth,twoLine?ctx.measureText(spec.tagline).width*0.38:0),scale=Math.min(1,1740/total);
