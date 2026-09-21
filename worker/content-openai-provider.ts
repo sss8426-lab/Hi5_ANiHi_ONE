@@ -253,7 +253,7 @@ export function openAiContentProvider(env: OpenAiEnv, db: D1Database, files: R2B
       ...images.map(image => ({ type: 'input_image', image_url: `data:${image.mime};base64,${Buffer.from(image.bytes).toString('base64')}`, detail: 'low' }))];
 
     if (input.sourceApp !== 'blog') {
-      const instructions = `${privacyRules(input.brandContext)} 잘 그리는 법뿐 아니라 스스로 성장하는 과정을 강조하되 매번 같은 문구를 반복하지 마세요. 인스타그램의 짧은 홍보 문구를 작성하세요.`;
+      const instructions = `${privacyRules(input.brandContext)} 선택 이미지는 AI 보조 이미지일 수도 있는 참고 자료입니다. 이미지만으로 실제 학생·수업·시설·합격·수상·후기라고 단정하지 마세요. 사용자가 검증된 사실로 제공하지 않은 전화번호·날짜·수치·실적을 만들지 마세요. 잘 그리는 법뿐 아니라 스스로 성장하는 과정을 강조하되 매번 같은 문구를 반복하지 마세요. 인스타그램의 짧은 홍보 문구를 작성하세요.`;
       const texts = await responsesCall(env, instructions, content, instagramSchema, 'academy_content', signal);
       let result; try { result = JSON.parse(texts.filter(item => item.type === 'output_text').map(item => item.text).join('')); } catch { throw failure(); }
       if (typeof result.title !== 'string' || typeof result.body !== 'string' || !result.body.trim() || typeof result.cta !== 'string' || !Array.isArray(result.hashtags) || result.hashtags.some((tag: unknown) => typeof tag !== 'string') || result.body.length > 20000 || result.title.length > 300 || result.cta.length > 2000 || result.hashtags.length > 30) throw failure();
