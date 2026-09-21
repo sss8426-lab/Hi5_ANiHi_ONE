@@ -998,7 +998,7 @@ async function init() {
     void loadDefaults();void loadAiStatus();
     const listing=loadFiles();
     if(state.sourceApp==='instagram'){
-      const {mountInstagramProduction}=await import('/data-core/instagram-carousel.js?v=20260921-performance');
+      const {mountInstagramProduction}=await import('/data-core/instagram-carousel.js?v=20260922-progress');
       instagramProduction=mountInstagramProduction({state,api,$,toast,canWrite,saveDraft,setWorkspaceBusy:setAiBusy});
       instagramProduction.refresh();
     }

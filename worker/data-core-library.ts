@@ -4,6 +4,7 @@ import { uploadDataCoreFile, deleteDataCoreFile } from './data-core-files';
 import { THUMBNAIL_CATEGORY, thumbnailSource } from './data-core-derivative-policy';
 import { createLibraryThumbnail, thumbnailUrls } from './data-core-thumbnails';
 import { privateImageResponse } from './private-image-response';
+import { instagramPreserveReason } from '../public/data-core/instagram-source-policy.js';
 import { isSelectableCampus } from './campus-directory';
 import { LibraryTree, LibraryFolder, LIBRARY_FOLDER, HQ_FOLDER, LIBRARY_SOURCE, LIBRARY_CATEGORIES, HQ_DEFAULTS,
   libraryMetadata, libraryCanWrite, libraryCanDelete, libraryCanDeleteFolder, libraryDefaultFolder, libraryFolderScope, requireLibraryWrite, libraryFileReadable } from './data-core-library-policy';
@@ -250,6 +251,7 @@ async function listFiles(tree: LibraryTree, folder: LibraryFolder, url: URL) {
       if(files.length===50){hasMore=true;break;}
       visible.push(row);
       files.push({ id: row.id, fileName: row.original_file_name, mimeType: row.mime_type, sizeBytes: row.size_bytes,
+        instagramPreserveReason: instagramPreserveReason({...row, protected:sourceFolder.protected, shareMode:sourceFolder.shareMode}),
         createdAt: row.created_at, campusId: row.campus_id, ownerName: row.owner_name, recordId: row.data_record_id,
         canDelete: libraryCanDelete(tree.context, folder, row.owner_user_id),
         canMove: libraryCanWrite(tree.context, folder),
@@ -288,6 +290,7 @@ async function recentFiles(tree: LibraryTree, folder: LibraryFolder) {
       if (!libraryFileReadable(tree.context, sourceFolder, row)) continue;
       visible.push(row);
       files.push({ id: row.id, fileName: row.original_file_name, folderId: sourceFolder.id, folderTitle: sourceFolder.title,
+        instagramPreserveReason: instagramPreserveReason(row),
         campusId: row.campus_id, campusName: row.campus_id ? campusNames.get(row.campus_id) || null : null,
         mimeType: row.mime_type, sizeBytes: row.size_bytes, createdAt: row.created_at,
         canDelete: libraryCanDelete(tree.context, sourceFolder, row.owner_user_id), canMove: libraryCanWrite(tree.context, sourceFolder),

@@ -30,6 +30,8 @@ globalThis.fetch=async(url,options)=>{
 h.env.OPENAI_API_KEY='synthetic-only';
 const folder=(await h.folder('category:'+A+':class-photo','SYNTHETIC carousel browser',users.staff)).body.folder,files=[];
 for(let i=0;i<11;i++)files.push((await h.upload(folder.id,users.staff,{name:`SYNTHETIC-${i}.png`,mime:'image/png',bytes:png})).body.file);
+const protectedFolder=(await h.folder('category:'+A+':student-artwork','SYNTHETIC protected artwork',users.staff)).body.folder;
+const protectedFile=(await h.upload(protectedFolder.id,users.staff,{name:'SYNTHETIC-artwork.png',mime:'image/png',bytes:png})).body.file;
 const formatFolder=(await h.folder('category:'+A+':class-photo','SYNTHETIC raster formats',users.staff)).body.folder,formatFiles=[];
 for(const [ext,mime,width,height] of [['png','image/png',300,1600],['jpg','image/jpeg',2200,300],['jpeg','image/jpeg',700,700],['webp','image/webp',800,1400],['gif','image/gif',400,200],['avif','image/avif',300,600]]){
   const bytes=await sharp({create:{width,height,channels:3,background:'#409b82'}}).toFormat(ext==='jpg'?'jpeg':ext).toBuffer();
@@ -103,6 +105,7 @@ try{
     const started=performance.now();
     await page.locator('#igGenerate').evaluate(button=>{button.click();button.click();});
     await page.waitForFunction(()=>document.querySelector('#igStatus').textContent.endsWith('장 제작 완료'),null,{timeout:180000});
+    if(!baseline){assert.equal(await page.locator('#igPercent').textContent(),'100%');assert.equal(await page.locator('#igProgress').getAttribute('value'),'100');}
     assert.equal(await page.locator('#igSlides button').count(),count);assert.equal(await page.locator('#igDownloads button').count(),0);
     assert.equal(await page.locator('#igComplete').isEnabled(),true);
     const preview=await page.locator('#igPreview').getAttribute('src');
@@ -216,6 +219,38 @@ try{
   await page.waitForFunction(()=>document.querySelector('#igStatus').textContent==='7장 제작 완료',null,{timeout:180000});
   assert.equal(imageCalls,1);assert.equal(await page.locator('#igSlides button').count(),7);
   await page.screenshot({path:path.join(out,'formats-auto-fit.png'),fullPage:true});
+  // A real student-private file selected in AI mode must complete without sending its pixels.
+  await page.goto(origin+'/data-core/content/instagram');
+  await page.locator(`[data-folder="category:${A}:student-artwork"]`).click();await page.locator(`[data-folder="${protectedFolder.id}"]`).click();
+  await page.locator(`[data-pick-file="${protectedFile.id}"]`).click();await page.locator('#igMode').selectOption('photo');
+  assert.equal(await page.locator('#igSourceNotice').isVisible(),true);
+  const imageCallsBefore=imageCalls;
+  await page.locator('#igGenerate').click();
+  await page.waitForFunction(()=>document.querySelector('#igStatus').textContent==='1장 제작 완료',null,{timeout:180000});
+  assert.equal(imageCalls,imageCallsBefore,'student artwork never sent to image provider');
+  assert.equal(await page.locator('#igPercent').textContent(),'100%');
+  const preserved=decode(new Uint8Array(await(await h.raw('GET','/api/data-core/files/'+lastRendered.id,users.staff)).arrayBuffer()));
+  for(const [x,y]of [[62,1114],[2098,1114],[62,1870],[2098,1870]]){
+    const offset=(y*preserved.width+x)*preserved.channels;assert.deepEqual(Array.from(preserved.data.slice(offset,offset+3)),[220,60,50]);
+  }
+  await page.locator('#igComplete').click();await page.waitForFunction(()=>document.querySelector('#igCaptionStatus').textContent.includes('사진 전송 없이 작성 완료'));
+  assert.equal(imageCalls,imageCallsBefore);
+  for(const width of [320,390,768,1440]){
+    await page.setViewportSize({width,height:1000});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
+    await page.locator('#igProgressWrap').screenshot({path:path.join(out,'progress-'+width+'.png')});
+  }
+  // Provider wait is stage-based, never a fake timer reaching 100%; cancellation stays below 100.
+  await open();await page.locator(`[data-pick-file="${files[0].id}"]`).click();await page.locator('#igMode').selectOption('photo');await page.locator('#aiCommand').fill('합성 사진 보정');
+  let releaseImage,holdImage;
+  const imageHeld=new Promise(resolve=>holdImage=resolve);
+  await page.route('**/api/data-core/content/image-edit',async route=>{holdImage();await new Promise(resolve=>releaseImage=resolve);await route.fulfill({status:503,json:{error:'Synthetic provider unavailable'}}).catch(()=>{});});
+  await page.locator('#igGenerate').click();await imageHeld;
+  assert.equal(await page.locator('#igPercent').textContent(),'10%');
+  assert.match(await page.locator('#igStatus').textContent(),/AI 응답 대기/);
+  await page.locator('#igCancel').click();releaseImage();await page.unroute('**/api/data-core/content/image-edit');
+  await page.waitForFunction(()=>document.querySelector('#igStatus').textContent.includes('중단했습니다'));
+  assert.notEqual(await page.locator('#igPercent').textContent(),'100%');
+  await page.locator('#aiCommand').fill('새 작업');assert.equal(await page.locator('#igProgressWrap').isVisible(),false);
   for(const count of [1,5,10]){
     const resource=await generate(count,count===1?'original':'photo-layout','none');
     const noLogo=decode(new Uint8Array(await(await h.raw('GET',resource,users.staff)).arrayBuffer()));

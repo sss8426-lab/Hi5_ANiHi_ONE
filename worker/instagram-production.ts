@@ -8,6 +8,7 @@ import { boundedDerivativeForm, persistImageDerivative, validateOutput } from '.
 import { campusDisplayName } from './campus-directory';
 import { BRAND_VERSION, LOGOS, TEMPLATES, HUMAN_CHECKS, getInstagramCampusLogoLabel, normalizeDesign, designChecks } from '../public/data-core/instagram-brand-policy.js';
 import { instagramImageMime } from '../public/data-core/instagram-image-formats.js';
+import { instagramPreserveReason } from '../public/data-core/instagram-source-policy.js';
 
 export const INSTAGRAM_RENDER = 'instagram-reviewed-render';
 export const INSTAGRAM_SET = 'instagram-carousel-set';
@@ -302,6 +303,8 @@ export async function assertInstagramAiUse(db:D1Database,context:DataCoreAccessC
   if (design.usePermission !== 'allowed' || !design.externalAiConsent || (edit && !editable) || ['student-artwork','brand-asset','fact-document'].includes(design.materialKind)) fail(403,'자료 유형과 별도의 외부 AI 처리 동의를 확인하세요. 학생 작품·로고·사실 자료는 AI에 전송하지 않습니다.');
   for(const id of ids){
     const row=await db.prepare('SELECT * FROM file_objects WHERE id=? AND organization_id=? AND deleted_at IS NULL').bind(id,ORG).first<Record<string,unknown>>();
-    if(!row || !await canReadRegisteredFile(db,context,row) || /student|artwork|award|admission|document|logo/.test(String(row.category)) || row.area==='student-private') fail(403,'이 자료는 외부 AI 처리에 사용할 수 없습니다.');
+    if(!row || !await canReadRegisteredFile(db,context,row)) fail(403,'이 자료를 사용할 권한이 없습니다.');
+    const reason=instagramPreserveReason(row!);
+    if(reason)fail(403,`${reason}: 외부 AI 전송 없이 작품 전체 보존 방식으로 제작해 주세요.`);
   }
 }

@@ -16,6 +16,12 @@
 #igCaptionText{width:100%;box-sizing:border-box;line-height:1.7;}
 #igHistory{display:grid;gap:8px;padding:12px 0;}
 #igStatus,#igSaved,#igCaptionStatus{overflow-wrap:anywhere;}
+.ig-progress{margin-top:16px;max-width:620px;}
+.ig-progress[hidden]{display:none;}
+.ig-progress label{display:flex;justify-content:space-between;gap:12px;font-size:14px;}
+.ig-progress output{font-variant-numeric:tabular-nums;min-width:4ch;text-align:right;}
+.ig-progress progress{display:block;width:100%;height:12px;margin-top:8px;accent-color:var(--primary);}
+#igSourceNotice{overflow-wrap:anywhere;color:var(--muted);}
 .instagram-carousel-mode .defaults-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
 .instagram-carousel-mode .defaults-grid label{min-width:0;}
 .instagram-carousel-mode .defaults-grid textarea{width:100%;box-sizing:border-box;min-height:100px;}
