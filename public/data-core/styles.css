@@ -560,3 +560,6 @@ body.mode-home-artwork-active .photographic-modes .mode-overlay {
   body.mode-home-artwork-active .mode-overlay strong { font-size: 27px; }
   body.mode-home-artwork-active .mode-artwork-arrow { right: 20px; bottom: 34px; width: 46px; height: 46px; }
 }
+/* Shared work navigation remains reachable on short desktop and mobile screens. */
+.sidebar .nav { min-height: 0; overflow-y: auto; }
+.sidebar .nav-icon { width: 20px; height: 20px; flex-shrink: 0; }

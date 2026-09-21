@@ -4,6 +4,7 @@ import { uploadDataCoreFile, deleteDataCoreFile } from './data-core-files';
 import { THUMBNAIL_CATEGORY, thumbnailSource } from './data-core-derivative-policy';
 import { createLibraryThumbnail, thumbnailUrls } from './data-core-thumbnails';
 import { privateImageResponse } from './private-image-response';
+import { instagramPreserveReason } from '../public/data-core/instagram-source-policy.js';
 import { isSelectableCampus } from './campus-directory';
 import { LibraryTree, LibraryFolder, LIBRARY_FOLDER, HQ_FOLDER, LIBRARY_SOURCE, LIBRARY_CATEGORIES, HQ_DEFAULTS,
   libraryMetadata, libraryCanWrite, libraryCanDelete, libraryCanDeleteFolder, libraryDefaultFolder, libraryFolderScope, requireLibraryWrite, libraryFileReadable } from './data-core-library-policy';
@@ -71,6 +72,13 @@ async function children(tree: LibraryTree, parent: LibraryFolder, includeArchive
     }
   }
   if (parent.id.startsWith('campus:') || parent.id === 'organization') {
+    // Batch absent projections, including malformed legacy rows so validation
+    // still rejects them rather than silently replacing them with virtual roots.
+    const missing=LIBRARY_CATEGORIES.map(([key])=>`category:${parent.campusId || 'organization'}:${key}`).filter(id=>!tree.rows.has(id));
+    if(missing.length){
+      const stored=(await tree.db.prepare(`SELECT * FROM data_records WHERE organization_id=? AND deleted_at IS NULL AND id IN (${missing.map(()=>'?').join(',')})`).bind(ORG,...missing).all<Record<string,unknown>>()).results||[];
+      for(const id of missing)tree.rows.set(id,stored.find(row=>row.id===id)||null);
+    }
     for (const [key] of LIBRARY_CATEGORIES) {
       try { output.unshift(await tree.resolve(`category:${parent.campusId || 'organization'}:${key}`)); }
       catch (e) { if (!(e instanceof DataCoreAccessError)) throw e; }
@@ -226,19 +234,24 @@ async function listFiles(tree: LibraryTree, folder: LibraryFolder, url: URL) {
   if (!folder.category) return { files: [], hasMore: false };
   const q = text(url.searchParams.get('q')).slice(0,120), page = Math.max(1, Math.min(100000, Number(url.searchParams.get('page')) || 1));
   const legacy = folder.id.startsWith('category:');
-  const rows = (await tree.db.prepare(`SELECT fo.*, u.display_name AS owner_name FROM file_objects fo LEFT JOIN users u ON u.id = fo.owner_user_id
+  const files = [], visible:Record<string,any>[] = [];
+  const skip=(Math.floor(page)-1)*50;let accepted=0,hasMore=false,cursor:{created_at:string;id:string}|null=null;
+  while(!hasMore){
+  const rows:Record<string,any>[] = (await tree.db.prepare(`SELECT fo.*, u.display_name AS owner_name FROM file_objects fo LEFT JOIN users u ON u.id = fo.owner_user_id
     WHERE fo.organization_id = ? AND fo.campus_id IS ? AND fo.category = ? AND fo.deleted_at IS NULL
     AND (fo.data_record_id = ? OR (? = 1 AND NOT EXISTS (SELECT 1 FROM data_records dr WHERE dr.id = fo.data_record_id AND dr.record_type IN (?, ?))))
-    AND fo.original_file_name LIKE ? ESCAPE '\\' ORDER BY fo.created_at DESC, fo.id LIMIT 51 OFFSET ?`)
+    AND fo.original_file_name LIKE ? ESCAPE '\\' ${cursor?'AND (fo.created_at < ? OR (fo.created_at = ? AND fo.id > ?))':''} ORDER BY fo.created_at DESC, fo.id LIMIT 100`)
     .bind(ORG, folder.campusId, folder.category, folder.id, legacy ? 1 : 0, LIBRARY_FOLDER, HQ_FOLDER,
-      `%${q.replace(/[\\%_]/g, '\\$&')}%`, (Math.floor(page)-1)*50).all<Record<string, any>>()).results || [];
-  const files = [], visible:Record<string,any>[] = [];
-  for (const row of rows.slice(0,50)) {
+      `%${q.replace(/[\\%_]/g, '\\$&')}%`,...(cursor?[cursor.created_at,cursor.created_at,cursor.id]:[])).all<Record<string, any>>()).results || [];
+  for (const row of rows) {
     try {
       const sourceFolder = await fileFolder(tree, row);
       if (sourceFolder.id !== folder.id || !libraryFileReadable(tree.context, sourceFolder, row)) continue;
+      if(accepted++<skip)continue;
+      if(files.length===50){hasMore=true;break;}
       visible.push(row);
       files.push({ id: row.id, fileName: row.original_file_name, mimeType: row.mime_type, sizeBytes: row.size_bytes,
+        instagramPreserveReason: instagramPreserveReason({...row, protected:sourceFolder.protected, shareMode:sourceFolder.shareMode}),
         createdAt: row.created_at, campusId: row.campus_id, ownerName: row.owner_name, recordId: row.data_record_id,
         canDelete: libraryCanDelete(tree.context, folder, row.owner_user_id),
         canMove: libraryCanWrite(tree.context, folder),
@@ -246,8 +259,11 @@ async function listFiles(tree: LibraryTree, folder: LibraryFolder, url: URL) {
         downloadUrl: `/api/data-core/library/files/${encodeURIComponent(row.id)}/download` });
     } catch (e) { if (!(e instanceof DataCoreAccessError)) throw e; }
   }
+  if(rows.length<100)break;
+  const last=rows.at(-1)!;cursor={created_at:last.created_at,id:last.id};
+  }
   const thumbnails = await thumbnailUrls(tree.db,visible,'/api/data-core/library/files/');
-  return { files:files.map(file=>({...file,thumbnailUrl:thumbnails.get(file.id) || null})), hasMore: rows.length > 50 };
+  return { files:files.map(file=>({...file,thumbnailUrl:thumbnails.get(file.id) || null})), hasMore };
 }
 
 async function recentFiles(tree: LibraryTree, folder: LibraryFolder) {
@@ -274,6 +290,7 @@ async function recentFiles(tree: LibraryTree, folder: LibraryFolder) {
       if (!libraryFileReadable(tree.context, sourceFolder, row)) continue;
       visible.push(row);
       files.push({ id: row.id, fileName: row.original_file_name, folderId: sourceFolder.id, folderTitle: sourceFolder.title,
+        instagramPreserveReason: instagramPreserveReason(row),
         campusId: row.campus_id, campusName: row.campus_id ? campusNames.get(row.campus_id) || null : null,
         mimeType: row.mime_type, sizeBytes: row.size_bytes, createdAt: row.created_at,
         canDelete: libraryCanDelete(tree.context, sourceFolder, row.owner_user_id), canMove: libraryCanWrite(tree.context, sourceFolder),
@@ -345,8 +362,9 @@ export async function handleLibraryApi(request: Request, db: D1Database, bucket:
     const archived = url.searchParams.get('archived') === '1';
     if (archived) requireLibraryWrite(tree.context, folder);
     const folders = (await children(tree, folder, archived)).filter(f => (folder.id !== 'root' || f.parentId !== 'hq') && (!archived || f.archived));
-    const counts = await fileCounts(tree, folders.filter(f => f.category));
-    return json({ folder: serialize(tree, folder), breadcrumbs: await tree.breadcrumbs(folder), folders: folders.map(f => ({...serialize(tree, f), fileCount: f.category ? counts.get(f.id) || 0 : null})) });
+    const includeCounts = url.searchParams.get('counts') !== '0';
+    const counts = includeCounts ? await fileCounts(tree, folders.filter(f => f.category)) : new Map<string,number>();
+    return json({ folder: serialize(tree, folder), breadcrumbs: await tree.breadcrumbs(folder), folders: folders.map(f => ({...serialize(tree, f), fileCount: f.category && includeCounts ? counts.get(f.id) || 0 : null})) });
   }
   if (url.pathname === '/api/data-core/library/folders' && request.method === 'POST') {
     let input; try { input = await request.json(); } catch { error(400, 'JSON 요청을 확인하세요.'); }

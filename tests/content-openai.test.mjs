@@ -50,6 +50,10 @@ test('Responses adapter sends selected sanitized pixels, structured output; defa
     const defaults=await h.request('PUT','/api/data-core/content/defaults',users.staff,{sourceApp:'blog',campusId:A,hashtags:'#합성',footer:'합성 문의'});
     assert.equal(defaults.status,200);
     assert.equal((await h.request('GET','/api/data-core/content/defaults?sourceApp=blog&campusId='+A,users.staff)).body.defaults.footer,'합성 문의');
+    for(const footer of ['전화 문의\n032-000-0000\n','']){
+      assert.equal((await h.request('PUT','/api/data-core/content/defaults',users.staff,{sourceApp:'blog',campusId:A,hashtags:'',footer})).status,200);
+      assert.equal((await h.request('GET','/api/data-core/content/defaults?sourceApp=blog&campusId='+A,users.staff)).body.defaults.footer,footer);
+    }
     assert.equal((await h.request('GET','/api/data-core/content/defaults?sourceApp=instagram&campusId='+A,users.staff)).body.defaults.footer,'');
     assert.equal((await h.request('GET','/api/data-core/content/defaults?sourceApp=blog&campusId='+A,users.foreign)).status,403);
     assert.equal((await h.request('PUT','/api/data-core/content/defaults',users.staff,{sourceApp:'blog',campusId:B,hashtags:'',footer:''})).status,403);

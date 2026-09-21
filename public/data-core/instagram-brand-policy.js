@@ -4,6 +4,9 @@ export const LOGOS = {
   anihi: { label: 'ANiHi', src: '/data-core/assets/brand/anihi-20260921.png', tagline: 'WEBTOON & ANIMATION' },
   hi5: { label: 'Hi5', src: '/data-core/assets/brand/hi5-20260921.png', tagline: 'DESIGN & DRAWING' },
   combined: { label: 'Hi5·ANiHi', src: '/data-core/assets/brand/combined-20260921.png', tagline: '' },
+  slogan: { label: '디자인은 Hi5 / 만화.애니는 ANiHi', src: '/data-core/assets/brand/slogan-20260921-v2.png', tagline: '' },
+  horizontal: { label: 'Hi5·ANiHi 가로형', src: '/data-core/assets/brand/horizontal-mark-20260921-v2.png', tagline: '' },
+  none: { label: '로고 없음', src: '', tagline: '' },
 };
 const CAMPUS_LABELS = {
   '부천 디자인 입시본원': '부천 입시본원', '부천 애니 입시본원': '부천 입시본원',
@@ -31,6 +34,7 @@ export function normalizeDesign(input = {}) {
   const templateId = Object.hasOwn(TEMPLATES, input.templateId) ? input.templateId : 'artwork';
   return {
     schemaVersion: 1, templateId,
+    ...(input.workflow === 'carousel-v2' ? {workflow:'carousel-v2'} : {}),
     logoType: Object.hasOwn(LOGOS, input.logoType) ? input.logoType : TEMPLATES[templateId].logo,
     materialKind: Object.hasOwn(MATERIALS, input.materialKind) ? input.materialKind : 'student-artwork',
     usePermission: ['allowed', 'review', 'denied'].includes(input.usePermission) ? input.usePermission : 'review',
@@ -45,6 +49,10 @@ export function designChecks(design, campusLabel) {
   const add = (code, status, message) => checks.push({ code, status, message });
   add('campus', campusLabel ? 'pass' : 'needs_changes', campusLabel ? `로고 캠퍼스: ${campusLabel}` : '캠퍼스를 선택하세요.');
   add('permission', design.usePermission === 'allowed' ? 'pass' : 'needs_changes', design.usePermission === 'allowed' ? '담당자가 홍보 사용 가능으로 확인' : '홍보 사용 권한 확인이 필요합니다.');
+  if(design.workflow === 'carousel-v2') {
+    add('logo',Object.hasOwn(LOGOS,design.logoType)?'pass':'needs_changes','공식 로고 선택');
+    return checks;
+  }
   add('logo-topic', design.logoType === TEMPLATES[design.templateId].logo ? 'pass' : 'human_required', '로고 타입과 주제 일치 여부');
   add('contact', design.contact ? 'human_required' : 'needs_changes', design.contact ? '문의 문구·전화번호를 실제 정보와 대조하세요.' : '검증된 전화 문의 또는 DM 안내를 입력하세요.');
   add('facts', design.factsVerified ? 'human_required' : 'needs_changes', '캡션과 이미지의 숫자·날짜·성과·캠퍼스 정보를 직접 대조하세요.');

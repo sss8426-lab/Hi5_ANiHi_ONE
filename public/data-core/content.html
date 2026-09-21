@@ -4,12 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>블로그 자동화 · HI5·ANiHi DATA CORE</title>
-  <link rel="stylesheet" href="/data-core/styles.css">
-  <link rel="stylesheet" href="/data-core/content.css?v=20260913-ai">
+  <link rel="stylesheet" href="/data-core/styles.css?v=20260921-performance">
+  <link rel="stylesheet" href="/data-core/content.css?v=20260921-performance">
   <link rel="stylesheet" href="/data-core/content-workflow.css?v=20260921-brand">
   <link rel="stylesheet" href="/data-core/layout-theme.css?v=20260909-bright-layout">
   <link rel="stylesheet" href="/data-core/design-tokens.css?v=20260913-soft-premium">
   <link rel="stylesheet" href="/data-core/design-system.css?v=20260913-soft-premium">
+  <link rel="stylesheet" href="/data-core/instagram-carousel.css?v=20260922-progress">
   <link rel="stylesheet" href="/data-core/image-gallery.css?v=20260913-fast-images">
 </head>
 <body class="data-core-layout">
@@ -17,11 +18,8 @@
     <aside class="sidebar">
       <div class="brand"><span class="brand-mark">H5</span><div><strong>HI5·ANiHi</strong><small>DATA CORE</small></div></div>
       <nav class="nav">
-        <a class="nav-item" href="/data-core/work/library"><span class="nav-icon">▦</span><span>자료보관함</span></a>
-        <a class="nav-item active" href="/data-core/content/blog" data-content-nav="blog"><span class="nav-icon">✎</span><span>블로그 자동화</span></a>
-        <a class="nav-item" href="/data-core/content/instagram" data-content-nav="instagram"><span class="nav-icon">▧</span><span>인스타 자동화</span></a>
-        <a class="nav-item hidden" href="/data-core/operations" data-super-admin-nav><span class="nav-icon">↺</span><span>운영관리</span></a>
-        <a class="nav-item hidden" href="/data-core/accounts" data-super-admin-nav><span class="nav-icon">⚙</span><span>계정관리</span></a>
+        <div class="nav-group" data-work-navigation="work"></div>
+        <div class="nav-group hidden" data-work-navigation="admin"></div>
       </nav>
       <div class="sidebar-bottom"><div class="connection-card" id="connectionCard"><span class="status-dot"></span><div><strong>연결 확인 중</strong><small>DATA CORE</small></div></div><a class="back-link" href="/data-core/work">업무용 홈으로 돌아가기</a></div>
     </aside>
@@ -85,16 +83,19 @@
           </section>
         </details>
         <details class="workflow-details" id="pastWork"><summary>지난 작업</summary><div class="draft-tools"><select id="draftStatusFilter" aria-label="초안 상태"><option value="">전체 상태</option><option value="draft">초안</option><option value="review">검토</option><option value="ready">게시 준비</option><option value="published">게시 완료</option><option value="archived">보관</option></select><input id="draftSearchInput" placeholder="초안 검색" aria-label="초안 검색"><button class="ghost-btn" id="refreshDraftsBtn" type="button">새로고침</button></div><div class="draft-list" id="draftList"></div></details>
-        <details class="workflow-details" id="aiDiagnostics" hidden><summary>AI 연결 상태</summary><p id="aiDiagnosticStatus"></p></details>
+        <footer id="aiDiagnosticsMount"><details class="workflow-details" id="aiDiagnostics" hidden><summary>AI 연결 상태</summary><p id="aiDiagnosticStatus"></p></details></footer>
       </section>
     </main>
   </div>
   <div class="toast hidden" id="toast"></div>
+  <script src="/data-core/work-navigation.js?v=20260921-performance"></script>
   <script src="/data-core/image-gallery.js?v=20260913-fast-images"></script>
-  <script src="/data-core/library-client.js?v=20260914-campus-only"></script>
+  <script src="/data-core/private-image-cache.js?v=20260921-performance"></script>
+  <script src="/data-core/library-thumbnail.js?v=20260921-performance"></script>
+  <script src="/data-core/library-client.js?v=20260921-performance"></script>
   <script src="/data-core/instagram-derivative.js?v=20260909-derivative-v1"></script>
-  <script src="/data-core/content.js?v=20260921-brand"></script>
-  <script src="/data-core/content-admin-nav.js?v=20260908-work-v1"></script>
+  <script type="module" src="/data-core/content.js?v=20260921-performance"></script>
+  <script src="/data-core/content-admin-nav.js?v=20260921-performance"></script>
   <script type="module" src="/data-core/design-shell.js?v=20260912-campus"></script>
 </body>
 </html>

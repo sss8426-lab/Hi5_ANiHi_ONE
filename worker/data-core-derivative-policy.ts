@@ -12,7 +12,7 @@ export const DERIVATIVE_CATEGORY = 'instagram-derived';
 export const THUMBNAIL_RECORD_TYPE = 'image-thumbnail';
 export const THUMBNAIL_CATEGORY = 'image-thumbnail';
 export function assertMutableRecordType(type: unknown) {
-  if ([DERIVATIVE_RECORD_TYPE, THUMBNAIL_RECORD_TYPE,'admissions-legacy-thumbnail','content-ai-request','content-defaults','instagram-reviewed-render'].includes(String(type).trim())) throw new DataCoreAccessError(403, '보호된 데이터는 전용 기능에서만 변경할 수 있습니다.');
+  if ([DERIVATIVE_RECORD_TYPE, THUMBNAIL_RECORD_TYPE,'admissions-legacy-thumbnail','content-ai-request','content-ai-usage','content-ai-call','content-defaults','instagram-reviewed-render','instagram-carousel-set'].includes(String(type).trim())) throw new DataCoreAccessError(403, '보호된 데이터는 전용 기능에서만 변경할 수 있습니다.');
 }
 
 export function validThumbnail(row: Record<string, any>, metadata: any, source: Record<string, any>) {
@@ -53,10 +53,18 @@ export async function derivativeMetadata(db: D1Database, row: Record<string, unk
     .first<{ metadata_json: string }>();
   try {
     const value = JSON.parse(record?.metadata_json || 'null');
+    // Only server-created AI intermediates may retain provider dimensions. Final
+    // masters/exports and all source permission/provenance checks remain unchanged.
+    const providerResolution = value?.derivativeType === 'instagram-ai-edit' && value.normalization === 'provider-resolution';
+    const validDimensions = providerResolution
+      ? Number.isInteger(value.width) && Number.isInteger(value.height) && value.width > 0 && value.height > 0
+        && value.width * value.height <= 4194304 && value.aspectRatio === `${value.width}:${value.height}`
+        && row.mime_type === 'image/png' && Number(row.size_bytes) > 0 && Number(row.size_bytes) <= 8 * 1024 * 1024
+      : value?.width === (value?.derivativeType==='instagram-publish'?1080:2160) && value?.height === (value?.derivativeType==='instagram-publish'?1350:2700)
+        && value?.aspectRatio === '4:5';
     if (value?.schemaVersion !== 1 || value.derivativeFileId !== row.id || typeof value.derivedFromFileId !== 'string'
       || !['instagram-4x5','instagram-ai-edit','instagram-layout','instagram-publish'].includes(value.derivativeType)
-      || value.width !== (value.derivativeType==='instagram-publish'?1080:2160) || value.height !== (value.derivativeType==='instagram-publish'?1350:2700)
-      || value.aspectRatio !== '4:5' || value.createdBy !== 'instagram-editor') return null;
+      || !validDimensions || value.createdBy !== 'instagram-editor') return null;
     if (value.derivativeType === 'instagram-ai-edit' && (value.provider !== 'openai' || value.aiEdited !== true || typeof value.model !== 'string' || !value.model || !Number.isFinite(Date.parse(value.generatedAt)))) return null;
     return value as {schemaVersion:number; derivativeFileId:string; derivedFromFileId:string; derivativeType:string;
       width:number; height:number; aspectRatio:string; createdBy:string};

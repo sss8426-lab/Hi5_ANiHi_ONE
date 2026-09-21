@@ -327,6 +327,7 @@ async function createHarness() {
   async function request(method, pathname, user, body, extraHeaders = {}) {
     const headers = new Headers(user ? authHeaders(user) : undefined);
     if (pathname.startsWith('/api/data-core/content')) headers.set('origin', 'http://localhost');
+    if (pathname.startsWith('/api/data-core/calendar')) headers.set('origin', 'http://localhost');
     if (pathname.includes('awardFolderId=')) headers.set('origin', 'http://localhost');
     if (pathname.startsWith('/api/data-core/records') || pathname.startsWith('/api/data-core/trash')) headers.set('origin','http://localhost');
     for (const [name, value] of Object.entries(extraHeaders)) headers.set(name, value);
@@ -1141,7 +1142,7 @@ test("academy calendar shares validated events while enforcing campus ownership 
     assert.equal(created.body.event.recordType, "academy-calendar-event");
     assert.equal(created.body.event.sourceApp, "academy-calendar");
     assert.equal(created.body.event.metadata.schemaVersion, 1);
-    assert.equal(created.body.event.metadata.allDay, true);
+    assert.equal(created.body.event.metadata.allDay, false);
     assert.equal(created.body.event.metadata.endDate, "2026-10-12");
     const eventId = created.body.event.id;
 

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { encode, decode } from 'fast-png';
 import { libraryHarness,users,A,B,ORG } from './support/library-harness.mjs';
 import { getInstagramCampusLogoLabel,normalizeDesign,designChecks,TEMPLATES } from '../public/data-core/instagram-brand-policy.js';
+import { instagramPreserveReason } from '../public/data-core/instagram-source-policy.js';
 
 test('campus logo projection is exact, source names unchanged, all template recommendations are deterministic',()=>{
   const cases=[['부천 디자인 입시본원','부천 입시본원'],['부천 애니 입시본원','부천 입시본원'],['부천 범박 캠퍼스','범박 캠퍼스'],['부천 원종 캠퍼스','원종 캠퍼스'],['부천 중동 캠퍼스','중동 캠퍼스'],['부천 옥길 캠퍼스','옥길 캠퍼스'],['서울 광진 입시본원','광진 입시본원'],['울산 송정 입시본원','송정 입시본원'],['안산 입시본원','안산 입시본원'],['파주 입시본원','파주 입시본원']];
@@ -16,6 +17,35 @@ test('campus logo projection is exact, source names unchanged, all template reco
 const png=(w,h)=>encode({width:w,height:h,channels:4,depth:8,data:new Uint8Array(w*h*4).fill(190)});
 const design={templateId:'artwork',logoType:'anihi',materialKind:'student-artwork',usePermission:'allowed',headline:'SYNTHETIC 작품 소개',contact:'DM 문의',factsVerified:true};
 const checks=Object.fromEntries(['artwork','logo','design','ai','privacy','readability','facts'].map(k=>[k,true]));
+
+test('source policy preserves protected pixels, without blocking ordinary campus photo AI',()=>{
+  for(const category of ['student-artwork','award-work','admission-material','document','logo','counseling-material'])assert.ok(instagramPreserveReason({category}));
+  for(const category of ['class-photo','academy-photo','promotion-material','blog-source','instagram-source','library-material']){
+    assert.equal(instagramPreserveReason({category,area:'documents-private',visibility:'campus'}),'');
+    assert.ok(instagramPreserveReason({category,visibility:'private'}));
+  }
+  assert.ok(instagramPreserveReason({area:'student-private'}));
+  assert.ok(instagramPreserveReason({protected:true}));
+});
+
+test('library publishes preservation decisions and forged image-edit consent cannot bypass protected sources',async()=>{
+  const h=await libraryHarness(),previous=globalThis.fetch;let calls=0;
+  try{
+    h.env.OPENAI_API_KEY='synthetic-only';globalThis.fetch=async()=>{calls++;throw Error('No protected image may leave the Worker');};
+    for(const category of ['student-artwork','counseling-material','admission-material','academy-photo']){
+      const folder=(await h.folder('category:'+A+':'+category,'SYNTHETIC preservation '+category,users.master)).body.folder;
+      const file=(await h.upload(folder.id,users.master,{mime:'image/png',bytes:png(32,32)})).body.file;
+      const listing=await h.request('GET','/api/data-core/library/files?folderId='+encodeURIComponent(folder.id),users.master);
+      assert.equal(listing.status,200,JSON.stringify(listing.body));
+      const exposed=listing.body.files.find(row=>row.id===file.id);
+      assert.equal(Boolean(exposed.instagramPreserveReason),category!=='academy-photo');
+      if(category==='academy-photo')continue;
+      const response=await h.request('POST','/api/data-core/content/image-edit',users.master,{sourceApp:'instagram',campusId:A,sourceFileId:file.id,direction:'synthetic',requestId:crypto.randomUUID(),material:{workflow:'carousel-v2',materialKind:'real-photo',usePermission:'allowed',externalAiConsent:true}});
+      assert.equal(response.status,403);assert.match(response.body.error,/원본 보존/);
+    }
+    assert.equal(calls,0);
+  }finally{globalThis.fetch=previous;await h.mf.dispose();}
+});
 
 test('Instagram production uses existing files, version-bound approval, scoped permissions and non-destructive export',async()=>{
   const h=await libraryHarness();

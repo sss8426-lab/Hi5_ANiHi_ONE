@@ -30,6 +30,7 @@ test('calendar redraw reuses exactly two observers without orphan subscriptions'
     disconnect() { this.connected = false; }
   }
   const context = vm.createContext({
+    window:{AcademyCalendar:{setExternal:()=>false}}, liveItems:[],
     calendarObservers: [], MutationObserver: Observer,
     document: { querySelectorAll: selector => selector === '[data-calendar-home]' ? homes : [] },
   });
@@ -42,11 +43,12 @@ test('calendar redraw reuses exactly two observers without orphan subscriptions'
   }
 });
 
-test('registration deadlines are projected into both shared calendars without DATA CORE writes', () => {
+test('registration deadlines are projected into both shared calendars without DATA CORE writes', async () => {
   assert.match(ui, /function renderCalendarDeadlines\(/);
   assert.match(ui, /\[data-calendar-home\]/);
-  assert.match(ui, /공모전 마감/);
-  assert.match(ui, /공모전 접수 마감/);
-  assert.match(ui, /item\.applicationEnd === date/);
+  assert.match(ui, /AcademyCalendar\?\.setExternal\(liveItems\)/);
+  const calendar=await readFile('public/data-core/calendar.js','utf8');
+  assert.match(calendar, /공모전 마감/);
+  assert.match(calendar, /startDate:item\.applicationEnd/);
   assert.doesNotMatch(ui, /\/api\/data-core\/calendar[^'"`]*['"`][\s\S]{0,120}method:\s*'POST'/);
 });

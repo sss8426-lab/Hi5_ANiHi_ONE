@@ -12,7 +12,7 @@ test('work content automation keeps latest navigation filters and adds CTA previ
   ]);
 
   assert.doesNotMatch(html, /꿈·전공 로드맵/);
-  assert.match(html, /data-super-admin-nav/);
+  assert.match(html, /data-work-navigation="admin"/);
 
   assert.ok(html.includes('id="resultFooter"'));
   assert.ok(html.includes('id="aiResult"'));

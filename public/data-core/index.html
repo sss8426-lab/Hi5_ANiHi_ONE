@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>HI5·ANiHi DATA CORE</title>
-  <link rel="stylesheet" href="/data-core/styles.css?v=20260921-calendar">
+  <link rel="stylesheet" href="/data-core/styles.css?v=20260921-performance">
   <link rel="stylesheet" href="/data-core/layout-theme.css?v=20260909-bright-layout">
   <link rel="stylesheet" href="/data-core/counseling-refinements.css?v=20260909-1">
   <link rel="stylesheet" href="/data-core/curriculum.css?v=20260913-soft-premium">
@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="/data-core/design-tokens.css?v=20260913-soft-premium">
   <link rel="stylesheet" href="/data-core/design-system.css?v=20260913-soft-premium">
   <link rel="stylesheet" href="/data-core/image-gallery.css?v=20260913-fast-images">
+  <link rel="stylesheet" href="/data-core/calendar.css?v=20260921-calendar-details">
 </head>
 <body class="data-core-layout">
   <div class="app-shell">
@@ -58,49 +59,10 @@
           </button>
         </div>
 
-        <div class="nav-group hidden" data-nav-scope="work">
-          <button class="nav-item active" data-view="work-home">
-            <span class="nav-icon">⌂</span>
-            <span>업무용 홈</span>
-          </button>
-          <button class="nav-item" data-view="library">
-            <span class="nav-icon">▦</span>
-            <span>자료보관함</span>
-          </button>
-          <a class="nav-item" href="/data-core/content/blog">
-            <span class="nav-icon">✎</span>
-            <span>블로그 자동화</span>
-          </a>
-          <a class="nav-item" href="/data-core/content/instagram">
-            <span class="nav-icon">▧</span>
-            <span>인스타 자동화</span>
-          </a>
-          <button class="nav-item" data-view="attendance">
-            <svg class="at-icon nav-icon" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#BookOpen"/></svg>
-            <span>출석부</span>
-          </button>
-          <button class="nav-item" data-view="mode-home">
-            <span class="nav-icon">←</span>
-            <span>모드 선택으로 돌아가기</span>
-          </button>
-        </div>
-
-        <div class="nav-group nav-admin hidden" data-nav-scope="admin">
-          <a class="nav-item" href="/data-core/operations">
-            <span class="nav-icon">↺</span>
-            <span>운영관리</span>
-          </a>
-          <a class="nav-item" href="/data-core/accounts"><span class="nav-icon">▣</span><span>캠퍼스 계정 관리</span></a>
-          <a class="nav-item" href="/data-core/readiness">
-            <span class="nav-icon">✓</span>
-            <span>readiness</span>
-          </a>
-          <button class="nav-item hidden" data-view="admin" id="adminNav">
-            <span class="nav-icon">⚙</span>
-            <span>권한관리</span>
-          </button>
-        </div>
+        <div class="nav-group hidden" data-nav-scope="work" data-work-navigation="work"></div>
+        <div class="nav-group nav-admin hidden" data-nav-scope="admin" data-work-navigation="admin"></div>
       </nav>
+      <script src="/data-core/work-navigation.js?v=20260921-performance"></script>
 
       <div class="sidebar-bottom">
         <div class="connection-card" id="connectionCard">
@@ -490,7 +452,7 @@
     </div>
   </div>
 
-  <div class="modal-backdrop hidden" id="calendarModal">
+  <dialog class="calendar-editor" id="calendarModal" aria-labelledby="calendarModalTitle">
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="calendarModalTitle">
       <div class="modal-head">
         <div><h3 id="calendarModalTitle">일정 등록</h3><p>등록한 일정은 권한이 있는 DATA CORE 화면에만 표시됩니다.</p></div>
@@ -501,6 +463,10 @@
         <label class="span-2"><span>일정명</span><input id="calendarTitle" maxlength="240" required></label>
         <label><span>시작일</span><input id="calendarStartDate" type="date" required></label>
         <label><span>종료일</span><input id="calendarEndDate" type="date"></label>
+        <label><span>시간 (한국 기준)</span><select id="calendarTimeMode"><option value="unspecified">시간 미지정</option><option value="allDay">종일</option><option value="time">시간 지정</option></select></label>
+        <label><span>장소</span><input id="calendarLocation" maxlength="300"></label>
+        <label><span>시작 시간</span><input id="calendarStartTime" type="time" disabled></label>
+        <label><span>종료 시간</span><input id="calendarEndTime" type="time" disabled></label>
         <label><span>유형</span><select id="calendarEventType"><option value="class">수업</option><option value="admission">입시</option><option value="competition">공모전</option><option value="marketing">홍보</option><option value="holiday">휴일</option><option value="meeting">회의</option><option value="other">기타</option></select></label>
         <label><span>공유 범위</span><select id="calendarCampus"></select></label>
         <label class="span-2"><span>메모</span><textarea id="calendarSummary" rows="4" maxlength="10000"></textarea></label>
@@ -508,7 +474,7 @@
         <div class="form-actions span-2"><button class="primary-btn" type="submit" id="calendarSubmitBtn">일정 저장</button></div>
       </form>
     </div>
-  </div>
+  </dialog>
 
   <div class="modal-backdrop hidden" id="competitionModal">
     <div class="modal modal-wide">
@@ -540,15 +506,16 @@
   <script src="/data-core/image-gallery.js?v=20260913-fast-images"></script>
   <script src="/data-core/award-image-cache.js?v=20260913-fast-images"></script>
   <script src="/data-core/upload-queue.js?v=20260921-upload-pipeline"></script>
-  <script src="/data-core/private-image-cache.js?v=20260913-fast-images"></script>
-  <script src="/data-core/library-thumbnail.js?v=20260921-upload-pipeline"></script>
-  <script src="/data-core/library-client.js?v=20260914-campus-only"></script>
+  <script src="/data-core/private-image-cache.js?v=20260921-performance"></script>
+  <script src="/data-core/library-thumbnail.js?v=20260921-performance"></script>
+  <script src="/data-core/library-client.js?v=20260921-performance"></script>
   <script src="/data-core/work/hq-library.js?v=20260921-upload-pipeline"></script>
   <script src="/data-core/curriculum-library.js?v=20260913-folder-covers"></script>
   <script src="/data-core/curriculum.js?v=20260913-work-v1"></script>
   <script src="/data-core/brand-home.js?v=20260913-brand-home"></script>
-  <script src="/data-core/app.js?v=20260921-weekend-selection"></script>
-  <script src="/data-core/mode-home-artwork.js?v=20260921-calendar"></script>
+  <script src="/data-core/calendar.js?v=20260921-performance"></script>
+  <script src="/data-core/app.js?v=20260921-performance"></script>
+  <script src="/data-core/mode-home-artwork.js?v=20260921-calendar-details"></script>
   <script type="module" src="/data-core/design-shell.js?v=20260912-campus"></script>
 </body>
 </html>
