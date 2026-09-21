@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="/data-core/layout-theme.css?v=20260909-bright-layout">
   <link rel="stylesheet" href="/data-core/design-tokens.css?v=20260913-soft-premium">
   <link rel="stylesheet" href="/data-core/design-system.css?v=20260913-soft-premium">
-  <link rel="stylesheet" href="/data-core/accounts.css?v=20260914-campuses">
+  <link rel="stylesheet" href="/data-core/accounts.css?v=20260921-password">
 </head>
 <body class="data-core-layout campus-accounts">
   <main class="accounts-shell">
@@ -40,7 +40,21 @@
     </section>
     <section class="recent-logins"><h2>최근 로그인</h2><ul id="recentLogins"></ul></section>
   </main>
-  <script type="module" src="/data-core/accounts.js?v=20260914-campuses"></script>
+  <dialog id="passwordDialog" aria-labelledby="passwordDialogTitle">
+    <form id="managePasswordForm" class="password-dialog-form">
+      <h2 id="passwordDialogTitle">비밀번호 변경</h2>
+      <p id="passwordTarget"></p>
+      <p class="password-note">현재 비밀번호는 조회할 수 없습니다. 변경하면 기존 로그인 세션이 종료됩니다.</p>
+      <label>로그인 ID<input id="targetLoginId" autocomplete="username" readonly></label>
+      <label>새 비밀번호<input id="managedPassword" type="password" autocomplete="new-password" minlength="12" required></label>
+      <label>새 비밀번호 확인<input id="managedPasswordConfirm" type="password" autocomplete="new-password" minlength="12" required></label>
+      <label class="password-option"><input id="showManagedPassword" type="checkbox">입력한 비밀번호 표시</label>
+      <label class="password-option" id="forceChangeOption"><input id="forcePasswordChange" type="checkbox" checked>다음 로그인 시 비밀번호 변경 필요</label>
+      <p id="managedPasswordMessage" role="status" aria-live="polite"></p>
+      <div class="account-actions"><button id="cancelPasswordChange" type="button" class="ghost-btn">취소</button><button id="savePasswordChange" type="submit" class="primary-btn">변경</button></div>
+    </form>
+  </dialog>
+  <script type="module" src="/data-core/accounts.js?v=20260921-password"></script>
   <script type="module" src="/data-core/design-shell.js?v=20260912-campus"></script>
 </body>
 </html>

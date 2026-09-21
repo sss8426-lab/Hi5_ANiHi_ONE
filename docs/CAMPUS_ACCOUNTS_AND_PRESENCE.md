@@ -42,6 +42,10 @@ Hashing reuses PBKDF2-HMAC-SHA256, 100,000 iterations, a random 16-byte salt and
 
 ## Presence
 
+### Password recovery update (2026-09-21)
+
+MASTER/SUPER_ADMIN can now explicitly set a campus account's new 12+ character password in a confirmation dialog, with next-login change required by default and an explicit option to disable that requirement. Current stored passwords remain non-recoverable and are never displayed. Reset no longer executes on the first card click. Pending-session relogin, expired lock counters, atomic credential/session/audit writes, and synthetic verification are documented in [Campus Password Recovery](CAMPUS_PASSWORD_RECOVERY_2026-09-21.md). No existing account is automatically reset.
+
 - `last_login_at` updates only on successful login. Existing audit events supply the latest 20 logins, without adding IP/device collection.
 - Existing `auth_sessions.last_seen_at` is updated by `POST /api/auth/activity`, at most once per five minutes per session. Ordinary GET requests do not update presence.
 - The client sends activity on trusted interaction while visible, not on an idle interval. Initial visible entry counts as activity.

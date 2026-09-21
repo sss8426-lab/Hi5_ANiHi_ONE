@@ -122,6 +122,17 @@ test('password confirmation mismatch never submits a mutation', async () => {
   assert.equal(h.nodes.get('passwordMessage').textContent, '새 비밀번호가 일치하지 않습니다.');
 });
 
+test('pending change identifies the account and switch-account clears the old credentials', async () => {
+  const h=await harness({session:{authenticated:true,mustChangePassword:true,user:{loginId:'as'}},respond:async()=>({body:{ok:true}})});
+  assert.equal(h.nodes.get('changeLoginId').value,'as');
+  for(const id of ['password','currentPassword','nextPassword','confirmPassword'])h.nodes.get(id).value='synthetic-only';
+  await h.nodes.get('switchAccount').listeners.click();
+  assert.equal(h.calls.at(-1).path,'/api/auth/logout');
+  for(const id of ['password','currentPassword','nextPassword','confirmPassword'])assert.equal(h.nodes.get(id).value,'');
+  assert.equal(h.nodes.get('passwordFormWrap').classList.contains('hidden'),true);
+  assert.equal(h.nodes.get('loginFormWrap').classList.contains('hidden'),false);
+});
+
 test('password change keeps PUT contract, handles failure and successful retry', async () => {
   let fail = true;
   const h = await harness({respond: async () => fail ? {status: 400, body: {error: 'Synthetic rejected'}} : {body: {}}});
