@@ -116,10 +116,6 @@
     status.textContent = `접수중 ${openCount}건 · 예정 ${upcomingCount}건${checked ? ` · ${checked} 확인` : ''}${suffix}`;
   }
 
-  function deadlineItems(date) {
-    return liveItems.filter((item) => item.applicationEnd === date);
-  }
-
   function disconnectCalendarObservers() {
     calendarObservers.forEach((observer) => observer.disconnect());
   }
@@ -137,31 +133,7 @@
 
   function renderCalendarDeadlines() {
     disconnectCalendarObservers();
-    document.querySelectorAll('[data-external-competition-deadline]').forEach((node) => node.remove());
-    document.querySelectorAll('[data-calendar-home]').forEach((home) => {
-      home.querySelectorAll('[data-calendar-date]').forEach((day) => {
-        const date = day.dataset.calendarDate || '';
-        const deadlines = deadlineItems(date);
-        if (!deadlines.length) return;
-        const chip = document.createElement('span');
-        chip.className = 'calendar-event-chip competition external-competition-deadline';
-        chip.dataset.externalCompetitionDeadline = 'true';
-        chip.textContent = deadlines.length === 1 ? `공모전 마감 · ${deadlines[0].title}` : `공모전 마감 ${deadlines.length}건`;
-        chip.title = deadlines.map((item) => item.title).join('\n');
-        day.appendChild(chip);
-      });
-
-      const selected = home.querySelector('.calendar-day.selected[data-calendar-date]');
-      const list = home.querySelector('[data-calendar-list]');
-      if (!selected || !list) return;
-      const deadlines = deadlineItems(selected.dataset.calendarDate || '');
-      if (!deadlines.length) return;
-      const section = document.createElement('section');
-      section.className = 'external-calendar-deadlines';
-      section.dataset.externalCompetitionDeadline = 'true';
-      section.innerHTML = `<h4>공모전 접수 마감</h4><div class="calendar-event-list">${deadlines.map((item) => `<article class="calendar-event-row external-deadline-row"><div><strong>${h(item.title)}</strong><small>${h(item.sourceName || '외부 소식')} · ${h(item.sourceStatusLabel || (item.sourceStatus === 'open' ? '접수중' : '예정'))} · 마감 ${h(item.applicationEnd || '')}</small></div><a class="ghost-btn" href="${h(item.sourceUrl)}" target="_blank" rel="noopener">원문</a></article>`).join('')}</div>`;
-      list.appendChild(section);
-    });
+    if (window.AcademyCalendar?.setExternal(liveItems)) window.AcademyCalendar.render();
     observeCalendars();
   }
 

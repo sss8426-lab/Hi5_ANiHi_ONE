@@ -3,14 +3,16 @@ import {
   DataCoreAccessError,
   requireCampusAccess,
   requireWriteAccess,
+  requireAuthenticatedAccess, isCampusAdmin, managesCampus,
 } from "./data-core-access";
 import {
   createDataRecord,
   deleteDataRecord,
   getDataRecord,
-  listDataRecords,
+  rowToRecord, canReadRow, canMutateRecord,
   updateDataRecord,
 } from "./data-core-records";
+import { DEFAULT_ORGANIZATION_ID, ensureDataCoreDatabase } from './data-core';
 
 const CALENDAR_RECORD_TYPE = "academy-calendar-event";
 const CALENDAR_SOURCE_APP = "academy-calendar";
@@ -30,7 +32,10 @@ type CalendarMetadata = {
   schemaVersion: 1;
   startDate: string;
   endDate?: string;
-  allDay: true;
+  allDay?: boolean;
+  startTime?: string;
+  endTime?: string;
+  location?: string;
   eventType: string;
   sourceRecordId?: string;
   sourceApp?: string;
@@ -68,11 +73,26 @@ function calendarMetadata(value: unknown, fallback: Partial<CalendarMetadata> = 
   }
   const sourceRecordId = cleanText(input.sourceRecordId ?? fallback.sourceRecordId, 120);
   const sourceApp = cleanText(input.sourceApp ?? fallback.sourceApp, 80);
+  const allDay = input.allDay === undefined ? fallback.allDay : input.allDay;
+  if (allDay !== undefined && typeof allDay !== 'boolean') throw new DataCoreAccessError(400, '종일 여부가 올바르지 않습니다.');
+  const time = (value: unknown) => {
+    const result = cleanText(value, 20);
+    if (result && !/^([01]\d|2[0-3]):[0-5]\d$/.test(result)) throw new DataCoreAccessError(400, '시간은 HH:mm 형식이어야 합니다.');
+    return result;
+  };
+  const startTime = allDay === true ? '' : time(input.startTime ?? fallback.startTime);
+  const endTime = allDay === true ? '' : time(input.endTime ?? fallback.endTime);
+  if (endTime && !startTime) throw new DataCoreAccessError(400, '시작 시간을 입력하세요.');
+  if (startTime && endTime && endDate === startDate && endTime < startTime) throw new DataCoreAccessError(400, '종료 시간은 시작 시간과 같거나 이후여야 합니다.');
+  const location = cleanText(input.location ?? fallback.location, 300);
   return {
     schemaVersion: 1,
     startDate,
     ...(endDate === startDate ? {} : { endDate }),
-    allDay: true,
+    ...(allDay === undefined ? {} : { allDay }),
+    ...(startTime ? { startTime } : {}),
+    ...(endTime ? { endTime } : {}),
+    ...(location ? { location } : {}),
     eventType,
     ...(sourceRecordId ? { sourceRecordId } : {}),
     ...(sourceApp ? { sourceApp } : {}),
@@ -94,11 +114,19 @@ function ensureCalendarRecord(record: CalendarRecord): CalendarRecord {
   return record;
 }
 
-function calendarEvent(record: CalendarRecord) {
+function calendarEvent(record: CalendarRecord, context: DataCoreAccessContext) {
+  const metadata = calendarMetadata(record.metadata);
   return {
     ...record,
-    metadata: calendarMetadata(record.metadata),
+    metadata,
+    canManage: context.canWrite && !metadata.sourceRecordId && (context.isSuperAdmin || record.visibility !== 'organization') && canMutateRecord(context, {
+      campus_id: record.campusId, created_by_user_id: record.createdByUserId, record_type: record.recordType,
+    }),
   };
+}
+
+export async function getAcademyCalendarEvent(db: D1Database, context: DataCoreAccessContext, id: string) {
+  return calendarEvent(ensureCalendarRecord(await getDataRecord(db, context, id)), context);
 }
 
 function calendarScope(
@@ -134,35 +162,65 @@ function calendarScope(
   return { campusId, visibility: "campus" as const };
 }
 
-export async function listAcademyCalendar(
-  db: D1Database,
-  context: DataCoreAccessContext,
-  url: URL,
-) {
-  const from = parseDate(url.searchParams.get("from"), "from");
-  const to = parseDate(url.searchParams.get("to"), "to");
-  if (to < from) throw new DataCoreAccessError(400, "to는 from보다 빠를 수 없습니다.");
-
-  const campusId = cleanText(url.searchParams.get("campusId"), 120);
-  if (campusId && !context.isSuperAdmin) requireCampusAccess(context, campusId);
-
-  const recordsUrl = new URL(url);
-  recordsUrl.searchParams.set("recordType", CALENDAR_RECORD_TYPE);
-  recordsUrl.searchParams.set("sourceApp", CALENDAR_SOURCE_APP);
-  recordsUrl.searchParams.set("limit", "100");
-  const records = await listDataRecords(db, context, recordsUrl);
-  return records
-    .filter((record) => !campusId || record.campusId === campusId || record.visibility === "organization")
-    .map((record) => calendarEvent(record))
-    .filter((record) => {
-      const metadata = record.metadata as CalendarMetadata;
-      return metadata.startDate <= to && (metadata.endDate || metadata.startDate) >= from;
-    })
-    .sort((left, right) => {
-      const a = left.metadata as CalendarMetadata;
-      const b = right.metadata as CalendarMetadata;
-      return a.startDate.localeCompare(b.startDate) || String(left.title).localeCompare(String(right.title), "ko");
-    });
+export async function listAcademyCalendar(db: D1Database, context: DataCoreAccessContext, url: URL) {
+  requireAuthenticatedAccess(context);
+  await ensureDataCoreDatabase(db);
+  const from = parseDate(url.searchParams.get('from'), 'from');
+  const to = parseDate(url.searchParams.get('to'), 'to');
+  if (to < from || Date.parse(to) - Date.parse(from) > 62 * 86400000) throw new DataCoreAccessError(400, '조회 기간은 63일 이내여야 합니다.');
+  const campusId = cleanText(url.searchParams.get('campusId'), 120);
+  if (campusId && !context.isSuperAdmin && !context.campusIds.includes(campusId)) throw new DataCoreAccessError(403, '해당 캠퍼스의 일정을 볼 권한이 없습니다.');
+  const scope = url.searchParams.get('scope') || 'all';
+  if (!['all', 'organization', 'campus'].includes(scope)) throw new DataCoreAccessError(400, '일정 범위를 확인하세요.');
+  const type = url.searchParams.get('eventType') || '';
+  if (type && !EVENT_TYPES.has(type)) throw new DataCoreAccessError(400, '일정 유형을 확인하세요.');
+  const q = cleanText(url.searchParams.get('q'), 120);
+  const limit = Math.min(100, Math.max(1, Number(url.searchParams.get('limit')) || 100));
+  // Guard malformed legacy JSON before extraction. Date filtering and authorization precede LIMIT.
+  const json = "CASE WHEN json_valid(dr.metadata_json) THEN dr.metadata_json ELSE '{}' END";
+  const start = `json_extract(${json}, '$.startDate')`;
+  const end = `COALESCE(NULLIF(json_extract(${json}, '$.endDate'), ''), ${start})`;
+  const conditions = ["dr.organization_id=?", "dr.record_type=?", "dr.source_app=?", "dr.deleted_at IS NULL",
+    `length(${start})=10 AND date(${start}, '+0 days')=${start}`,
+    `length(${end})=10 AND date(${end}, '+0 days')=${end}`,
+    `${start}<=? AND ${end}>=? AND ${end}>=${start}`];
+  const bindings: unknown[] = [DEFAULT_ORGANIZATION_ID, CALENDAR_RECORD_TYPE, CALENDAR_SOURCE_APP, to, from];
+  const allowed = context.campusIds;
+  const inCampuses = (ids: string[]) => ids.length ? `dr.campus_id IN (${ids.map(() => '?').join(',')})` : '0';
+  if (!context.isSuperAdmin) {
+    const managed = allowed.filter(id => managesCampus(context, id));
+    if (isCampusAdmin(context)) {
+      conditions.push(`(dr.campus_id IS NULL OR ${inCampuses(managed)})`); bindings.push(...managed);
+    }
+    conditions.push(`(${inCampuses(managed)} OR dr.visibility='public' OR (? AND (dr.visibility='organization' OR (dr.visibility='campus' AND ${inCampuses(allowed)}) OR (dr.visibility='private' AND dr.created_by_user_id=?))))`);
+    bindings.push(...managed, context.memberships.length ? 1 : 0, ...allowed, context.user!.internalUserId);
+  }
+  if (scope === 'organization') conditions.push("dr.visibility='organization'");
+  if (scope === 'campus') conditions.push("dr.visibility='campus'");
+  if (campusId) { conditions.push("dr.campus_id=?"); bindings.push(campusId); }
+  if (type) { conditions.push(`COALESCE(json_extract(${json}, '$.eventType'),'other')=?`); bindings.push(type); }
+  if (q) { conditions.push("(instr(lower(dr.title),lower(?))>0 OR instr(lower(COALESCE(dr.summary,'')),lower(?))>0)"); bindings.push(q,q); }
+  const cursor = url.searchParams.get('cursor');
+  if (cursor) {
+    let after;
+    try { after = JSON.parse(atob(cursor)); } catch { throw new DataCoreAccessError(400, '잘못된 페이지입니다.'); }
+    if (!Array.isArray(after) || after.length !== 2 || typeof after[1] !== 'string' || after[1].length > 160) throw new DataCoreAccessError(400, '잘못된 페이지입니다.');
+    const date = parseDate(after[0], 'cursor');
+    conditions.push(`(${start}>? OR (${start}=? AND dr.id>?))`); bindings.push(date,date,after[1]);
+  }
+  const result = await db.prepare(`SELECT dr.*, c.name AS campus_name, u.display_name AS created_by_name
+    FROM data_records dr LEFT JOIN campuses c ON c.id=dr.campus_id LEFT JOIN users u ON u.id=dr.created_by_user_id
+    WHERE ${conditions.join(' AND ')} ORDER BY ${start}, dr.id LIMIT ?`).bind(...bindings, Math.floor(limit)+1).all<Record<string, unknown>>();
+  const rows = result.results || [], hasMore = rows.length > limit, page = rows.slice(0,limit);
+  const events = page.flatMap(row => {
+    if (!canReadRow(context,row)) return [];
+    try { return [calendarEvent(rowToRecord(row),context)]; } catch (error) {
+      if (error instanceof DataCoreAccessError && error.status === 400) return [];
+      throw error;
+    }
+  });
+  const last = page.at(-1);
+  return { events, hasMore, nextCursor: hasMore && last ? btoa(JSON.stringify([JSON.parse(String(last.metadata_json)).startDate, last.id])) : null };
 }
 
 export async function createAcademyCalendarEvent(
@@ -184,7 +242,7 @@ export async function createAcademyCalendarEvent(
     summary: cleanText(body.summary, 10_000) || null,
     metadata: calendarMetadata(calendarInput(body)),
   });
-  return calendarEvent(record);
+  return calendarEvent(record, context);
 }
 
 export async function updateAcademyCalendarEvent(
@@ -195,6 +253,7 @@ export async function updateAcademyCalendarEvent(
 ) {
   requireWriteAccess(context);
   const existing = ensureCalendarRecord(await getDataRecord(db, context, recordId));
+  if (!calendarEvent(existing, context).canManage) throw new DataCoreAccessError(403, '이 일정을 수정할 권한이 없습니다.');
   const body = input && typeof input === "object" && !Array.isArray(input)
     ? input as Record<string, unknown>
     : {};
@@ -217,7 +276,7 @@ export async function updateAcademyCalendarEvent(
       : cleanText(body.summary, 10_000) || null,
     metadata: calendarMetadata(metadataInput, existingMetadata),
   });
-  return calendarEvent(record);
+  return calendarEvent(record, context);
 }
 
 export async function deleteAcademyCalendarEvent(
@@ -226,6 +285,7 @@ export async function deleteAcademyCalendarEvent(
   recordId: string,
 ) {
   requireWriteAccess(context);
-  ensureCalendarRecord(await getDataRecord(db, context, recordId));
+  const existing = ensureCalendarRecord(await getDataRecord(db, context, recordId));
+  if (!calendarEvent(existing, context).canManage) throw new DataCoreAccessError(403, '이 일정을 삭제할 권한이 없습니다.');
   return deleteDataRecord(db, context, recordId);
 }
