@@ -19,6 +19,9 @@ export function mountInstagramProduction({state,api,$,toast,canWrite}) {
   const defaults=document.createElement('details');defaults.className='workflow-details';defaults.innerHTML='<summary>기본 해시태그·문의 문구</summary>';
   defaults.append(command.querySelector('.defaults-grid'),command.querySelector('.defaults-actions'));$('igCaptionSection').append(defaults);
   let logoType='anihi',policy=null,policyEpoch=0,generation=0,busy=false,items=[],currentSet=null,controller=null,selected='',signature='',requestId='',activeIndex=0;
+  let localPreview=null;
+  const previewUrl=item=>localPreview?.fileId===item.masterFileId?localPreview.url:'/api/data-core/files/'+encodeURIComponent(item.masterFileId);
+  function releasePreview(){if(localPreview)URL.revokeObjectURL(localPreview.url);localPreview=null;}
   const originalMode=()=>$('igMode').value!=='photo';
   const read=()=>normalizeDesign({workflow:'carousel-v2',logoType,templateId:'academy',materialKind:$('igMode').value==='original'?'student-artwork':'real-photo',usePermission:'allowed',externalAiConsent:!originalMode(),contact:$('defaultFooter').value});
   const snapshot=()=>JSON.stringify([state.selectedFileIds,$('draftCampus').value,$('aiCommand').value,logoType,$('igMode').value]);
@@ -27,7 +30,7 @@ export function mountInstagramProduction({state,api,$,toast,canWrite}) {
     $('igComplete').disabled=busy||!items.length||items.length!==state.selectedFileIds.length||signature!==snapshot()||Boolean(currentSet);
     $('igGenerate').textContent=originalMode()?'이미지 만들기':'AI로 이미지 만들기';$('igCancel').hidden=!busy||!controller; }
   function lock(value){busy=value;state.busy=value;$('photoHeading').closest('.workflow-section').inert=value;command.inert=value;$('igLogos').inert=value;$('igMode').disabled=value;history.inert=value;result.querySelectorAll('button,textarea').forEach(el=>el.disabled=value);buttons();}
-  function clear(){generation++;items=[];currentSet=null;signature='';requestId='';result.hidden=true;$('igPreview').removeAttribute('src');$('igSlides').replaceChildren();$('igDownloads').replaceChildren();$('igCaptionSection').hidden=true;$('igCaptionText').value='';$('igCaptionStatus').textContent='';$('igStatus').textContent='';$('igSaved').textContent='';$('igCaptionRetry').hidden=true;buttons();}
+  function clear(){releasePreview();generation++;items=[];currentSet=null;signature='';requestId='';result.hidden=true;$('igPreview').removeAttribute('src');$('igSlides').replaceChildren();$('igDownloads').replaceChildren();$('igCaptionSection').hidden=true;$('igCaptionText').value='';$('igCaptionStatus').textContent='';$('igStatus').textContent='';$('igSaved').textContent='';$('igCaptionRetry').hidden=true;buttons();}
   async function logos(){
     const campusId=$('draftCampus').value;
     if(policy?.campusId===campusId&&$('igLogos').children.length===Object.keys(LOGOS).length)return;
@@ -45,10 +48,10 @@ export function mountInstagramProduction({state,api,$,toast,canWrite}) {
     }catch(error){if(epoch===policyEpoch)$('igCampusLabel').textContent=error.message;}
     buttons();
   }
-  function preview(index=0){activeIndex=index;$('igPreview').src='/api/data-core/files/'+encodeURIComponent(items[index].masterFileId);$('igSlides').replaceChildren(...items.map((item,i)=>{
+  function preview(index=0){activeIndex=index;$('igPreview').src=previewUrl(items[index]);$('igSlides').replaceChildren(...items.map((item,i)=>{
     const button=document.createElement('button');button.type='button';button.setAttribute('aria-pressed',String(i===index));button.textContent=String(i+1);button.onclick=()=>preview(i);return button;
   }));result.hidden=false;}
-  $('igPreview').onclick=()=>window.DataCoreImageGallery.open({scope:'instagram-set',title:'인스타 이미지',anchor:$('igPreview'),index:activeIndex,items:items.map((item,i)=>({src:'/api/data-core/files/'+encodeURIComponent(item.masterFileId),title:`${i+1} / ${items.length}`}))});
+  $('igPreview').onclick=()=>window.DataCoreImageGallery.open({scope:'instagram-set',title:'인스타 이미지',anchor:$('igPreview'),index:activeIndex,items:items.map((item,i)=>({src:previewUrl(item),title:`${i+1} / ${items.length}`}))});
   $('igMode').onchange=clear;$('aiCommand').addEventListener('input',clear);
   $('igCancel').onclick=()=>controller?.abort();
   $('igGenerate').onclick=async()=>{
@@ -64,16 +67,22 @@ export function mountInstagramProduction({state,api,$,toast,canWrite}) {
       for(let i=0;i<ids.length;i++){
         controller.signal.throwIfAborted();stage=`${i+1} / ${ids.length} 이미지 제작`;$('igStatus').textContent=stage+' 중...';let backgroundId=ids[i];
         if(design.externalAiConsent){
+          stage=`${i+1} / ${ids.length} AI 사진 보정`;$('igStatus').textContent=stage+' 중...';
           const timer=setTimeout(()=>controller?.abort(),290000);
           try{backgroundId=(await post('image-edit',{sourceApp:'instagram',campusId,sourceFileId:ids[i],direction,material:design,requestId:crypto.randomUUID()},controller.signal)).file.id;}finally{clearTimeout(timer);}
         }
+        stage=`${i+1} / ${ids.length} 로고 합성`;$('igStatus').textContent=stage+' 중...';
         const blob=await composeInstagram('/api/data-core/files/'+encodeURIComponent(backgroundId),design,policy.campusLogoLabel,controller.signal);
         stage=`${i+1} / ${ids.length} 이미지 저장`;$('igStatus').textContent=stage+' 중...';
         const draft=(await post('',{sourceApp:'instagram',campusId,title:`인스타 이미지 ${i+1}`,summary:direction,relatedFileIds:[ids[i]],metadata:{instagramDesign:design}},controller.signal)).draft;
         const report=await api(`/api/data-core/content/instagram/${draft.id}/review`,{signal:controller.signal});
         const form=new FormData();form.set('file',blob,'instagram-master.png');form.set('fingerprint',report.fingerprint);form.set('backgroundFileId',backgroundId);
         const saved=await api(`/api/data-core/content/instagram/${draft.id}/render`,{method:'POST',body:form,signal:controller.signal});
-        if(epoch!==generation)return;items.push({draftId:draft.id,renderId:saved.renderId,fingerprint:saved.fingerprint,masterFileId:saved.file.id});preview(i);
+        if(epoch!==generation)return;
+        // Keep only the latest saved frame in memory; no redundant multi-MB GET
+        // for its preview. Earlier slides/history still use authenticated reads.
+        releasePreview();localPreview={fileId:saved.file.id,url:URL.createObjectURL(blob)};
+        items.push({draftId:draft.id,renderId:saved.renderId,fingerprint:saved.fingerprint,masterFileId:saved.file.id});preview(i);
       }
       $('igStatus').textContent=`${items.length}장 제작 완료`;$('igSaved').textContent='';
     }catch(error){$('igStatus').textContent=error.name==='AbortError'?'작업을 중단했습니다. 이미 전송된 AI 작업은 과금될 수 있습니다.':`${stage}: ${error.message}`;

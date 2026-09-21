@@ -568,7 +568,8 @@ async function handleContentApi(request: Request, env: Env) {
     await assertInstagramAiUse(env.DB,context,[input.sourceFileId],input,true);
     try {
       if (!env.FILES || !env.OPENAI_API_KEY) throw unavailable();
-      const file = await withAiRequest(env.DB, context, input.requestId, campusId, () => editInstagramImage(env, env.DB!, env.FILES!, context, input.sourceFileId, campusId, input.direction, request.signal));
+      const resizeToMaster = input.material?.workflow !== 'carousel-v2';
+      const file = await withAiRequest(env.DB, context, input.requestId, campusId, () => editInstagramImage(env, env.DB!, env.FILES!, context, input.sourceFileId, campusId, input.direction, request.signal, resizeToMaster));
       return jsonResponse({ file }, { status: 201 });
     } catch (error) {
       if (error instanceof ContentAiError) return jsonResponse({ error: error.message, code: error.code }, { status: error.status });

@@ -107,3 +107,12 @@ rapid campus switching with a delayed stale response, six real encoded raster fo
 at portrait/landscape/square ratios, prompt-free deterministic generation, and existing
 1/5/10 image sets plus downloads/permissions/preview identity. Synthetic only, isolated
 D1/R2. No migrations, real-file edits, IDs changed or production content writes.
+
+## Follow-up: AI photo correction
+
+Detailed AI results could exceed the 8MiB limit after a redundant server-side
+2160x2700 upscale. Carousel AI intermediates now retain validated provider pixels;
+only the final browser composition resizes them. Final master/export contracts,
+legacy callers, key/model and original permissions remain unchanged. Reproduction,
+protected intermediate metadata and verification boundaries are documented in
+`docs/INSTAGRAM_AI_PHOTO_FIX_2026-09-21.md`.

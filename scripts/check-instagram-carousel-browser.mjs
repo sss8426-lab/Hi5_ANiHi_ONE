@@ -13,11 +13,15 @@ const previewOrigin=process.argv.includes('--preview')?new URL(process.argv[proc
 const checked=new Set(),assetErrors=[];
 const h=await libraryHarness(),realFetch=globalThis.fetch;
 let textCalls=0,imageCalls=0,failText=false,activeUser=users.staff;
+let lastRendered=null,avoidedPreviewBytes=0;const fileReads=new Map();
 const pixels=Uint8Array.from({length:320*120*4},(_,i)=>{const n=Math.floor(i/4),x=n%320,y=Math.floor(n/320);return i%4===3?255:(x<4||x>=316||y<4||y>=116?[220,60,50]:[110,178,154])[i%4];});
 const png=encode({width:320,height:120,channels:4,depth:8,data:pixels});
+let noiseSeed=42;const aiPixels=new Uint8Array(1024*1536*3);
+for(let i=0;i<aiPixels.length;i++){noiseSeed=(Math.imul(noiseSeed,1664525)+1013904223)>>>0;aiPixels[i]=noiseSeed>>>24;}
+const aiPng=encode({width:1024,height:1536,channels:3,depth:8,data:aiPixels});
 globalThis.fetch=async(url,options)=>{
   if(!String(url).startsWith('https://api.openai.com/'))return realFetch(url,options);
-  if(String(url).endsWith('/images/edits')){imageCalls++;return Response.json({data:[{b64_json:Buffer.from(png).toString('base64')}]});}
+  if(String(url).endsWith('/images/edits')){imageCalls++;return Response.json({data:[{b64_json:Buffer.from(aiPng).toString('base64')}]});}
   textCalls++;if(failText)return Response.json({error:'synthetic failure'},{status:500});
   return Response.json({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify({title:'합성 공간 소개',body:'밝은 공간을 소개합니다. 그림을 가까이 살펴보세요. 자세한 내용은 함께 이야기해요.',hashtags:['미술'],cta:'DM 문의'})}]}]});
 };
@@ -41,9 +45,12 @@ const server=http.createServer(async(req,res)=>{
   try{
     const url=new URL(req.url,'http://localhost');
     if(url.pathname.startsWith('/api/')){
+      if(req.method==='GET'&&url.pathname.startsWith('/api/data-core/files/'))fileReads.set(url.pathname,(fileReads.get(url.pathname)||0)+1);
       const chunks=[];for await(const chunk of req)chunks.push(chunk);const bytes=Buffer.concat(chunks);
       const body=bytes.length?(String(req.headers['content-type']).startsWith('multipart/form-data')?await new Request('http://localhost',{method:'POST',headers:req.headers,body:bytes}).formData():JSON.parse(bytes.toString())):undefined;
-      const result=await h.raw(req.method,url.pathname+url.search,activeUser,body);res.writeHead(result.status,Object.fromEntries(result.headers)).end(Buffer.from(await result.arrayBuffer()));return;
+      const result=await h.raw(req.method,url.pathname+url.search,activeUser,body);
+      if(req.method==='POST'&&url.pathname.endsWith('/render')&&result.ok)lastRendered=(await result.clone().json()).file;
+      res.writeHead(result.status,Object.fromEntries(result.headers)).end(Buffer.from(await result.arrayBuffer()));return;
     }
     const pathname=/^\/data-core\/content\/(instagram|blog)$/.test(url.pathname)?'/data-core/content.html':url.pathname,file=path.resolve(root,'.'+pathname);
     if(!file.startsWith(root+path.sep)){res.writeHead(403).end();return;}
@@ -92,12 +99,17 @@ try{
     assert.equal(await page.locator('#igSlides button').count(),count);assert.equal(await page.locator('#igDownloads button').count(),0);
     assert.equal(await page.locator('#igComplete').isEnabled(),true);
     const preview=await page.locator('#igPreview').getAttribute('src');
+    assert.match(preview,/^blob:/,'reuse the generated pixels rather than download the just-uploaded master');
+    await page.waitForFunction(()=>document.querySelector('#igPreview').naturalWidth===2160);
     await page.locator('#igComplete').evaluate(button=>{button.click();button.click();});
     await page.waitForFunction(()=>document.querySelector('#igSaved').textContent==='저장 완료');
     await page.waitForFunction(()=>!document.querySelector('#igGenerate').disabled,null,{timeout:180000});
     assert.equal(await page.locator('#igPreview').getAttribute('src'),preview);
     assert.equal(await page.locator('#igDownloads button').count(),count);
-    return preview;
+    const masterPath='/api/data-core/files/'+lastRendered.id;
+    assert.equal(fileReads.get(masterPath)||0,0,'no redundant master download during generation/completion');
+    avoidedPreviewBytes+=lastRendered.sizeBytes;
+    return masterPath;
   }
   await open();assert.equal(await page.locator('#igGenerate').isDisabled(),true);
   for(const logo of ['anihi','hi5','combined','slogan','horizontal']){
@@ -146,6 +158,9 @@ try{
   failText=true;await generate(1,'photo');assert.equal(imageCalls,1);assert.equal(await page.locator('#igCaptionRetry').isVisible(),true);
   failText=false;await page.locator('#igCaptionRetry').click();await page.waitForFunction(()=>document.querySelector('#igCaptionStatus').textContent.includes('작성 완료'));
   assert.equal(imageCalls,1,'caption retry never edits images again');
+  const oldPreview=await page.locator('#igPreview').getAttribute('src');
+  await page.locator('#aiCommand').fill('새 방향');
+  assert.equal(await page.evaluate(async url=>{try{await fetch(url);return false;}catch{return true;}},oldPreview),true,'clearing the draft releases the local image');
   await page.goto(origin+'/data-core/content/instagram');
   await page.locator(`[data-folder="category:${A}:class-photo"]`).click();await page.locator(`[data-folder="${formatFolder.id}"]`).click();
   for(const file of formatFiles)await page.locator(`[data-pick-file="${file.id}"]`).click();
@@ -158,5 +173,5 @@ try{
   await page.goto(origin+'/data-core/content/blog');await page.locator(`[data-folder="category:${A}:class-photo"]`).click();await page.locator(`[data-folder="${folder.id}"]`).click();
   await page.locator('[data-pick-file]').nth(0).click();await page.locator('[data-pick-file]').nth(1).click();
   assert.equal(await page.locator('[data-pick-file][aria-pressed="true"]').count(),2);assert.equal(await page.locator('#igGenerate').count(),0);
-  assert.deepEqual(errors,[]);assert.deepEqual(assetErrors,[]);console.log(JSON.stringify({passed:true,widths:[320,390,768,1024,1440,1920],textCalls,imageCalls,sets:[1,5,10],previewAssets:checked.size,outputs:out}));
+  assert.deepEqual(errors,[]);assert.deepEqual(assetErrors,[]);console.log(JSON.stringify({passed:true,widths:[320,390,768,1024,1440,1920],textCalls,imageCalls,sets:[1,5,10],previewAssets:checked.size,avoidedPreviewBytes,outputs:out}));
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));globalThis.fetch=realFetch;await h.mf.dispose();}

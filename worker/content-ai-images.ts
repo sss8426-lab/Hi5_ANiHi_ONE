@@ -124,7 +124,7 @@ export function sanitizeAiImage(input: Uint8Array, mime: string): Uint8Array {
   } catch { throw unsupported(); }
 }
 
-export async function normalizeAiPng(input: Uint8Array) {
+export async function normalizeAiPng(input: Uint8Array, resizeToMaster = true) {
   const bytes = sanitizeAiImage(input, 'image/png');
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const width = view.getUint32(16), height = view.getUint32(20);
@@ -136,6 +136,9 @@ export async function normalizeAiPng(input: Uint8Array) {
   const channels = bytes[25] === 6 ? 4 : 3, expected = (width * channels + 1) * height;
   if (inflateSync(Buffer.concat(compressed), { maxOutputLength: expected }).length !== expected) throw unsupported();
   const decoded = decode(bytes, { checkCrc: true });
+  // Carousel composition does the final resize in the browser. Keep this intermediate
+  // at provider resolution, avoiding a redundant upscale, crop and oversized PNG.
+  if (!resizeToMaster) return bytes;
   const cropWidth = Math.min(width, Math.round(height * 4 / 5));
   const cropHeight = Math.min(height, Math.round(width * 5 / 4));
   const left = Math.floor((width - cropWidth) / 2), top = Math.floor((height - cropHeight) / 2);
