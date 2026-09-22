@@ -168,6 +168,12 @@ try{
   assert.equal(await page.locator('#defaultFooter').inputValue(),'보존할 입력\n');await page.unroute('**/api/data-core/content/defaults');
   const artwork=await generate(1);assert.equal(imageCalls,0);assert.equal(textCalls,1);
   const captionValue=await page.locator('#igCaptionText').inputValue();assert.ok(captionValue.includes('합성 문의\n032-000-0000\n'));assert.ok(captionValue.endsWith('#미술 #합성'));
+  const originalBody='직접 수정한 본문\n'+captionValue;
+  await page.locator('#igCaptionText').fill(originalBody);await page.locator('#defaultFooter').fill('새 마지막 문구');await page.locator('#defaultHashtags').fill('#새태그');
+  await page.getByRole('button',{name:'현재 결과에 적용',exact:true}).click();
+  let changedCaption=await page.locator('#igCaptionText').inputValue();assert.ok(changedCaption.startsWith('직접 수정한 본문\n합성 공간'));assert.ok(changedCaption.endsWith('새 마지막 문구\n\n#새태그'));assert.ok(!changedCaption.includes('합성 문의'));assert.equal(textCalls,1);assert.equal(imageCalls,0);
+  await page.locator('#igCaptionSave').click();await page.waitForFunction(()=>document.querySelector('#igCaptionStatus').textContent==='문구 저장 완료');
+  const savedTail=await h.env.DB.prepare("SELECT metadata_json,content_text FROM data_records WHERE record_type='instagram-carousel-set' ORDER BY created_at DESC LIMIT 1").first();assert.equal(JSON.parse(savedTail.metadata_json).captionManagedTail,'새 마지막 문구\n\n#새태그');assert.equal(savedTail.content_text,changedCaption);
   const master=decode(new Uint8Array(await(await h.raw('GET',artwork,users.staff)).arrayBuffer()));
   assert.deepEqual([master.width,master.height],[2160,2700]);
   // Landscape artwork retains all four original corners inside the centered contain box.
@@ -194,6 +200,9 @@ try{
   await page.unroute('**/api/data-core/context');
   await page.waitForFunction(()=>document.querySelector('#igSaved').textContent==='저장된 최종본');assert.equal(await page.locator('#igDownloads button').count(),10);
   assert.ok((await page.locator('#igCaptionText').inputValue()).includes('합성 공간'));
+  await page.locator('#defaultFooter').fill('다시 연 결과의 마지막 문구');await page.locator('#defaultHashtags').fill('#다시열기');
+  await page.getByRole('button',{name:'현재 결과에 적용',exact:true}).click();
+  assert.ok((await page.locator('#igCaptionText').inputValue()).endsWith('다시 연 결과의 마지막 문구\n\n#다시열기'));
   failText=true;await generate(1,'photo');assert.equal(imageCalls,1);assert.equal(await page.locator('#igCaptionRetry').isVisible(),true);
   let releaseCaption,markCaptionHeld;
   const captionHeld=new Promise(resolve=>markCaptionHeld=resolve);

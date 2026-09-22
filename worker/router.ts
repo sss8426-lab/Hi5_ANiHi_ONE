@@ -63,6 +63,7 @@ import { campusPresence } from './campus-presence';
 import { handleKkumeumApi } from "./kkumeum-router";
 import { aiModels, boundedJson, ContentAiError, editInstagramImage, openAiContentProvider, unavailable, type OpenAiEnv } from './content-openai-provider';
 import { contentDefaults, contentScope, withAiRequest } from './content-ai-settings';
+import { textPresets } from './content-text-presets';
 import { instagramPolicy, saveInstagramRender, reviewInstagram, approveInstagram, exportInstagram, assertInstagramAiUse, completeInstagramSet, getInstagramSet, listInstagramSets, saveInstagramSetCaption } from './instagram-production';
 import { AI_PHOTO_LIMIT } from './content-ai-images';
 
@@ -487,6 +488,10 @@ async function handleContentApi(request: Request, env: Env) {
       return jsonResponse(result,{status:201,headers:{'server-timing':`complete;dur=${(performance.now()-start).toFixed(1)}`}});
     }
     if(request.method==='GET')return jsonResponse(await listInstagramSets(env.DB,context,url.searchParams.get('campusId')||''));
+  }
+  if (url.pathname === '/api/data-core/content/text-presets') {
+    if (request.method === 'GET') return jsonResponse(await textPresets(env.DB, context, Object.fromEntries(url.searchParams)), {headers:{'cache-control':'private, no-store'}});
+    if (request.method === 'POST') return jsonResponse(await textPresets(env.DB, context, await contentJson(request), true), {headers:{'cache-control':'private, no-store'}});
   }
   if(url.pathname==='/api/data-core/content/ai-usage'&&request.method==='GET')return jsonResponse(await aiUsage(env.DB,context,env),{headers:{'cache-control':'private, no-store'}});
   if(url.pathname==='/api/data-core/content/ai-budget'&&request.method==='PUT')return jsonResponse(await saveAiBudget(env.DB,context,env,await contentJson(request)));

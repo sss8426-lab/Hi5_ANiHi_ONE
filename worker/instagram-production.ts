@@ -102,7 +102,7 @@ export async function getInstagramSet(db:D1Database,context:DataCoreAccessContex
     if(!report.approved||report.fingerprint!==item.fingerprint)fail(409,'원본 권한 또는 제작 버전이 변경되었습니다.');
     items.push({...item,masterFileId:report.masterFileId});
   }
-  return {id:row.id,campusId:row.campus_id,title:row.title,createdAt:row.created_at,items,caption:String(row.content_text||'')};
+  return {id:row.id,campusId:row.campus_id,title:row.title,createdAt:row.created_at,items,caption:String(row.content_text||''),managedTail:typeof meta.captionManagedTail==='string'?meta.captionManagedTail:null};
 }
 export async function listInstagramSets(db:D1Database,context:DataCoreAccessContext,campusId:string) {
   await instagramPolicy(db,context,campusId);
@@ -149,7 +149,9 @@ export async function completeInstagramSet(db:D1Database,context:DataCoreAccessC
 export async function saveInstagramSetCaption(db:D1Database,context:DataCoreAccessContext,id:string,input:Record<string,unknown>){
   await getInstagramSet(db,context,id);
   if(typeof input.caption!=='string'||input.caption.length>12000)fail(400,'홍보 문구를 확인하세요.');
-  await db.prepare('UPDATE data_records SET content_text=?,updated_at=? WHERE id=? AND organization_id=? AND record_type=?').bind(input.caption,new Date().toISOString(),id,ORG,INSTAGRAM_SET).run();
+  const caption=input.caption as string;
+  const tail=typeof input.managedTail==='string'&&input.managedTail.length<=6000&&(caption===input.managedTail||caption.endsWith('\n\n'+input.managedTail))?input.managedTail:null;
+  await db.prepare("UPDATE data_records SET content_text=?,metadata_json=json_set(metadata_json,'$.captionManagedTail',?),updated_at=? WHERE id=? AND organization_id=? AND record_type=?").bind(input.caption,tail,new Date().toISOString(),id,ORG,INSTAGRAM_SET).run();
   return {saved:true};
 }
 
