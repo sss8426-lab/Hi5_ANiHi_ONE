@@ -1,3 +1,4 @@
+.blog-type-field{display:grid;gap:9px;max-width:320px;margin-bottom:18px}
 .blog-workflow{padding:20px 0;border-top:1px solid #dce3df;min-width:0;color:#202824}
 .blog-workflow h3{font-size:20px;letter-spacing:0}.blog-workflow details{margin:12px 0}.blog-workflow summary{cursor:pointer;padding:12px 0}
 .blog-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.blog-workflow label{display:flex;flex-direction:column;gap:6px;min-width:0;font-size:14px}

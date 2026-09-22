@@ -1,9 +1,9 @@
 import {instagramImageMime} from './instagram-image-formats.js';
 import {mountAiUsage} from './ai-usage.js?v=20260921-performance';
-import {mountTextPresets} from './content-text-presets.js?v=20260922-presets';
+import {mountTextPresets} from './content-text-presets.js?v=20260922-unify';
 import {normalizeTags} from './content-preset-catalog.js';
 import {captionTail} from './content-caption.js?v=20260922-presets';
-import {mountBlogWorkflow} from './blog-workflow.js?v=20260922-blog';
+import {mountBlogWorkflow} from './blog-workflow.js?v=20260922-unify';
 
 const state = {
   context: null,
@@ -221,13 +221,14 @@ function setSourceApp(sourceApp) {
   $('draftContent').rows = instagram ? 5 : 12;
   $('commandLabel').textContent = instagram ? '어떤 느낌으로 편집할까요?' : '어떤 글을 만들까요?';
   $('aiCommand').placeholder = instagram ? 'AI 보조 배경을 밝고 차분하게 보정해줘. 실제 수업·학생 작품·성과처럼 보이는 내용과 글자는 추가하지 말아줘.' : '고1 칸만화 수업 사진입니다. 인체와 장면 연출을 연습한 내용을 학부모가 이해하기 쉽게 작성해줘.';
-  $('generateAi').textContent = instagram ? 'AI 보조 이미지 편집' : 'AI로 블로그 글 작성';
-  $('regenerateAi').textContent = instagram ? '다시 편집' : '다시 작성';
-  $('copyContent').textContent = instagram ? '문구 복사' : '전체 복사';
+  $('generateAi').textContent = instagram ? 'AI 보조 이미지 편집' : '블로그 글 만들기';
+  $('regenerateAi').textContent = instagram ? '다시 편집' : '전체 다시 작성';
+  $('copyContent').textContent = instagram ? '문구 복사' : '글 복사';
   $('aiPrivacy').textContent = instagram ? 'AI 이미지 편집은 선택한 대표 사진 1장에 대해 실행됩니다.' : '선택한 사진은 AI 분석에 맞게 자동 최적화되어 전송됩니다. 자료보관함 원본 파일은 변경되지 않습니다.';
   $('strategyModeField').hidden = instagram;
-  $('quickGenerateAi').hidden = instagram;
   $('downloadImage').hidden = instagram;
+  $('downloadMenu').hidden = instagram;
+  $('saveDraftBtn').textContent = '저장하기';
   resetDraftForm(false);
   instagramProduction?.refresh();
 }
@@ -427,7 +428,6 @@ async function saveDraft(event) {
     toast(`${sourceLabel(state.sourceApp)} 초안을 저장했습니다.`);
     state.editingDraftId = response.draft.id;
     savedDraftSnapshot=submitted;
-    $('newDraftBtn').classList.remove('hidden');
     await loadDrafts();
     instagramProduction?.invalidated();
     return response.draft;
@@ -460,9 +460,9 @@ function resetDraftForm(clearSource = true) {
     $('publishStatus').value = 'draft';
     $('contentPurpose').value = 'class-story';
   }
-  $('newDraftBtn').classList.add('hidden');
   $('deleteDraftBtn').classList.add('hidden');
   $('saveDraftBtn').textContent = '초안 저장';
+  $('existingDraftBadge').classList.add('hidden');
   state.blogStrategy = null; state.blogTitles = null; state.blogSelectedTitleKind = null; state.blogFittedKind = null;
   state.currentLead = ''; state.currentBody = ''; state.lastHashtags = []; state.lastCta = ''; state.blogNextTopics = []; state.blogWarnings = [];
   $('strategyMode').value = 'balanced';
@@ -504,12 +504,12 @@ function loadDraftIntoForm(draft) {
   // for a future title switch (retitleTo() still works, just without a distinct lead paragraph).
   state.currentLead = ''; state.currentBody = draft.content || '';
   $('titlePicker').hidden = true;
-  $('newDraftBtn').classList.remove('hidden');
   $('deleteDraftBtn').classList.remove('hidden');
   $('saveDraftBtn').textContent = '초안 수정';
   $('aiResult').hidden = false;
   blogWorkflow?.load(draft);
-  $('resultHeading').textContent = '지난 작업';
+  $('resultHeading').textContent = state.sourceApp === 'blog' ? '블로그 완성본' : '지난 작업';
+  $('existingDraftBadge').classList.toggle('hidden', state.sourceApp !== 'blog');
   state.folderId = draft.campusId ? 'campus:' + draft.campusId : 'root';
   void loadDefaults(); void loadFiles();
   renderSelectedFiles();
@@ -565,7 +565,7 @@ function renderDrafts() {
   document.querySelectorAll('[data-open-draft]').forEach((button) => {
     button.onclick = async () => {
       if(blogWorkflow?.hasUnsaved()&&!confirm('미저장 변경사항을 닫고 저장한 글을 열까요?'))return;
-      try{const response=await api('/api/data-core/content/'+encodeURIComponent(button.dataset.openDraft));loadDraftIntoForm(response.draft);}catch(error){toast(error.message,'error');}
+      try{const response=await api('/api/data-core/content/'+encodeURIComponent(button.dataset.openDraft));loadDraftIntoForm(response.draft);$('draftsDialog').close();}catch(error){toast(error.message,'error');}
     };
   });
 }
@@ -612,11 +612,11 @@ function bindEvents() {
   $('refreshDraftsBtn').onclick = loadDrafts;
   $('draftStatusFilter').onchange = loadDrafts;
   $('draftSearchInput').onkeydown = (event) => { if (event.key === 'Enter') loadDrafts(); };
-  $('pastWork').ontoggle = () => { if ($('pastWork').open) void loadDrafts(); };
+  $('openDraftsBtn').onclick = () => { $('draftsDialog').showModal(); void loadDrafts(); };
+  $('closeDraftsBtn').onclick = () => $('draftsDialog').close();
   $('saveDefaults').onclick = saveDefaults;
   for(const id of ['defaultHashtags','defaultFooter'])$(id).addEventListener('input',()=>{defaultsEdited++;$('defaultsStatus').textContent='기본 문구 변경사항 미저장';});
   $('generateAi').onclick = () => runAi();
-  $('quickGenerateAi').onclick = () => runAi(false, true);
   $('regenerateAi').onclick = () => runAi();
   $('retryCaption').onclick = () => runAi(true);
   $('cancelAi').onclick = () => state.aiController?.abort();
@@ -644,7 +644,7 @@ function bindEvents() {
   };
   $('draftTags').addEventListener('input', renderPublishChecklist);
   $('resultFooter').addEventListener('input', renderPublishChecklist);
-  $('manualDraft').onclick = () => { $('titlePicker').hidden = true; $('aiResult').hidden = false; $('resultHeading').textContent = '작성 결과'; $('resultFooter').value = $('defaultFooter').value; };
+  $('manualDraft').onclick = () => { $('titlePicker').hidden = true; $('aiResult').hidden = false; $('resultHeading').textContent = state.sourceApp === 'blog' ? '블로그 완성본' : '작성 결과'; $('resultFooter').value = $('defaultFooter').value; };
   $('compareImage').onclick = () => {
     const visible = !$('aiOriginalFigure').hidden;
     $('aiOriginalFigure').hidden = visible; $('compareImage').setAttribute('aria-pressed', String(!visible));
@@ -704,8 +704,7 @@ async function loadAiStatus() {
 function setAiBusy(busy) {
   state.busy = busy;
   $('manualWork').inert = busy;
-  $('pastWork').inert = busy;
-  for (const id of ['generateAi','quickGenerateAi','regenerateAi','regenerateTitles','draftCampus','saveDraftBtn','newDraftBtn','deleteDraftBtn','manualDraft','clearFilesBtn','makeInstagramImage','saveDerivative']) $(id).disabled = busy || !canWrite();
+  for (const id of ['generateAi','regenerateAi','regenerateTitles','draftCampus','saveDraftBtn','newDraftBtn','deleteDraftBtn','manualDraft','clearFilesBtn','makeInstagramImage','saveDerivative']) $(id).disabled = busy || !canWrite();
   $('cancelAi').hidden = !busy;
   $('aiStatus').classList.toggle('busy', busy);
   if (!busy) derivativeEditor?.update(selectedFiles(), state.sourceApp === 'instagram');
@@ -831,7 +830,7 @@ function applyBlogTitleAndBody(kind) {
   $('resultContact').value = textPresets?.contact() || '';
   $('titlePicker').hidden = true;
   $('aiResult').hidden = false;
-  $('resultHeading').textContent = 'AI 작성 결과';
+  $('resultHeading').textContent = '블로그 완성본';
   renderSelectedFiles();
   renderNextTopics();
   renderPublishChecklist();

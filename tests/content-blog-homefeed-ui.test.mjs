@@ -5,16 +5,18 @@ import test from 'node:test';
 const content = fs.readFileSync('public/data-core/content.js', 'utf8');
 const html = fs.readFileSync('public/data-core/content.html', 'utf8');
 
-test('글 방향 선택(균형형 기본)과 바로 글 만들기 버튼은 블로그에서만 보이고, 인스타에서는 숨는다', () => {
+test('글 방향 선택(균형형 기본)은 블로그에서만 보이고, 인스타에서는 숨는다. 생성 버튼은 "블로그 글 만들기" 하나로 통일되어 있다', () => {
   assert.match(html, /<select id="strategyMode"><option value="balanced" selected>균형형<\/option>/u);
-  assert.match(html, /id="quickGenerateAi"/u);
   assert.match(content, /\$\('strategyModeField'\)\.hidden = instagram;/u);
-  assert.match(content, /\$\('quickGenerateAi'\)\.hidden = instagram;/u);
+  // "바로 글 만들기" was a second, role-overlapping generate button; it was removed so exactly one
+  // generate action ("블로그 글 만들기") remains on screen.
+  assert.doesNotMatch(html, /id="quickGenerateAi"/u);
+  assert.doesNotMatch(content, /quickGenerateAi/u);
+  assert.match(content, /\$\('generateAi'\)\.textContent = instagram \? 'AI 보조 이미지 편집' : '블로그 글 만들기';/u);
 });
 
 test('runAi는 quick 파라미터로 바로 글 만들기와 단계별(제목 선택) 흐름을 분기하고, 인스타 경로는 그대로 유지한다', () => {
   assert.match(content, /async function runAi\(captionOnly = false, quick = false\) \{/u);
-  assert.match(content, /\$\('quickGenerateAi'\)\.onclick = \(\) => runAi\(false, true\);/u);
   // Instagram remains JSON-based, with additive material/consent policy.
   assert.match(content, /if \(instagram\) \{\s*\n\s*result = await post\('generate', \{ selectedFileIds: ids, notes: direction, material \}\);/u);
   // Blog sends strategyMode/recentTitles alongside the existing fields; multipart shape otherwise unchanged.
@@ -62,6 +64,6 @@ test('다음 콘텐츠 아이디어 클릭은 명령창을 채우고, 초안 저
   assert.match(content, /state\.blogTitles = metadata\.titles \|\| null;/u);
 });
 
-test('busy 상태는 새 버튼들(바로 글 만들기, 다른 제목 만들기)도 함께 비활성화한다', () => {
-  assert.match(content, /'generateAi','quickGenerateAi','regenerateAi','regenerateTitles'/u);
+test('busy 상태는 생성/제목 재생성 버튼들도 함께 비활성화한다', () => {
+  assert.match(content, /'generateAi','regenerateAi','regenerateTitles'/u);
 });
