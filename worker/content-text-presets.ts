@@ -67,7 +67,7 @@ export async function textPresets(db:D1Database,context:DataCoreAccessContext,in
     if(typeof input.requestId!=='string'||!/^[a-f0-9-]{36}$/i.test(input.requestId))fail(400,'저장 요청을 확인하세요.');
     const newId=`user:${owner}:${input.requestId}`;
     const prior=data.items[newId];
-    const payload=JSON.stringify([input.kind,input.name,input.content,input.category||'',input.brandScope||'common',Boolean(input.shared)]);
+    const payload=JSON.stringify([input.kind,input.name,input.content,input.category||'',input.brandScope||'common',Boolean(input.shared),Boolean(input.favorite)]);
     if(prior){if(prior.createRequest!==payload)fail(409,'이미 사용한 저장 요청입니다.');return present();}
     if(Object.keys(data.items).length>=500)fail(409,'저장 가능한 세트 수를 초과했습니다.');
     if(input.shared&&!manager)fail(403,'공유 세트는 캠퍼스 관리자가 저장할 수 있습니다.');
@@ -94,7 +94,7 @@ export async function textPresets(db:D1Database,context:DataCoreAccessContext,in
     if(merged().some(other=>other.id!==item.id&&!other.deletedAt&&other.kind===item.kind&&other.brandScope===item.brandScope&&nameKey(other.name)===nameKey(item.name)))fail(409,'같은 이름의 세트가 있어 복원할 수 없습니다.');
     item.deletedAt=null;
    }else if(action!=='favorite')fail(400,'지원하지 않는 작업입니다.');
-   if(action==='favorite'||action==='create'){
+   if(action==='favorite'||action==='create'||action==='update'&&typeof input.favorite==='boolean'){
     data.preferences[owner]??={};data.preferences[owner][item.id]=Boolean(input.favorite);
    }
    if(action!=='favorite'){item.revision++;item.updatedAt=now;data.items[item.id]=item;}

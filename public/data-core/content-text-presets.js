@@ -94,7 +94,6 @@ export function mountTextPresets({api,state,$,applyResult}) {
   const requestId=crypto.randomUUID(),token=epoch;
   form.onsubmit=async(event)=>{event.preventDefault();if(token!==epoch)return;save.disabled=true;
    try{const ok=await send({action:item&&!duplicate?'update':'create',presetId:item?.id,revision:item?.revision,requestId,kind,name:name.value,content:content.value,category:category.value,favorite:fav.checked,shared:shared.checked,brandScope:item?.brandScope||brand.value||'common'});
-    if(ok&&item&&!duplicate&&fav.checked!==item.favorite)await send({action:'favorite',presetId:item.id,revision:data.presets.find(i=>i.id===item.id).revision,favorite:fav.checked});
     if(ok)close();
    }catch(error){message.textContent=error.message;if(error.status===409){const refresh=button('최신 세트 다시 불러오기',()=>{close();void load(true);});message.append(refresh);}}finally{save.disabled=false;}
   };

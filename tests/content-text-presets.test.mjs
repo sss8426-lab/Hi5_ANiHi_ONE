@@ -67,7 +67,7 @@ test('persistent preset CRUD, isolation, revision conflict, favorites and defaul
   assert.equal((await write(h,{...create,requestId:crypto.randomUUID()},users.staff)).status,409);
   for(const patch of [{name:''},{content:''},{content:'{{전화번호}}'}])assert.equal((await write(h,{...create,...patch,requestId:crypto.randomUUID()},users.staff)).status,400);
   assert.equal((await write(h,{action:'update',presetId:item.id,revision:item.revision,name:'합성 수정',content:'수정 내용'},users.teacher)).status,404);
-  const updated=await write(h,{action:'update',presetId:item.id,revision:item.revision,name:'합성 수정',content:'수정 내용'},users.staff);assert.equal(updated.status,200);
+  const updated=await write(h,{action:'update',presetId:item.id,revision:item.revision,name:'합성 수정',content:'수정 내용',favorite:true},users.staff);assert.equal(updated.status,200);assert.equal(updated.body.presets.find(i=>i.id===item.id).favorite,true);
   assert.equal((await write(h,{action:'delete',presetId:item.id,revision:item.revision},users.staff)).status,409);
   item=updated.body.presets.find(i=>i.id===item.id);
   r=await write(h,{action:'delete',presetId:item.id,revision:item.revision},users.staff);assert.ok(r.body.presets.find(i=>i.id===item.id).deletedAt);
