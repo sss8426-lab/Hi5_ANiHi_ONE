@@ -33,7 +33,17 @@ export function mountTextPresets({api,state,$,applyResult}) {
   actions.append(add,all,trash);column.append(selected,list,note,actions);mounts[kind]={selected,list,add,all,trash,note};
   input.addEventListener('input',()=>selection(kind));
  }
- document.querySelector('.defaults-grid').after(toolbar,status);
+ // Blog moves the whole picker into a "마무리 수정" dialog (opened by blog-workflow.js's button via
+ // a window event, since the two modules mount independently); Instagram keeps the original
+ // always-visible inline layout untouched — this feature predates the blog reorganisation there and
+ // the spec explicitly leaves Instagram's screen alone.
+ const grid=document.querySelector('.defaults-grid'),actionsBar=grid.nextElementSibling;
+ if(state.sourceApp==='blog'){
+  const presetsDialog=element('dialog','',{className:'workflow-dialog'});presetsDialog.setAttribute('aria-labelledby','textPresetsDialogTitle');
+  const heading=element('div','',{className:'workflow-heading'});heading.append(element('h2','마무리 수정',{id:'textPresetsDialogTitle'}),button('닫기',()=>presetsDialog.close()));
+  presetsDialog.append(heading,grid,actionsBar,toolbar,status);document.body.append(presetsDialog);
+  window.addEventListener('open-text-presets',()=>presetsDialog.showModal());
+ } else grid.after(toolbar,status);
  brand.onchange=()=>{for(const k of Object.keys(chosen))chosen[k]=null;render();};
  contact.onchange=()=>{status.textContent=contact.checked?(data?.contactBlock||'등록된 연락처가 없습니다.') :'';};
  function close(){if(dialog){dialog.close();dialog.remove();dialog=null;}}

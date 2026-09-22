@@ -13,14 +13,39 @@ export function mountBlogWorkflow({state,$,toast,renderSelection,contact}){
   const selection=document.createElement('div');selection.className='blog-workflow';
   selection.innerHTML=`<div class="blog-actions">${command('blogOriginals','선택한 원본 사진 다운로드')}${command('blogCancelDownload','취소')}</div><p id="blogDownloadStatus" role="status" aria-live="polite"></p><details><summary>사진별 설명·순서</summary><label>공통 사진 설명<textarea id="blogCommonDescription" rows="2" maxlength="2000"></textarea></label><div id="blogPhotoRows"></div></details>`;
   $('selectedFiles').closest('.selected-files-head').after(selection);
+  // "글 종류" is the single user-facing selector — placed above the main input, never duplicated
+  // elsewhere. Internally it still drives template.templateId exactly as before.
+  const typeField=document.createElement('label');typeField.className='blog-type-field';typeField.innerHTML=`<span>글 종류</span><select id="blogTemplate">${options(BLOG_TEMPLATES)}</select>`;
+  document.querySelector('.workflow-command').before(typeField);
   const setup=document.createElement('div');setup.className='blog-workflow';
-  setup.innerHTML=`<div class="blog-fields"><label>핵심 메시지<input id="blogMessage" maxlength="1000"></label><label>독자<input id="blogReader" maxlength="160" placeholder="학부모, 학생"></label></div><details><summary>세부 작성 조건</summary><div class="blog-fields"><label>포함할 내용<textarea id="blogInclude" maxlength="2000"></textarea></label><label>제외할 표현·내용<textarea id="blogExclude" maxlength="2000"></textarea></label><label>확인된 사실<textarea id="blogFacts" maxlength="3000"></textarea></label><label>출처·참고 링크<textarea id="blogSources" maxlength="2000"></textarea></label><label>문체<input id="blogStyle" maxlength="300"></label></div></details><details><summary>캠퍼스 블로그 양식</summary><div class="blog-fields"><label>유형<select id="blogTemplate">${options(BLOG_TEMPLATES)}</select></label><label>인사말<textarea id="blogGreeting" maxlength="2000"></textarea></label><label>상단 이미지<select id="blogTop"></select></label><label>하단 이미지<select id="blogBottom"></select></label></div>${command('blogSaveTemplate','현재 양식·글 방향을 캠퍼스 기본값으로 저장')}<span id="blogTemplateStatus" role="status"></span></details>`;
-  $('strategyModeField').after(setup);
+  setup.innerHTML=`<details id="blogMoreRequest"><summary>추가 요청</summary><div class="blog-fields"><label>핵심 메시지<input id="blogMessage" maxlength="1000"></label><label>독자<input id="blogReader" maxlength="160" placeholder="학부모, 학생"></label><label>포함할 내용<textarea id="blogInclude" maxlength="2000"></textarea></label><label>넣지 않을 내용<textarea id="blogExclude" maxlength="2000"></textarea></label><label>날짜·인원 등 정확한 정보<textarea id="blogFacts" maxlength="3000"></textarea></label><label>참고자료·출처<textarea id="blogSources" maxlength="2000"></textarea></label><label>문체<input id="blogStyle" maxlength="300"></label></div></details>
+    <div class="workflow-status-row"><span id="blogTemplateSummary" role="status"></span>${command('blogOpenTemplate','양식 수정')}</div>
+    <div class="workflow-status-row"><span id="blogPresetsSummary" role="status"></span>${command('blogOpenPresets','마무리 수정')}</div>
+    <dialog id="blogTemplateDialog" class="workflow-dialog" aria-labelledby="blogTemplateDialogTitle"><div class="workflow-heading"><h2 id="blogTemplateDialogTitle">양식 수정</h2>${command('blogCloseTemplate','닫기')}</div><div class="blog-fields"><label>인사말<textarea id="blogGreeting" maxlength="2000"></textarea></label><label>상단 이미지<select id="blogTop"></select></label><label>하단 이미지<select id="blogBottom"></select></label></div><div class="blog-actions">${command('blogApplyTemplate','이번 글에 적용')}${command('blogSaveTemplate','캠퍼스 기본값으로 저장')}${command('blogCancelTemplate','취소')}</div><span id="blogTemplateStatus" role="status"></span></dialog>`;
+  const strategyModeField=$('strategyModeField');
+  strategyModeField.querySelector('span').textContent='글 방향';
+  setup.querySelector('#blogMoreRequest').append(strategyModeField);
+  strategyModeField.hidden=false;
+  // setup (추가 요청 / 양식 수정 / 마무리 수정) belongs to area② — always reachable before generating,
+  // not gated behind a draft. Only the completion block editor (result) waits inside #aiResult.
+  document.querySelector('.workflow-command').after(setup);
   $('blogBottom').closest('.blog-fields').insertAdjacentHTML('beforeend','<label>정렬<select id="blogAlign"><option value="left">왼쪽</option><option value="center">가운데</option></select></label><label>문단 여백<select id="blogSpacing"><option value="16">16px</option><option value="24" selected>24px</option><option value="32">32px</option></select></label><label>서체<select id="blogFont"><option value="sans-serif">고딕</option><option value="serif">명조</option></select></label><label>연락처<select id="blogContactMode"><option value="verified">확인된 연락처</option><option value="none">표시 안 함</option></select></label>');
   const result=document.createElement('section');result.className='blog-workflow';result.id='blogComplete';
-  result.innerHTML=`<h3>완성본</h3><div class="blog-actions">${command('blogAssemble','현재 본문·사진 배치 적용')}${command('blogUndo','되돌리기')}</div><div id="blogBlocks"></div><label class="blog-check"><input type="checkbox" id="blogPrivacy"> 홍보 사용 권한·얼굴·이름·개인정보 노출 확인</label><ul id="blogReview"></ul><p id="blogSaveStatus" role="status"></p><div class="blog-actions">${command('blogCompleteSave','완료 및 저장')}${command('blogResultOriginals','선택한 원본 사진 다운로드')}${command('blogPublishImages','게시용 이미지 다운로드')}${command('blogPackage','HTML·게시용 이미지 ZIP')}${command('blogCopy','완성본 텍스트 복사')}</div><details><summary>실제 게시·성과 기록</summary><div class="blog-fields"><label>게시 URL<input id="blogPublishedUrl" type="url" maxlength="1000"></label><label>게시일<input id="blogPublishedDate" type="date"></label><label>조회수<input id="blogViews" type="number" min="0"></label><label>홈피드 유입수<input id="blogFeedViews" type="number" min="0"></label><label>측정 기준일<input id="blogMeasuredDate" type="date"></label><label>통계 출처<input id="blogMetricSource" maxlength="300"></label></div></details><details><summary>작업 시간</summary><pre id="blogTimings"></pre></details>`;
-  $('draftForm').after(result);
-  const coverEditor=mountBlogCover({host:setup,$,state,onError:message=>toast(message,'error'),onApply:value=>{
+  result.innerHTML=`<div class="blog-actions">${command('blogAssemble','현재 본문·사진 배치 적용')}${command('blogUndo','되돌리기')}</div><div id="blogBlocks"></div><label class="blog-check"><input type="checkbox" id="blogPrivacy"> 홍보 사용 권한·얼굴·이름·개인정보 노출 확인</label><ul id="blogReview"></ul>`;
+  $('titleField').after(result);
+  // Buttons that used to duplicate content.html's unified 저장하기/글 복사 are gone — saveDraftBtn
+  // and copyContent already bridge to save()/copy() below. These remaining actions relocate into
+  // the shared 이미지 다운로드/더보기 menus so nothing is lost, just regrouped.
+  const moreExtra=document.createElement('div');moreExtra.innerHTML=`<details><summary>실제 게시·성과 기록</summary><div class="blog-fields"><label>게시 URL<input id="blogPublishedUrl" type="url" maxlength="1000"></label><label>게시일<input id="blogPublishedDate" type="date"></label><label>조회수<input id="blogViews" type="number" min="0"></label><label>홈피드 유입수<input id="blogFeedViews" type="number" min="0"></label><label>측정 기준일<input id="blogMeasuredDate" type="date"></label><label>통계 출처<input id="blogMetricSource" maxlength="300"></label></div></details><details><summary>작업 시간</summary><pre id="blogTimings"></pre></details>`;
+  // publishStatus is still read by save() below; move its field (not clone it) out of the
+  // Instagram-oriented "초안 세부 정보" block — which stays hidden for blog — into 더보기 instead.
+  moreExtra.querySelector('details').before($('publishStatus').closest('label'));
+  $('manualDetails').hidden=true;
+  $('moreMenuList').append(moreExtra);
+  const downloadExtra=document.createElement('div');downloadExtra.innerHTML=`${command('blogResultOriginals','선택한 원본 사진 다운로드')}${command('blogPublishImages','게시용 이미지 다운로드')}${command('blogPackage','HTML·게시용 이미지 ZIP')}`;
+  $('downloadMenuList').append(downloadExtra);
+  const saveStatus=$('saveStateStatus');
+  const coverEditor=mountBlogCover({host:result,$,state,onError:message=>toast(message,'error'),onApply:value=>{
     checkpoint();
     if(value.target==='body'){
       const photo=photos.find(p=>p.fileId===value.sourceFileId||p.sourceFileId===value.sourceFileId);if(!photo)throw Error('편집 원본이 현재 선택에서 제외되었습니다.');photo.editedFileId=value.fileId;photo.editSettings=value;
@@ -28,17 +53,19 @@ export function mountBlogWorkflow({state,$,toast,renderSelection,contact}){
     }else{cover=value;const b=blocks.find(b=>b.type==='image'&&b.role==='cover');if(b){b.fileId=value.fileId;b.sourceFileId=value.sourceFileId;}else blocks.unshift({id:crypto.randomUUID(),type:'image',role:'cover',fileId:value.fileId,sourceFileId:value.sourceFileId});}
     changed();renderBlocks();
   }});
-  $('blogReview').insertAdjacentHTML('afterend',`<div class="blog-actions">${command('blogAiReview','AI 내용 검토')}${command('blogTextCancel','검토·수정 취소')}</div><p id="blogTextStatus" role="status"></p><div id="blogAiReviewResult"></div><dialog id="blogRewriteDialog"><h3>블록 수정 제안</h3><div class="blog-fields"><label>현재 내용<textarea id="blogRewriteBefore" rows="8" readonly></textarea></label><label>제안 내용<textarea id="blogRewriteAfter" rows="8"></textarea></label></div><p id="blogRewriteReason"></p><div class="blog-actions">${command('blogRewriteApply','이 블록에 적용')}${command('blogRewriteClose','닫기')}</div></dialog>`);
+  document.body.insertAdjacentHTML('beforeend',`<dialog id="blogRewriteDialog"><h3>블록 수정 제안</h3><div class="blog-fields"><label>현재 내용<textarea id="blogRewriteBefore" rows="8" readonly></textarea></label><label>제안 내용<textarea id="blogRewriteAfter" rows="8"></textarea></label></div><p id="blogRewriteReason"></p><div class="blog-actions">${command('blogRewriteApply','이 블록에 적용')}${command('blogRewriteClose','닫기')}</div></dialog>`);
+  const reviewExtra=document.createElement('div');reviewExtra.innerHTML=`<div class="blog-actions">${command('blogAiReview','AI 내용 검토')}${command('blogTextCancel','검토·수정 취소')}</div><p id="blogTextStatus" role="status"></p><div id="blogAiReviewResult"></div>`;
+  moreExtra.prepend(reviewExtra);
   $('blogTextCancel').hidden=true;
   $('blogCancelDownload').hidden=true;
   const fieldIds=['blogMessage','blogReader','blogInclude','blogExclude','blogFacts','blogSources','blogStyle','blogCommonDescription','blogPrivacy','blogPublishedUrl','blogPublishedDate','blogViews','blogFeedViews','blogMeasuredDate','blogMetricSource'];
-  function changed(){pendingSave=null;reviewSnapshot='';reviewResult=null;$('blogAiReviewResult').replaceChildren();$('blogTextStatus').textContent='변경 후 미검사';$('blogSaveStatus').textContent='변경사항 미저장';}
+  function changed(){pendingSave=null;reviewSnapshot='';reviewResult=null;$('blogAiReviewResult').replaceChildren();$('blogTextStatus').textContent='변경 후 미검사';saveStatus.textContent='변경사항 미저장';}
   const signature=()=>{const p=read();delete p.timings;delete p.reviewReport;return JSON.stringify(p);};
   const reviewKey=()=>JSON.stringify({title:$('draftTitle').value,brief:brief(),photos:photos.map(({fileId,kind,description,facts,exclude})=>({fileId,kind,description,facts,exclude})),blocks});
   for(const id of fieldIds)$(id).addEventListener('input',changed);
   const brief=()=>({topic:$('aiCommand').value,coreMessage:$('blogMessage').value,reader:$('blogReader').value,include:$('blogInclude').value,exclude:$('blogExclude').value,facts:$('blogFacts').value,sources:$('blogSources').value,style:$('blogStyle').value});
   function readTemplate(){return {...template,templateId:$('blogTemplate').value,greeting:$('blogGreeting').value,topFileId:$('blogTop').value,bottomFileId:$('blogBottom').value,align:$('blogAlign').value,spacing:Number($('blogSpacing').value),font:$('blogFont').value,contactMode:$('blogContactMode').value,logoType:$('blogCoverLogo').value};}
-  function applyTemplate(){for(const [id,key] of [['blogGreeting','greeting'],['blogAlign','align'],['blogSpacing','spacing'],['blogFont','font'],['blogContactMode','contactMode'],['blogCoverLogo','logoType']])$(id).value=template[key];$('blogTop').value='';$('blogBottom').value='';renderPhotos();}
+  function applyTemplate(){for(const [id,key] of [['blogGreeting','greeting'],['blogAlign','align'],['blogSpacing','spacing'],['blogFont','font'],['blogContactMode','contactMode'],['blogCoverLogo','logoType']])$(id).value=template[key];$('blogTop').value='';$('blogBottom').value='';renderPhotos();updateTemplateSummary?.();updatePresetsSummary?.();}
   function read(){
     syncText();
     if(reviewSnapshot&&reviewSnapshot!==reviewKey()){reviewSnapshot='';reviewResult=null;$('blogAiReviewResult').replaceChildren();$('blogTextStatus').textContent='변경 후 미검사';}
@@ -66,7 +93,7 @@ export function mountBlogWorkflow({state,$,toast,renderSelection,contact}){
   function checkpoint(){undo.push({blocks:structuredClone(blocks),photos:structuredClone(photos),cover:structuredClone(cover),body:$('draftContent').value});if(undo.length>12)undo.shift();}
   function renderReview(){const p=read();$('blogReview').innerHTML=inspectPost(p).map(i=>`<li data-status="${i.status}">${escape(({needs_changes:'수정 필요',human_required:'사람 확인',unchecked:'미검사'})[i.status])}: ${escape(i.message)}</li>`).join('');for(const row of $('blogBlocks').children){const text=row.querySelector('textarea'),b=blocks.find(b=>b.id===row.dataset.blockId);if(text&&b&&document.activeElement!==text)text.value=b.text;}}
   function renderBlocks(){
-    syncText();$('blogBlocks').replaceChildren();
+    syncText();$('rawFields').hidden=blocks.length>0;$('blogBlocks').replaceChildren();
     for(const b of blocks){
       const row=document.createElement('div');row.className='blog-block';row.dataset.blockId=b.id;
       if(b.type==='image')row.innerHTML=`<figure><img loading="lazy" src="/api/data-core/files/${encodeURIComponent(b.fileId)}" alt="${escape(b.role||'게시용 이미지')}"><figcaption>${escape(b.role==='body'?'본문 사진':b.role==='top'?'상단 이미지':b.role==='bottom'?'하단 이미지':'대표 이미지')}</figcaption></figure>`;
@@ -108,7 +135,7 @@ export function mountBlogWorkflow({state,$,toast,renderSelection,contact}){
     }catch(error){progress(error.name==='AbortError'?'다운로드 취소':`실패: ${error.message}`);}finally{if(downloadController===controller){downloadController=null;$('blogCancelDownload').hidden=true;}}
   }
   async function save(){
-    if(saving)return;saving=true;const token=epoch,started=performance.now();$('blogSaveStatus').textContent='저장 중';
+    if(saving)return;saving=true;const token=epoch,started=performance.now();saveStatus.textContent='저장 중';
     try{
       if(!blocks.length)assemble(false);
       const p=read(),fingerprint=JSON.stringify(p);
@@ -117,11 +144,11 @@ export function mountBlogWorkflow({state,$,toast,renderSelection,contact}){
       const value=await response.json();if(!response.ok)throw Error(value.error||'저장 실패');if(token!==epoch)return;
       const current=JSON.stringify(read());state.editingDraftId=value.draft.id;revision=value.draft.metadata.blogPost.revision;
       // Do not let a late save response replace newer edits or photo selection.
-      if(current===fingerprint){photos=value.draft.metadata.blogPost.photos;state.blogFileIssues=value.draft.metadata.blogPost.fileIssues||[];saved=signature();$('blogSaveStatus').textContent=state.blogFileIssues.length?'초안 저장 완료 · 파일 연결 확인 필요':'저장 완료';renderReview();}else $('blogSaveStatus').textContent='저장 완료 · 이후 변경사항 미저장';
-      pendingSave=null;timings.saveMs=Math.round(performance.now()-started);$('blogTimings').textContent=JSON.stringify(timings,null,2);$('newDraftBtn').classList.remove('hidden');return value.draft;
-    }catch(error){if(token===epoch)$('blogSaveStatus').textContent=`저장 실패: ${error.message}`;toast(error.message,'error');}finally{saving=false;}
+      if(current===fingerprint){photos=value.draft.metadata.blogPost.photos;state.blogFileIssues=value.draft.metadata.blogPost.fileIssues||[];saved=signature();saveStatus.textContent=state.blogFileIssues.length?'초안 저장 완료 · 파일 연결 확인 필요':'저장 완료';renderReview();}else saveStatus.textContent='저장 완료 · 이후 변경사항 미저장';
+      pendingSave=null;timings.saveMs=Math.round(performance.now()-started);$('blogTimings').textContent=JSON.stringify(timings,null,2);return value.draft;
+    }catch(error){if(token===epoch)saveStatus.textContent=`저장 실패: ${error.message}`;toast(error.message,'error');}finally{saving=false;}
   }
-  function reset(){epoch++;downloadController?.abort();textController?.abort();coverEditor.reset();cover=null;reviewCache.clear();reviewSnapshot='';reviewResult=null;templates={};$('blogAiReviewResult').replaceChildren();$('blogTextStatus').textContent='';$('blogRewriteDialog').close();photos=[];blocks=[];revision=0;template=templateDefaults();lastBody='';saved='';pendingSave=null;undo.length=0;defaultsEdit++;for(const id of fieldIds){if($(id).type==='checkbox')$(id).checked=false;else $(id).value='';}$('blogTemplate').value='class';applyTemplate();$('blogSaveStatus').textContent='';$('blogDownloadStatus').textContent='';renderPhotos();renderBlocks();}
+  function reset(){epoch++;downloadController?.abort();textController?.abort();coverEditor.reset();cover=null;reviewCache.clear();reviewSnapshot='';reviewResult=null;templates={};$('blogAiReviewResult').replaceChildren();$('blogTextStatus').textContent='';$('blogRewriteDialog').close();photos=[];blocks=[];revision=0;template=templateDefaults();lastBody='';saved='';pendingSave=null;undo.length=0;defaultsEdit++;for(const id of fieldIds){if($(id).type==='checkbox')$(id).checked=false;else $(id).value='';}$('blogTemplate').value='class';applyTemplate();saveStatus.textContent='';$('blogDownloadStatus').textContent='';renderPhotos();renderBlocks();}
   function load(draft){
     state.blogFileIssues=draft.metadata?.blogPost?.fileIssues||[];
     const p=draft.metadata?.blogPost;if(!p){photos=synchronizePhotos(state.selectedFileIds,[],state.knownFiles);assemble(false);saved=signature();return;}cover=p.cover||null;
@@ -129,13 +156,13 @@ export function mountBlogWorkflow({state,$,toast,renderSelection,contact}){
     for(const [id,key] of [['blogMessage','coreMessage'],['blogReader','reader'],['blogInclude','include'],['blogExclude','exclude'],['blogFacts','facts'],['blogSources','sources'],['blogStyle','style']])$(id).value=p.brief?.[key]||'';
     $('aiCommand').value=p.brief?.topic||'';$('blogCommonDescription').value=p.commonDescription||'';$('blogPrivacy').checked=p.privacyConfirmed===true;$('blogTemplate').value=template.templateId;$('blogGreeting').value=template.greeting;
     for(const [id,key] of [['blogPublishedUrl','url'],['blogPublishedDate','date'],['blogViews','views'],['blogFeedViews','homefeedViews'],['blogMeasuredDate','asOf'],['blogMetricSource','source']])$(id).value=p.publication?.[key]??'';
-    applyTemplate();renderPhotos();renderBlocks();if(p.reviewReport){reviewResult=p.reviewReport;reviewSnapshot=reviewKey();$('blogAiReviewResult').textContent='저장된 텍스트 검토: '+JSON.stringify(reviewResult.checks);$('blogTextStatus').textContent='저장 당시 검토 기록 · 실제 사진·외부 사실은 담당자 확인 필요';}saved=signature();$('blogSaveStatus').textContent=`저장된 버전 ${revision}`;
+    applyTemplate();renderPhotos();renderBlocks();if(p.reviewReport){reviewResult=p.reviewReport;reviewSnapshot=reviewKey();$('blogAiReviewResult').textContent='저장된 텍스트 검토: '+JSON.stringify(reviewResult.checks);$('blogTextStatus').textContent='저장 당시 검토 기록 · 실제 사진·외부 사실은 담당자 확인 필요';}saved=signature();saveStatus.textContent=`저장된 버전 ${revision}`;
   }
   $('blogOriginals').onclick=$('blogResultOriginals').onclick=()=>download(photos.map(p=>p.fileId));
   $('blogPublishImages').onclick=()=>download(publishingImages(read()).map(p=>p.id),false);
   $('blogPackage').onclick=()=>download(publishingImages(read()).map(p=>p.id),false,true);
   $('blogCancelDownload').onclick=()=>downloadController?.abort();
-  $('blogAssemble').onclick=()=>assemble();$('blogCompleteSave').onclick=save;
+  $('blogAssemble').onclick=()=>assemble();
   $('blogUndo').onclick=()=>{const previous=undo.pop();if(!previous)return;blocks=previous.blocks;photos=synchronizePhotos(state.selectedFileIds,previous.photos,state.knownFiles);cover=previous.cover;$('draftContent').value=lastBody=previous.body;for(const [type,id] of [['closing','resultFooter'],['hashtags','draftTags']])$(id).value=blocks.find(b=>b.type===type)?.text||'';changed();renderPhotos();renderBlocks();};
   $('blogPrivacy').onchange=renderReview;
   $('blogAiReview').onclick=()=>textAction();$('blogTextCancel').onclick=()=>textController?.abort();$('blogRewriteClose').onclick=()=>$('blogRewriteDialog').close();
@@ -155,13 +182,31 @@ export function mountBlogWorkflow({state,$,toast,renderSelection,contact}){
     }catch(error){if(token===epoch)$('blogTextStatus').textContent=error.name==='AbortError'?'검토 중단 · 미검사':`검토 실패 · 미검사: ${error.message}`;}finally{clearTimeout(timer);if(textController===controller){textController=null;$('blogTextCancel').hidden=true;}}
   }
   for(const id of ['aiCommand','draftTitle','draftContent','resultFooter','draftTags'])$(id).addEventListener('input',()=>{changed();renderReview();});
-  $('blogCopy').onclick=async()=>{try{if(!blocks.length)assemble(false);const p=read();if(inspectPost(p).some(i=>i.status==='needs_changes'))throw Error('수정 필요 항목을 확인한 뒤 완성본을 복사하세요.');const refs=await resolveFiles(publishingImages(p).map(v=>v.id),p.campusId,undefined,false);if(refs.some(v=>v.error))throw Error('접근할 수 없는 게시용 이미지가 있습니다. 연결을 확인하세요.');await navigator.clipboard.writeText(postText(p));toast('화면의 완성본 텍스트를 복사했습니다.');}catch(error){toast(error.message,'error');}};
+  async function copyText(){try{if(!blocks.length)assemble(false);const p=read();if(inspectPost(p).some(i=>i.status==='needs_changes'))throw Error('수정 필요 항목을 확인한 뒤 완성본을 복사하세요.');const refs=await resolveFiles(publishingImages(p).map(v=>v.id),p.campusId,undefined,false);if(refs.some(v=>v.error))throw Error('접근할 수 없는 게시용 이미지가 있습니다. 연결을 확인하세요.');await navigator.clipboard.writeText(postText(p));toast('화면의 완성본 텍스트를 복사했습니다.');}catch(error){toast(error.message,'error');}}
   for(const id of ['strategyMode','blogTemplate','blogGreeting','blogTop','blogBottom','blogAlign','blogSpacing','blogFont','blogContactMode'])$(id).addEventListener('change',()=>{defaultsEdit++;changed();});
   $('blogTemplate').addEventListener('change',()=>{template={...templateDefaults(),...templates[$('blogTemplate').value],templateId:$('blogTemplate').value};applyTemplate();});
   $('blogSaveTemplate').onclick=async()=>{const token=epoch;$('blogSaveTemplate').disabled=true;try{const response=await fetch('/api/data-core/content/defaults',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({sourceApp:'blog',campusId:$('draftCampus').value||null,hashtags:$('defaultHashtags').value,footer:$('defaultFooter').value,blogSettings:{strategyMode:$('strategyMode').value,template:readTemplate()}})});const value=await response.json();if(!response.ok)throw Error(value.error);if(token===epoch){templates=value.defaults.blogSettings.templates||{};$('blogTemplateStatus').textContent='캠퍼스 기본 양식 저장 완료';}}catch(error){if(token===epoch)$('blogTemplateStatus').textContent=error.message;}finally{$('blogSaveTemplate').disabled=false;}};
+  // 양식 수정 dialog: fields already apply live via the 'change' listeners above (that is what
+  // "이번 글에 적용" means here — nothing further to do but close). 취소 restores the snapshot taken
+  // when the dialog opened, so an edit made and abandoned mid-dialog never lingers on the post.
+  let templateSnapshot=null;
+  function updateTemplateSummary(){$('blogTemplateSummary').textContent=state.editingDraftId||blocks.some(b=>b.type==='image'&&['top','bottom'].includes(b.role))||template.greeting?'양식 적용됨':'캠퍼스 기본 양식 적용 중';}
+  $('blogOpenTemplate').onclick=()=>{templateSnapshot=readTemplate();$('blogTemplateStatus').textContent='';$('blogTemplateDialog').showModal();};
+  $('blogApplyTemplate').onclick=()=>{updateTemplateSummary();$('blogTemplateDialog').close();};
+  $('blogCloseTemplate').onclick=$('blogCancelTemplate').onclick=()=>{if(templateSnapshot){template=templateSnapshot;applyTemplate();}$('blogTemplateDialog').close();};
+  // 마무리 수정 dialog: the hashtag/closing preset picker (mountTextPresets) is mounted separately
+  // in content.js and exposes its own dialog; this button only needs to open it.
+  $('blogOpenPresets').onclick=()=>window.dispatchEvent(new CustomEvent('open-text-presets'));
+  function updatePresetsSummary(){
+    const count=normalizeTags($('draftTags').value).length,footer=$('resultFooter').value.trim();
+    $('blogPresetsSummary').textContent=`해시태그 ${count}개 · 마지막 문구 ${footer?'적용':'미설정'} · 상담 정보 ${$('blogContactMode').value==='none'?'미포함':'포함'}`;
+  }
+  for(const id of ['draftTags','resultFooter'])$(id).addEventListener('input',updatePresetsSummary);
+  $('blogContactMode').addEventListener('change',updatePresetsSummary);
+  updateTemplateSummary();updatePresetsSummary();
   window.addEventListener('pagehide',()=>downloadController?.abort());
   renderPhotos();
-  return {read,save,load,reset,selectionChanged:renderPhotos,assemble,review:renderReview,copy:()=>$('blogCopy').click(),downloadPackage:()=>$('blogPackage').click(),defaultsToken:()=>defaultsEdit,
+  return {read,save,load,reset,selectionChanged:renderPhotos,assemble,review:renderReview,copy:copyText,downloadPackage:()=>$('blogPackage').click(),defaultsToken:()=>defaultsEdit,
     applyDefaults(value,token){if(token!==defaultsEdit||state.editingDraftId||!value)return;templates=value.templates||{};template={...templateDefaults(),...value.template};$('strategyMode').value=value.strategyMode||'balanced';$('blogTemplate').value=template.templateId;applyTemplate();},
     hasUnsaved:()=>Boolean((blocks.length||photos.length||Object.values(brief()).some(v=>v.trim()))&&signature()!==saved),
     instructions:()=>({brief:brief(),commonDescription:$('blogCommonDescription').value,photos:photos.map(({fileId,kind,description,facts,exclude,externalAiConsent})=>({fileId,kind,description,facts,exclude,externalAiConsent}))}),

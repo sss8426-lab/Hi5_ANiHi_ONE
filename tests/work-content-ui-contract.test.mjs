@@ -21,7 +21,9 @@ test('work content picker uses actual library folders instead of duplicated cate
   assert.ok(contentHtml.includes('id="photoBreadcrumb"'));
   assert.ok(!contentHtml.includes('fileCategoryFilter'));
   assert.ok(contentHtml.indexOf('id="photoHeading"') < contentHtml.indexOf('id="aiCommand"'));
-  assert.ok(contentHtml.includes('지난 작업'));
+  // "지난 작업" was renamed to a top "저장한 글" button that opens a dialog listing saved drafts.
+  assert.ok(contentHtml.includes('저장한 글'));
+  assert.ok(contentHtml.includes('id="draftsDialog"'));
 });
 
 test('Instagram work route keeps the fixed 2160x2700 4:5 specification', () => {
