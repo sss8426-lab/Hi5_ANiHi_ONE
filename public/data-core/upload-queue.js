@@ -8,9 +8,10 @@ class DataCoreUploadQueue {
 
   constructor(files, target, onChange, transport = DataCoreUploadQueue.send) {
     this.target = Object.freeze({ ...target });
-    this.items = files.map(file => {
+    this.items = files.map(entry => {
+      const file=entry.file||entry, itemTarget=Object.freeze({...this.target,...entry.target});
       const preflightError = this.target.libraryScoped === true ? DataCoreUploadQueue.preflight(file) : '';
-      return { file, status: preflightError ? 'failed' : 'waiting', loaded: 0, total: file.size, result: null,
+      return { file, target:itemTarget, status: preflightError ? 'failed' : 'waiting', loaded: 0, total: file.size, result: null,
         error: preflightError || '', retryable: !preflightError, multipart: null };
     });
     this.onChange = onChange;
@@ -45,6 +46,7 @@ class DataCoreUploadQueue {
   notify() { this.onChange(this.snapshot()); }
   cancel() {
     this.cancelled = true;
+    for (const item of this.items) if (item.status === 'waiting') item.status = 'cancelled';
     for (const controller of this.controllers) controller.abort();
     this.notify();
   }
@@ -67,7 +69,7 @@ class DataCoreUploadQueue {
         this.controllers.add(controller);
         this.notify();
         try {
-          item.result = await this.transport(item.file, this.target, controller.signal, (loaded, total) => {
+          item.result = await this.transport(item.file, item.target, controller.signal, (loaded, total) => {
             item.loaded = loaded; item.total = total; this.notify();
           }, item);
           item.status = 'done'; item.loaded = item.total; item.error = '';
@@ -94,7 +96,7 @@ class DataCoreUploadQueue {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       const form = new FormData();
-      form.append('file', file);
+      form.append('file', file, file.name);
       for (const [key,value] of Object.entries(target)) if (key !== 'libraryScoped') form.append(key, value);
       xhr.open('POST', target.libraryScoped === true ? '/api/data-core/library/files' : '/api/data-core/files');
       xhr.timeout = 180000;

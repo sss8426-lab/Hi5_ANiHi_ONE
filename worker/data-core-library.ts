@@ -10,6 +10,9 @@ import { LibraryTree, LibraryFolder, LIBRARY_FOLDER, HQ_FOLDER, LIBRARY_SOURCE, 
   libraryMetadata, libraryCanWrite, libraryCanDelete, libraryCanDeleteFolder, libraryDefaultFolder, libraryFolderScope, requireLibraryWrite, libraryFileReadable } from './data-core-library-policy';
 import { SIMPLE_UPLOAD_MAX_BYTES, startLibraryMultipartUpload, uploadLibraryMultipartPart,
   completeLibraryMultipartUpload, abortLibraryMultipartUpload, parseUploadedParts } from './data-core-library-multipart';
+import { moveLibraryItems } from './library-move';
+import { acquireLibraryWrite } from './library-write-lease';
+import { runLibraryUploadRequest } from './library-upload-request';
 
 function error(status: number, message: string): never { throw new DataCoreAccessError(status, message); }
 const json = (value: unknown, status = 200) => Response.json(value, { status, headers: { 'cache-control': 'private, no-store' } });
@@ -27,6 +30,8 @@ const serialize = (tree: LibraryTree, f: LibraryFolder) => ({ id: f.id, title: f
   campusId: f.campusId, category: f.category, group: f.group, navigationHidden: Boolean(f.navigationHidden), canWrite: libraryCanWrite(tree.context, f),
   systemManaged: Boolean(f.systemManaged), canDelete: libraryCanDeleteFolder(tree.context, f),
   canRename: libraryCanDeleteFolder(tree.context, f),
+  canMove: !f.virtual && !f.systemManaged && !libraryDefaultFolder(f) && libraryCanDeleteFolder(tree.context, f) && !f.archived,
+  revision: f.row?.updated_at || null,
   defaultFolder: libraryDefaultFolder(f), archived: Boolean(f.archived),
   canRestore: Boolean(f.archived && libraryDefaultFolder(f) && libraryCanWrite(tree.context, { ...f, archived: false })),
   readOnly: !libraryCanWrite(tree.context, f) });
@@ -89,7 +94,7 @@ async function children(tree: LibraryTree, parent: LibraryFolder, includeArchive
   return output.filter(f => includeArchived || !f.archived);
 }
 
-async function materialize(tree: LibraryTree, folder: LibraryFolder) {
+export async function materialize(tree: LibraryTree, folder: LibraryFolder) {
   if (folder.row || !folder.virtual) return folder;
   if (!folder.category) error(400, '파일을 저장할 폴더를 먼저 선택하세요.');
   requireLibraryWrite(tree.context, folder);
@@ -112,7 +117,7 @@ async function createFolder(tree: LibraryTree, input: Record<string, unknown>) {
   requireLibraryWrite(tree.context, parent);
   if (parent.id === 'root' && !tree.context.isSuperAdmin) error(403, '최상위 폴더는 마스터 관리자만 만들 수 있습니다.');
   if (parent.depth >= 14) error(400, '폴더 위치 또는 깊이를 확인하세요.');
-  const title = text(input.title);
+  const title = text(input.title).normalize('NFC');
   if (!title || [...title].length > 80 || /[\u0000-\u001f]/.test(title)) error(400, '폴더 이름은 1~80자로 입력하세요.');
   if ((await children(tree, parent)).some(f => f.title.normalize('NFC') === title.normalize('NFC'))) error(409, '같은 이름의 폴더가 있습니다.');
   const id = crypto.randomUUID(), now = new Date().toISOString();
@@ -123,10 +128,11 @@ async function createFolder(tree: LibraryTree, input: Record<string, unknown>) {
     ...(title.startsWith('__synthetic_') || libraryMetadata(parent.row || {}).testOnly === true ? { testOnly: true } : {}) };
   const result = await tree.db.prepare(`INSERT INTO data_records (id, organization_id, campus_id, created_by_user_id,
     record_type, source_app, title, visibility, status, metadata_json, created_at, updated_at)
-    SELECT ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ? WHERE ? = 1 OR EXISTS
-      (SELECT 1 FROM data_records WHERE id = ? AND organization_id = ? AND deleted_at IS NULL)`)
+    SELECT ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ? WHERE (? = 1 OR EXISTS
+      (SELECT 1 FROM data_records WHERE id = ? AND organization_id = ? AND deleted_at IS NULL AND metadata_json IS ? AND updated_at IS ?))
+      AND NOT EXISTS(SELECT 1 FROM data_records WHERE organization_id=? AND record_type=? AND deleted_at IS NULL AND title=? AND json_valid(metadata_json) AND json_extract(metadata_json,'$.libraryArchived') IS NOT 1 AND json_extract(metadata_json,'$.parentFolderId') IS ?)`)
     .bind(id, ORG, parent.campusId, tree.context.user!.internalUserId, LIBRARY_FOLDER, LIBRARY_SOURCE, title,
-      parent.campusId ? 'campus' : 'organization', JSON.stringify(metadata), now, now, parent.virtual ? 1 : 0, parent.id, ORG).run();
+      parent.campusId ? 'campus' : 'organization', JSON.stringify(metadata), now, now, parent.virtual ? 1 : 0, parent.id, ORG,parent.row?.metadata_json??null,parent.row?.updated_at??null,ORG,LIBRARY_FOLDER,title,metadata.parentFolderId).run();
   if (Number(result.meta?.changes) !== 1) error(409, '상위 폴더 상태가 변경되었습니다.');
   const folder = await tree.resolve(id);
   await audit(tree, 'create', folder);
@@ -146,7 +152,7 @@ async function deleteFolder(tree: LibraryTree, id: string) {
       WHERE id = ? AND organization_id = ? AND deleted_at IS NULL
       AND NOT EXISTS (SELECT 1 FROM data_records child WHERE child.organization_id = ? AND child.deleted_at IS NULL
         AND CASE WHEN json_valid(child.metadata_json) THEN json_extract(child.metadata_json, '$.parentFolderId') END = ?)
-      AND NOT EXISTS (SELECT 1 FROM data_records upload WHERE upload.organization_id = ? AND upload.record_type = 'library-upload-session'
+      AND NOT EXISTS (SELECT 1 FROM data_records upload WHERE upload.organization_id = ? AND upload.record_type IN ('library-upload-session','library-write-lease')
         AND upload.status IN ('pending','uploading','failed') AND upload.deleted_at IS NULL
         AND CASE WHEN json_valid(upload.metadata_json) THEN json_extract(upload.metadata_json, '$.folderId') END = ?)`)
       .bind(now, id, ORG, ORG, id, ORG, id).run();
@@ -167,7 +173,7 @@ async function deleteFolder(tree: LibraryTree, id: string) {
   const guard = `id = ? AND organization_id = ? AND deleted_at IS NULL AND NOT EXISTS
     (SELECT 1 FROM data_records child WHERE child.organization_id = ? AND child.deleted_at IS NULL
       AND CASE WHEN json_valid(child.metadata_json) THEN json_extract(child.metadata_json, '$.parentFolderId') END = ?)
-    AND NOT EXISTS (SELECT 1 FROM data_records upload WHERE upload.organization_id = ? AND upload.record_type = 'library-upload-session'
+    AND NOT EXISTS (SELECT 1 FROM data_records upload WHERE upload.organization_id = ? AND upload.record_type IN ('library-upload-session','library-write-lease')
       AND upload.status IN ('pending','uploading','failed') AND upload.deleted_at IS NULL
       AND CASE WHEN json_valid(upload.metadata_json) THEN json_extract(upload.metadata_json, '$.folderId') END = ?)`;
   const statements = [];
@@ -219,7 +225,7 @@ async function fileFolder(tree: LibraryTree, row: Record<string, any>) {
   return tree.resolve(`category:${row.campus_id || 'organization'}:${row.category}`);
 }
 
-async function fileRow(tree: LibraryTree, id: string) {
+export async function fileRow(tree: LibraryTree, id: string) {
   const row = await tree.db.prepare('SELECT * FROM file_objects WHERE id = ? AND organization_id = ? AND deleted_at IS NULL')
     .bind(id, ORG).first<Record<string, any>>();
   if (!row) error(404, '파일을 찾을 수 없습니다.');
@@ -233,26 +239,36 @@ async function fileRow(tree: LibraryTree, id: string) {
 async function listFiles(tree: LibraryTree, folder: LibraryFolder, url: URL) {
   if (!folder.category) return { files: [], hasMore: false, navigationHidden: Boolean(folder.navigationHidden) };
   const q = text(url.searchParams.get('q')).slice(0,120), page = Math.max(1, Math.min(100000, Number(url.searchParams.get('page')) || 1));
+  const sorts: Record<string, [string,string]> = {newest:['created_at','DESC'],oldest:['created_at','ASC'],name:['original_file_name','ASC'],'name-desc':['original_file_name','DESC'],size:['size_bytes','DESC'],'size-asc':['size_bytes','ASC']};
+  const [column,direction] = sorts[text(url.searchParams.get('sort'))] || sorts.newest;
+  const seek = text(url.searchParams.get('focusId'));
+  const path = await tree.breadcrumbs(folder);
   const legacy = folder.id.startsWith('category:');
   const files = [], visible:Record<string,any>[] = [];
-  const skip=(Math.floor(page)-1)*50;let accepted=0,hasMore=false,cursor:{created_at:string;id:string}|null=null;
+  let skip=(Math.floor(page)-1)*50, accepted=0,hasMore=false,offset=0,locatedPage:number|null=null;
   while(!hasMore){
   const rows:Record<string,any>[] = (await tree.db.prepare(`SELECT fo.*, u.display_name AS owner_name FROM file_objects fo LEFT JOIN users u ON u.id = fo.owner_user_id
     WHERE fo.organization_id = ? AND fo.campus_id IS ? AND fo.category = ? AND fo.deleted_at IS NULL
     AND (fo.data_record_id = ? OR (? = 1 AND NOT EXISTS (SELECT 1 FROM data_records dr WHERE dr.id = fo.data_record_id AND dr.record_type IN (?, ?))))
-    AND fo.original_file_name LIKE ? ESCAPE '\\' ${cursor?'AND (fo.created_at < ? OR (fo.created_at = ? AND fo.id > ?))':''} ORDER BY fo.created_at DESC, fo.id LIMIT 100`)
+    AND fo.original_file_name LIKE ? ESCAPE '\\' ORDER BY fo.${column} ${direction}, fo.id LIMIT 100 OFFSET ?`)
     .bind(ORG, folder.campusId, folder.category, folder.id, legacy ? 1 : 0, LIBRARY_FOLDER, HQ_FOLDER,
-      `%${q.replace(/[\\%_]/g, '\\$&')}%`,...(cursor?[cursor.created_at,cursor.created_at,cursor.id]:[])).all<Record<string, any>>()).results || [];
+      `%${q.replace(/[\\%_]/g, '\\$&')}%`,offset).all<Record<string, any>>()).results || [];
+  await tree.prefetch(rows.map(row=>row.data_record_id).filter(Boolean));
   for (const row of rows) {
     try {
       const sourceFolder = await fileFolder(tree, row);
       if (sourceFolder.id !== folder.id || !libraryFileReadable(tree.context, sourceFolder, row)) continue;
-      if(accepted++<skip)continue;
+      if (seek && locatedPage === null) {
+        if (accepted % 50 === 0) { files.length=0; visible.length=0; }
+        if (row.id === seek) { locatedPage=Math.floor(accepted/50)+1; skip=(locatedPage-1)*50; }
+      }
+      if(accepted++<skip && !seek)continue;
       if(files.length===50){hasMore=true;break;}
       visible.push(row);
       files.push({ id: row.id, fileName: row.original_file_name, mimeType: row.mime_type, sizeBytes: row.size_bytes,
         instagramPreserveReason: instagramPreserveReason({...row, protected:sourceFolder.protected, shareMode:sourceFolder.shareMode}),
         createdAt: row.created_at, campusId: row.campus_id, ownerName: row.owner_name, recordId: row.data_record_id,
+        folderId:folder.id, folderTitle:folder.title, path, revision:row.data_record_id,
         canDelete: libraryCanDelete(tree.context, folder, row.owner_user_id),
         canMove: libraryCanWrite(tree.context, folder),
         previewUrl: `/api/data-core/library/files/${encodeURIComponent(row.id)}`,
@@ -260,10 +276,11 @@ async function listFiles(tree: LibraryTree, folder: LibraryFolder, url: URL) {
     } catch (e) { if (!(e instanceof DataCoreAccessError)) throw e; }
   }
   if(rows.length<100)break;
-  const last=rows.at(-1)!;cursor={created_at:last.created_at,id:last.id};
+  offset+=rows.length;
   }
   const thumbnails = await thumbnailUrls(tree.db,visible,'/api/data-core/library/files/');
-  return { files:files.map(file=>({...file,thumbnailUrl:thumbnails.get(file.id) || null})), hasMore, navigationHidden: Boolean(folder.navigationHidden) };
+  if(seek && locatedPage===null) error(404,'현재 폴더에서 파일을 찾을 수 없습니다.');
+  return { files:files.map(file=>({...file,thumbnailUrl:thumbnails.get(file.id) || null})), hasMore, page:locatedPage||page, navigationHidden: Boolean(folder.navigationHidden) };
 }
 
 async function recentFiles(tree: LibraryTree, folder: LibraryFolder) {
@@ -281,6 +298,7 @@ async function recentFiles(tree: LibraryTree, folder: LibraryFolder) {
       AND category IN (${placeholders}) AND visibility IN ('campus','organization','public') AND area IN ('documents-private','academy-public')
       ${folder.campusId ? 'AND campus_id = ?' : ''} ${cursor ? 'AND (created_at < ? OR (created_at = ? AND id < ?))' : ''}
       ORDER BY created_at DESC, id DESC LIMIT ${RECENT_UPLOAD_SCAN_LIMIT}`).bind(...values).all<Record<string,unknown>>()).results || [];
+    await tree.prefetch(rows.map(row=>String(row.data_record_id||'')).filter(Boolean));
     for (const row of rows) {
     if (files.length >= RECENT_UPLOAD_LIMIT) break;
     try {
@@ -291,7 +309,7 @@ async function recentFiles(tree: LibraryTree, folder: LibraryFolder) {
       files.push({ id: row.id, fileName: row.original_file_name, folderId: sourceFolder.id, folderTitle: sourceFolder.title,
         instagramPreserveReason: instagramPreserveReason(row),
         campusId: row.campus_id, campusName: row.campus_id ? campusNames.get(row.campus_id) || null : null,
-        mimeType: row.mime_type, sizeBytes: row.size_bytes, createdAt: row.created_at,
+        mimeType: row.mime_type, sizeBytes: row.size_bytes, createdAt: row.created_at, path:await tree.breadcrumbs(sourceFolder), revision:row.data_record_id,
         canDelete: libraryCanDelete(tree.context, sourceFolder, row.owner_user_id), canMove: libraryCanWrite(tree.context, sourceFolder),
         previewUrl: `/api/data-core/library/files/${encodeURIComponent(String(row.id))}`,
         downloadUrl: `/api/data-core/library/files/${encodeURIComponent(String(row.id))}/download` });
@@ -350,6 +368,22 @@ async function fileCounts(tree:LibraryTree, folders:LibraryFolder[]) {
   return counts;
 }
 
+async function folderCounts(tree:LibraryTree, folders:LibraryFolder[]) {
+  const counts=new Map<string,number>();
+  const wanted=new Set(folders.map(f=>f.id));
+  for(let start=0;start<folders.length;start+=60){
+    const ids=folders.slice(start,start+60).map(f=>f.id);
+    const rows=(await tree.db.prepare(`SELECT * FROM data_records WHERE organization_id=? AND source_app=? AND record_type=? AND deleted_at IS NULL
+      AND json_valid(metadata_json) AND json_extract(metadata_json,'$.parentFolderId') IN (${ids.map(()=>'?').join(',')})`).bind(ORG,LIBRARY_SOURCE,LIBRARY_FOLDER,...ids).all<Record<string,unknown>>()).results||[];
+    for(const row of rows)tree.rows.set(String(row.id),row);
+    for(const row of rows){try{const f=await tree.resolve(String(row.id));if(f.parentId&&wanted.has(f.parentId)&&!f.archived&&!f.navigationHidden&&!libraryMetadata(row).rootProjection)counts.set(f.parentId,(counts.get(f.parentId)||0)+1);}catch(e){if(!(e instanceof DataCoreAccessError))throw e;}}
+  }
+  const projections=folders.filter(f=>f.id.startsWith('campus:')||f.id==='organization');
+  await tree.prefetch(projections.flatMap(f=>LIBRARY_CATEGORIES.map(([key])=>`category:${f.campusId||'organization'}:${key}`)));
+  for(const parent of projections)for(const [key] of LIBRARY_CATEGORIES){try{const f=await tree.resolve(`category:${parent.campusId||'organization'}:${key}`);if(!f.archived)counts.set(parent.id,(counts.get(parent.id)||0)+1);}catch(e){if(!(e instanceof DataCoreAccessError))throw e;}}
+  return counts;
+}
+
 export async function handleLibraryApi(request: Request, db: D1Database, bucket: R2Bucket, context: DataCoreAccessContext) {
   const url = new URL(request.url);
   if (!url.pathname.startsWith('/api/data-core/library/')) return null;
@@ -362,8 +396,17 @@ export async function handleLibraryApi(request: Request, db: D1Database, bucket:
     if (archived) requireLibraryWrite(tree.context, folder);
     const folders = (await children(tree, folder, archived)).filter(f => (folder.id !== 'root' || !f.navigationHidden) && (!archived || f.archived));
     const includeCounts = url.searchParams.get('counts') !== '0';
-    const counts = includeCounts ? await fileCounts(tree, folders.filter(f => f.category)) : new Map<string,number>();
-    return json({ folder: serialize(tree, folder), breadcrumbs: await tree.breadcrumbs(folder), folders: folders.map(f => ({...serialize(tree, f), fileCount: f.category && includeCounts ? counts.get(f.id) || 0 : null})) });
+    let counts:Map<string,number>|null=null,subcounts:Map<string,number>|null=null;
+    if(includeCounts){
+      try{counts=await fileCounts(tree,folders.filter(f=>f.category));}catch{/* Counts must not block authorized folder browsing. */}
+      try{subcounts=await folderCounts(tree,folders);}catch{/* Unknown counts are not zero. */}
+    }
+    return json({ folder: serialize(tree, folder), breadcrumbs: await tree.breadcrumbs(folder), folders: folders.map(f => ({...serialize(tree, f), folderCount:subcounts?subcounts.get(f.id)||0:null, fileCount:counts?counts.get(f.id)||0:null})) });
+  }
+  if(url.pathname==='/api/data-core/library/move'&&request.method==='POST'){
+    const input=await request.json().catch(()=>null);
+    if(!input||typeof input!=='object'||Array.isArray(input))error(400,'이동 요청을 확인하세요.');
+    return json(await moveLibraryItems(tree,input as Record<string,unknown>));
   }
   if (url.pathname === '/api/data-core/library/folders' && request.method === 'POST') {
     let input; try { input = await request.json(); } catch { error(400, 'JSON 요청을 확인하세요.'); }
@@ -389,7 +432,9 @@ export async function handleLibraryApi(request: Request, db: D1Database, bucket:
     let folder = await tree.resolve(text((input as Record<string, unknown>).folderId));
     requireLibraryWrite(context, folder);
     folder = await materialize(tree, folder);
-    return json(await startLibraryMultipartUpload(db, bucket, context, folder, input as Record<string, unknown>), 201);
+    const release=await acquireLibraryWrite(db,context,folder);
+    try { return json(await startLibraryMultipartUpload(db, bucket, context, folder, input as Record<string, unknown>), 201); }
+    finally { await release(); }
   }
   const partMatch = /^\/api\/data-core\/library\/uploads\/([^/]+)\/parts\/([1-9][0-9]*)$/.exec(url.pathname);
   if (partMatch && request.method === 'PUT') return json(await uploadLibraryMultipartPart(request, db, bucket, tree, context,
@@ -419,7 +464,9 @@ export async function handleLibraryApi(request: Request, db: D1Database, bucket:
     form.set('recordId', folder.id); form.set('campusId', folder.campusId || ''); form.set('category', folder.category!);
     form.set('sourceApp', LIBRARY_SOURCE); form.set('ownerId', 'shared');
     const canonical = new Request(new URL('/api/data-core/files', url), { method: 'POST', headers: { origin: url.origin } });
-    return json({ file: await uploadDataCoreFile(canonical, db, bucket, context, form) }, 201);
+    if(!(form.get('file') instanceof File))error(400,'업로드할 파일을 확인하세요.');
+    if((form.get('file') as File).size>SIMPLE_UPLOAD_MAX_BYTES)error(413,'50MiB 초과 파일은 대용량 업로드를 사용하세요.');
+    return json({ file: await runLibraryUploadRequest(db,context,folder,form,id=>uploadDataCoreFile(canonical, db, bucket, context, form,id),id=>fileRow(tree,id)) }, 201);
   }
   const thumbnailMatch = /^\/api\/data-core\/library\/files\/([^/]+)\/thumbnail$/.exec(url.pathname);
   if (thumbnailMatch && request.method === 'POST') {
@@ -447,7 +494,7 @@ export async function handleLibraryApi(request: Request, db: D1Database, bucket:
     }
     if (request.method === 'GET' || request.method === 'HEAD') {
       if (row.category === THUMBNAIL_CATEGORY && !await bucket.head(source.r2_key)) error(404,'원본 파일을 찾을 수 없습니다.');
-      const object = await bucket.get(row.r2_key);
+      const object = request.method==='HEAD'?await bucket.head(row.r2_key):await bucket.get(row.r2_key);
       if (!object) error(404, '원본 파일을 찾을 수 없습니다.');
       const preview = previewableFile(row);
       const disposition = match[2] || !preview ? 'attachment' : 'inline';

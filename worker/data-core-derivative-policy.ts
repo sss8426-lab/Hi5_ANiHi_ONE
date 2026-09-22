@@ -12,6 +12,7 @@ export const DERIVATIVE_CATEGORY = 'instagram-derived';
 export const THUMBNAIL_RECORD_TYPE = 'image-thumbnail';
 export const THUMBNAIL_CATEGORY = 'image-thumbnail';
 export function assertMutableRecordType(type: unknown) {
+  if (['library-upload-session','library-write-lease','library-upload-request'].includes(String(type).trim())) throw new DataCoreAccessError(403, '업로드 전용 기능을 사용하세요.');
   if (String(type).trim() === 'content-text-presets') throw new DataCoreAccessError(403, '문구 세트 전용 기능을 사용하세요.');
   if (type === 'library-r2-usage') throw new DataCoreAccessError(403, '보호된 통계 캐시는 변경할 수 없습니다.');
   if ([DERIVATIVE_RECORD_TYPE, THUMBNAIL_RECORD_TYPE,'admissions-legacy-thumbnail','content-ai-request','content-ai-usage','content-ai-call','content-defaults','instagram-reviewed-render','instagram-carousel-set'].includes(String(type).trim())) throw new DataCoreAccessError(403, '보호된 데이터는 전용 기능에서만 변경할 수 있습니다.');

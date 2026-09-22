@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "vinext dev",
-    "build": "vinext build",
+    "build": "node scripts/build-library-preview.mjs && vinext build",
     "deploy": "npm run build && wrangler deploy",
     "preview": "npm run build && vite preview",
     "start": "vinext start",
@@ -20,14 +20,17 @@
     "admissions:migrate-legacy-students": "node scripts/migrate-legacy-admissions-students.mjs"
   },
   "dependencies": {
+    "ag-psd": "31.0.2",
     "drizzle-orm": "0.45.2",
     "fast-png": "8.0.0",
     "htmlparser2": "10.0.0",
-    "image-size": "2.0.2",
+    "image-size": "2.0.4",
+    "pdfjs-dist": "6.3.289",
     "pica": "10.0.3",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "react-loading-skeleton": "3.5.0"
+    "react-loading-skeleton": "3.5.0",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.37.1",
@@ -46,8 +49,8 @@
     "eslint-plugin-react": "7.37.5",
     "eslint-plugin-react-hooks": "7.1.1",
     "globals": "16.4.0",
-    "sharp": "0.34.5",
     "react-server-dom-webpack": "19.2.8",
+    "sharp": "0.34.5",
     "tailwindcss": "4.2.1",
     "typescript": "5.9.3",
     "typescript-eslint": "8.59.3",
