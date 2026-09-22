@@ -13,6 +13,8 @@
 .preset-toolbar label { display:flex;gap:6px;align-items:center;font-size:13px; }
 .preset-toolbar input[type=checkbox],.preset-dialog input[type=checkbox] { width:18px;height:18px;flex:none; }
 .preset-status { min-height:20px;font-size:13px;overflow-wrap:anywhere; }
+.preset-note { margin:6px 0 0;font-size:13px;color:#8a5a00;overflow-wrap:anywhere; }
+.preset-note button { margin-left:4px;background:transparent;border:1px solid #ccd5d0;border-radius:6px;min-height:28px;padding:2px 8px;font-size:13px;color:#243f36; }
 .preset-dialog { width:min(600px,calc(100vw - 24px));max-height:85vh;box-sizing:border-box;padding:20px;border:1px solid #ccd5d0;border-radius:8px;overflow:auto;color:#192820;background:white; }
 .preset-dialog::backdrop { background:rgb(0 0 0 / 35%); }
 .preset-dialog h2 { font-size:20px;margin:0 0 16px;overflow-wrap:anywhere; }
