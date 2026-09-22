@@ -71,9 +71,12 @@ function normalizeFileIds(value: unknown): string[] {
 
 function normalizeTags(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
-  return Array.from(
+  if(value.some(item=>typeof item!=='string'||item.length>80))throw new DataCoreAccessError(400,'태그는 각각 80자까지 저장할 수 있습니다.');
+  const tags = Array.from(
     new Set(value.map((item) => cleanText(item, 80)).filter(Boolean)),
-  ).slice(0, 30);
+  );
+  if(tags.length>30)throw new DataCoreAccessError(400,'현재 콘텐츠 저장 계약은 태그 30개까지입니다. 직접 정리해주세요.');
+  return tags;
 }
 
 function safeObject(value: unknown): Record<string, unknown> {

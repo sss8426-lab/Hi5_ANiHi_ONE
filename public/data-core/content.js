@@ -1,5 +1,8 @@
 import {instagramImageMime} from './instagram-image-formats.js';
 import {mountAiUsage} from './ai-usage.js?v=20260921-performance';
+import {mountTextPresets} from './content-text-presets.js?v=20260922-presets';
+import {normalizeTags} from './content-preset-catalog.js';
+import {captionTail} from './content-caption.js?v=20260922-presets';
 
 const state = {
   context: null,
@@ -45,10 +48,10 @@ const AI_OPTIMIZE_STEPS = [
 const AI_OPTIMIZE_TARGET_BYTES = 1.5 * 1024 * 1024;
 const AI_OPTIMIZE_HARD_CAP_BYTES = 2 * 1024 * 1024;
 
-let derivativeEditor, instagramProduction, aiUsagePanel;
+let derivativeEditor, instagramProduction, aiUsagePanel, textPresets;
 let browseController, renderedFolder='', defaultsEdited=0;
 let savedDraftSnapshot='',savedDefaultsSnapshot='';
-const draftSnapshot=()=>JSON.stringify(['draftTitle','draftSummary','draftContent','draftTags','resultFooter','publishStatus','contentPurpose'].map(id=>$(id).value));
+const draftSnapshot=()=>JSON.stringify(['draftTitle','draftSummary','draftContent','draftTags','resultFooter','resultContact','publishStatus','contentPurpose'].map(id=>$(id).value));
 const defaultsSnapshot=()=>JSON.stringify([$('defaultHashtags').value,$('defaultFooter').value]);
 const thumbnailCache = new window.DataCorePrivateImageCache({maxBytes:8*1024*1024,maxEntries:50,concurrency:3,onUnauthorized:clearPrivateState});
 const legacyThumbnails = new window.DataCorePrivateImageCache({maxBytes:32*1024*1024,maxEntries:50,concurrency:2,onUnauthorized:clearPrivateState,transform:async(blob,path,signal)=>{
@@ -69,6 +72,7 @@ function clearPrivateState() {
   thumbnailObserver?.disconnect();thumbnailCache.clear();renderedFolder='';
   legacyThumbnails.clear();
   aiUsagePanel?.clear();
+  textPresets?.clear();
   state.files=[];state.selectedFileIds=[];state.selectedDerivedFileIds=[];state.knownFiles.clear();
   $('photoFolders')?.replaceChildren();$('photoBreadcrumb')?.replaceChildren();$('photoPages')?.replaceChildren();
   renderFilePicker();renderSelectedFiles();instagramProduction?.invalidated();
@@ -374,7 +378,8 @@ function renderFilePicker() {
 }
 
 function draftPayload() {
-  const metadata = { footer: $('resultFooter').value, callToAction: $('resultFooter').value || null };
+  captionTail($('resultFooter').value,$('draftTags').value,[],$('resultContact').value);
+  const metadata = { footer: $('resultFooter').value, contactBlock: $('resultContact').value, callToAction: $('resultFooter').value || null };
   if (state.sourceApp === 'instagram') metadata.instagramDesign = instagramProduction?.read();
   if (state.sourceApp === 'blog') {
     metadata.strategyMode = $('strategyMode').value;
@@ -476,6 +481,7 @@ function loadDraftIntoForm(draft) {
   $('draftTags').value = (draft.tags || []).join(', ');
   $('publishStatus').value = metadata.publishStatus || 'draft';
   $('resultFooter').value = metadata.footer || metadata.callToAction || '';
+  $('resultContact').value = metadata.contactBlock || '';
   state.selectedFileIds = Array.isArray(metadata.relatedFileIds) ? metadata.relatedFileIds.map(String) : [];
   state.selectedDerivedFileIds = Array.isArray(metadata.derivedFileIds) ? metadata.derivedFileIds.map(String) : [];
   // Additive, optional fields from the homefeed/search content-strategy work — absent on any draft
@@ -644,10 +650,11 @@ function bindEvents() {
 }
 
 function normalizedHashtags(...values) {
-  return [...new Set(values.flat().flatMap(value => String(value || '').split(/[\s,#]+/)).map(value => value.trim()).filter(Boolean))].slice(0,30);
+  return normalizeTags(...values);
 }
 
 async function loadDefaults() {
+  void textPresets?.load();
   const token = ++state.defaultsGeneration;
   const edit=defaultsEdited;
   $('defaultHashtags').value = ''; $('defaultFooter').value = '';
@@ -803,8 +810,10 @@ function renderPublishChecklist() {
 }
 
 async function copyPublishPackage() {
+  try{captionTail($('resultFooter').value,$('draftTags').value,[],$('resultContact').value);}catch(error){return toast(error.message,'error');}
+  if(normalizedHashtags($('draftTags').value).length>30)return toast('현재 저장 계약은 태그 30개까지입니다. 직접 정리해주세요.','error');
   const rows = selectedFiles();
-  const text = [$('draftTitle').value, $('draftContent').value, $('draftTags').value, $('resultFooter').value].filter(Boolean).join('\n\n')
+  const text = [$('draftTitle').value, $('draftContent').value, $('resultFooter').value, $('resultContact').value, normalizedHashtags($('draftTags').value).map(t=>'#'+t).join(' ')].filter(Boolean).join('\n\n')
     + (rows.length ? '\n\n이미지 순서:\n' + rows.map((file, index) => `${index + 1}. ${file.fileName || '사진 ' + (index + 1)}`).join('\n') : '');
   try { await navigator.clipboard.writeText(text); toast('네이버 발행용으로 복사했습니다.'); }
   catch { toast('클립보드 권한을 확인해주세요.', 'error'); }
@@ -818,6 +827,7 @@ function applyBlogTitleAndBody(kind) {
   $('draftContent').value = [state.currentLead, state.currentBody].filter(Boolean).join('\n\n');
   $('draftTags').value = normalizedHashtags($('defaultHashtags').value, state.lastHashtags).map((tag) => '#' + tag).join(' ');
   $('resultFooter').value = $('defaultFooter').value || state.lastCta || '';
+  $('resultContact').value = textPresets?.contact() || '';
   $('titlePicker').hidden = true;
   $('aiResult').hidden = false;
   $('resultHeading').textContent = 'AI 작성 결과';
@@ -956,7 +966,9 @@ async function runAi(captionOnly = false, quick = false) {
 }
 
 async function copyContent() {
-  const text = [state.sourceApp === 'blog' ? $('draftTitle').value : '', $('draftContent').value, $('draftTags').value, $('resultFooter').value].filter(Boolean).join('\n\n');
+  try{captionTail($('resultFooter').value,$('draftTags').value,[],$('resultContact').value);}catch(error){return toast(error.message,'error');}
+  if(normalizedHashtags($('draftTags').value).length>30)return toast('현재 저장 계약은 태그 30개까지입니다. 직접 정리해주세요.','error');
+  const text = [state.sourceApp === 'blog' ? $('draftTitle').value : '', $('draftContent').value, $('resultFooter').value, $('resultContact').value, normalizedHashtags($('draftTags').value).map(t=>'#'+t).join(' ')].filter(Boolean).join('\n\n');
   try { await navigator.clipboard.writeText(text); toast('복사했습니다.'); }
   catch { toast('클립보드 권한을 확인해주세요.', 'error'); }
 }
@@ -993,14 +1005,19 @@ async function init() {
   setSourceApp(state.sourceApp);
   await loadHealthAndContext();
   renderCampusSelectors();
+  textPresets=mountTextPresets({api,state,$,applyResult:({footer,hashtags,contact})=>{
+    if(state.sourceApp==='instagram'){if(!instagramProduction)throw Error('이미지 세트를 먼저 불러오세요.');instagramProduction.applyText({footer,hashtags,contact});return;}
+    if($('aiResult').hidden)throw Error('작성 결과를 먼저 열어주세요.');
+    $('resultFooter').value=footer;$('draftTags').value=normalizedHashtags(hashtags).map(t=>'#'+t).join(' ');$('resultContact').value=contact;renderPublishChecklist();
+  }});
   renderSelectedFiles();
   if (state.context?.authenticated) {
     state.folderId = $('draftCampus').value ? 'campus:' + $('draftCampus').value : 'root';
     void loadDefaults();void loadAiStatus();
     const listing=loadFiles();
     if(state.sourceApp==='instagram'){
-      const {mountInstagramProduction}=await import('/data-core/instagram-carousel.js?v=20260922-progress');
-      instagramProduction=mountInstagramProduction({state,api,$,toast,canWrite,saveDraft,setWorkspaceBusy:setAiBusy});
+      const {mountInstagramProduction}=await import('/data-core/instagram-carousel.js?v=20260922-presets');
+      instagramProduction=mountInstagramProduction({state,api,$,toast,canWrite,contact:()=>textPresets.contact()});
       instagramProduction.refresh();
     }
     await listing;

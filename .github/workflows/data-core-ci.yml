@@ -59,6 +59,8 @@ jobs:
           node --check public/data-core/ai-usage.js
           node --check public/data-core/work-navigation.js
           node --check public/data-core/content-caption.js
+          node --check public/data-core/content-preset-catalog.js
+          node --check public/data-core/content-text-presets.js
           node --check public/data-core/calendar.js
           node --check public/data-core/library-client.js
           node --check public/data-core/instagram-derivative.js

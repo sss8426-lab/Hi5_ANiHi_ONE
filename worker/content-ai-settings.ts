@@ -20,7 +20,7 @@ export async function contentDefaults(db: D1Database, context: DataCoreAccessCon
     const metadata = JSON.stringify({ schemaVersion: 1, hashtags: input.hashtags.trim(), footer: input.footer });
     const now = new Date().toISOString();
     await db.prepare(`INSERT INTO data_records (id,organization_id,campus_id,created_by_user_id,record_type,source_app,title,visibility,status,metadata_json,created_at,updated_at)
-      VALUES (?,?,?,?,?,?,'콘텐츠 기본 문구',?,'active',?,?,?) ON CONFLICT(id) DO UPDATE SET metadata_json=excluded.metadata_json,updated_at=excluded.updated_at
+      VALUES (?,?,?,?,?,?,'콘텐츠 기본 문구',?,'active',?,?,?) ON CONFLICT(id) DO UPDATE SET metadata_json=json_patch(CASE WHEN json_valid(data_records.metadata_json) THEN data_records.metadata_json ELSE '{}' END,excluded.metadata_json),updated_at=excluded.updated_at
       WHERE data_records.organization_id=excluded.organization_id AND data_records.record_type=excluded.record_type AND data_records.campus_id IS excluded.campus_id AND data_records.deleted_at IS NULL`)
       .bind(id, ORG, campusId, context.user!.internalUserId, CONTENT_DEFAULTS_TYPE, sourceApp, campusId ? 'campus' : 'organization', metadata, now, now).run();
   }

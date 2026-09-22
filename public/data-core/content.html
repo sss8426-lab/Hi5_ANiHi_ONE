@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="/data-core/design-system.css?v=20260913-soft-premium">
   <link rel="stylesheet" href="/data-core/instagram-carousel.css?v=20260922-progress">
   <link rel="stylesheet" href="/data-core/image-gallery.css?v=20260913-fast-images">
+  <link rel="stylesheet" href="/data-core/content-text-presets.css?v=20260922-presets">
 </head>
 <body class="data-core-layout">
   <div class="app-shell">
@@ -68,6 +69,7 @@
             <label><span id="contentLabel">본문</span><textarea id="draftContent" rows="12"></textarea></label>
             <label><span>해시태그</span><input id="draftTags"></label>
             <label><span>하단 고정 문구</span><textarea id="resultFooter" rows="2"></textarea></label>
+            <label><span>확인된 연락처·상담 안내</span><textarea id="resultContact" rows="2" readonly></textarea></label>
             <div class="form-actions"><button class="secondary-btn" id="regenerateAi" type="button">다시 작성</button><button class="secondary-btn" id="copyContent" type="button">전체 복사</button><button class="primary-btn" id="saveDraftBtn" type="submit">초안 저장</button><button class="danger-btn hidden" id="deleteDraftBtn" type="button">삭제</button></div>
             <details class="workflow-details"><summary>초안 세부 정보</summary><div id="selectedDerivatives" class="selected-file-list" aria-label="연결된 인스타 파생 이미지"></div><label><span>주제</span><input id="draftSummary"></label><label><span>콘텐츠 목적</span><select id="contentPurpose"><option value="class-story">수업 성장 스토리</option><option value="student-artwork">학생작품 소개</option><option value="academy-news">학원 소식</option><option value="competition-result">공모전·수상</option><option value="admission-info">입시 정보</option></select></label><label><span>게시 상태</span><select id="publishStatus"><option value="draft">초안</option><option value="review">검토</option><option value="ready">게시 준비</option><option value="published">게시 완료</option><option value="archived">보관</option></select></label></details>
           </form>
@@ -94,7 +96,7 @@
   <script src="/data-core/library-thumbnail.js?v=20260921-performance"></script>
   <script src="/data-core/library-client.js?v=20260922-navigation"></script>
   <script src="/data-core/instagram-derivative.js?v=20260909-derivative-v1"></script>
-  <script type="module" src="/data-core/content.js?v=20260922-navigation"></script>
+  <script type="module" src="/data-core/content.js?v=20260922-presets"></script>
   <script src="/data-core/content-admin-nav.js?v=20260921-performance"></script>
   <script type="module" src="/data-core/design-shell.js?v=20260912-campus"></script>
 </body>
