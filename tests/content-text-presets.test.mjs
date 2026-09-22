@@ -24,6 +24,16 @@ test('complete catalog, deterministic regional brands and channel-specific text 
  }
  assert.equal(recommendedPresets(A,'blog').find(i=>i.name==='학생 작품'&&i.kind==='closing').unavailable,'');
  assert.ok(recommendedPresets(B,'blog').find(i=>i.kind==='hashtags').unavailable);
+ // Regression: a campus that has never had its brand confirmed (the real, common starting state for
+ // most campuses — only the two admission campuses get a brand pre-filled) must have every built-in
+ // hashtag preset unavailable with this exact message, since the UI's "브랜드 정보 확인 필요" inline
+ // note (content-text-presets.js render()) is only shown/worded from this server contract, never
+ // computed independently client-side. Closing presets are not all blocked the same way: several
+ // closing texts never reference {{학원명}} at all, so they stay usable without a confirmed brand —
+ // the fix must not show the note for that column when nothing is actually blocking it.
+ const unconfirmed=recommendedPresets(B,'blog');
+ assert.ok(unconfirmed.filter(i=>i.kind==='hashtags').every(i=>i.unavailable==='캠퍼스 브랜드·학원명 확인 필요'));
+ assert.ok(unconfirmed.some(i=>i.kind==='closing'&&!i.unavailable));
  assert.equal(substitute('{{학원명}} {{unknown}}',{'학원명':'이름'}).content,'');
  assert.equal(substitute('{{toString}}',{}).content,'');
  assert.throws(()=>captionTail('{{학원명}}','#태그'));

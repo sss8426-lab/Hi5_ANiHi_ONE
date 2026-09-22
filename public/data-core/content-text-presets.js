@@ -28,8 +28,9 @@ export function mountTextPresets({api,state,$,applyResult}) {
   label.before(column);column.append(label);
   label.querySelector('span').textContent=kind==='hashtags'?'고정 해시태그':'고정 마지막 문구';
   const selected=element('small','',{className:'preset-selected'}),list=element('div','',{className:'preset-buttons'}),actions=element('div','',{className:'preset-actions'});
+  const note=element('p','',{className:'preset-note'});note.setAttribute('role','status');note.hidden=true;
   const add=button('+ 새 저장',()=>edit(kind)),all=button('전체 보기',()=>browse(kind)),trash=button('삭제한 세트',()=>browse(kind,true));
-  actions.append(add,all,trash);column.append(selected,list,actions);mounts[kind]={selected,list,add,all,trash};
+  actions.append(add,all,trash);column.append(selected,list,note,actions);mounts[kind]={selected,list,add,all,trash,note};
   input.addEventListener('input',()=>selection(kind));
  }
  document.querySelector('.defaults-grid').after(toolbar,status);
@@ -62,8 +63,19 @@ export function mountTextPresets({api,state,$,applyResult}) {
  }
  function render(){
   for(const kind of Object.keys(inputs)){
-   mounts[kind].list.replaceChildren(...options(kind).slice(0,2).map(item=>row(item)));selection(kind);
+   const top=options(kind).slice(0,2);
+   mounts[kind].list.replaceChildren(...top.map(item=>row(item)));selection(kind);
    mounts[kind].add.disabled=!data||busy;mounts[kind].all.disabled=!data;mounts[kind].trash.disabled=!data;
+   // The sort in options() always puts any usable item before unavailable ones, so every item in
+   // the default two-slot view being unavailable means there is truly nothing usable to load yet —
+   // never just an unlucky top-2 pick. Say why, right next to the greyed-out buttons, instead of
+   // leaving the column looking broken with only a hover title as the explanation.
+   const blocked=top.length>0&&top.every(item=>item.unavailable);
+   mounts[kind].note.hidden=!blocked;
+   if(blocked){
+    mounts[kind].note.replaceChildren(top[0].unavailable+'. ');
+    mounts[kind].note.append(data?.canManageShared?button('캠퍼스 추천 설정',()=>editProfile()):document.createTextNode('캠퍼스 관리자에게 브랜드·과정 설정을 요청해주세요.'));
+   }
   }
   profileButton.hidden=!data?.canManageShared;apply.disabled=!data;contact.disabled=!data?.contactBlock;
  }
