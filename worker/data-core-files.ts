@@ -18,6 +18,7 @@ import {
 import { canReadRegisteredFile, derivativeMetadata, DERIVATIVE_CATEGORY, DERIVATIVE_RECORD_TYPE } from './data-core-derivative-policy';
 import { curriculumFile, curriculumRecord } from './data-core-curriculum';
 import { libraryUploadTarget, libraryCanDelete, LIBRARY_FOLDER, LIBRARY_SOURCE } from './data-core-library-policy';
+import { acquireLibraryWrite } from './library-write-lease';
 import { privateImageResponse } from './private-image-response';
 import { thumbnailUrls } from './data-core-thumbnails';
 import { THUMBNAIL_CATEGORY, THUMBNAIL_RECORD_TYPE, thumbnailSource } from './data-core-derivative-policy';
@@ -237,6 +238,7 @@ export async function uploadDataCoreFile(
   files: R2Bucket,
   context: DataCoreAccessContext,
   parsedForm?: FormData,
+  reservedFileId?: string,
 ) {
   requireWriteAccess(context);
   if (!context.user) throw new DataCoreAccessError(401, "로그인이 필요합니다.");
@@ -307,7 +309,7 @@ export async function uploadDataCoreFile(
   if (!libraryFolder && !awardFolder) await assertRecordLinkAllowed(db, context, recordId, campusId);
   const fileName = file.name;
 
-  const id = crypto.randomUUID();
+  const id = reservedFileId || crypto.randomUUID();
   const createdAt = new Date().toISOString();
   const pathCampus = campusId || "organization";
   const pathYear = year || createdAt.slice(0, 4);
@@ -322,6 +324,8 @@ export async function uploadDataCoreFile(
     `${Date.now()}-${id}-${safeFileName(fileName)}`,
   ].join("/");
 
+  const releaseLibrary=libraryFolder?await acquireLibraryWrite(db,context,libraryFolder):null;
+  try {
   await files.put(key, file, {
     httpMetadata: {
       contentType: file.type || "application/octet-stream",
@@ -335,7 +339,6 @@ export async function uploadDataCoreFile(
     },
   });
 
-  try {
   if (awardFolder) await awardPath(db,context,String(awardFolder.id));
   await recordFileObject(db, {
     id,
@@ -368,7 +371,7 @@ export async function uploadDataCoreFile(
     await files.delete(key);
     await db.prepare('DELETE FROM file_objects WHERE id = ?').bind(id).run();
     throw error;
-  }
+  } finally { await releaseLibrary?.(); }
 
   return {
     id,

@@ -71,6 +71,23 @@ export class LibraryTree {
     if (!this.rows.has(id)) this.rows.set(id, await this.db.prepare('SELECT * FROM data_records WHERE id = ? AND organization_id = ? AND deleted_at IS NULL').bind(id, ORG).first<Row>());
     return this.rows.get(id);
   }
+  async prefetch(ids: string[]) {
+    let pending = [...new Set(ids)].filter(id => id && !this.rows.has(id));
+    for (let depth = 0; pending.length && depth < 16; depth++) {
+      const next = new Set<string>();
+      for (let i = 0; i < pending.length; i += 80) {
+        const batch = pending.slice(i, i + 80);
+        const rows = (await this.db.prepare(`SELECT * FROM data_records WHERE organization_id=? AND deleted_at IS NULL AND id IN (${batch.map(() => '?').join(',')})`).bind(ORG, ...batch).all<Row>()).results || [];
+        for (const id of batch) this.rows.set(id, null);
+        for (const row of rows) {
+          this.rows.set(row.id, row);
+          const parent = libraryMetadata(row).parentFolderId;
+          if (typeof parent === 'string' && !this.rows.has(parent)) next.add(parent);
+        }
+      }
+      pending = [...next];
+    }
+  }
   async resolve(id = 'root', seen = new Set<string>()): Promise<LibraryFolder> {
     if (seen.has(id) || seen.size >= 16) fail(409, '폴더 경로가 올바르지 않습니다.');
     if (this.folders.has(id)) return this.folders.get(id)!;
@@ -147,7 +164,7 @@ export class LibraryTree {
         m.libraryScope !== libraryFolderScope(parent) || m.libraryShareMode !== parent.shareMode ||
         row.visibility !== (parent.campusId ? 'campus' : 'organization') || parent.depth >= 14) fail();
       folder = { id: row.id, title: row.title, parentId: parent.id, campusId: parent.campusId, category,
-        protected: parent.protected, navigationHidden: parent.navigationHidden,
+        protected: parent.protected, navigationHidden: parent.navigationHidden, archived: parent.archived || m.libraryArchived === true,
         shareMode: parent.shareMode, virtual: false, depth: parent.depth + 1, row, systemManaged: m.systemManaged === true };
     }
     this.assertRead(folder);

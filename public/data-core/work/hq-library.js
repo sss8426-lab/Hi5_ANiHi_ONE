@@ -7,6 +7,7 @@
   const icon = name => `<svg class="lb-icon" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#${name}"></use></svg>`;
   const href = id => `/data-core/work/library${id === 'root' ? '' : `?folder=${encodeURIComponent(id)}`}`;
   const state = { folder: null, folders: [], files: [], recent: [], recentCount: 0, breadcrumbs: [], controller: null, generation: 0, queue: null, pending: null };
+  let enhancements;
   const sheet = document.createElement('link'); sheet.rel = 'stylesheet'; sheet.href = '/data-core/work/library-browser.css?v=20260922-usage'; document.head.append(sheet);
   let imageCache=null, observer=null, recentObserver=null, imageGeneration=0;
   function clearImages() {
@@ -91,19 +92,22 @@
   }
   function locationState() {
     const params = new URLSearchParams(location.search);
-    return { id: params.get('folder') || 'root', q: params.get('q') || '', page: Math.max(1, Number(params.get('page')) || 1) };
+    return { id: params.get('folder') || 'root', q: params.get('q') || '', page: Math.max(1, Number(params.get('page')) || 1), sort:params.get('sort')||'newest', focusId:params.get('focusId')||'' };
   }
-  function navigate(id, q = '', page = 1) {
+  function navigate(id, q = '', page = 1, focusId = '', sort = locationState().sort) {
+    history.replaceState({...history.state,scrollY:window.scrollY},'');
     const url = new URL(href(id), location.origin);
     if (q) url.searchParams.set('q', q);
     if (page > 1) url.searchParams.set('page', String(page));
+    if (sort!=='newest') url.searchParams.set('sort',sort);
+    if (focusId) url.searchParams.set('focusId',focusId);
     history.pushState({ view: 'library' }, '', url.pathname + url.search);
     load(true);
   }
   function renderFolders(folders, q) {
     const groups = window.DataCoreLibraryClient.folderGroups({ folder: state.folder, folders }, q);
     $('libraryFolders').innerHTML = groups.map(([group, rows]) => `<section class="lb-folder-group"><h3>${h(group)}</h3><div class="lb-folder-grid">${rows.map(f =>
-      `<div class="lb-folder-item${f.canDelete ? ' lb-folder-editable' : ''}"><a class="lb-folder" href="${h(href(f.id))}" data-lb-folder="${h(f.id)}">${icon('Folder')}<strong>${h(f.title)}</strong></a>${f.fileCount != null ? `<small class="lb-folder-count">${h(f.fileCount)}개</small>` : ''}
+      `<div class="lb-folder-item${f.canDelete ? ' lb-folder-editable' : ''}" data-library-folder="${h(f.id)}"><a class="lb-folder" href="${h(href(f.id))}" data-lb-folder="${h(f.id)}">${icon('Folder')}<strong>${h(f.title)}</strong></a><small class="lb-folder-count">폴더 ${f.folderCount==null?'확인 중':h(f.folderCount)+'개'} / 파일 ${f.fileCount==null?'확인 중':h(f.fileCount)+'개'}</small>
       ${f.canDelete ? `<details class="lb-folder-menu"><summary aria-label="${h(f.title)} 폴더 메뉴" title="폴더 메뉴">${icon('Menu')}</summary><div>${f.canRename ? `<button type="button" data-lb-rename="${h(f.id)}">이름 변경</button>` : ''}<button type="button" data-lb-delete-folder="${h(f.id)}">폴더 삭제</button></div></details>` : ''}</div>`).join('')}</div></section>`).join('');
   }
   function size(bytes) { return bytes < 1024 ? `${bytes} B` : bytes < 1048576 ? `${(bytes/1024).toFixed(1)} KB` : bytes < 1073741824 ? `${(bytes/1048576).toFixed(1)} MB` : `${(bytes/1073741824).toFixed(2)} GB`; }
@@ -112,16 +116,17 @@
   const imageFile = file => !opaquePreview(file.fileName) && /^image\/(jpeg|png|webp|gif|avif)$/.test(file.mimeType);
   function renderFiles(files) {
     $('libraryFiles').innerHTML = files.length ? `<ul class="lb-file-list">${files.map(f => {
-      const preview = previewable(f);
+      const preview = true;
       const image = imageFile(f);
       const visual = image ? `<a class="lb-thumbnail" data-lb-image="${h(f.id)}" href="${h(f.previewUrl)}" target="_blank" rel="noopener" aria-label="${h(f.fileName)} 미리보기">${icon('Image')}<img hidden data-original="${h(f.previewUrl)}" data-thumbnail="${h(f.thumbnailUrl||'')}" alt="" width="112" height="84" loading="lazy" decoding="async"></a>` : icon('BookOpen');
       return `<li class="lb-file" data-library-file="${h(f.id)}"><div class="lb-file-main">${visual}
         <div><strong>${h(f.fileName)}</strong><small>${h(f.mimeType)} · ${h(size(f.sizeBytes))} · ${h(new Date(f.createdAt).toLocaleDateString('ko-KR'))}</small>
         <small>${h(state.breadcrumbs.find(b=>b.id.startsWith('campus:'))?.title || '본원·조직 공통')} · ${h(f.ownerName || '')}</small></div></div>
-        <div class="lb-file-actions">${preview ? `<a class="lb-button" ${image ? `data-lb-image="${h(f.id)}"` : ''} href="${h(f.previewUrl)}" target="_blank" rel="noopener">미리보기</a>` : ''}
+        <div class="lb-file-actions">${preview ? `<a class="lb-button" data-lb-preview="${h(f.id)}" href="${h(f.previewUrl)}" target="_blank" rel="noopener">미리보기</a>` : ''}
         <a class="lb-button" href="${h(f.downloadUrl)}" download>다운로드</a>${f.canMove ? `<button class="lb-button" data-lb-move="${h(f.id)}">이동</button>` : ''}${f.canDelete ? `<button class="lb-button lb-danger" data-lb-delete="${h(f.id)}">삭제</button>` : ''}</div></li>`;
     }).join('')}</ul>` : '';
     observeImages();
+    enhancements?.render();
   }
   function timeLabel(iso) {
     const date = new Date(iso);
@@ -154,6 +159,7 @@
     $('libraryRecentEnd').textContent=state.recentCount===50?'최근 업로드 50개를 모두 확인했습니다.':state.recentCount<state.recent.length?'불러오는 중…':'';
     if(state.recentCount>=state.recent.length)recentObserver?.disconnect();
     observeImages();
+    enhancements?.render();
   }
   async function loadRecent(id, options) {
     if (!(id === 'root' || id.startsWith('campus:'))) { $('libraryRecent').hidden = true; return; }
@@ -179,6 +185,8 @@
       if (generation !== state.generation) return;
       if(redirected){history.replaceState(null,'',href('root'));current.id='root';current.q='';current.page=1;}
       state.folder = view.folder; state.folders = view.folders; state.files = listing.files; state.breadcrumbs = view.breadcrumbs;
+      current.page=listing.page||current.page;
+      if(current.focusId){const url=new URL(location.href);url.searchParams.set('page',current.page);history.replaceState(history.state,'',url);}
       $('libraryTitle').textContent = presentation(view.folder).title;
       $('libraryPermission').textContent = view.folder.archived ? '삭제한 기본 폴더 · 원본 자료 보존 중' : view.folder.readOnly ? (view.folder.campusId?'다른 캠퍼스 자료 · 읽기 전용':'읽기·다운로드 가능') : '';
       $('libraryBreadcrumb').innerHTML = `<ol>${view.breadcrumbs.map((b,i) => `<li>${i === view.breadcrumbs.length-1 ? `<span aria-current="page">${h(presentation(b).title)}</span>` : `<a href="${h(href(b.id))}" data-lb-folder="${h(b.id)}">${h(presentation(b).title)}</a>`}</li>`).join('')}</ol>`;
@@ -195,6 +203,9 @@
       await loadRecent(current.id, options);
       if (generation !== state.generation) return;
       if (focus) $('libraryTitle').focus({ preventScroll: true });
+      enhancements?.render();
+      if(current.focusId){const card=[...host.querySelectorAll('[data-library-file]')].find(n=>n.dataset.libraryFile===current.focusId);if(card){card.classList.add('lb-located');card.tabIndex=-1;card.focus();card.scrollIntoView({block:'center'});}}
+      else if(!focus&&history.state?.scrollY)window.scrollTo(0,history.state.scrollY);
     } catch (e) {
       if (e.name === 'AbortError' || generation !== state.generation) return;
       $('libraryTitle').textContent = '자료보관함';
@@ -302,4 +313,5 @@
   $('libraryProgressDialog').addEventListener('cancel',e=>{if(state.queue?.running)e.preventDefault();});
   for(const dialog of host.querySelectorAll('dialog'))dialog.addEventListener('click',e=>{if(e.target===dialog&&dialog.id!=='libraryProgressDialog')dialog.close();});
   window.DataCoreLibrary={refresh:load};
+  import('/data-core/work/library-manager.js').then(module=>{enhancements=module.setup({host,state,api,navigate,load,locationState,cachedOriginal:file=>imageCache?.peek(file.previewUrl)});enhancements.render();}).catch(()=>{$('libraryStatus').textContent='추가 파일 관리 기능을 불러오지 못했습니다. 새로고침해 주세요.';});
 })();
