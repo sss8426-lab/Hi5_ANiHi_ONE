@@ -60,6 +60,10 @@ jobs:
           node --check public/data-core/work/library-upload-panel.js
           node --check public/data-core/work/library-usage.js
           node --check public/data-core/content.js
+          node --check public/data-core/blog-workflow.js
+          node --check public/data-core/blog-post-model.js
+          node --check public/data-core/blog-cover.js
+          node --check public/data-core/blog-download.js
           node --check public/data-core/ai-usage.js
           node --check public/data-core/work-navigation.js
           node --check public/data-core/content-caption.js

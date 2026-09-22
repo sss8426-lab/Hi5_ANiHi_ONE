@@ -196,7 +196,7 @@ async function contentDraftResponse(
 ) {
   const record = await getDataRecord(db, context, recordId);
   const content = await getDataRecordContent(db, context, recordId);
-  return { ...record, content: content.content };
+  return { ...record, tags: record.metadata?.blogTags || ('tags' in record?record.tags:[]), content: content.content };
 }
 
 export async function listContentDrafts(
@@ -349,6 +349,7 @@ export async function updateContentDraft(
   else if (nextCampusId) requireCampusAccess(context, nextCampusId);
 
   const existingMetadata = parseMetadata(existing.metadata_json);
+  if(existingMetadata.blogPost || input.metadata?.blogPost)throw new DataCoreAccessError(409,'버전 저장 기능을 사용하세요.');
   const relatedFileIds = input.relatedFileIds === undefined
     ? normalizeFileIds(existingMetadata.relatedFileIds)
     : normalizeFileIds(input.relatedFileIds);

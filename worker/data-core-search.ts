@@ -72,7 +72,8 @@ export async function setDataRecordContent(
 ) {
   requireWriteAccess(context);
   await ensureDataCoreMigrations(db);
-  await getDataRecord(db, context, recordId);
+  const record=await getDataRecord(db, context, recordId);
+  if(record.metadata?.blogPost)throw new DataCoreAccessError(403,'블로그 버전 저장 기능을 사용하세요.');
 
   const existing = await db
     .prepare(

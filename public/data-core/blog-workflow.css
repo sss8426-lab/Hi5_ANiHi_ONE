@@ -1,0 +1,10 @@
+.blog-workflow{padding:20px 0;border-top:1px solid #dce3df;min-width:0;color:#202824}
+.blog-workflow h3{font-size:20px;letter-spacing:0}.blog-workflow details{margin:12px 0}.blog-workflow summary{cursor:pointer;padding:12px 0}
+.blog-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.blog-workflow label{display:flex;flex-direction:column;gap:6px;min-width:0;font-size:14px}
+.blog-workflow input:not([type=checkbox]),.blog-workflow textarea,.blog-workflow select{width:100%;min-width:0;box-sizing:border-box}.blog-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}
+.blog-workflow button{max-width:100%;white-space:normal;overflow-wrap:anywhere;letter-spacing:0}.blog-photo{padding:16px 0;border-bottom:1px solid #dce3df;overflow-wrap:anywhere}
+.blog-photo strong{display:block;margin-bottom:10px}.blog-check{flex-direction:row!important;align-items:center;margin:12px 0}.blog-check input{width:18px;height:18px;flex:0 0 18px}
+.blog-block{position:relative;padding:12px 0;border-bottom:1px solid #e0e5e1}.blog-block figure{margin:0;max-width:760px}.blog-block img{max-width:100%;max-height:520px;object-fit:contain}.blog-block-tools{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;margin-top:8px}.blog-block-tools svg{width:18px;height:18px}
+#blogReview{padding-left:20px;font-size:14px}#blogReview [data-status=needs_changes]{color:#a52b25}#blogReview [data-status=unchecked]{color:#686b76}#blogDownloadStatus{white-space:pre-wrap;overflow-wrap:anywhere}#blogTimings{white-space:pre-wrap}
+#blogRewriteDialog{width:min(900px,calc(100vw - 32px));box-sizing:border-box;max-height:90vh;overflow:auto;border:1px solid #cbd6d0;border-radius:8px;padding:20px}#blogRewriteDialog::backdrop{background:#0006}
+@media(max-width:600px){.blog-fields{grid-template-columns:minmax(0,1fr)}.blog-workflow .blog-actions button{font-size:13px;padding:10px}.blog-workflow{padding:14px 0}}

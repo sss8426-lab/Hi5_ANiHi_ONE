@@ -3,6 +3,7 @@ import {mountAiUsage} from './ai-usage.js?v=20260921-performance';
 import {mountTextPresets} from './content-text-presets.js?v=20260922-presets';
 import {normalizeTags} from './content-preset-catalog.js';
 import {captionTail} from './content-caption.js?v=20260922-presets';
+import {mountBlogWorkflow} from './blog-workflow.js?v=20260922-blog';
 
 const state = {
   context: null,
@@ -48,7 +49,7 @@ const AI_OPTIMIZE_STEPS = [
 const AI_OPTIMIZE_TARGET_BYTES = 1.5 * 1024 * 1024;
 const AI_OPTIMIZE_HARD_CAP_BYTES = 2 * 1024 * 1024;
 
-let derivativeEditor, instagramProduction, aiUsagePanel, textPresets;
+let derivativeEditor, instagramProduction, aiUsagePanel, textPresets, blogWorkflow;
 let browseController, renderedFolder='', defaultsEdited=0;
 let savedDraftSnapshot='',savedDefaultsSnapshot='';
 const draftSnapshot=()=>JSON.stringify(['draftTitle','draftSummary','draftContent','draftTags','resultFooter','resultContact','publishStatus','contentPurpose'].map(id=>$(id).value));
@@ -68,6 +69,7 @@ const cacheFor=path=>state.files.some(file=>!file.thumbnailUrl&&file.previewUrl=
 let thumbnailObserver;
 
 function clearPrivateState() {
+  blogWorkflow?.reset();
   browseController?.abort();state.browseGeneration++;state.defaultsGeneration++;
   thumbnailObserver?.disconnect();thumbnailCache.clear();renderedFolder='';
   legacyThumbnails.clear();
@@ -235,6 +237,7 @@ function selectedFiles() {
 }
 
 function renderSelectedFiles() {
+  blogWorkflow?.selectionChanged();
   instagramProduction?.selectionChanged();
   const rows = selectedFiles();
   derivativeEditor?.update(rows, state.sourceApp === 'instagram');
@@ -406,6 +409,7 @@ function draftPayload() {
 async function saveDraft(event) {
   event.preventDefault();
   if (!canWrite()) return toast('DATA CORE 쓰기 권한이 필요합니다.', 'error');
+  if(state.sourceApp==='blog'&&blogWorkflow){const draft=await blogWorkflow.save();if(draft){savedDraftSnapshot=draftSnapshot();void loadDrafts();}return draft;}
   const button = $('saveDraftBtn');
   button.disabled = true;
   button.textContent = state.editingDraftId ? '수정 중...' : '저장 중...';
@@ -436,9 +440,13 @@ async function saveDraft(event) {
 }
 
 function resetDraftForm(clearSource = true) {
+  state.blogFileIssues = [];
+  state.pendingBlogGeneration = false;
+  $('aiCommand').value = '';
   state.editingDraftId = null;
   instagramProduction?.load({});
   state.selectedFileIds = [];
+  blogWorkflow?.reset();
   state.selectedDerivedFileIds = [];
   derivativeEditor?.reset();
   $('draftForm').reset();
@@ -500,6 +508,7 @@ function loadDraftIntoForm(draft) {
   $('deleteDraftBtn').classList.remove('hidden');
   $('saveDraftBtn').textContent = '초안 수정';
   $('aiResult').hidden = false;
+  blogWorkflow?.load(draft);
   $('resultHeading').textContent = '지난 작업';
   state.folderId = draft.campusId ? 'campus:' + draft.campusId : 'root';
   void loadDefaults(); void loadFiles();
@@ -554,9 +563,9 @@ function renderDrafts() {
     </article>`;
   }).join('');
   document.querySelectorAll('[data-open-draft]').forEach((button) => {
-    button.onclick = () => {
-      const draft = state.drafts.find((item) => String(item.id) === String(button.dataset.openDraft));
-      if (draft) loadDraftIntoForm(draft);
+    button.onclick = async () => {
+      if(blogWorkflow?.hasUnsaved()&&!confirm('미저장 변경사항을 닫고 저장한 글을 열까요?'))return;
+      try{const response=await api('/api/data-core/content/'+encodeURIComponent(button.dataset.openDraft));loadDraftIntoForm(response.draft);}catch(error){toast(error.message,'error');}
     };
   });
 }
@@ -579,7 +588,7 @@ function bindEvents() {
     button.onclick = () => setSourceApp(button.dataset.sourceTab);
   });
   $('draftForm').onsubmit = saveDraft;
-  $('newDraftBtn').onclick = () => resetDraftForm();
+  $('newDraftBtn').onclick = () => {if(!blogWorkflow?.hasUnsaved()||confirm('미저장 변경사항을 닫고 새 초안을 시작할까요?'))resetDraftForm();};
   $('deleteDraftBtn').onclick = deleteDraft;
   $('clearFilesBtn').onclick = () => {
     if (state.busy) return;
@@ -589,7 +598,11 @@ function bindEvents() {
   };
   $('fileSearchBtn').onclick = loadFiles;
   $('fileSearchInput').onkeydown = (event) => { if (event.key === 'Enter') loadFiles(); };
+  let previousCampus = $('draftCampus').value;
+  $('draftCampus').onfocus = () => { previousCampus = $('draftCampus').value; };
   $('draftCampus').onchange = () => {
+    if(blogWorkflow?.hasUnsaved()&&!confirm('미저장 변경사항을 닫고 캠퍼스를 바꿀까요?')){$('draftCampus').value=previousCampus;return;}
+    previousCampus=$('draftCampus').value;
     resetDraftForm();
     state.selectedFileIds = []; state.selectedDerivedFileIds = [];
     state.folderId = $('draftCampus').value ? 'campus:' + $('draftCampus').value : 'root'; state.page = 1;
@@ -657,6 +670,7 @@ async function loadDefaults() {
   void textPresets?.load();
   const token = ++state.defaultsGeneration;
   const edit=defaultsEdited;
+  const blogToken=blogWorkflow?.defaultsToken();
   $('defaultHashtags').value = ''; $('defaultFooter').value = '';
   savedDefaultsSnapshot=defaultsSnapshot();
   $('defaultsStatus').textContent = '';
@@ -666,6 +680,7 @@ async function loadDefaults() {
     if (token !== state.defaultsGeneration || edit!==defaultsEdited) return;
     $('defaultHashtags').value = result.defaults.hashtags; $('defaultFooter').value = result.defaults.footer;
     savedDefaultsSnapshot=defaultsSnapshot();
+    blogWorkflow?.applyDefaults(result.defaults.blogSettings,blogToken);
   } catch (error) { if (token === state.defaultsGeneration) $('defaultsStatus').textContent = error.message; }
 }
 
@@ -754,7 +769,7 @@ async function recentBlogTitles() {
     const titles = (response.drafts || []).map((draft) => draft.title).filter(Boolean);
     state.blogRecentTitlesCache = titles;
     return titles;
-  } catch { return state.blogRecentTitlesCache; }
+  } catch { state.blogRecentTitlesCache=[];state.blogWarnings=['최근 제목 비교 미실행: 목록을 불러오지 못했습니다.'];return []; }
 }
 
 function normalizedTitleWords(title) {
@@ -785,7 +800,9 @@ function renderNextTopics() {
   $('nextTopicsList').innerHTML = state.blogNextTopics.map((topic, index) => `<li><button type="button" data-next-topic="${index}">${h(topic)}</button></li>`).join('');
   $('nextTopicsList').querySelectorAll('[data-next-topic]').forEach((button) => {
     button.onclick = () => {
-      $('aiCommand').value = state.blogNextTopics[Number(button.dataset.nextTopic)];
+      const next=state.blogNextTopics[Number(button.dataset.nextTopic)];
+      if(blogWorkflow?.hasUnsaved()&&!confirm('현재 미저장 변경사항을 닫고 다음 글을 시작할까요?'))return;
+      resetDraftForm();$('aiCommand').value = next;
       window.scrollTo({ top: 0, behavior: 'smooth' });
       toast('다음 글 주제를 명령창에 채웠습니다. 사진을 새로 선택하고 다시 작성해보세요.');
     };
@@ -794,34 +811,18 @@ function renderNextTopics() {
 
 // Client-computed "발행 전 확인" checklist — no server round-trip, recomputed from the current form.
 function renderPublishChecklist() {
-  const show = state.sourceApp === 'blog' && Boolean(state.blogStrategy);
-  $('publishChecklist').hidden = !show;
-  if (!show) return;
-  const tagCount = normalizedHashtags($('draftTags').value).length;
-  const items = [
-    [Boolean(state.blogStrategy?.primaryTopic), '핵심 주제 1개'],
-    [Boolean($('draftTitle').value.trim()), '제목과 본문 일치'],
-    [Boolean(state.currentLead && state.currentLead.trim().length >= 10), '첫 문단에 핵심 답 포함'],
-    [state.selectedFileIds.length > 0, `선택 사진 ${state.selectedFileIds.length}장`],
-    [tagCount >= 8 && tagCount <= 15, `해시태그 ${tagCount}개`],
-    [Boolean($('resultFooter').value.trim()), 'CTA 포함'],
-  ];
-  $('checklistItems').innerHTML = items.map(([ok, label]) => `<li class="${ok ? 'ok' : 'warn'}">${ok ? '✓' : '⚠'} ${h(label)}</li>`).join('');
+  $('publishChecklist').hidden=true;
+  blogWorkflow?.review();
 }
 
 async function copyPublishPackage() {
-  try{captionTail($('resultFooter').value,$('draftTags').value,[],$('resultContact').value);}catch(error){return toast(error.message,'error');}
-  if(normalizedHashtags($('draftTags').value).length>30)return toast('현재 저장 계약은 태그 30개까지입니다. 직접 정리해주세요.','error');
-  const rows = selectedFiles();
-  const text = [$('draftTitle').value, $('draftContent').value, $('resultFooter').value, $('resultContact').value, normalizedHashtags($('draftTags').value).map(t=>'#'+t).join(' ')].filter(Boolean).join('\n\n')
-    + (rows.length ? '\n\n이미지 순서:\n' + rows.map((file, index) => `${index + 1}. ${file.fileName || '사진 ' + (index + 1)}`).join('\n') : '');
-  try { await navigator.clipboard.writeText(text); toast('네이버 발행용으로 복사했습니다.'); }
-  catch { toast('클립보드 권한을 확인해주세요.', 'error'); }
+  return blogWorkflow?.downloadPackage();
 }
 
 // Applies a title candidate (whose lead/body already fits it — either the initial generation's
 // selectedTitleKind, or the result of a completed retitleTo() call) to the visible draft form.
 function applyBlogTitleAndBody(kind) {
+  state.pendingBlogGeneration=false;
   state.blogSelectedTitleKind = kind;
   $('draftTitle').value = state.blogTitles[kind];
   $('draftContent').value = [state.currentLead, state.currentBody].filter(Boolean).join('\n\n');
@@ -842,7 +843,10 @@ function applyBlogTitleAndBody(kind) {
 // no full regeneration (see AGENTS.md-style cost-control rule in the spec: never re-send images just
 // because the user picked a different title).
 async function retitleTo(kind) {
-  if (kind === state.blogFittedKind) { applyBlogTitleAndBody(kind); return; }
+  if(blogWorkflow&&!state.pendingBlogGeneration&&$('draftContent').value.trim()){
+    state.blogSelectedTitleKind=kind;$('draftTitle').value=state.blogTitles[kind];$('titlePicker').hidden=true;$('aiResult').hidden=false;blogWorkflow.review();return;
+  }
+  if (kind === state.blogFittedKind) { applyBlogTitleAndBody(kind);blogWorkflow?.assemble(false);return; }
   $('titlePickerStatus').textContent = '선택한 제목에 맞게 본문을 조정하고 있습니다…';
   const response = await api('/api/data-core/content/refine', {
     method: 'POST', headers: { 'content-type': 'application/json' },
@@ -856,6 +860,7 @@ async function retitleTo(kind) {
   state.currentLead = response.refined.lead; state.currentBody = response.refined.body;
   state.blogFittedKind = kind;
   applyBlogTitleAndBody(kind);
+  blogWorkflow?.assemble(false);
   $('titlePickerStatus').textContent = '';
 }
 
@@ -886,6 +891,9 @@ function renderTitlePicker() {
 
 async function runAi(captionOnly = false, quick = false) {
   if (state.busy || !canWrite()) return;
+  if(state.sourceApp==='blog'&&$('draftContent').value.trim()&&!confirm('본문 전체를 새로 작성할까요? 기존 본문을 교체합니다.'))return;
+  const generationStarted=performance.now();
+  const priorDraft=draftSnapshot();
   const ids = [...state.selectedFileIds], direction = $('aiCommand').value.trim();
   const instagram = state.sourceApp === 'instagram';
   const material = instagramProduction?.read();
@@ -923,17 +931,19 @@ async function runAi(captionOnly = false, quick = false) {
     if (instagram) {
       result = await post('generate', { selectedFileIds: ids, notes: direction, material });
     } else {
-      const photoFiles = ids.map((id) => state.knownFiles.get(String(id))).filter(Boolean);
-      if (photoFiles.length !== ids.length) throw new Error('선택한 사진 정보를 확인할 수 없습니다. 사진을 다시 선택해주세요.');
+      const aiIds=blogWorkflow?await blogWorkflow.aiPhotos(signal):ids;
+      const photoFiles = aiIds.map((id) => state.knownFiles.get(String(id))).filter(Boolean);
+      if (photoFiles.length !== aiIds.length) throw new Error('선택한 사진 정보를 확인할 수 없습니다. 사진을 다시 선택해주세요.');
       const photos = await prepareBlogPhotos(photoFiles, signal);
       const recentTitles = await recentBlogTitles();
       $('aiStatus').textContent = '사진을 살펴보고 글을 작성하고 있습니다…';
       const form = new FormData();
-      form.set('input', JSON.stringify({ selectedFileIds: ids, notes: direction, sourceApp, campusId, strategyMode: $('strategyMode').value, recentTitles, requestId: crypto.randomUUID() }));
+      form.set('input', JSON.stringify({ selectedFileIds: ids, notes: direction, sourceApp, campusId, strategyMode: $('strategyMode').value, recentTitles, photoInstructions:blogWorkflow?.instructions(),requestId: crypto.randomUUID() }));
       for (const [id, blob] of photos) form.set(`photo:${id}`, blob, `${id}.jpg`);
       result = await api('/api/data-core/content/generate', { method: 'POST', signal, body: form });
     }
     const generated = result.generated;
+    if(!instagram&&priorDraft!==draftSnapshot())throw Error('작성 대기 중 본문이 수정되었습니다. 현재 내용을 보존했으므로 필요할 때 다시 생성해주세요.');
     if (instagram) {
       $('draftTitle').value = generated.title;
       $('draftContent').value = generated.body || generated.content;
@@ -946,12 +956,14 @@ async function runAi(captionOnly = false, quick = false) {
       // Blog: strategy + 3 title candidates + a body already fitted to generated.selectedTitleKind.
       // "바로 글 만들기" applies it immediately; the default flow shows the title picker first.
       state.blogStrategy = generated.strategy; state.blogTitles = generated.titles;
+      state.pendingBlogGeneration=true;
       state.blogSelectedTitleKind = generated.selectedTitleKind; state.blogFittedKind = generated.selectedTitleKind;
       state.currentLead = generated.lead; state.currentBody = generated.body;
       state.lastHashtags = generated.hashtags || []; state.lastCta = generated.cta || '';
       state.blogNextTopics = generated.nextTopics || []; state.blogWarnings = generated.warnings || [];
       if (quick) {
         applyBlogTitleAndBody(state.blogSelectedTitleKind);
+        blogWorkflow?.assemble(false);
         $('aiStatus').textContent = state.blogWarnings.length ? `작성이 완료되었습니다. ${state.blogWarnings[0]}` : '작성이 완료되었습니다.';
       } else {
         renderTitlePicker();
@@ -962,10 +974,11 @@ async function runAi(captionOnly = false, quick = false) {
     const message = error.name === 'AbortError' ? '대기를 중단했습니다. 이미 전송된 AI 작업은 과금되거나 저장될 수 있습니다.' : error.message;
     $('aiStatus').textContent = imageSaved ? '이미지는 저장되었습니다. 홍보 문구는 작성하지 못했습니다. 직접 작성하거나 다시 시도해주세요.' : message;
     $('retryCaption').hidden = !(imageSaved || captionOnly);
-  } finally { clearTimeout(timer); setAiBusy(false); state.aiController = null; }
+  } finally { blogWorkflow?.recordTime('generationTotalMs',generationStarted);clearTimeout(timer); setAiBusy(false); state.aiController = null; }
 }
 
 async function copyContent() {
+  if(state.sourceApp==='blog'&&blogWorkflow)return blogWorkflow.copy();
   try{captionTail($('resultFooter').value,$('draftTags').value,[],$('resultContact').value);}catch(error){return toast(error.message,'error');}
   if(normalizedHashtags($('draftTags').value).length>30)return toast('현재 저장 계약은 태그 30개까지입니다. 직접 정리해주세요.','error');
   const text = [state.sourceApp === 'blog' ? $('draftTitle').value : '', $('draftContent').value, $('resultFooter').value, $('resultContact').value, normalizedHashtags($('draftTags').value).map(t=>'#'+t).join(' ')].filter(Boolean).join('\n\n');
@@ -1005,6 +1018,7 @@ async function init() {
   setSourceApp(state.sourceApp);
   await loadHealthAndContext();
   renderCampusSelectors();
+  blogWorkflow=mountBlogWorkflow({state,$,toast,renderSelection:()=>{renderSelectedFiles();renderFilePicker();},contact:()=>textPresets?.contact()||''});
   textPresets=mountTextPresets({api,state,$,applyResult:({footer,hashtags,contact})=>{
     if(state.sourceApp==='instagram'){if(!instagramProduction)throw Error('이미지 세트를 먼저 불러오세요.');instagramProduction.applyText({footer,hashtags,contact});return;}
     if($('aiResult').hidden)throw Error('작성 결과를 먼저 열어주세요.');
@@ -1029,7 +1043,7 @@ init().catch((error) => {
 });
 window.addEventListener('pagehide',clearPrivateState);
 window.addEventListener('beforeunload',event=>{
-  const dirty=state.busy||(state.sourceApp==='instagram'?instagramProduction?.hasUnsaved():$('aiResult').hidden?Boolean($('aiCommand').value.trim()):draftSnapshot()!==savedDraftSnapshot)
+  const dirty=state.busy||blogWorkflow?.hasUnsaved()||(state.sourceApp==='instagram'?instagramProduction?.hasUnsaved():$('aiResult').hidden?Boolean($('aiCommand').value.trim()):draftSnapshot()!==savedDraftSnapshot)
     ||Boolean(savedDefaultsSnapshot&&defaultsSnapshot()!==savedDefaultsSnapshot);
   if(dirty){event.preventDefault();event.returnValue='';}
 });

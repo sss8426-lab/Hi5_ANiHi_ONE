@@ -12,12 +12,27 @@ export function contentScope(context: DataCoreAccessContext, input: { sourceApp?
   return { sourceApp, campusId };
 }
 
-export async function contentDefaults(db: D1Database, context: DataCoreAccessContext, input: { sourceApp?: unknown; campusId?: unknown; hashtags?: unknown; footer?: unknown }, save = false) {
+export async function contentDefaults(db: D1Database, context: DataCoreAccessContext, input: { sourceApp?: unknown; campusId?: unknown; hashtags?: unknown; footer?: unknown; blogSettings?: any }, save = false) {
   const { sourceApp, campusId } = contentScope(context, input);
   const id = `content-defaults:${sourceApp}:${campusId || 'organization'}`;
   if (save) {
     if (typeof input.hashtags !== 'string' || input.hashtags.length > 2000 || typeof input.footer !== 'string' || input.footer.length > 3000) throw new DataCoreAccessError(400, '기본 문구 길이를 확인하세요.');
-    const metadata = JSON.stringify({ schemaVersion: 1, hashtags: input.hashtags.trim(), footer: input.footer });
+    let blogSettings;
+    if(input.blogSettings!==undefined){
+      if(sourceApp!=='blog'||!['balanced','search','homefeed'].includes(input.blogSettings?.strategyMode))throw new DataCoreAccessError(400,'블로그 기본 글 방향을 확인하세요.');
+      const t=input.blogSettings.template;
+      if(!t||!['class','student','teacher','award','admission','career','recruit','space'].includes(t.templateId)||typeof t.greeting!=='string'||t.greeting.length>2000)throw new DataCoreAccessError(400,'블로그 양식을 확인하세요.');
+      const {canReadRegisteredFile}=await import('./data-core-derivative-policy');
+      for(const id of [t.topFileId,t.bottomFileId].filter(Boolean)){
+        if(typeof id!=='string'||id.length>120)throw new DataCoreAccessError(400,'양식 이미지 참조를 확인하세요.');
+        const row=await db.prepare('SELECT * FROM file_objects WHERE id=? AND organization_id=? AND deleted_at IS NULL').bind(id,ORG).first<Record<string,any>>();
+        if(!row||row.campus_id!==campusId||!await canReadRegisteredFile(db,context,row))throw new DataCoreAccessError(403,'양식 이미지 접근 권한을 확인하세요.');
+      }
+      const {LOGOS}=await import('../public/data-core/instagram-brand-policy.js');
+      const normalized={templateId:t.templateId,templateVersion:1,topFileId:t.topFileId||'',bottomFileId:t.bottomFileId||'',greeting:t.greeting,logoType:Object.hasOwn(LOGOS,t.logoType)?t.logoType:'none',align:t.align==='center'?'center':'left',spacing:[16,24,32].includes(t.spacing)?t.spacing:24,font:t.font==='serif'?'serif':'sans-serif',coverWidth:1200,coverHeight:900,contactMode:t.contactMode==='none'?'none':'verified'};
+      blogSettings={strategyMode:input.blogSettings.strategyMode,template:normalized,templates:{[t.templateId]:normalized}};
+    }
+    const metadata = JSON.stringify({ schemaVersion: 1, hashtags: input.hashtags.trim(), footer: input.footer,...(blogSettings?{blogSettings}:{}) });
     const now = new Date().toISOString();
     await db.prepare(`INSERT INTO data_records (id,organization_id,campus_id,created_by_user_id,record_type,source_app,title,visibility,status,metadata_json,created_at,updated_at)
       VALUES (?,?,?,?,?,?,'콘텐츠 기본 문구',?,'active',?,?,?) ON CONFLICT(id) DO UPDATE SET metadata_json=json_patch(CASE WHEN json_valid(data_records.metadata_json) THEN data_records.metadata_json ELSE '{}' END,excluded.metadata_json),updated_at=excluded.updated_at
@@ -27,7 +42,7 @@ export async function contentDefaults(db: D1Database, context: DataCoreAccessCon
   const row = await db.prepare('SELECT metadata_json FROM data_records WHERE id=? AND organization_id=? AND record_type=? AND campus_id IS ? AND deleted_at IS NULL')
     .bind(id, ORG, CONTENT_DEFAULTS_TYPE, campusId).first<{ metadata_json: string }>();
   let stored; try { stored = JSON.parse(row?.metadata_json || '{}'); } catch { stored = {}; }
-  return { hashtags: typeof stored.hashtags === 'string' ? stored.hashtags : '', footer: typeof stored.footer === 'string' ? stored.footer : '' };
+  return { hashtags: typeof stored.hashtags === 'string' ? stored.hashtags : '', footer: typeof stored.footer === 'string' ? stored.footer : '',...(sourceApp==='blog'&&stored.blogSettings?{blogSettings:stored.blogSettings}:{}) };
 }
 
 // A single conditional INSERT serializes the per-user lease across Worker isolates.
