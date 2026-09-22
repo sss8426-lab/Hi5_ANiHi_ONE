@@ -11,7 +11,7 @@ const image=await sharp({create:{width:1200,height:800,channels:3,background:'#3
 try{for(const [label,root] of [['before',resolve(baseline)],['after',process.cwd()]]){
  const {libraryHarness,users,A}=await import(pathToFileURL(resolve(root,'tests/support/library-harness.mjs')).href);const h=await libraryHarness();let db=0,r2=0;
  const nativeDB=h.env.DB;h.env.DB=new Proxy(nativeDB,{get(target,key){if(key==='prepare')return sql=>{db++;return target.prepare(sql);};const value=target[key];return typeof value==='function'?value.bind(target):value;}});
- const bucket=h.env.FILES;h.env.FILES=new Proxy(bucket,{get(target,key){const value=target[key];return typeof value==='function'? (...args)=>{r2++;return value.apply(target,args);}:value;}});
+ const bucket=h.env.FILES;h.env.FILES=new Proxy(bucket,{get(target,key){const value=target[key];return typeof value==='function'? (...args)=>{r2++;return value.apply(target,args);}:value;}});const traces=[];
  const category=`category:${A}:academy-photo`;let parent=category;for(let i=0;i<4;i++)parent=(await h.folder(parent,`__synthetic_level_${i}`,users.staff)).body.folder.id;
  for(let i=0;i<12;i++)await h.upload(parent,users.staff,{name:`image-${i}.jpg`,bytes:image,mime:'image/jpeg'});
  let apis=0,active=0;const errors=[];const server=createServer(async(req,res)=>{active++;try{const url=new URL(req.url,'http://localhost');if(url.pathname==='/favicon.ico'){res.writeHead(204);res.end();return;}
@@ -27,10 +27,10 @@ try{for(const [label,root] of [['before',resolve(baseline)],['after',process.cwd
    const trigger=page.locator(label==='before'?'.lb-thumbnail':'#libraryFiles [data-lb-preview]').first();await trigger.scrollIntoViewIfNeeded();
    await page.evaluate(()=>document.addEventListener('click',()=>{window.__previewStarted=performance.now();},{once:true,capture:true}));
    await trigger.click();await page.waitForFunction(before=>{const image=document.querySelector(before?'.cig-image':'.lb-preview img');if(image?.naturalWidth>0&&(!before||document.querySelector('.cig-feedback')?.hidden)){window.__previewElapsed=performance.now()-window.__previewStarted;return true;}return false;},label==='before');
-   times.push(Math.round(await page.evaluate(()=>window.__previewElapsed)));await page.keyboard.press('Escape');
+   times.push(Math.round(await page.evaluate(()=>window.__previewElapsed)));if(n===0)traces.push(await page.evaluate(()=>performance.getEntriesByType('resource').filter(r=>r.startTime>=window.__previewStarted).map(r=>({name:new URL(r.name).pathname,ms:Math.round(r.duration)}))));await page.keyboard.press('Escape');
   }
   await page.goto(`${base}/data-core/work/library?folder=${encodeURIComponent('campus:'+A)}`);await page.waitForFunction(()=>window.__marks.recent);entry.recent=await page.evaluate(()=>window.__marks.recent);entry.previewCold=times[0];entry.previewWarm=times[1];measurements.push(entry);await context.close();
  }}finally{await new Promise(r=>server.close(r));while(active)await new Promise(r=>setTimeout(r,20));await h.mf.dispose();}
- if(errors.length)throw Error(errors.join('\n'));results[label]={runs:measurements,median:Object.fromEntries(Object.keys(measurements[0]).map(key=>[key,measurements.map(r=>r[key]).sort((a,b)=>a-b)[1]]))};
+ if(errors.length)throw Error(errors.join('\n'));results[label]={runs:measurements,traces,median:Object.fromEntries(Object.keys(measurements[0]).map(key=>[key,measurements.map(r=>r[key]).sort((a,b)=>a-b)[1]]))};
 }}finally{await browser.close();}
 await mkdir('outputs/library-management',{recursive:true});await writeFile('outputs/library-management/benchmark.json',JSON.stringify(results,null,2));console.log(JSON.stringify(results,null,2));
