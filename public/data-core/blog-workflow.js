@@ -20,16 +20,19 @@ export function mountBlogWorkflow({state,$,toast,renderSelection,contact}){
   const setup=document.createElement('div');setup.className='blog-workflow';
   setup.innerHTML=`<details id="blogMoreRequest"><summary>추가 요청</summary><div class="blog-fields"><label>핵심 메시지<input id="blogMessage" maxlength="1000"></label><label>독자<input id="blogReader" maxlength="160" placeholder="학부모, 학생"></label><label>포함할 내용<textarea id="blogInclude" maxlength="2000"></textarea></label><label>넣지 않을 내용<textarea id="blogExclude" maxlength="2000"></textarea></label><label>날짜·인원 등 정확한 정보<textarea id="blogFacts" maxlength="3000"></textarea></label><label>참고자료·출처<textarea id="blogSources" maxlength="2000"></textarea></label><label>문체<input id="blogStyle" maxlength="300"></label></div></details>
     <div class="workflow-status-row"><span id="blogTemplateSummary" role="status"></span>${command('blogOpenTemplate','양식 수정')}</div>
+    <div class="workflow-status-row"><span id="blogPresetsSummary" role="status"></span>${command('blogOpenPresets','마무리 수정')}</div>
     <dialog id="blogTemplateDialog" class="workflow-dialog" aria-labelledby="blogTemplateDialogTitle"><div class="workflow-heading"><h2 id="blogTemplateDialogTitle">양식 수정</h2>${command('blogCloseTemplate','닫기')}</div><div class="blog-fields"><label>인사말<textarea id="blogGreeting" maxlength="2000"></textarea></label><label>상단 이미지<select id="blogTop"></select></label><label>하단 이미지<select id="blogBottom"></select></label></div><div class="blog-actions">${command('blogApplyTemplate','이번 글에 적용')}${command('blogSaveTemplate','캠퍼스 기본값으로 저장')}${command('blogCancelTemplate','취소')}</div><span id="blogTemplateStatus" role="status"></span></dialog>`;
   const strategyModeField=$('strategyModeField');
   strategyModeField.querySelector('span').textContent='글 방향';
   setup.querySelector('#blogMoreRequest').append(strategyModeField);
   strategyModeField.hidden=false;
-  $('titleField').after(setup);
+  // setup (추가 요청 / 양식 수정 / 마무리 수정) belongs to area② — always reachable before generating,
+  // not gated behind a draft. Only the completion block editor (result) waits inside #aiResult.
+  document.querySelector('.workflow-command').after(setup);
   $('blogBottom').closest('.blog-fields').insertAdjacentHTML('beforeend','<label>정렬<select id="blogAlign"><option value="left">왼쪽</option><option value="center">가운데</option></select></label><label>문단 여백<select id="blogSpacing"><option value="16">16px</option><option value="24" selected>24px</option><option value="32">32px</option></select></label><label>서체<select id="blogFont"><option value="sans-serif">고딕</option><option value="serif">명조</option></select></label><label>연락처<select id="blogContactMode"><option value="verified">확인된 연락처</option><option value="none">표시 안 함</option></select></label>');
   const result=document.createElement('section');result.className='blog-workflow';result.id='blogComplete';
-  result.innerHTML=`<div class="blog-actions">${command('blogAssemble','현재 본문·사진 배치 적용')}${command('blogUndo','되돌리기')}${command('blogOpenPresets','마무리 수정')}<span id="blogPresetsSummary" role="status"></span></div><div id="blogBlocks"></div><label class="blog-check"><input type="checkbox" id="blogPrivacy"> 홍보 사용 권한·얼굴·이름·개인정보 노출 확인</label><ul id="blogReview"></ul>`;
-  setup.after(result);
+  result.innerHTML=`<div class="blog-actions">${command('blogAssemble','현재 본문·사진 배치 적용')}${command('blogUndo','되돌리기')}</div><div id="blogBlocks"></div><label class="blog-check"><input type="checkbox" id="blogPrivacy"> 홍보 사용 권한·얼굴·이름·개인정보 노출 확인</label><ul id="blogReview"></ul>`;
+  $('titleField').after(result);
   // Buttons that used to duplicate content.html's unified 저장하기/글 복사 are gone — saveDraftBtn
   // and copyContent already bridge to save()/copy() below. These remaining actions relocate into
   // the shared 이미지 다운로드/더보기 menus so nothing is lost, just regrouped.
