@@ -160,9 +160,9 @@ try {
   await page.locator('#libraryDeleteFolder').click();await page.locator('#libraryDeleteConfirm').click();await page.waitForURL('**folder='+fixtures.a);await settled();
   assert.equal((await h.file(preserved.body.file.id)).data_record_id,fixtures.a);
   result.flows.push('navigate, folder rename, same-campus file move, upload/download, soft-trash/restore, nonempty folder delete preserves originals');
-  await visit(fixtures.hq);await page.locator('#libraryNew').click();await page.locator('#libraryFolderName').fill('__synthetic_빈 본원 폴더');await page.locator('#libraryCreate').click();await page.getByRole('link',{name:'__synthetic_빈 본원 폴더',exact:true}).click();await settled();await page.locator('#libraryDeleteFolder').click();await page.locator('#libraryDeleteConfirm').click();await page.waitForURL('**folder='+fixtures.hq);await settled();
+  await visit(fixtures.hq);assert.equal(new URL(page.url()).search,'');assert.equal(await page.locator('#libraryHq').count(),0);
   role=users.staff;await visit(fixtures.b);assert.equal(await page.locator('#libraryNew').isVisible(),false);assert.equal(await page.locator('#libraryUpload').isVisible(),false);assert.equal(await page.locator('[data-lb-delete]').count(),0);await page.getByRole('link',{name:'다운로드',exact:true}).waitFor();
-  result.flows.push('HQ empty-folder delete; foreign browse/download with no mutation controls');
+  result.flows.push('legacy HQ navigation redirects to root; foreign browse/download with no mutation controls');
   const foreignDownload=page.waitForEvent('download');await page.getByRole('link',{name:'다운로드',exact:true}).click();assert.equal((await foreignDownload).suggestedFilename(),'검증 자료.txt');
   for(const width of [1920,1440,1024,820,390,320]) {
     await page.setViewportSize({width,height:width<500?900:1080});await visit(deep);

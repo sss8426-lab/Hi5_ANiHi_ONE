@@ -7,7 +7,7 @@
   const icon = name => `<svg class="lb-icon" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#${name}"></use></svg>`;
   const href = id => `/data-core/work/library${id === 'root' ? '' : `?folder=${encodeURIComponent(id)}`}`;
   const state = { folder: null, folders: [], files: [], recent: [], recentCount: 0, breadcrumbs: [], controller: null, generation: 0, queue: null, pending: null };
-  const sheet = document.createElement('link'); sheet.rel = 'stylesheet'; sheet.href = '/data-core/work/library-browser.css?v=20260919-shared'; document.head.append(sheet);
+  const sheet = document.createElement('link'); sheet.rel = 'stylesheet'; sheet.href = '/data-core/work/library-browser.css?v=20260922-usage'; document.head.append(sheet);
   let imageCache=null, observer=null, recentObserver=null, imageGeneration=0;
   function clearImages() {
     window.DataCoreImageGallery.close('library');
@@ -53,7 +53,7 @@
   host.innerHTML = `<nav id="libraryBreadcrumb" aria-label="자료보관함 경로"></nav>
     <header class="lb-heading"><div><h2 id="libraryTitle" tabindex="-1">자료보관함</h2><small id="libraryPermission"></small></div>
     <div class="lb-toolbar"><a id="libraryUp" class="lb-button" hidden>${icon('ArrowLeft')}상위 폴더</a>
-      <a id="libraryHq" class="lb-button" href="${href('hq')}" data-lb-folder="hq" hidden>${icon('Folder')}본원 작업물</a>
+      <span id="libraryUsage" class="lb-usage" hidden></span>
       <button id="libraryNew" class="lb-button" hidden>${icon('Folder')}새 폴더</button>
       <button id="libraryUpload" class="lb-button lb-primary" hidden>${icon('Image')}파일 업로드</button>
       <button id="libraryDeleteFolder" class="lb-button lb-danger" hidden>폴더 삭제</button>
@@ -171,19 +171,19 @@
     $('libraryStatus').textContent = '불러오는 중…'; $('libraryContents').setAttribute('aria-busy','true');
     $('libraryFolders').replaceChildren(); $('libraryFiles').replaceChildren(); $('libraryPages').replaceChildren();
     $('libraryRecent').hidden = true; $('libraryRecentList').replaceChildren();
-    for (const id of ['libraryNew','libraryUpload','libraryDeleteFolder','libraryRenameFolder','libraryHq','libraryArchived','libraryRestoreFolder']) $(id).hidden = true;
+    for (const id of ['libraryNew','libraryUpload','libraryDeleteFolder','libraryRenameFolder','libraryArchived','libraryRestoreFolder']) $(id).hidden = true;
     $('libraryQuery').value = current.q;
     try {
       const options = { signal: state.controller.signal };
-      const { view, listing } = await window.DataCoreLibraryClient.browse(api, current, options);
+      const { view, listing, redirected } = await window.DataCoreLibraryClient.browse(api, current, options);
       if (generation !== state.generation) return;
+      if(redirected){history.replaceState(null,'',href('root'));current.id='root';current.q='';current.page=1;}
       state.folder = view.folder; state.folders = view.folders; state.files = listing.files; state.breadcrumbs = view.breadcrumbs;
       $('libraryTitle').textContent = presentation(view.folder).title;
       $('libraryPermission').textContent = view.folder.archived ? '삭제한 기본 폴더 · 원본 자료 보존 중' : view.folder.readOnly ? (view.folder.campusId?'다른 캠퍼스 자료 · 읽기 전용':'읽기·다운로드 가능') : '';
       $('libraryBreadcrumb').innerHTML = `<ol>${view.breadcrumbs.map((b,i) => `<li>${i === view.breadcrumbs.length-1 ? `<span aria-current="page">${h(presentation(b).title)}</span>` : `<a href="${h(href(b.id))}" data-lb-folder="${h(b.id)}">${h(presentation(b).title)}</a>`}</li>`).join('')}</ol>`;
       $('libraryUp').hidden = !view.folder.parentId; $('libraryUp').href = href(view.folder.parentId || 'root'); $('libraryUp').dataset.lbFolder = view.folder.parentId || 'root';
       $('libraryNew').hidden = !view.folder.canWrite;
-      $('libraryHq').hidden = view.folder.id !== 'root' || !view.folder.canWrite;
       $('libraryUpload').hidden = !view.folder.canWrite || !view.folder.category;
       $('libraryDeleteFolder').hidden = !view.folder.canDelete;
       $('libraryRenameFolder').hidden = !view.folder.canRename;

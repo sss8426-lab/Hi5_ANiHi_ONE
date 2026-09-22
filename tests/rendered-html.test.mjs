@@ -101,7 +101,7 @@ test("wires the DATA CORE counseling and work mode split", async () => {
   assert.doesNotMatch(appScript, /CAMPUS_PRESENTATION/);
   assert.match(appScript, /return state\.campuses/);
   assert.match(appScript, /data-campus-group/);
-  assert.match(dataCoreIndex, /app\.js\?v=20260921-performance/);
+  assert.match(dataCoreIndex, /app\.js\?v=20260922-library-usage/);
   assert.match(dataCoreIndex, /id="view-attendance"/);
   assert.match(dataCoreIndex, /class="at-work-link" data-view="attendance"/);
   assert.match(appScript, /params\.set\('sourceApp', sourceApp\)/);

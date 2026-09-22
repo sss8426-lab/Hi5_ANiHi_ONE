@@ -54,6 +54,7 @@ jobs:
           node --check public/data-core/private-image-cache.js
           node --check public/data-core/library-thumbnail.js
           node --check public/data-core/work/hq-library.js
+          node --check public/data-core/work/library-usage.js
           node --check public/data-core/content.js
           node --check public/data-core/ai-usage.js
           node --check public/data-core/work-navigation.js
