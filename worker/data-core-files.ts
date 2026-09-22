@@ -21,7 +21,7 @@ import { libraryUploadTarget, libraryCanDelete, LIBRARY_FOLDER, LIBRARY_SOURCE }
 import { acquireLibraryWrite } from './library-write-lease';
 import { privateImageResponse } from './private-image-response';
 import { thumbnailUrls } from './data-core-thumbnails';
-import { THUMBNAIL_CATEGORY, THUMBNAIL_RECORD_TYPE, thumbnailSource } from './data-core-derivative-policy';
+import { THUMBNAIL_CATEGORY, THUMBNAIL_RECORD_TYPE, thumbnailSource,blogDerivativeSource } from './data-core-derivative-policy';
 import { awardRow, awardPath, awardAudit, sharedAwardFileFolder, requireAwardMember } from './data-core-awards';
 
 const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024;
@@ -259,7 +259,7 @@ export async function uploadDataCoreFile(
 
   let campusId = cleanText(form.get("campusId"), 120) || null;
   const category = cleanText(form.get("category") || form.get("purpose") || "general", 80) || "general";
-  if ([DERIVATIVE_CATEGORY,THUMBNAIL_CATEGORY].includes(category)) throw new DataCoreAccessError(400, '파생 이미지 저장 기능을 사용하세요.');
+  if ([DERIVATIVE_CATEGORY,THUMBNAIL_CATEGORY,'blog-derived'].includes(category)) throw new DataCoreAccessError(400, '파생 이미지 저장 기능을 사용하세요.');
   const recordId = cleanText(form.get("recordId"), 120) || null;
   const awardFolder = recordId ? await awardRow(db,recordId) : null;
   if (awardFolder) {
@@ -492,7 +492,7 @@ export async function listDeletedDataCoreFiles(
 
   const visible = [];
   for (const row of result.results || []) {
-    if (![DERIVATIVE_CATEGORY,THUMBNAIL_CATEGORY].includes(String(row.category)) || await canReadRegisteredFile(db, context, row)) {
+    if (![DERIVATIVE_CATEGORY,THUMBNAIL_CATEGORY,'blog-derived'].includes(String(row.category)) || await canReadRegisteredFile(db, context, row)) {
       visible.push({...fileRowToResponse(row), metadata:await derivativeMetadata(db, row)});
     }
   }
@@ -522,6 +522,10 @@ export async function readDataCoreFile(
   if (row.category === THUMBNAIL_CATEGORY) {
     const source = await thumbnailSource(db,row);
     if (!source || !await files.head(String(source.r2_key))) throw new DataCoreAccessError(404,"원본 파일을 찾을 수 없습니다.");
+  }
+  if(row.category==='blog-derived'){
+    const source=await blogDerivativeSource(db,row);
+    if(!source||!await files.head(String(source.r2_key)))throw new DataCoreAccessError(404,'원본 파일을 찾을 수 없습니다.');
   }
   const object = await files.get(String(row.r2_key));
   if (!object) throw new DataCoreAccessError(404, "R2 원본 파일을 찾을 수 없습니다.");

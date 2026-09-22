@@ -1,4 +1,6 @@
 import baseWorker from "./index";
+import {resolveBlogFiles,saveBlogPost,saveBlogImage} from './blog-workflow';
+import {blogTextAction} from './content-openai-provider';
 import {aiUsage,saveAiBudget} from './content-ai-usage';
 import {
   DataCoreAccessError,
@@ -422,9 +424,9 @@ async function handleCompetitionSourceApi(request: Request, env: Env) {
   return jsonResponse(body, { headers: { "cache-control": "private, no-store" } });
 }
 
-async function contentJson(request: Request) {
+async function contentJson(request: Request, maxBytes=16384) {
   try {
-    const value = await boundedJson(new Response(request.body), 16384);
+    const value = await boundedJson(new Response(request.body), maxBytes);
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error();
     return value;
   } catch { throw new DataCoreAccessError(400, 'AI 요청 형식과 길이를 확인해주세요.'); }
@@ -444,7 +446,7 @@ async function contentGenerateRequest(request: Request) {
   let form: FormData;
   try { form = await request.formData(); } catch { throw new DataCoreAccessError(400, 'AI 요청 형식을 확인해주세요.'); }
   const raw = form.get('input');
-  if (typeof raw !== 'string' || raw.length > 16384) throw new DataCoreAccessError(400, 'AI 요청 형식과 길이를 확인해주세요.');
+  if (typeof raw !== 'string' || raw.length > 60000) throw new DataCoreAccessError(400, 'AI 요청 형식과 길이를 확인해주세요.');
   let input: unknown;
   try { input = JSON.parse(raw); } catch { throw new DataCoreAccessError(400, 'AI 요청 형식을 확인해주세요.'); }
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new DataCoreAccessError(400, 'AI 요청 형식을 확인해주세요.');
@@ -488,6 +490,22 @@ async function handleContentApi(request: Request, env: Env) {
       return jsonResponse(result,{status:201,headers:{'server-timing':`complete;dur=${(performance.now()-start).toFixed(1)}`}});
     }
     if(request.method==='GET')return jsonResponse(await listInstagramSets(env.DB,context,url.searchParams.get('campusId')||''));
+  }
+  if (url.pathname === '/api/data-core/content/blog/files' && request.method === 'POST') {
+    if(!env.FILES)throw new DataCoreAccessError(503,'파일 저장소를 확인하세요.');
+    return jsonResponse(await resolveBlogFiles(env.DB,env.FILES,context,await contentJson(request)),{headers:{'cache-control':'private, no-store'}});
+  }
+  if(url.pathname==='/api/data-core/content/blog/image'&&request.method==='POST'){
+    if(!env.FILES)throw new DataCoreAccessError(503,'파일 저장소를 확인하세요.');
+    return jsonResponse({file:await saveBlogImage(request,env.DB,env.FILES,context)});
+  }
+  if(url.pathname==='/api/data-core/content/blog/text-action'&&request.method==='POST'){
+    const input=await contentJson(request,65000),scope=contentScope(context,{sourceApp:'blog',campusId:input.campusId});
+    return jsonResponse(await withAiRequest(env.DB,context,input.requestId,scope.campusId,()=>blogTextAction(env,env.DB!,context,input,request.signal)));
+  }
+  if (url.pathname === '/api/data-core/content/blog/save' && request.method === 'POST') {
+    if(!env.FILES)throw new DataCoreAccessError(503,'파일 저장소를 확인하세요.');
+    return jsonResponse({draft:await saveBlogPost(env.DB,env.FILES,context,await contentJson(request,200000))});
   }
   if (url.pathname === '/api/data-core/content/text-presets') {
     if (request.method === 'GET') return jsonResponse(await textPresets(env.DB, context, Object.fromEntries(url.searchParams)), {headers:{'cache-control':'private, no-store'}});

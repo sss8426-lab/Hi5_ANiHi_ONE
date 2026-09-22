@@ -332,6 +332,7 @@ export async function createDataRecord(
   if (!context.isSuperAdmin && curriculumRecord({record_type:recordType,source_app:input.sourceApp})) throw new DataCoreAccessError(403, '공통 교재는 마스터 관리자만 등록할 수 있습니다.');
   if (isCampusAdmin(context) && ['competition','admission-guideline','admissions-guideline','university','curriculum','major'].includes(recordType)) throw new DataCoreAccessError(403,'공용 정보는 마스터 관리자만 수정할 수 있습니다.');
   assertMutableRecordType(recordType);
+  if(input.metadata && typeof input.metadata==='object' && 'blogPost' in input.metadata)throw new DataCoreAccessError(403,'블로그 전용 저장 기능을 사용하세요.');
   const sourceApp = cleanText(input.sourceApp, 80);
   const campusId = isCampusAdmin(context) ? campusForWrite(context, input.campusId) : cleanText(input.campusId, 120) || null;
   if (recordType === LIBRARY_FOLDER || (recordType === HQ_FOLDER && (!context.isSuperAdmin || campusId ||
@@ -408,6 +409,7 @@ export async function updateDataRecord(
     throw new DataCoreAccessError(403, '자료보관함 폴더 구조는 직접 변경할 수 없습니다.');
   }
   assertMutableRecordType(existing.record_type);
+  if(JSON.parse(String(existing.metadata_json||'{}')).blogPost || (input.metadata && typeof input.metadata==='object' && 'blogPost' in input.metadata))throw new DataCoreAccessError(403,'블로그 전용 저장 기능을 사용하세요.');
   assertMutableRecordType(cleanText(input.recordType, 80));
   if (!canMutateRecord(context, existing)) {
     throw new DataCoreAccessError(403, "본인이 등록한 데이터만 수정할 수 있습니다.");

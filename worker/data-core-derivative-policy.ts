@@ -12,6 +12,7 @@ export const DERIVATIVE_CATEGORY = 'instagram-derived';
 export const THUMBNAIL_RECORD_TYPE = 'image-thumbnail';
 export const THUMBNAIL_CATEGORY = 'image-thumbnail';
 export function assertMutableRecordType(type: unknown) {
+  if(type==='blog-derived-file')throw new DataCoreAccessError(403,'블로그 이미지 전용 기능을 사용하세요.');
   if (['library-upload-session','library-write-lease','library-upload-request'].includes(String(type).trim())) throw new DataCoreAccessError(403, '업로드 전용 기능을 사용하세요.');
   if (String(type).trim() === 'content-text-presets') throw new DataCoreAccessError(403, '문구 세트 전용 기능을 사용하세요.');
   if (type === 'library-r2-usage') throw new DataCoreAccessError(403, '보호된 통계 캐시는 변경할 수 없습니다.');
@@ -75,6 +76,11 @@ export async function derivativeMetadata(db: D1Database, row: Record<string, unk
 }
 
 export async function canReadRegisteredFile(db: D1Database, context: DataCoreAccessContext, row: Record<string, unknown>): Promise<boolean> {
+  if(row.category==='blog-derived'){
+    if(!canReadBaseFile(context,row))return false;
+    const source=await blogDerivativeSource(db,row);
+    return Boolean(source&&await canReadRegisteredFile(db,context,source));
+  }
   if (curriculumFile(row)) return curriculumFileReadable(db, context, row);
   // This derivative is served only after resolving the live legacy student/slot.
   if(row.category==='admissions-legacy-thumbnail')return false;
@@ -105,4 +111,14 @@ export async function canReadRegisteredFile(db: D1Database, context: DataCoreAcc
   // One-hop immutable provenance: no chains, cycles, stale campus grants, or deleted-source bypass.
   return Boolean(source && ![DERIVATIVE_CATEGORY,THUMBNAIL_CATEGORY].includes(String(source.category)) && source.campus_id === row.campus_id
     && await canReadRegisteredFile(db, context, source) && (context.isSuperAdmin || !source.campus_id || context.campusIds.includes(String(source.campus_id))));
+}
+
+export async function blogDerivativeSource(db:D1Database,row:Record<string,any>){
+  if(row.category!=='blog-derived'||row.source_app!=='blog'||row.mime_type!=='image/png')return null;
+  const record=await db.prepare("SELECT metadata_json FROM data_records WHERE id=? AND organization_id=? AND record_type='blog-derived-file' AND deleted_at IS NULL").bind(row.data_record_id,DEFAULT_ORGANIZATION_ID).first<{metadata_json:string}>();
+  let m;try{m=JSON.parse(record?.metadata_json||'null');}catch{return null;}
+  if(m?.schemaVersion!==1||m.derivativeFileId!==row.id||m.width!==1200||m.height!==900||m.createdBy!=='blog-editor'||typeof m.derivedFromFileId!=='string')return null;
+  const source=await db.prepare('SELECT * FROM file_objects WHERE id=? AND organization_id=? AND deleted_at IS NULL').bind(m.derivedFromFileId,DEFAULT_ORGANIZATION_ID).first<Record<string,any>>();
+  if(!source||/derived|thumbnail/.test(source.category)||source.campus_id!==row.campus_id||source.owner_user_id!==row.owner_user_id||source.visibility!==row.visibility)return null;
+  return source;
 }
