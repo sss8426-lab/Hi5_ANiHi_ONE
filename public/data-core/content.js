@@ -1,9 +1,9 @@
 import {instagramImageMime} from './instagram-image-formats.js';
 import {mountAiUsage} from './ai-usage.js?v=20260921-performance';
-import {mountTextPresets} from './content-text-presets.js?v=20260922-unify';
+import {mountTextPresets} from './content-text-presets.js?v=20260923-unify2';
 import {normalizeTags} from './content-preset-catalog.js';
 import {captionTail} from './content-caption.js?v=20260922-presets';
-import {mountBlogWorkflow} from './blog-workflow.js?v=20260922-unify';
+import {mountBlogWorkflow} from './blog-workflow.js?v=20260923-unify2';
 
 const state = {
   context: null,
@@ -228,7 +228,6 @@ function setSourceApp(sourceApp) {
   $('strategyModeField').hidden = instagram;
   $('downloadImage').hidden = instagram;
   $('downloadMenu').hidden = instagram;
-  $('saveDraftBtn').textContent = '저장하기';
   resetDraftForm(false);
   instagramProduction?.refresh();
 }
@@ -461,7 +460,7 @@ function resetDraftForm(clearSource = true) {
     $('contentPurpose').value = 'class-story';
   }
   $('deleteDraftBtn').classList.add('hidden');
-  $('saveDraftBtn').textContent = '초안 저장';
+  $('saveDraftBtn').textContent = state.sourceApp === 'blog' ? '저장하기' : '초안 저장';
   $('existingDraftBadge').classList.add('hidden');
   state.blogStrategy = null; state.blogTitles = null; state.blogSelectedTitleKind = null; state.blogFittedKind = null;
   state.currentLead = ''; state.currentBody = ''; state.lastHashtags = []; state.lastCta = ''; state.blogNextTopics = []; state.blogWarnings = [];
@@ -505,7 +504,7 @@ function loadDraftIntoForm(draft) {
   state.currentLead = ''; state.currentBody = draft.content || '';
   $('titlePicker').hidden = true;
   $('deleteDraftBtn').classList.remove('hidden');
-  $('saveDraftBtn').textContent = '초안 수정';
+  $('saveDraftBtn').textContent = state.sourceApp === 'blog' ? '저장하기' : '초안 수정';
   $('aiResult').hidden = false;
   blogWorkflow?.load(draft);
   $('resultHeading').textContent = state.sourceApp === 'blog' ? '블로그 완성본' : '지난 작업';
