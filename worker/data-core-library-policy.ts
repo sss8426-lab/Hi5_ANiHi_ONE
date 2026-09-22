@@ -21,7 +21,7 @@ type Row = Record<string, any>;
 export type LibraryFolder = {
   id: string; title: string; parentId: string | null; campusId: string | null;
   category: string | null; shareMode: 'organization' | 'campus' | 'restricted';
-  virtual: boolean; depth: number; row?: Row; group?: string; systemManaged?: boolean; protected?: boolean; archived?: boolean;
+  virtual: boolean; depth: number; row?: Row; group?: string; systemManaged?: boolean; protected?: boolean; archived?: boolean; navigationHidden?: boolean;
 };
 function fail(status = 403, message = '이 자료보관함에 접근할 권한이 없습니다.'): never { throw new DataCoreAccessError(status, message); }
 export function libraryMetadata(row: Row) {
@@ -78,7 +78,7 @@ export class LibraryTree {
     let folder: LibraryFolder;
     const base = { campusId: null, category: null, shareMode: 'organization' as const, virtual: true, depth: 0, systemManaged: true };
     if (id === 'root') folder = { ...base, id, title: '자료보관함', parentId: null };
-    else if (id === 'hq') folder = { ...base, id, title: '본원 작업물', parentId: 'root', depth: 1 };
+    else if (id === 'hq') folder = { ...base, id, title: '본원 작업물', parentId: 'root', depth: 1, navigationHidden: true };
     else if (id === 'organization') folder = { ...base, id, title: '조직 공통', parentId: 'root', depth: 1 };
     else if (id.startsWith('campus:')) {
       const campus = this.campuses.find(c => `campus:${c.id}` === id);
@@ -109,7 +109,7 @@ export class LibraryTree {
       const row = await this.row(id);
       if (row) return this.resolveRecord(row, seen, true);
       folder = { ...base, id, title: item[1], parentId: 'hq', category: 'hq-workspace', depth: 2,
-        protected: item[0] === 'director-only',
+        protected: item[0] === 'director-only', navigationHidden: true,
         shareMode: item[0] === 'director-only' ? 'restricted' : 'organization' };
     } else {
       const row = await this.row(id);
@@ -129,7 +129,7 @@ export class LibraryTree {
       // Legacy HQ visibility (including director-only) is not broadened or rewritten.
       const shared = ['organization', 'public'].includes(row.visibility) && !['restricted', 'campus'].includes(m.libraryShareMode);
       folder = { id: row.id, title: row.title, parentId: 'hq', campusId: null, category: 'hq-workspace',
-        virtual, depth: 2, row, shareMode: shared ? 'organization' : 'restricted', archived: m.libraryArchived === true,
+        virtual, depth: 2, row, shareMode: shared ? 'organization' : 'restricted', archived: m.libraryArchived === true, navigationHidden: true,
         protected: m.folderKey === 'director-only' || row.id === 'hq-default:director-only' || row.title === '원장전용',
         systemManaged: m.system === true || m.systemManaged === true || HQ_DEFAULTS.some(([key]) => key === m.folderKey) };
     } else if (m.parentFolderId === null) {
@@ -147,7 +147,7 @@ export class LibraryTree {
         m.libraryScope !== libraryFolderScope(parent) || m.libraryShareMode !== parent.shareMode ||
         row.visibility !== (parent.campusId ? 'campus' : 'organization') || parent.depth >= 14) fail();
       folder = { id: row.id, title: row.title, parentId: parent.id, campusId: parent.campusId, category,
-        protected: parent.protected,
+        protected: parent.protected, navigationHidden: parent.navigationHidden,
         shareMode: parent.shareMode, virtual: false, depth: parent.depth + 1, row, systemManaged: m.systemManaged === true };
     }
     this.assertRead(folder);

@@ -269,6 +269,7 @@ function updateBrandPresentation() {
 
 function renderUser() {
   updateBrandPresentation();
+  window.DataCoreLibraryUsage?.update(state.context, state.currentView === 'library');
   for (const id of ['openAwardFolderBtn','openPublicAwardFolderBtn','openAwardChildBtn','openAwardUploadBtn','deleteAwardFolderBtn']) {
     $(id)?.classList.toggle('hidden', !canManageAwards());
   }

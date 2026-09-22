@@ -24,7 +24,7 @@ const fileExtension = (name: unknown) => { const value = text(name).toLowerCase(
 const previewableFile = (row: Record<string, any>) => !OPAQUE_PREVIEW_EXTENSIONS.has(fileExtension(row.original_file_name)) &&
   /^(image\/(jpeg|png|webp|gif|avif)|application\/pdf|text\/plain)$/.test(String(row.mime_type || ''));
 const serialize = (tree: LibraryTree, f: LibraryFolder) => ({ id: f.id, title: f.title, parentId: f.parentId,
-  campusId: f.campusId, category: f.category, group: f.group, canWrite: libraryCanWrite(tree.context, f),
+  campusId: f.campusId, category: f.category, group: f.group, navigationHidden: Boolean(f.navigationHidden), canWrite: libraryCanWrite(tree.context, f),
   systemManaged: Boolean(f.systemManaged), canDelete: libraryCanDeleteFolder(tree.context, f),
   canRename: libraryCanDeleteFolder(tree.context, f),
   defaultFolder: libraryDefaultFolder(f), archived: Boolean(f.archived),
@@ -231,7 +231,7 @@ async function fileRow(tree: LibraryTree, id: string) {
 }
 
 async function listFiles(tree: LibraryTree, folder: LibraryFolder, url: URL) {
-  if (!folder.category) return { files: [], hasMore: false };
+  if (!folder.category) return { files: [], hasMore: false, navigationHidden: Boolean(folder.navigationHidden) };
   const q = text(url.searchParams.get('q')).slice(0,120), page = Math.max(1, Math.min(100000, Number(url.searchParams.get('page')) || 1));
   const legacy = folder.id.startsWith('category:');
   const files = [], visible:Record<string,any>[] = [];
@@ -263,7 +263,7 @@ async function listFiles(tree: LibraryTree, folder: LibraryFolder, url: URL) {
   const last=rows.at(-1)!;cursor={created_at:last.created_at,id:last.id};
   }
   const thumbnails = await thumbnailUrls(tree.db,visible,'/api/data-core/library/files/');
-  return { files:files.map(file=>({...file,thumbnailUrl:thumbnails.get(file.id) || null})), hasMore };
+  return { files:files.map(file=>({...file,thumbnailUrl:thumbnails.get(file.id) || null})), hasMore, navigationHidden: Boolean(folder.navigationHidden) };
 }
 
 async function recentFiles(tree: LibraryTree, folder: LibraryFolder) {
@@ -285,8 +285,7 @@ async function recentFiles(tree: LibraryTree, folder: LibraryFolder) {
     if (files.length >= RECENT_UPLOAD_LIMIT) break;
     try {
       const sourceFolder = await fileFolder(tree, row);
-      if (sourceFolder.protected || sourceFolder.shareMode === 'restricted' || sourceFolder.category === 'student-artwork' || sourceFolder.category === 'counseling-material' ||
-        (await tree.breadcrumbs(sourceFolder)).some(f => f.id === 'hq-default:director-only' || f.title === '원장전용')) continue;
+      if (sourceFolder.navigationHidden || sourceFolder.protected || sourceFolder.shareMode === 'restricted' || sourceFolder.category === 'student-artwork' || sourceFolder.category === 'counseling-material') continue;
       if (!libraryFileReadable(tree.context, sourceFolder, row)) continue;
       visible.push(row);
       files.push({ id: row.id, fileName: row.original_file_name, folderId: sourceFolder.id, folderTitle: sourceFolder.title,
@@ -361,7 +360,7 @@ export async function handleLibraryApi(request: Request, db: D1Database, bucket:
     // Hide HQ entry points only; retain stored folders, files and authorized legacy deep links.
     const archived = url.searchParams.get('archived') === '1';
     if (archived) requireLibraryWrite(tree.context, folder);
-    const folders = (await children(tree, folder, archived)).filter(f => (folder.id !== 'root' || f.parentId !== 'hq') && (!archived || f.archived));
+    const folders = (await children(tree, folder, archived)).filter(f => (folder.id !== 'root' || !f.navigationHidden) && (!archived || f.archived));
     const includeCounts = url.searchParams.get('counts') !== '0';
     const counts = includeCounts ? await fileCounts(tree, folders.filter(f => f.category)) : new Map<string,number>();
     return json({ folder: serialize(tree, folder), breadcrumbs: await tree.breadcrumbs(folder), folders: folders.map(f => ({...serialize(tree, f), fileCount: f.category && includeCounts ? counts.get(f.id) || 0 : null})) });

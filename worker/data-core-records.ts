@@ -188,7 +188,7 @@ function hasMembership(context: DataCoreAccessContext) {
 export function canReadRow(context: DataCoreAccessContext, row: Record<string, unknown>) {
   if (isAwardFolder(row) && row.visibility !== 'private') return awardMember(context);
   if (row.record_type === LIBRARY_FOLDER) return false;
-  if ([DERIVATIVE_RECORD_TYPE,THUMBNAIL_RECORD_TYPE,'content-ai-request','content-ai-usage','content-ai-call'].includes(String(row.record_type))) return false;
+  if ([DERIVATIVE_RECORD_TYPE,THUMBNAIL_RECORD_TYPE,'content-ai-request','content-ai-usage','content-ai-call','library-r2-usage'].includes(String(row.record_type))) return false;
   if (context.isSuperAdmin) return true;
   if (isCampusAdmin(context) && row.campus_id && !managesCampus(context, row.campus_id)) return false;
   if (managesCampus(context, row.campus_id)) return true;

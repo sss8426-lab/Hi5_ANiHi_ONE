@@ -288,7 +288,8 @@ async function loadFiles() {
   $('pickerStatus').textContent = '사진을 불러오고 있습니다.';
   try {
     await window.DataCoreLibraryClient.browse(api, { id, page: state.page, q: $('fileSearchInput').value.trim() },{signal:browseController.signal,skipFolders,counts:false,skipEmptyRoot:true,onView:view=>{
-    if (token !== state.browseGeneration) return;renderedFolder=id;
+    if (token !== state.browseGeneration) return;renderedFolder=view.folder.id;
+    if(state.folderId!==view.folder.id){state.folderId=view.folder.id;state.page=1;$('fileSearchInput').value='';}
     $('photoBreadcrumb').removeAttribute('aria-busy');
     const folderCampusId = view.folder.campusId || '';
     if ([...$('draftCampus').options].some(option => option.value === folderCampusId) && $('draftCampus').value !== folderCampusId) {

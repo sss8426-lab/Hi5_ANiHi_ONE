@@ -1,5 +1,9 @@
 # Library Folder Browser
 
+2026-09-22: [HQ navigation removal and private R2 usage summary](LIBRARY_R2_USAGE_2026-09-22.md)
+supersedes historical HQ UI entry behavior only. Direct file APIs, IDs, originals
+and authorization remain intact.
+
 2026-09-19: [Shared access and management](LIBRARY_SHARED_ACCESS_2026-09-19.md) supersedes the historical empty-only deletion, class-photo restriction, owner-only ordinary campus mutations and recent-10 policies below. System roots, private/FAMILY and AI input authorization remain protected.
 
 ## Storage and Compatibility

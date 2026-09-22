@@ -14,6 +14,7 @@ import {
   requireWriteAccess,
 } from "./data-core-access";
 import { readCampusAdmissions, saveCampusAdmissions } from './campus-admissions';
+import { r2Usage, type R2UsageEnv } from './library-r2-usage';
 import {
   deleteDataCoreMembership,
   listDataCoreMemberships,
@@ -53,7 +54,7 @@ import {
 const STATE_ID = "main";
 const STATE_OBJECT_KEY = "state/admissions-data.json";
 
-interface Env {
+interface Env extends R2UsageEnv {
   ASSETS?: Fetcher;
   DB?: D1Database;
   FILES?: R2Bucket;
@@ -283,6 +284,8 @@ async function handleDataCoreApi(request: Request, env: Env) {
 
   if (url.pathname.startsWith('/api/data-core/library/')) {
     if (!env.DB || !env.FILES) throw new DataCoreAccessError(503, 'DATA CORE 저장소가 연결되지 않았습니다.');
+    const usage = /^\/api\/data-core\/library\/usage\/(storage|billing)$/.exec(url.pathname);
+    if (usage && request.method === 'GET') return jsonResponse(await r2Usage(env.DB, context, env, usage[1] as 'storage' | 'billing'), { headers: { 'cache-control': 'private, no-store' } });
     const { handleLibraryApi } = await import('./data-core-library');
     return (await handleLibraryApi(request, env.DB, env.FILES, context))!;
   }

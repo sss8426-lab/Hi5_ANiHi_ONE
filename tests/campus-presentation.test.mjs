@@ -99,7 +99,7 @@ test('shared folder presentation hides HQ root entries while preserving campus a
   assert.deepEqual(clone(window.DataCoreLibraryClient.folderGroups({ folder: { id: 'custom' }, folders: folders.slice(-1) })),
     [['폴더', folders.slice(-1)]]);
   assert.deepEqual(clone(window.DataCoreLibraryClient.folderGroups({ folder: { id: 'hq' }, folders: [folders[0]] })),
-    [['폴더', [folders[0]]]], 'authorized legacy browsing remains usable');
+    [], 'legacy navigation is hidden; authorized file APIs remain usable');
   assert.deepEqual(folders, before, 'presentation does not mutate source folders');
   for (const path of ['public/data-core/content.js', 'public/data-core/work/hq-library.js']) {
     assert.match(await fs.readFile(path, 'utf8'), /DataCoreLibraryClient\.folderGroups/);

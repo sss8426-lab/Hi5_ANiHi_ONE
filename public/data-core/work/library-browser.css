@@ -47,6 +47,10 @@
 #libraryBrowser dialog p,#libraryUploadErrors{overflow-wrap:anywhere;font-size:13px;line-height:1.7}
 #libraryFolderError,#libraryDeleteError,#libraryUploadErrors{color:#a23c36}
 #libraryBrowser progress{accent-color:#286751;height:10px}
+.lb-usage{display:flex;flex-wrap:wrap;gap:8px;max-width:100%}.lb-usage[hidden]{display:none}
+.lb-toolbar .lb-usage-badge{display:flex;flex-direction:column;align-items:flex-start;gap:3px;white-space:normal;max-width:100%;min-height:56px;text-align:left;overflow-wrap:anywhere}
+.lb-usage-badge small{font-size:11px;line-height:1.4}.lb-usage-badge strong{font-size:13px;line-height:1.4}
+#libraryUsageDialog dl{font-size:13px;line-height:1.7;overflow-wrap:anywhere}#libraryUsageDialog dt{font-weight:600;margin-top:12px}#libraryUsageDialog dd{margin:2px 0 0;color:#586c63}
 .lb-recent{margin-top:8px;padding-top:20px;border-top:1px solid #d9e3dc}
 .lb-recent-list{list-style:none;margin:0;padding:0}
 .lb-recent-item{border-bottom:1px solid #edf2ef;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 0}
