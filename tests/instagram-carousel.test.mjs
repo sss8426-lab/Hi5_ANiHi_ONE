@@ -92,6 +92,42 @@ test('carousel saves 1/5/10 images, rejects 11, preserves originals, access and 
   }finally{await h.mf.dispose();}
 });
 
+test('a carousel-v2 render is individually exportable the moment it saves — partial batches never need the full set finished, but the older single-image workflow still requires its own explicit approve',async()=>{
+  const h=await libraryHarness();
+  try{
+    const folder=(await h.folder('category:'+A+':class-photo','SYNTHETIC partial-export',users.staff)).body.folder;
+    const file=(await h.upload(folder.id,users.staff,{name:'SYNTHETIC-partial.png',mime:'image/png',bytes:png(40,50)})).body.file;
+    const draft=await h.request('POST','/api/data-core/content',users.staff,{sourceApp:'instagram',campusId:A,title:'SYNTHETIC',relatedFileIds:[file.id],metadata:{instagramDesign:material}});
+    assert.equal(draft.status,201,JSON.stringify(draft.body));
+    const draftId=draft.body.draft.id,base='/api/data-core/content/instagram/'+draftId;
+    const review=await h.request('GET',base+'/review',users.staff);
+    const form=new FormData();form.set('file',new Blob([png(2160,2700)],{type:'image/png'}),'master.png');form.set('fingerprint',review.body.fingerprint);
+    const render=await h.request('POST',base+'/render',users.staff,form);assert.equal(render.status,201,JSON.stringify(render.body));
+    const item={draftId,renderId:render.body.renderId,fingerprint:render.body.fingerprint};
+    // No POST to /instagram-sets (the full-set "완료 및 저장") happened at all — this is exactly the
+    // one-of-N-succeeded scenario a partial batch produces, and it must already be downloadable.
+    const exported=await h.raw('POST',base+'/export',users.staff,item);
+    assert.equal(exported.status,200,'a single completed carousel-v2 photo must be exportable without waiting for the rest of the batch');
+    const decoded=decode(new Uint8Array(await exported.arrayBuffer()));assert.deepEqual([decoded.width,decoded.height],[1080,1350]);
+    assert.equal((await h.raw('POST',base+'/export',users.foreign,item)).status,403,'campus access is still enforced on the immediate export');
+    await h.request('PATCH','/api/data-core/content/'+draftId,users.staff,{summary:'Changed'});
+    assert.equal((await h.request('POST',base+'/export',users.staff,item)).status,409,'a stale fingerprint is still rejected, auto-approval is not a bypass of version-binding');
+
+    // The older single-image production workflow (instagram-production.js) never sets workflow:'carousel-v2'
+    // and must keep requiring its own real approve+checklist step — the auto-approval above is scoped to
+    // carousel-v2 only and must not leak into this still-manually-reviewed flow.
+    const legacyDesign={templateId:'artwork',logoType:'anihi',materialKind:'student-artwork',usePermission:'allowed',headline:'SYNTHETIC',contact:'DM 문의',factsVerified:true};
+    const legacyFile=(await h.upload(folder.id,users.staff,{name:'SYNTHETIC-legacy.png',mime:'image/png',bytes:png(40,50)})).body.file;
+    const legacyDraft=await h.request('POST','/api/data-core/content',users.staff,{sourceApp:'instagram',campusId:A,title:'SYNTHETIC legacy',relatedFileIds:[legacyFile.id],metadata:{instagramDesign:legacyDesign}});
+    const legacyBase='/api/data-core/content/instagram/'+legacyDraft.body.draft.id;
+    const legacyReview=await h.request('GET',legacyBase+'/review',users.staff);
+    const legacyForm=new FormData();legacyForm.set('file',new Blob([png(2160,2700)],{type:'image/png'}),'master.png');legacyForm.set('fingerprint',legacyReview.body.fingerprint);
+    const legacyRender=await h.request('POST',legacyBase+'/render',users.staff,legacyForm);assert.equal(legacyRender.status,201);
+    const legacyItem={renderId:legacyRender.body.renderId,fingerprint:legacyRender.body.fingerprint};
+    assert.equal((await h.request('POST',legacyBase+'/export',users.staff,legacyItem)).status,409,'the legacy single-image workflow must still require an explicit human approve before export');
+  }finally{await h.mf.dispose();}
+});
+
 test('text-only captions never transmit artwork and verify campus before provider access',async()=>{
   const h=await libraryHarness(),previous=globalThis.fetch;let calls=0;
   try{
