@@ -236,7 +236,7 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
       }catch(error){
         if(error.name==='AbortError')throw error;
         const stageAtFailure=itemStatus.get(id)?.message||'';
-        const message=stageAtFailure?`${stageAtFailure} 중 오류 · ${error.message}`:error.message;
+        const message=stageAtFailure?`${stageAtFailure.replace(/ 중$/,'')} 중 오류 · ${error.message}`:error.message;
         itemStatus.set(id,{status:'failed',message});
         failures=[...failures.filter(f=>f.id!==id),{id,message}];
         renderItemStatuses();updateOverallProgress();buttons();
