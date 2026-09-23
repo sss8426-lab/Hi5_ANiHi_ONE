@@ -3,6 +3,7 @@ import { handleKkumeumConsentApi } from "./kkumeum-consent-router";
 import { handleKkumeumRetentionApi } from "./kkumeum-retention-router";
 import { handleKkumeumFamilyBackupApi } from "./kkumeum-family-backup-router";
 import { handleKkumeumPilotApi } from "./kkumeum-pilot-router";
+import { syncPublicHolidays } from "./data-core-public-holidays";
 
 interface Env {
   ASSETS?: Fetcher;
@@ -44,6 +45,11 @@ const worker = {
     const consent = await handleKkumeumConsentApi(request, env);
     if (consent) return consent;
     return appWorker.fetch(request, env);
+  },
+  // Daily: keep 대한민국 공휴일 in the CORE calendar (출석부 "휴" uses them).
+  async scheduled(_controller: unknown, env: Env, ctx: { waitUntil(promise: Promise<unknown>): void }): Promise<void> {
+    if (!env.DB) return;
+    ctx.waitUntil(syncPublicHolidays(env.DB).then(result => console.log("public holidays synced", JSON.stringify(result))));
   },
 };
 

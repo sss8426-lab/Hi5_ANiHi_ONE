@@ -1,5 +1,5 @@
 import { mountAttendance } from './attendance.js?v=20260921-weekend-selection';
-import { mountRosterAttendance } from './attendance-roster.js?v=20260924-roster';
+import { mountRosterAttendance } from './attendance-roster.js?v=20260924-holidays';
 
 const LEGACY_OPEN_KEY = 'core.attendance.legacyOpen';
 
