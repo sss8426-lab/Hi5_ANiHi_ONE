@@ -25,7 +25,7 @@ const base=process.env.ATTENDANCE_ORIGIN||`http://127.0.0.1:${server.address().p
 assert.match(base,/^https?:\/\/(?:127\.0\.0\.1:\d+|[a-z0-9.-]+\.workers\.dev)$/);
 let previewShell=null;
 if(process.env.ATTENDANCE_ORIGIN){
-  for(const asset of ['data-core/index.html','data-core/app.js','data-core/work/kkumeum-nav.js','data-core/work/kkumeum.html','data-core/work/kkumeum-mobile.js','data-core/work/attendance-page.js','data-core/work/attendance.js','data-core/work/attendance-template.js','data-core/work/attendance-auto.js','data-core/work/attendance-schedule.js','data-core/work/attendance-sparse.js','data-core/work/attendance.css','data-core/vendor/fflate-0.8.3.js']){
+  for(const asset of ['data-core/index.html','data-core/app.js','data-core/work/kkumeum-nav.js','data-core/work/kkumeum.html','data-core/work/kkumeum-mobile.js','data-core/work/attendance-page.js','data-core/work/attendance-roster.js','data-core/work/attendance-roster-parser.js','data-core/work/attendance-roster-schedule.js','data-core/work/attendance-roster-export.js','data-core/work/attendance-holidays.js','data-core/work/attendance.js','data-core/work/attendance-template.js','data-core/work/attendance-auto.js','data-core/work/attendance-schedule.js','data-core/work/attendance-sparse.js','data-core/work/attendance.css','data-core/vendor/fflate-0.8.3.js']){
     const response=await fetch(`${base}/${asset}`);assert.equal(response.status,200,asset);
     const deployed=await response.text();assert.equal(deployed.replace(/\r\n/g,'\n'),(await fs.readFile(path.join(root,asset),'utf8')).replace(/\r\n/g,'\n'),asset);
     if(asset==='data-core/index.html')previewShell=withNav(deployed);
@@ -38,6 +38,8 @@ const errors=[],requests=[],checks=[];let role='CAMPUS_ADMIN';
 const sourcePreviewRequest=r=>r.method==='POST'&&/^\/api\/data-core\/competition-sources\/(artmd|mgood)\/preview$/.test(r.path);
 try {
   const context=await browser.newContext({serviceWorkers:'block'});
+  // The legacy per-class tool sits in a closed <details> under the 종합입력 tool; keep it open here.
+  await context.addInitScript(()=>{try{localStorage.setItem('core.attendance.legacyOpen','1');}catch{/* storage unavailable */}});
   await context.route('**/*',async r=>{
     const req=r.request(),u=new URL(req.url());if(u.origin!==base)return r.abort();
     // The staff route requires a real server session. Use its verified deployed shell
