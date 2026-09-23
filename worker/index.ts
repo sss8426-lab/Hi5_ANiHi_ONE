@@ -1,4 +1,5 @@
 /** Cloudflare Worker entry point for the admissions consulting web app. */
+import { syncPublicHolidaysForAdmin } from "./data-core-public-holidays";
 import {
   DEFAULT_ORGANIZATION_ID,
   dataCoreHealth,
@@ -326,6 +327,12 @@ async function handleDataCoreApi(request: Request, env: Env) {
       { event: await createAcademyCalendarEvent(env.DB, context, await readJsonBody(request)) },
       { status: 201 },
     );
+  }
+
+  if (url.pathname === "/api/data-core/calendar/public-holidays/sync" && request.method === "POST") {
+    if (request.headers.get('origin') !== url.origin) throw new DataCoreAccessError(403, '동일 출처 요청만 허용됩니다.');
+    if (!env.DB) throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
+    return jsonResponse(await syncPublicHolidaysForAdmin(env.DB, context));
   }
 
   const calendarMatch = url.pathname.match(/^\/api\/data-core\/calendar\/([^/]+)$/);

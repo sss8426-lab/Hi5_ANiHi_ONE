@@ -81,7 +81,7 @@ export function mountRosterAttendance(host,{campusId='',campusName=''}={}){
       result=buildRosterWorkbook(roster,{year,month,holidays});
       const plan=result.plan;
       $('arResultTitle').textContent=`${year}년 ${month}월 반별 출석부 · ${plan.sheets.length}개 시트`;
-      $('arHolidays').textContent=holidays.size?`공휴일·휴무 반영: ${holidaySummary(holidays)}`:'이 달에 등록된 공휴일·휴무 일정이 없습니다. (업무 캘린더에 "휴무" 일정을 넣으면 자동 반영됩니다)';
+      $('arHolidays').textContent=holidays.size?`공휴일·휴무 반영: ${holidaySummary(holidays)}`:'이 달에는 공휴일·휴무가 없습니다. (공휴일은 자동 등록되며, 학원 자체 휴무는 업무 캘린더에 "휴일" 일정으로 넣으면 반영됩니다)';
       $('arSheets').innerHTML=plan.sheets.map(s=>{
         const labels=[...new Set(s.students.map(st=>st.count.label))];
         return `<tr><th scope="row">${h(s.name)}</th><td>${s.students.length}명</td><td>${s.columns.length}칸</td><td>${h(labels.join(' · '))}</td></tr>`;
