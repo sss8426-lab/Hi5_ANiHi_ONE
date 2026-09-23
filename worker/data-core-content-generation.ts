@@ -1,6 +1,6 @@
 import { DEFAULT_ORGANIZATION_ID } from "./data-core";
 import { canReadRegisteredFile } from './data-core-derivative-policy';
-import { AI_PHOTO_LIMIT, BLOG_AI_PHOTO_LIMIT } from './content-ai-images';
+import { AI_PHOTO_LIMIT, PHOTO_SAFETY_LIMIT } from './content-ai-images';
 import { campusDisplayName } from './campus-directory';
 import {
   DataCoreAccessContext,
@@ -233,10 +233,10 @@ export async function generateContentDraft(
 
   // Instagram keeps its existing shared photo-count limit unchanged; only the blog path (and only
   // when the browser actually sent optimized photo blobs) gets the higher, separate limit.
-  const selectedFileIds = normalizeFileIds(input.selectedFileIds, sourceApp === 'blog' && (photos||input.photoInstructions) ? BLOG_AI_PHOTO_LIMIT : AI_PHOTO_LIMIT);
+  const selectedFileIds = normalizeFileIds(input.selectedFileIds, sourceApp === 'blog' && (photos||input.photoInstructions) ? PHOTO_SAFETY_LIMIT : AI_PHOTO_LIMIT);
   if(input.photoInstructions){
     const p=input.photoInstructions;
-    if(sourceApp!=='blog'||!p.brief||typeof p.brief!=='object'||Object.values(p.brief).some(v=>typeof v!=='string')||typeof p.commonDescription!=='string'||p.commonDescription.length>2000||!Array.isArray(p.photos)||p.photos.some(v=>!v||typeof v!=='object')||p.photos.length!==selectedFileIds.length||new Set(p.photos.map(v=>v.fileId)).size!==p.photos.length||p.photos.some(v=>!selectedFileIds.includes(v.fileId)||!['unknown','class','student','teacher','space','event','fact','illustration'].includes(v.kind)||[v.description,v.facts,v.exclude].some(s=>typeof s!=='string'||s.length>2000))||JSON.stringify(p).length>50000)throw new DataCoreAccessError(400,'사진별 설명을 확인하세요.');
+    if(sourceApp!=='blog'||!p.brief||typeof p.brief!=='object'||Object.values(p.brief).some(v=>typeof v!=='string')||typeof p.commonDescription!=='string'||p.commonDescription.length>2000||!Array.isArray(p.photos)||p.photos.some(v=>!v||typeof v!=='object')||p.photos.length!==selectedFileIds.length||new Set(p.photos.map(v=>v.fileId)).size!==p.photos.length||p.photos.some(v=>!selectedFileIds.includes(v.fileId)||!['unknown','class','student','teacher','space','event','fact','illustration'].includes(v.kind)||[v.description,v.facts,v.exclude].some(s=>typeof s!=='string'||s.length>2000))||JSON.stringify(p).length>400000)throw new DataCoreAccessError(400,'사진별 설명을 확인하세요.');
     for(const id of photos?.keys()||[]){const p=input.photoInstructions.photos.find(v=>v.fileId===id);if(!p||p.externalAiConsent!==true||['student','teacher','fact','unknown'].includes(p.kind))throw new DataCoreAccessError(403,'이 사진은 텍스트 설명만 사용할 수 있습니다.');}
   }
   const selectedFiles = await selectedFileDescriptors(db, context, campusId, selectedFileIds);

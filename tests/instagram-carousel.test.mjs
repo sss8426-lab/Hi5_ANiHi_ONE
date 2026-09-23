@@ -25,12 +25,12 @@ test('five official logos plus no-logo, artwork contained and photos fill the sa
   assert.equal(normalizeDesign(material).workflow,'carousel-v2');
 });
 
-test('carousel saves 1/5/10 images, rejects 11, preserves originals, access and version-bound exports',async()=>{
+test('carousel saves 1/5/12 images (no 10-photo cap), rejects duplicates, preserves originals, access and version-bound exports',async()=>{
   const h=await libraryHarness();
   try{
     const folder=(await h.folder('category:'+A+':class-photo','SYNTHETIC carousel',users.staff)).body.folder;
     const master=png(2160,2700),items=[],originals=[];
-    for(let i=0;i<10;i++){
+    for(let i=0;i<12;i++){
       const file=(await h.upload(folder.id,users.staff,{name:`SYNTHETIC-${i}.png`,mime:'image/png',bytes:png(40,50)})).body.file;
       originals.push(await h.file(file.id));
       const draft=await h.request('POST','/api/data-core/content',users.staff,{sourceApp:'instagram',campusId:A,title:'SYNTHETIC',relatedFileIds:[file.id],metadata:{instagramDesign:material}});
@@ -48,7 +48,7 @@ test('carousel saves 1/5/10 images, rejects 11, preserves originals, access and 
     assert.equal((await h.request('POST',endpoint,users.foreign,payload)).status,403);
     assert.equal((await h.request('POST',endpoint,null,payload)).status,401);
     assert.equal((await h.request('POST',endpoint,users.staff,payload,'https://attacker.test')).status,403);
-    for(const count of [1,5,10]){
+    for(const count of [1,5,12]){
       const input={items:items.slice(0,count),requestId:crypto.randomUUID()};
       const saved=await h.request('POST',endpoint,users.staff,input);
       assert.equal(saved.status,201,JSON.stringify(saved.body));assert.equal(saved.body.items.length,count);

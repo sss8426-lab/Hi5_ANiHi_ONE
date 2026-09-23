@@ -13,7 +13,7 @@ test('blog selected originals: exact bytes, ordered ZIPs, ACL, revisions, indepe
   try{
     const folder=(await h.folder('campus:'+A,'Synthetic blog')).body.folder.id;
     const ids=[],bytes=[],names=[];
-    for(let i=0;i<10;i++){
+    for(let i=0;i<12;i++){
       const png=i%2===0,name='같은 이름 '+(png?'작품.png':'수업.jpg');
       const source=sharp({create:{width:48+i,height:32,channels:3,background:{r:i*20,g:100,b:180}}});
       const data=await (png?source.png():source.jpeg()).toBuffer();
@@ -41,6 +41,11 @@ test('blog selected originals: exact bytes, ordered ZIPs, ACL, revisions, indepe
     const next={...request,id,requestId:randomUUID(),post:{...reopened.body.draft.metadata.blogPost,title:'수정'}};
     assert.equal((await h.request('POST','/api/data-core/content/blog/save',users.admin,next)).status,200);
     assert.equal((await h.request('POST','/api/data-core/content/blog/save',users.teacher,next)).status,403);
+    // No 10-photo limit per post anymore: a 12-photo post saves and every photo is kept, in order.
+    const many=synchronizePhotos(ids.slice(0,12));
+    const manySaved=await h.request('POST','/api/data-core/content/blog/save',users.admin,{requestId:randomUUID(),campusId:A,publishStatus:'draft',post:{schemaVersion:1,revision:0,title:'12장 게시물',privacyConfirmed:true,photos:many,blocks:assembleBlocks({body:'본문입니다.',photos:many,footer:'마지막 문구'}),brief:{exclude:''},strategyMode:'balanced'}});
+    assert.equal(manySaved.status,200,JSON.stringify(manySaved.body));assert.deepEqual(manySaved.body.draft.metadata.relatedFileIds,ids.slice(0,12));
+    assert.equal((await h.request('POST','/api/data-core/content/blog/files',users.admin,{campusId:A,fileIds:ids.slice(0,12)})).body.items.length,12);
     assert.equal((await h.request('PATCH','/api/data-core/records/'+encodeURIComponent(id),users.admin,{metadata:{}})).status,403);
     assert.equal((await h.request('POST','/api/data-core/content/blog/files',null,{campusId:A,fileIds:ids})).status,401);
     const forbidden=await h.request('POST','/api/data-core/content/blog/files',users.foreign,{campusId:B,fileIds:[ids[0]]});assert.equal(forbidden.body.items[0].status,403);

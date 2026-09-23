@@ -71,18 +71,36 @@ export function substitute(text, fields) {
  const content=String(text).replace(/\{\{([^{}]+)\}\}/g,(_,key)=>{if(!allowed.includes(key)||!Object.hasOwn(fields,key)||typeof fields[key]!=='string'||!fields[key].trim()){missing=true;return '';}return fields[key];});
  return {content:missing?'':content,missing};
 }
-/** @param {string} campusId @param {string} sourceApp @param {{brands:string[],names:Record<string,string>,courses:string[]}} profile */
-export function recommendedPresets(campusId,sourceApp,profile={brands:[],names:{},courses:[]}) {
- const region=REGIONS[campusId], brands=profile.brands?.length?profile.brands:['unconfirmed'], items=[];
- for(const brand of brands){
-  const spec=BRANDS[brand],fields={'브랜드태그':spec?.tag,'지역':region,'지역분야태그':spec&&region?'#'+region+spec.field:'','학원명':profile.names?.[brand]};
-  for(const row of [...TAG_CATALOG,...CLOSING_CATALOG]){
-   if(row.brandScope!=='common'&&row.brandScope!==brand)continue;
-   if(row.course==='bucheon'&&campusId!==(brand==='anihi'?'campus-anihi-admission':'campus-design-admission'))continue;
+export const ACADEMY_FALLBACK = '저희 학원';
+// Recommended sets are always usable: an unconfirmed value is dropped (a tag) or replaced by the neutral
+// "저희 학원" (an academy name) — never guessed, and never a reason to disable the whole set.
+function fill(text, fields, kind) {
+ const allowed=['브랜드태그','지역','지역분야태그','학원명'];
+ const out=String(text).replace(/\{\{([^{}]+)\}\}/g,(_,key)=>{
+  const value=allowed.includes(key)&&Object.hasOwn(fields,key)?fields[key]:'';
+  return typeof value==='string'&&value.trim()?value:key==='학원명'?ACADEMY_FALLBACK:'';
+ });
+ return kind==='hashtags'?normalizeTags(out).map(tag=>'#'+tag).join(' '):out.split('\n').map(line=>line.replace(/[ \t]{2,}/g,' ').trim()).join('\n');
+}
+/** @param {string} campusId @param {string} sourceApp @param {{brands:string[],names:Record<string,string>,courses?:string[]}} profile */
+export function recommendedPresets(campusId,sourceApp,profile={brands:[],names:{}}) {
+ const region=REGIONS[campusId],items=[];
+ // The campus's own choice in 캠퍼스 추천 설정 decides which brand tags are used; there is no per-post brand.
+ const confirmed=(profile.brands||[]).filter(brand=>Object.hasOwn(BRANDS,brand));
+ const names=profile.names||{},regionField=brand=>region?'#'+region+BRANDS[brand].field:'';
+ for(const row of [...TAG_CATALOG,...CLOSING_CATALOG]){
+  // Brand-specific rows: one per confirmed brand, or both (without a brand tag) while none is confirmed.
+  const scopes=row.brandScope==='common'?['common']:confirmed.length?confirmed.filter(brand=>brand===row.brandScope):[row.brandScope];
+  for(const scope of scopes){
+   if(row.course==='bucheon'&&campusId!==(scope==='anihi'?'campus-anihi-admission':'campus-design-admission'))continue;
+   const fields=scope==='common'
+    ?{'브랜드태그':confirmed.map(b=>BRANDS[b].tag).join(' '),'지역':region,'지역분야태그':confirmed.map(regionField).join(' '),'학원명':confirmed.map(b=>names[b]).filter(Boolean).join('·')}
+    :{'브랜드태그':confirmed.includes(scope)?BRANDS[scope].tag:'','지역':region,'지역분야태그':regionField(scope),'학원명':names[scope]};
    const text=row.kind==='hashtags'?row.base+(sourceApp==='blog'?' '+row.extra:''):row[sourceApp];
-   const resolved=substitute(text,fields),courseMissing=row.course&&row.course!=='bucheon'&&!profile.courses?.includes(row.course);
-   items.push({id:'builtin:'+row.key+':'+brand,builtInKey:row.key+':'+brand,catalogVersion:CATALOG_VERSION,kind:row.kind,name:row.name,category:row.kind==='hashtags'?(row.course? '과정':'주제'):'마지막 문구',brandScope:brand,
-    content:resolved.content,notice:row.notice,unavailable:resolved.missing?'캠퍼스 브랜드·학원명 확인 필요':courseMissing?'과정 운영 여부 확인 필요':'',revision:0,deletedAt:null,favorite:false,ownerUserId:null});
+   // Ids stay what they were for a single/unconfirmed brand, so existing edits and favorites keep matching.
+   const idBrand=scope==='common'?confirmed[0]||'unconfirmed':scope;
+   items.push({id:'builtin:'+row.key+':'+idBrand,builtInKey:row.key+':'+idBrand,catalogVersion:CATALOG_VERSION,kind:row.kind,name:row.name,category:row.kind==='hashtags'?(row.course? '과정':'주제'):'마지막 문구',brandScope:scope,
+    content:fill(text,fields,row.kind),notice:row.notice,unavailable:'',revision:0,deletedAt:null,favorite:false,ownerUserId:null});
   }
  }
  return items;

@@ -24,7 +24,8 @@ function cleanProfile(value:unknown):Profile {
  if(!Array.isArray(input.brands)||input.brands.some(b=>typeof b!=='string'||!Object.hasOwn(BRANDS,b)))fail(400,'확인된 브랜드를 선택하세요.');
  const brands=input.brands as string[];
  const names:Record<string,string>={};
- for(const b of brands)names[b]=text(object(input.names)[b],100);
+ // The brand choice alone decides the fixed hashtags; an academy name is optional ("저희 학원" otherwise).
+ for(const b of brands){const raw=object(input.names)[b];names[b]=typeof raw==='string'&&raw.trim()?text(raw,100):'';}
  const courses=Array.isArray(input.courses)?input.courses:[];
  if(courses.some(c=>typeof c!=='string'||!Object.hasOwn(COURSES,c)))fail(400,'과정 설정을 확인하세요.');
  const profile={brands:[...new Set(brands)],names,courses:[...new Set(courses as string[])],phone:String(input.phone||'').trim(),address:String(input.address||'').trim(),link:String(input.link||'').trim()};

@@ -5,6 +5,9 @@ import {mountBlogCover} from './blog-cover.js';
 
 const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const options=map=>Object.entries(map).map(([id,label])=>`<option value="${id}">${label}</option>`).join('');
+// A post can hold any number of photos; the AI looks at the first 10 eligible ones as images
+// (cost/size bound) and gets every photo's written description via photoInstructions.
+const AI_IMAGE_PHOTOS=10;
 const command=(id,label)=>`<button type="button" class="ghost-btn" id="${id}">${label}</button>`;
 export function mountBlogWorkflow({state,$,toast,renderSelection,contact}){
   if(state.sourceApp!=='blog')return null;
@@ -185,7 +188,7 @@ export function mountBlogWorkflow({state,$,toast,renderSelection,contact}){
   async function copyText(){try{if(!blocks.length)assemble(false);const p=read();if(inspectPost(p).some(i=>i.status==='needs_changes'))throw Error('수정 필요 항목을 확인한 뒤 완성본을 복사하세요.');const refs=await resolveFiles(publishingImages(p).map(v=>v.id),p.campusId,undefined,false);if(refs.some(v=>v.error))throw Error('접근할 수 없는 게시용 이미지가 있습니다. 연결을 확인하세요.');await navigator.clipboard.writeText(postText(p));toast('화면의 완성본 텍스트를 복사했습니다.');}catch(error){toast(error.message,'error');}}
   for(const id of ['strategyMode','blogTemplate','blogGreeting','blogTop','blogBottom','blogAlign','blogSpacing','blogFont','blogContactMode'])$(id).addEventListener('change',()=>{defaultsEdit++;changed();});
   $('blogTemplate').addEventListener('change',()=>{template={...templateDefaults(),...templates[$('blogTemplate').value],templateId:$('blogTemplate').value};applyTemplate();});
-  $('blogSaveTemplate').onclick=async()=>{const token=epoch;$('blogSaveTemplate').disabled=true;try{const response=await fetch('/api/data-core/content/defaults',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({sourceApp:'blog',campusId:$('draftCampus').value||null,hashtags:$('defaultHashtags').value,footer:$('defaultFooter').value,blogSettings:{strategyMode:$('strategyMode').value,template:readTemplate()}})});const value=await response.json();if(!response.ok)throw Error(value.error);if(token===epoch){templates=value.defaults.blogSettings.templates||{};$('blogTemplateStatus').textContent='캠퍼스 기본 양식 저장 완료';}}catch(error){if(token===epoch)$('blogTemplateStatus').textContent=error.message;}finally{$('blogSaveTemplate').disabled=false;}};
+  $('blogSaveTemplate').onclick=async()=>{const token=epoch;$('blogSaveTemplate').disabled=true;try{const response=await fetch('/api/data-core/content/defaults',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({sourceApp:'blog',campusId:$('draftCampus').value||null,blogSettings:{strategyMode:$('strategyMode').value,template:readTemplate()}})});const value=await response.json();if(!response.ok)throw Error(value.error);if(token===epoch){templates=value.defaults.blogSettings.templates||{};$('blogTemplateStatus').textContent='캠퍼스 기본 양식 저장 완료';}}catch(error){if(token===epoch)$('blogTemplateStatus').textContent=error.message;}finally{$('blogSaveTemplate').disabled=false;}};
   // 양식 수정 dialog: fields already apply live via the 'change' listeners above (that is what
   // "이번 글에 적용" means here — nothing further to do but close). 취소 restores the snapshot taken
   // when the dialog opened, so an edit made and abandoned mid-dialog never lingers on the post.
@@ -198,10 +201,12 @@ export function mountBlogWorkflow({state,$,toast,renderSelection,contact}){
   // in content.js and exposes its own dialog; this button only needs to open it.
   $('blogOpenPresets').onclick=()=>window.dispatchEvent(new CustomEvent('open-text-presets'));
   function updatePresetsSummary(){
-    const count=normalizeTags($('draftTags').value).length,footer=$('resultFooter').value.trim();
+    // Summarizes the fixed 고정 해시태그 / 고정 마지막 문구 that 마무리 수정 edits (same as Instagram), not the
+    // current result's fields — otherwise it read '해시태그 0개 · 미설정' before writing despite saved fixed values.
+    const count=normalizeTags($('defaultHashtags').value).length,footer=$('defaultFooter').value.trim();
     $('blogPresetsSummary').textContent=`해시태그 ${count}개 · 마지막 문구 ${footer?'적용':'미설정'} · 상담 정보 ${$('blogContactMode').value==='none'?'미포함':'포함'}`;
   }
-  for(const id of ['draftTags','resultFooter'])$(id).addEventListener('input',updatePresetsSummary);
+  for(const id of ['defaultHashtags','defaultFooter'])$(id).addEventListener('input',updatePresetsSummary);
   $('blogContactMode').addEventListener('change',updatePresetsSummary);
   window.addEventListener('text-presets-changed',updatePresetsSummary);
   updateTemplateSummary();updatePresetsSummary();
@@ -211,7 +216,7 @@ export function mountBlogWorkflow({state,$,toast,renderSelection,contact}){
     applyDefaults(value,token){if(token!==defaultsEdit||state.editingDraftId||!value)return;templates=value.templates||{};template={...templateDefaults(),...value.template};$('strategyMode').value=value.strategyMode||'balanced';$('blogTemplate').value=template.templateId;applyTemplate();},
     hasUnsaved:()=>Boolean((blocks.length||photos.length||Object.values(brief()).some(v=>v.trim()))&&signature()!==saved),
     instructions:()=>({brief:brief(),commonDescription:$('blogCommonDescription').value,photos:photos.map(({fileId,kind,description,facts,exclude,externalAiConsent})=>({fileId,kind,description,facts,exclude,externalAiConsent}))}),
-    async aiPhotos(signal){const ids=photos.filter(p=>p.externalAiConsent&&!['student','teacher','fact','unknown'].includes(p.kind)).map(p=>p.fileId);if(!ids.length)return [];const rows=await resolveFiles(ids,$('draftCampus').value,signal);const bad=rows.find(r=>r.error);if(bad)throw Error(bad.error);return rows.filter(r=>!r.preserveReason).map(r=>r.selectedId);},
+    async aiPhotos(signal){const ids=photos.filter(p=>p.externalAiConsent&&!['student','teacher','fact','unknown'].includes(p.kind)).map(p=>p.fileId);if(!ids.length)return [];const rows=await resolveFiles(ids,$('draftCampus').value,signal);const bad=rows.find(r=>r.error);if(bad)throw Error(bad.error);return rows.filter(r=>!r.preserveReason).map(r=>r.selectedId).slice(0,AI_IMAGE_PHOTOS);},
     recordTime(key,start){timings[key]=Math.round(performance.now()-start);$('blogTimings').textContent=JSON.stringify(timings,null,2);},
   };
 }

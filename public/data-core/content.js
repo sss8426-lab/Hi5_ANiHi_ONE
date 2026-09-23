@@ -1,9 +1,9 @@
 import {instagramImageMime} from './instagram-image-formats.js';
 import {mountAiUsage} from './ai-usage.js?v=20260921-performance';
-import {mountTextPresets} from './content-text-presets.js?v=20260923-summary';
+import {mountTextPresets} from './content-text-presets.js?v=20260923-nobrand';
 import {normalizeTags} from './content-preset-catalog.js';
 import {captionTail} from './content-caption.js?v=20260922-presets';
-import {mountBlogWorkflow} from './blog-workflow.js?v=20260923-summary';
+import {mountBlogWorkflow} from './blog-workflow.js?v=20260923-nobrand';
 import {optimizeImageForAi} from './image-ai-optimize.js?v=20260923-imgfix';
 
 const state = {
@@ -38,7 +38,8 @@ const state = {
   blogWarnings: [],
   blogRecentTitlesCache: [],
 };
-const BLOG_PHOTO_LIMIT = 10;
+// No per-post photo count for blog or Instagram; this only guards the server from runaway requests.
+const PHOTO_SAFETY_LIMIT = 100;
 
 let derivativeEditor, instagramProduction, aiUsagePanel, textPresets, blogWorkflow, lastInstagramSettings;
 let browseController, renderedFolder='', defaultsEdited=0;
@@ -243,7 +244,7 @@ function renderSelectedFiles() {
       renderSelectedFiles(); renderFilePicker();
     };
   });
-  $('photoCount').textContent = state.sourceApp === 'instagram' ? `선택 ${rows.length} / 10` : `사진 ${rows.length}/${BLOG_PHOTO_LIMIT}장 선택`;
+  $('photoCount').textContent = state.sourceApp === 'instagram' ? `선택 ${rows.length}장` : `사진 ${rows.length}장 선택`;
   $('selectedFiles').innerHTML = rows.map((file, index) => `<button data-remove-file="${h(file.id)}" type="button" aria-label="선택 사진 ${index + 1} 제외" title="선택 해제">${thumbnailFor(file) ? `<img data-thumbnail="${h(thumbnailFor(file))}" alt="선택 ${index+1}">` : `<span>${index+1}</span>`}</button>`).join('');
   $('selectedFiles').querySelectorAll('img[data-thumbnail]').forEach(img=>{void cacheFor(img.dataset.thumbnail).get(img.dataset.thumbnail,{priority:true}).then(url=>{if(img.isConnected)img.src=url;}).catch(()=>{});});
   document.querySelectorAll('[data-remove-file]').forEach((button) => {
@@ -359,7 +360,7 @@ function renderFilePicker() {
       if (state.busy) return;
       const id = String(button.dataset.pickFile);
       if (state.selectedFileIds.includes(id)) state.selectedFileIds = state.selectedFileIds.filter(item => item !== id);
-      else if (state.selectedFileIds.length >= BLOG_PHOTO_LIMIT) return toast(`사진은 최대 ${BLOG_PHOTO_LIMIT}장까지 선택할 수 있습니다.`, 'error');
+      else if (state.selectedFileIds.length >= PHOTO_SAFETY_LIMIT) return toast(`한 번에 ${PHOTO_SAFETY_LIMIT}장까지 선택할 수 있습니다.`, 'error');
       else state.selectedFileIds.push(id);
       renderFilePicker();
       renderSelectedFiles();
@@ -991,7 +992,7 @@ async function init() {
     void loadDefaults();void loadAiStatus();
     const listing=loadFiles();
     if(state.sourceApp==='instagram'){
-      const {mountInstagramProduction}=await import('/data-core/instagram-carousel.js?v=20260923-aitags');
+      const {mountInstagramProduction}=await import('/data-core/instagram-carousel.js?v=20260923-nobrand');
       instagramProduction=mountInstagramProduction({state,api,$,toast,canWrite,contact:()=>textPresets.contact(),renderSelection:()=>{renderSelectedFiles();renderFilePicker();}});
       instagramProduction.applyDefaults(lastInstagramSettings);
       instagramProduction.refresh();
