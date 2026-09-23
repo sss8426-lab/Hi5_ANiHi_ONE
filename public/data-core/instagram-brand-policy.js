@@ -27,15 +27,20 @@ export const MATERIALS = {
   'ai-support': 'AI 보조 이미지',
 };
 export const HUMAN_CHECKS = ['artwork', 'logo', 'design', 'ai', 'privacy', 'readability', 'facts'];
+// A campus's own uploaded mark, referenced as "custom:<file id>" — validated shape only here;
+// worker/instagram-custom-logos.ts re-checks the file still exists and is readable by this user
+// before ever drawing it.
+export const CUSTOM_LOGO_PATTERN = /^custom:[0-9a-f-]{36}$/i;
 /** @param {unknown} input */
 export function normalizeDesign(input = {}) {
   input = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
   const text = (key, max) => String(input[key] || '').trim().slice(0, max);
   const templateId = Object.hasOwn(TEMPLATES, input.templateId) ? input.templateId : 'artwork';
+  const customLogo = typeof input.logoType === 'string' && CUSTOM_LOGO_PATTERN.test(input.logoType);
   return {
     schemaVersion: 1, templateId,
     ...(input.workflow === 'carousel-v2' ? {workflow:'carousel-v2'} : {}),
-    logoType: Object.hasOwn(LOGOS, input.logoType) ? input.logoType : TEMPLATES[templateId].logo,
+    logoType: Object.hasOwn(LOGOS, input.logoType) ? input.logoType : customLogo ? input.logoType : TEMPLATES[templateId].logo,
     materialKind: Object.hasOwn(MATERIALS, input.materialKind) ? input.materialKind : 'student-artwork',
     usePermission: ['allowed', 'review', 'denied'].includes(input.usePermission) ? input.usePermission : 'review',
     externalAiConsent: input.externalAiConsent === true,
@@ -50,7 +55,7 @@ export function designChecks(design, campusLabel) {
   add('campus', campusLabel ? 'pass' : 'needs_changes', campusLabel ? `로고 캠퍼스: ${campusLabel}` : '캠퍼스를 선택하세요.');
   add('permission', design.usePermission === 'allowed' ? 'pass' : 'needs_changes', design.usePermission === 'allowed' ? '담당자가 홍보 사용 가능으로 확인' : '홍보 사용 권한 확인이 필요합니다.');
   if(design.workflow === 'carousel-v2') {
-    add('logo',Object.hasOwn(LOGOS,design.logoType)?'pass':'needs_changes','공식 로고 선택');
+    add('logo',Object.hasOwn(LOGOS,design.logoType)||CUSTOM_LOGO_PATTERN.test(design.logoType)?'pass':'needs_changes','로고 선택');
     return checks;
   }
   add('logo-topic', design.logoType === TEMPLATES[design.templateId].logo ? 'pass' : 'human_required', '로고 타입과 주제 일치 여부');

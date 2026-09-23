@@ -1,4 +1,4 @@
-import {LOGOS} from './instagram-brand-policy.js';
+import {LOGOS,CUSTOM_LOGO_PATTERN} from './instagram-brand-policy.js?v=20260923-logoup';
 export const MASTER={width:2160,height:2700};
 export function imageBox(kind,logoType){return {x:56,y:logoType==='none'?56:340,width:2048,height:logoType==='none'?2588:2304,fit:kind==='student-artwork'||kind==='fact-document'?'contain':'cover'};}
 export async function loadBitmap(url,signal){
@@ -23,6 +23,18 @@ export function encodeMaster(canvas,signal){
 function fitted(ctx,image,x,y,w,h,cover=false){const scale=(cover?Math.max:Math.min)(w/image.width,h/image.height);ctx.save();ctx.beginPath();ctx.rect(x,y,w,h);ctx.clip();ctx.drawImage(image,x+(w-image.width*scale)/2,y+(h-image.height*scale)/2,image.width*scale,image.height*scale);ctx.restore();}
 // Tight measured lockups. The marks themselves are original user-supplied raster pixels.
 export async function drawLogo(canvas,type,label,signal){
+  // A campus's own uploaded mark: place it as-is, preserving transparency and aspect ratio — no
+  // generated campus-name text or white backing, unlike the official lockups below.
+  if(CUSTOM_LOGO_PATTERN.test(type)){
+    const fileId=type.slice('custom:'.length);
+    const logo=await loadBitmap('/api/data-core/files/'+encodeURIComponent(fileId),signal);
+    try{
+      canvas.width=1800;canvas.height=340;
+      const ctx=canvas.getContext('2d');ctx.clearRect(0,0,canvas.width,canvas.height);
+      fitted(ctx,logo,0,0,canvas.width,canvas.height);
+    }finally{logo.close();}
+    return;
+  }
   const spec=LOGOS[type];if(!spec)throw Error('로고를 선택하세요.');
   const logo=await loadBitmap(spec.src,signal);await document.fonts.ready;
   try{
