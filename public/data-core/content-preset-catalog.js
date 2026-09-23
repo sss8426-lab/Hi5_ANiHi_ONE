@@ -85,21 +85,17 @@ function fill(text, fields, kind) {
 /** @param {string} campusId @param {string} sourceApp @param {{brands:string[],names:Record<string,string>,courses?:string[]}} profile */
 export function recommendedPresets(campusId,sourceApp,profile={brands:[],names:{}}) {
  const region=REGIONS[campusId],items=[];
- // The campus's own choice in 캠퍼스 추천 설정 decides which brand tags are used; there is no per-post brand.
- const confirmed=(profile.brands||[]).filter(brand=>Object.hasOwn(BRANDS,brand));
+ // Each text area on the main screen picks [Hi5] or [ANiHi] itself, so every recommended set exists once
+ // per brand it fits: a common set in a Hi5 and an ANiHi version, a brand-only set just for its brand.
  const names=profile.names||{},regionField=brand=>region?'#'+region+BRANDS[brand].field:'';
  for(const row of [...TAG_CATALOG,...CLOSING_CATALOG]){
-  // Brand-specific rows: one per confirmed brand, or both (without a brand tag) while none is confirmed.
-  const scopes=row.brandScope==='common'?['common']:confirmed.length?confirmed.filter(brand=>brand===row.brandScope):[row.brandScope];
+  const scopes=row.brandScope==='common'?Object.keys(BRANDS):[row.brandScope];
   for(const scope of scopes){
    if(row.course==='bucheon'&&campusId!==(scope==='anihi'?'campus-anihi-admission':'campus-design-admission'))continue;
-   const fields=scope==='common'
-    ?{'브랜드태그':confirmed.map(b=>BRANDS[b].tag).join(' '),'지역':region,'지역분야태그':confirmed.map(regionField).join(' '),'학원명':confirmed.map(b=>names[b]).filter(Boolean).join('·')}
-    :{'브랜드태그':confirmed.includes(scope)?BRANDS[scope].tag:'','지역':region,'지역분야태그':regionField(scope),'학원명':names[scope]};
+   const fields={'브랜드태그':BRANDS[scope].tag,'지역':region,'지역분야태그':regionField(scope),'학원명':names[scope]};
    const text=row.kind==='hashtags'?row.base+(sourceApp==='blog'?' '+row.extra:''):row[sourceApp];
-   // Ids stay what they were for a single/unconfirmed brand, so existing edits and favorites keep matching.
-   const idBrand=scope==='common'?confirmed[0]||'unconfirmed':scope;
-   items.push({id:'builtin:'+row.key+':'+idBrand,builtInKey:row.key+':'+idBrand,catalogVersion:CATALOG_VERSION,kind:row.kind,name:row.name,category:row.kind==='hashtags'?(row.course? '과정':'주제'):'마지막 문구',brandScope:scope,
+   // `builtin:<key>:<brand>` — the id a campus's single confirmed brand already used, so edits and favorites keep matching.
+   items.push({id:'builtin:'+row.key+':'+scope,builtInKey:row.key+':'+scope,catalogVersion:CATALOG_VERSION,kind:row.kind,name:row.name,category:row.kind==='hashtags'?(row.course? '과정':'주제'):'마지막 문구',brandScope:scope,
     content:fill(text,fields,row.kind),notice:row.notice,unavailable:'',revision:0,deletedAt:null,favorite:false,ownerUserId:null});
   }
  }

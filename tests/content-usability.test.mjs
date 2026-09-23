@@ -6,9 +6,10 @@ import {libraryHarness,users,ORG} from './support/library-harness.mjs';
 import {assembleCaption} from '../public/data-core/content-caption.js';
 import {imageBox} from '../public/data-core/instagram-layout.js';
 
-test('fixed caption text preserves newlines, appears once and deduplicates fixed tags first',()=>{
+test('fixed caption text preserves newlines, appears once and uses only the fixed tags (deduplicated, in order)',()=>{
   const footer='전화 032-000-0000\n상담 안내\n';
-  assert.equal(assembleCaption('소개\n'+footer,footer,'#미술 #학원 #미술',['학원','수업']),`소개\n\n${footer}\n\n#미술 #학원 #수업`);
+  // AI-suggested tags (4th argument) are never added any more: the hashtag line is the user's fixed tags only.
+  assert.equal(assembleCaption('소개\n'+footer,footer,'#미술 #학원 #미술',['학원','수업']),'소개\n\n전화 032-000-0000\n상담 안내\n\n#미술 #학원');
   assert.equal(assembleCaption('소개','','',[]),'소개');
   assert.deepEqual(imageBox('real-photo','none'),{x:56,y:56,width:2048,height:2588,fit:'cover'});
   assert.equal(imageBox('student-artwork','none').fit,'contain');

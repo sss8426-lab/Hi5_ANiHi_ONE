@@ -1,9 +1,9 @@
 import {instagramImageMime} from './instagram-image-formats.js';
 import {mountAiUsage} from './ai-usage.js?v=20260921-performance';
-import {mountTextPresets} from './content-text-presets.js?v=20260923-nobrand';
+import {mountTextPresets} from './content-text-presets.js?v=20260924-order';
 import {normalizeTags} from './content-preset-catalog.js';
-import {captionTail} from './content-caption.js?v=20260922-presets';
-import {mountBlogWorkflow} from './blog-workflow.js?v=20260923-nobrand';
+import {captionTail,assemblePost} from './content-caption.js?v=20260924-order';
+import {mountBlogWorkflow} from './blog-workflow.js?v=20260924-order2';
 import {optimizeImageForAi} from './image-ai-optimize.js?v=20260923-imgfix';
 
 const state = {
@@ -42,10 +42,9 @@ const state = {
 const PHOTO_SAFETY_LIMIT = 100;
 
 let derivativeEditor, instagramProduction, aiUsagePanel, textPresets, blogWorkflow, lastInstagramSettings;
-let browseController, renderedFolder='', defaultsEdited=0;
-let savedDraftSnapshot='',savedDefaultsSnapshot='';
+let browseController, renderedFolder='';
+let savedDraftSnapshot='';
 const draftSnapshot=()=>JSON.stringify(['draftTitle','draftSummary','draftContent','draftTags','resultFooter','resultContact','publishStatus','contentPurpose'].map(id=>$(id).value));
-const defaultsSnapshot=()=>JSON.stringify([$('defaultHashtags').value,$('defaultFooter').value]);
 const thumbnailCache = new window.DataCorePrivateImageCache({maxBytes:8*1024*1024,maxEntries:50,concurrency:3,onUnauthorized:clearPrivateState});
 const legacyThumbnails = new window.DataCorePrivateImageCache({maxBytes:32*1024*1024,maxEntries:50,concurrency:2,onUnauthorized:clearPrivateState,transform:async(blob,path,signal)=>{
   const thumbnail=await window.DataCoreLibraryThumbnail.prepare(blob,signal);
@@ -607,8 +606,6 @@ function bindEvents() {
   $('draftSearchInput').onkeydown = (event) => { if (event.key === 'Enter') loadDrafts(); };
   $('openDraftsBtn').onclick = () => { $('draftsDialog').showModal(); void loadDrafts(); };
   $('closeDraftsBtn').onclick = () => $('draftsDialog').close();
-  $('saveDefaults').onclick = saveDefaults;
-  for(const id of ['defaultHashtags','defaultFooter'])$(id).addEventListener('input',()=>{defaultsEdited++;$('defaultsStatus').textContent='기본 문구 변경사항 미저장';});
   $('generateAi').onclick = () => runAi();
   $('regenerateAi').onclick = () => runAi();
   $('retryCaption').onclick = () => runAi(true);
@@ -637,7 +634,7 @@ function bindEvents() {
   };
   $('draftTags').addEventListener('input', renderPublishChecklist);
   $('resultFooter').addEventListener('input', renderPublishChecklist);
-  $('manualDraft').onclick = () => { $('titlePicker').hidden = true; $('aiResult').hidden = false; $('resultHeading').textContent = state.sourceApp === 'blog' ? '블로그 완성본' : '작성 결과'; $('resultFooter').value = $('defaultFooter').value; notifyTextFields(); };
+  $('manualDraft').onclick = () => { $('titlePicker').hidden = true; $('aiResult').hidden = false; $('resultHeading').textContent = state.sourceApp === 'blog' ? '블로그 완성본' : '작성 결과'; $('resultFooter').value = $('defaultFooter').value; $('resultContact').value = textPresets?.contact() || ''; notifyTextFields(); };
   $('compareImage').onclick = () => {
     const visible = !$('aiOriginalFigure').hidden;
     $('aiOriginalFigure').hidden = visible; $('compareImage').setAttribute('aria-pressed', String(!visible));
@@ -659,38 +656,35 @@ function normalizedHashtags(...values) {
   return normalizeTags(...values);
 }
 
+// 문구 설정 (인사말·고정 해시태그·고정 마지막 문구 per brand, 상담전화·주소·링크) is owned by the text
+// settings module; this only fetches the channel/campus defaults and hands each part to its owner.
+let defaultsScope='';
 async function loadDefaults() {
+  // Another campus or channel never inherits this one's text, typed or loaded.
+  const scopeKey=state.sourceApp+'|'+$('draftCampus').value;
+  if(scopeKey!==defaultsScope){defaultsScope=scopeKey;textPresets?.clear();}
   void textPresets?.load();
   const token = ++state.defaultsGeneration;
-  const edit=defaultsEdited;
+  const settingsToken=textPresets?.beginDefaults();
   const blogToken=blogWorkflow?.defaultsToken();
-  $('defaultHashtags').value = ''; $('defaultFooter').value = '';
-  notifyTextFields();
-  savedDefaultsSnapshot=defaultsSnapshot();
-  $('defaultsStatus').textContent = '';
   try {
     const params = new URLSearchParams({ sourceApp: state.sourceApp, campusId: $('draftCampus').value });
     const result = await api('/api/data-core/content/defaults?' + params);
-    if (token !== state.defaultsGeneration || edit!==defaultsEdited) return;
-    $('defaultHashtags').value = result.defaults.hashtags; $('defaultFooter').value = result.defaults.footer;
+    if (token !== state.defaultsGeneration) return;
+    textPresets?.applyDefaults(result.defaults,settingsToken);
     notifyTextFields();
-    savedDefaultsSnapshot=defaultsSnapshot();
     blogWorkflow?.applyDefaults(result.defaults.blogSettings,blogToken);
     lastInstagramSettings=result.defaults.instagramSettings;
     instagramProduction?.applyDefaults(lastInstagramSettings);
   } catch (error) { if (token === state.defaultsGeneration) $('defaultsStatus').textContent = error.message; }
 }
 
-async function saveDefaults() {
-  $('saveDefaults').disabled = true;
-  const token = state.defaultsGeneration;
-  const submitted=defaultsSnapshot();
-  try {
-    await api('/api/data-core/content/defaults', { method: 'PUT', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ sourceApp: state.sourceApp, campusId: $('draftCampus').value || null, hashtags: $('defaultHashtags').value, footer: $('defaultFooter').value }) });
-    if (token === state.defaultsGeneration){$('defaultsStatus').textContent = '기본 문구가 저장되었습니다.';savedDefaultsSnapshot=submitted;}
-  } catch (error) { if (token === state.defaultsGeneration) $('defaultsStatus').textContent = error.message; }
-  finally { $('saveDefaults').disabled = !canWrite(); }
+// After [설정 저장]: an open result gets its managed parts re-assembled (인사말·링크·연락처·마지막 문구·
+// 해시태그) — the main text, photos and images are left exactly as they are, and nothing is regenerated.
+function applySettingsToResult(values) {
+  if (state.sourceApp === 'blog') { if (!$('aiResult').hidden && blogWorkflow?.applyManaged(values)) toast('설정을 현재 글에 반영했습니다. 글 저장은 [저장하기]로 합니다.'); return; }
+  try { if (instagramProduction?.applyText(values)) toast('설정을 현재 홍보글에 반영했습니다. [문구 저장]으로 저장하세요.'); }
+  catch (error) { toast(error.message, 'error'); }
 }
 
 async function loadAiStatus() {
@@ -788,8 +782,9 @@ function applyBlogTitleAndBody(kind) {
   state.blogSelectedTitleKind = kind;
   $('draftTitle').value = state.blogTitles[kind];
   $('draftContent').value = [state.currentLead, state.currentBody].filter(Boolean).join('\n\n');
-  $('draftTags').value = normalizedHashtags($('defaultHashtags').value, state.lastHashtags).map((tag) => '#' + tag).join(' ');
-  $('resultFooter').value = $('defaultFooter').value || state.lastCta || '';notifyTextFields();
+  // Only the user's fixed tags and closing — never AI-suggested tags or an AI call-to-action.
+  $('draftTags').value = normalizedHashtags($('defaultHashtags').value).map((tag) => '#' + tag).join(' ');
+  $('resultFooter').value = $('defaultFooter').value;notifyTextFields();
   $('resultContact').value = textPresets?.contact() || '';
   $('titlePicker').hidden = true;
   $('aiResult').hidden = false;
@@ -808,7 +803,7 @@ async function retitleTo(kind) {
   if(blogWorkflow&&!state.pendingBlogGeneration&&$('draftContent').value.trim()){
     state.blogSelectedTitleKind=kind;$('draftTitle').value=state.blogTitles[kind];$('titlePicker').hidden=true;$('aiResult').hidden=false;blogWorkflow.review();return;
   }
-  if (kind === state.blogFittedKind) { applyBlogTitleAndBody(kind);blogWorkflow?.assemble(false);return; }
+  if (kind === state.blogFittedKind) { applyBlogTitleAndBody(kind);assembleBlogResult();return; }
   $('titlePickerStatus').textContent = '선택한 제목에 맞게 본문을 조정하고 있습니다…';
   const response = await api('/api/data-core/content/refine', {
     method: 'POST', headers: { 'content-type': 'application/json' },
@@ -822,8 +817,13 @@ async function retitleTo(kind) {
   state.currentLead = response.refined.lead; state.currentBody = response.refined.body;
   state.blogFittedKind = kind;
   applyBlogTitleAndBody(kind);
-  blogWorkflow?.assemble(false);
+  assembleBlogResult();
   $('titlePickerStatus').textContent = '';
+}
+
+function assembleBlogResult() {
+  blogWorkflow?.assemble(false);
+  if (textPresets) blogWorkflow?.applyManaged(textPresets.values());
 }
 
 function renderTitlePicker() {
@@ -849,6 +849,12 @@ function renderTitlePicker() {
   $('titlePicker').hidden = false;
   $('titlePickerStatus').textContent = '';
   renderDuplicateWarning();
+}
+
+const BRAND_GUIDE={hi5:'Hi5(디자인·미술 교육)',anihi:'ANiHi(만화·웹툰·애니메이션 교육)'};
+function mainTextGuide() {
+  const brand=textPresets?.values().brand;
+  return `\n\n[작성 기준] 브랜드 방향: ${BRAND_GUIDE[brand]||'확인 필요'}. 확인되지 않은 과정·성과·수치·주소는 쓰지 마세요. 인사말·링크·상담전화·주소·마지막 문구·해시태그는 앱이 따로 붙이므로 본문에 넣지 마세요.`;
 }
 
 async function runAi(captionOnly = false, quick = false) {
@@ -884,7 +890,7 @@ async function runAi(captionOnly = false, quick = false) {
       $('aiOriginalFigure').hidden = true; $('compareImage').setAttribute('aria-pressed','false');
       $('aiImageSaved').textContent = '저장 완료 · 2160 × 2700px · 4:5';
       $('draftTitle').value = '인스타 홍보 이미지';
-      $('draftContent').value = ''; $('draftTags').value = $('defaultHashtags').value;
+      $('draftContent').value = ''; $('draftTags').value = normalizedHashtags($('defaultHashtags').value).map(tag => '#' + tag).join(' ');
       $('resultFooter').value = $('defaultFooter').value;notifyTextFields();
       renderSelectedFiles();
       $('aiStatus').textContent = '이미지가 저장되었습니다. 홍보 문구를 작성하고 있습니다…';
@@ -900,7 +906,7 @@ async function runAi(captionOnly = false, quick = false) {
       const recentTitles = await recentBlogTitles();
       $('aiStatus').textContent = '사진을 살펴보고 글을 작성하고 있습니다…';
       const form = new FormData();
-      form.set('input', JSON.stringify({ selectedFileIds: ids, notes: direction, sourceApp, campusId, strategyMode: $('strategyMode').value, recentTitles, photoInstructions:blogWorkflow?.instructions(),requestId: crypto.randomUUID() }));
+      form.set('input', JSON.stringify({ selectedFileIds: ids, notes: direction + mainTextGuide(), sourceApp, campusId, strategyMode: $('strategyMode').value, recentTitles, photoInstructions:blogWorkflow?.instructions(),requestId: crypto.randomUUID() }));
       for (const [id, blob] of photos) form.set(`photo:${id}`, blob, `${id}.jpg`);
       result = await api('/api/data-core/content/generate', { method: 'POST', signal, body: form });
     }
@@ -909,8 +915,8 @@ async function runAi(captionOnly = false, quick = false) {
     if (instagram) {
       $('draftTitle').value = generated.title;
       $('draftContent').value = generated.body || generated.content;
-      $('draftTags').value = normalizedHashtags($('defaultHashtags').value, generated.hashtags || generated.keywords).map(tag => '#' + tag).join(' ');
-      $('resultFooter').value = $('defaultFooter').value || generated.cta || generated.callToAction || '';notifyTextFields();
+      $('draftTags').value = normalizedHashtags($('defaultHashtags').value).map(tag => '#' + tag).join(' ');
+      $('resultFooter').value = $('defaultFooter').value;$('resultContact').value = textPresets?.contact() || '';notifyTextFields();
       $('aiResult').hidden = false;
       $('resultHeading').textContent = '인스타 결과';
       $('aiStatus').textContent = '작성이 완료되었습니다.';
@@ -925,7 +931,7 @@ async function runAi(captionOnly = false, quick = false) {
       state.blogNextTopics = generated.nextTopics || []; state.blogWarnings = generated.warnings || [];
       if (quick) {
         applyBlogTitleAndBody(state.blogSelectedTitleKind);
-        blogWorkflow?.assemble(false);
+        assembleBlogResult();
         $('aiStatus').textContent = state.blogWarnings.length ? `작성이 완료되었습니다. ${state.blogWarnings[0]}` : '작성이 완료되었습니다.';
       } else {
         renderTitlePicker();
@@ -943,7 +949,7 @@ async function copyContent() {
   if(state.sourceApp==='blog'&&blogWorkflow)return blogWorkflow.copy();
   try{captionTail($('resultFooter').value,$('draftTags').value,[],$('resultContact').value);}catch(error){return toast(error.message,'error');}
   if(normalizedHashtags($('draftTags').value).length>30)return toast('현재 저장 계약은 태그 30개까지입니다. 직접 정리해주세요.','error');
-  const text = [state.sourceApp === 'blog' ? $('draftTitle').value : '', $('draftContent').value, $('resultFooter').value, $('resultContact').value, normalizedHashtags($('draftTags').value).map(t=>'#'+t).join(' ')].filter(Boolean).join('\n\n');
+  const text = [state.sourceApp === 'blog' ? $('draftTitle').value : '', assemblePost({greeting:textPresets?.values().greeting||'',body:$('draftContent').value,contact:$('resultContact').value,closing:$('resultFooter').value,hashtags:$('draftTags').value})].filter(Boolean).join('\n\n');
   try { await navigator.clipboard.writeText(text); toast('복사했습니다.'); }
   catch { toast('클립보드 권한을 확인해주세요.', 'error'); }
 }
@@ -980,20 +986,18 @@ async function init() {
   setSourceApp(state.sourceApp);
   await loadHealthAndContext();
   renderCampusSelectors();
-  blogWorkflow=mountBlogWorkflow({state,$,toast,renderSelection:()=>{renderSelectedFiles();renderFilePicker();},contact:()=>textPresets?.contact()||''});
-  textPresets=mountTextPresets({api,state,$,applyResult:({footer,hashtags,contact})=>{
-    if(state.sourceApp==='instagram'){if(!instagramProduction)throw Error('이미지 세트를 먼저 불러오세요.');instagramProduction.applyText({footer,hashtags,contact});return;}
-    if($('aiResult').hidden)throw Error('작성 결과를 먼저 열어주세요.');
-    $('resultFooter').value=footer;$('draftTags').value=normalizedHashtags(hashtags).map(t=>'#'+t).join(' ');$('resultContact').value=contact;renderPublishChecklist();notifyTextFields();
-  }});
+  textPresets=mountTextPresets({api,state,$,mount:$('textSettingsMount'),onSaved:applySettingsToResult,
+    // Instagram's 로고 선택·제작 방식 are saved with the same [설정 저장].
+    extraSettings:()=>state.sourceApp==='instagram'&&instagramProduction?{instagramSettings:instagramProduction.templateSettings()}:{}});
+  blogWorkflow=mountBlogWorkflow({state,$,toast,renderSelection:()=>{renderSelectedFiles();renderFilePicker();},managed:()=>textPresets.values()});
   renderSelectedFiles();
   if (state.context?.authenticated) {
     state.folderId = $('draftCampus').value ? 'campus:' + $('draftCampus').value : 'root';
     void loadDefaults();void loadAiStatus();
     const listing=loadFiles();
     if(state.sourceApp==='instagram'){
-      const {mountInstagramProduction}=await import('/data-core/instagram-carousel.js?v=20260924-layers');
-      instagramProduction=mountInstagramProduction({state,api,$,toast,canWrite,contact:()=>textPresets.contact(),renderSelection:()=>{renderSelectedFiles();renderFilePicker();}});
+      const {mountInstagramProduction}=await import('/data-core/instagram-carousel.js?v=20260924-order2');
+      instagramProduction=mountInstagramProduction({state,api,$,toast,canWrite,text:()=>textPresets.values(),renderSelection:()=>{renderSelectedFiles();renderFilePicker();}});
       instagramProduction.applyDefaults(lastInstagramSettings);
       instagramProduction.refresh();
     }
@@ -1007,7 +1011,7 @@ init().catch((error) => {
 window.addEventListener('pagehide',clearPrivateState);
 window.addEventListener('beforeunload',event=>{
   const dirty=state.busy||blogWorkflow?.hasUnsaved()||(state.sourceApp==='instagram'?instagramProduction?.hasUnsaved():$('aiResult').hidden?Boolean($('aiCommand').value.trim()):draftSnapshot()!==savedDraftSnapshot)
-    ||Boolean(savedDefaultsSnapshot&&defaultsSnapshot()!==savedDefaultsSnapshot);
+    ||Boolean(textPresets?.dirty());
   if(dirty){event.preventDefault();event.returnValue='';}
 });
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!state.busy){void loadHealthAndContext().then(()=>{renderedFolder='';void loadFiles();}).catch(clearPrivateState);}});

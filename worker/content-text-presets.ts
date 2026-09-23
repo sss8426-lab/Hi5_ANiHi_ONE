@@ -51,7 +51,8 @@ export async function textPresets(db:D1Database,context:DataCoreAccessContext,in
  const catalog=()=>recommendedPresets(campusId!,sourceApp,data.profile) as Item[];
  const visible=(item:Item)=>!item.ownerUserId||item.ownerUserId===owner||manager;
  const merged=()=>{
-  const built=catalog().map(item=>({...item,...data.items[item.id]}));
+  // A recommended set's brand always comes from the catalog, even over an edit stored before sets were per-brand.
+  const built=catalog().map(item=>({...item,...data.items[item.id],brandScope:item.brandScope}));
   // Keep overrides even if the catalog/confirmed brands change; never resurrect or discard them.
   const keys=new Set(built.map(i=>i.id));
   return [...built,...Object.values(data.items).filter(i=>!keys.has(i.id))].filter(visible);
@@ -80,14 +81,15 @@ export async function textPresets(db:D1Database,context:DataCoreAccessContext,in
     if(action!=='favorite'&&!manager&&item.ownerUserId!==owner)fail(403,'본인 세트만 수정할 수 있습니다. 공유 추천은 캠퍼스 관리자가 관리합니다.');
    }
    if(['create','update'].includes(action)){
-    if(!['hashtags','closing'].includes(item.kind))fail(400,'세트 종류를 확인하세요.');
+    if(!['greeting','hashtags','closing'].includes(item.kind))fail(400,'세트 종류를 확인하세요.');
     if(item.deletedAt)fail(409,'복원 후 수정하세요.');
     const name=text(input.name,60),content=text(input.content,item.kind==='hashtags'?2000:3000);
     if(/\{\{[^}]*\}\}|\b(?:undefined|null)\b/.test(content))fail(400,'확인되지 않은 치환값을 제거하세요.');
     if(item.kind==='hashtags'&&normalizeTags(content).length>30)fail(400,'현재 콘텐츠 저장 계약은 태그 30개까지입니다. 직접 정리해주세요.');
     if(item.kind==='hashtags'&&normalizeTags(content).some(tag=>tag.length>80))fail(400,'태그는 각각 80자까지 저장할 수 있습니다.');
-    const brandScope=String(input.brandScope||item.brandScope||'common');
-    if(!['common','anihi','hi5','unconfirmed'].includes(brandScope))fail(400,'브랜드를 확인하세요.');
+    // New sets always belong to the brand chosen in their area; an older brand-less set keeps its scope.
+    const brandScope=action==='create'?String(input.brandScope||''):String(item.brandScope||input.brandScope||'common');
+    if(!(action==='create'?['anihi','hi5']:['common','anihi','hi5','unconfirmed']).includes(brandScope))fail(400,'브랜드를 확인하세요.');
     if(merged().some(other=>other.id!==item.id&&!other.deletedAt&&other.kind===item.kind&&other.brandScope===brandScope&&nameKey(other.name)===nameKey(name)))fail(409,'같은 이름의 세트가 있습니다. 기존 세트를 수정하거나 다른 이름으로 저장하세요.');
     Object.assign(item,{name,content,category:String(input.category||'').trim().slice(0,40),brandScope,unavailable:''});
    }else if(action==='delete')item.deletedAt=now;

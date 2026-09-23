@@ -11,31 +11,27 @@ const write=(h,body,user=users.admin,s=scope)=>h.request('POST',url,user,{...s,.
 test('complete catalog, deterministic regional brands and channel-specific text without guessed contacts',()=>{
  assert.equal(TAG_CATALOG.length,33);assert.equal(CLOSING_CATALOG.length,20);
  const clean=item=>{assert.doesNotMatch(item.content,/\{\{|undefined|\bnull\b|##/);assert.ok(item.content.trim());assert.equal(item.unavailable,'','recommended sets are always usable');};
- // One brand chosen in 캠퍼스 추천 설정: exactly that brand's tags, never the other brand's.
- for(const [brand,other] of [['hi5',/#애니하이|만화학원|웹툰학원/],['anihi',/#하이파이브/]]){
-  const profile={brands:[brand],names:{[brand]:'합성 학원'},courses:[]};
-  for(const [campusId,region]of Object.entries(REGIONS))for(const app of ['blog','instagram']){
-   const items=recommendedPresets(campusId,app,profile);assert.equal(new Set(items.map(i=>i.id)).size,items.length);
-   for(const item of items){clean(item);
-    if(item.kind==='hashtags'){assert.equal(normalizeTags(item.content).length,app==='blog'?8:5);
-     if(!item.name.includes('부평'))assert.ok(item.content.includes(region));
-     assert.doesNotMatch(item.content,other);
-    }
+ // Every text area picks [Hi5]/[ANiHi] itself, so each set exists per brand and carries only its brand.
+ const other={hi5:/#애니하이|만화학원|웹툰학원|애니학원/,anihi:/#하이파이브|디자인학원|입시미술학원/};
+ for(const [campusId,region]of Object.entries(REGIONS))for(const app of ['blog','instagram']){
+  const items=recommendedPresets(campusId,app,{brands:[],names:{hi5:'합성 디자인',anihi:'합성 만화'},courses:[]});
+  assert.equal(new Set(items.map(i=>i.id)).size,items.length);
+  for(const item of items){clean(item);assert.ok(['hi5','anihi'].includes(item.brandScope));assert.ok(item.id.endsWith(':'+item.brandScope));
+   if(item.kind==='hashtags'){assert.equal(normalizeTags(item.content).length,app==='blog'?8:5);
+    if(!item.name.includes('부평'))assert.ok(item.content.includes(region));
+    assert.doesNotMatch(item.content,other[item.brandScope]);
    }
-   if(![A,'campus-design-admission'].includes(campusId))assert.ok(items.every(i=>!i.name.includes('부평')));
   }
+  if(![A,'campus-design-admission'].includes(campusId))assert.ok(items.every(i=>!i.name.includes('부평')));
  }
- // Both brands: common sets carry both brands' tags; brand-specific sets only their own.
- const both=recommendedPresets(B,'instagram',{brands:['hi5','anihi'],names:{},courses:[]});both.forEach(clean);
- assert.equal(new Set(both.map(i=>i.id)).size,both.length);
- const dream=both.find(i=>i.name==='꿈·진로'&&i.kind==='hashtags');assert.match(dream.content,/#하이파이브미술학원/);assert.match(dream.content,/#애니하이만화학원/);
- assert.doesNotMatch(both.find(i=>i.name==='기초디자인').content,/#애니하이/);
- // No brand chosen yet (most campuses' starting state): still every set usable — brand tags are simply
- // left out, never guessed, and an academy name falls back to "저희 학원".
- const unconfirmed=recommendedPresets(B,'blog');unconfirmed.forEach(clean);
- assert.ok(unconfirmed.every(i=>!/#하이파이브|#애니하이/.test(i.content)));
- assert.ok(unconfirmed.some(i=>i.name==='기초디자인')&&unconfirmed.some(i=>i.name==='꿈·진로'&&i.kind==='hashtags'));
- assert.match(unconfirmed.find(i=>i.name==='기본 상담'&&i.kind==='closing').content,/^저희 학원은 /u);
+ const both=recommendedPresets(B,'instagram');both.forEach(clean);
+ // A common set in both brands, each with its own brand tag; a brand-only set just once.
+ const dream=both.filter(i=>i.name==='꿈·진로'&&i.kind==='hashtags');assert.deepEqual(dream.map(i=>i.brandScope).sort(),['anihi','hi5']);
+ assert.match(dream.find(i=>i.brandScope==='hi5').content,/#하이파이브미술학원/);assert.match(dream.find(i=>i.brandScope==='anihi').content,/#애니하이만화학원/);
+ assert.deepEqual(both.filter(i=>i.name==='기초디자인').map(i=>i.brandScope),['hi5']);
+ // No academy name stored: never guessed — it reads "저희 학원".
+ assert.match(both.find(i=>i.name==='기본 상담'&&i.kind==='closing').content,/^저희 학원은|^관심 있는 전공/u);
+ assert.match(recommendedPresets(B,'blog').find(i=>i.name==='기본 상담'&&i.kind==='closing').content,/^저희 학원은 /u);
  // Course settings never block a set anymore.
  assert.equal(recommendedPresets(A,'blog',{brands:['anihi'],names:{},courses:[]}).find(i=>i.name==='게임·일러스트').unavailable,'');
  assert.equal(substitute('{{학원명}} {{unknown}}',{'학원명':'이름'}).content,'');
@@ -75,7 +71,7 @@ test('persistent preset CRUD, isolation, revision conflict, favorites and defaul
   const before=await h.env.DB.prepare("SELECT count(*) n FROM data_records WHERE record_type='content-text-presets'").first();
   let r=await read(h);assert.equal(r.status,200);const built=r.body.presets.find(i=>i.name==='학생 작품'&&i.kind==='hashtags');
   assert.equal((await h.env.DB.prepare("SELECT count(*) n FROM data_records WHERE record_type='content-text-presets'").first()).n,before.n);
-  const create={action:'create',kind:'closing',name:'합성 문구',content:'원본 내용',requestId:crypto.randomUUID()};
+  const create={action:'create',kind:'closing',name:'합성 문구',content:'원본 내용',brandScope:'anihi',requestId:crypto.randomUUID()};
   r=await write(h,create,users.staff);assert.equal(r.status,200,JSON.stringify(r.body));let item=r.body.presets.find(i=>i.name===create.name);
   assert.equal((await write(h,create,users.staff)).body.presets.filter(i=>i.name===create.name).length,1);
   assert.equal((await write(h,{...create,requestId:crypto.randomUUID()},users.staff)).status,409);
@@ -123,7 +119,7 @@ test('concurrent same-name saves and approved profile/contact isolation',async()
   r=await read(h);const brandOnly=await write(h,{action:'profile',revision:r.body.revision,profile:{brands:['hi5'],names:{},courses:[],phone:'',address:'',link:''}});
   assert.equal(brandOnly.status,200,JSON.stringify(brandOnly.body));
   assert.ok(brandOnly.body.presets.filter(i=>i.builtInKey).every(i=>!i.unavailable));
-  assert.match(brandOnly.body.presets.find(i=>i.name==='꿈·진로'&&i.kind==='hashtags').content,/#하이파이브미술학원/);
+  assert.match(brandOnly.body.presets.find(i=>i.name==='꿈·진로'&&i.kind==='hashtags'&&i.brandScope==='hi5').content,/#하이파이브미술학원/);
  }finally{await h.mf.dispose();}
 });
 

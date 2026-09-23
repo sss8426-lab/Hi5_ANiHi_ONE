@@ -482,7 +482,8 @@ async function handleContentApi(request: Request, env: Env) {
   }
   if (url.pathname === '/api/data-core/content/defaults') {
     if (request.method === 'GET') return jsonResponse({ defaults: await contentDefaults(env.DB, context, Object.fromEntries(url.searchParams)) });
-    if (request.method === 'PUT') return jsonResponse({ defaults: await contentDefaults(env.DB, context, await contentJson(request), true) });
+    // 문구 설정 holds two brands × three texts (Korean is ~3 bytes a character) — past the 16KB default.
+    if (request.method === 'PUT') return jsonResponse({ defaults: await contentDefaults(env.DB, context, await contentJson(request, 131072), true) });
   }
   if (url.pathname === '/api/data-core/content/instagram-policy' && request.method === 'GET') return jsonResponse(await instagramPolicy(env.DB,context,url.searchParams.get('campusId') || ''));
   if (url.pathname === '/api/data-core/content/instagram-logos') {
