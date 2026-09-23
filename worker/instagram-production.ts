@@ -9,11 +9,17 @@ import { campusDisplayName } from './campus-directory';
 import { BRAND_VERSION, LOGOS, TEMPLATES, HUMAN_CHECKS, getInstagramCampusLogoLabel, normalizeDesign, designChecks } from '../public/data-core/instagram-brand-policy.js';
 import { instagramImageMime } from '../public/data-core/instagram-image-formats.js';
 import { instagramPreserveReason } from '../public/data-core/instagram-source-policy.js';
+import { resolveCustomLogo } from './instagram-custom-logos';
 
 export const INSTAGRAM_RENDER = 'instagram-reviewed-render';
 export const INSTAGRAM_SET = 'instagram-carousel-set';
+export const USER_LAYER_LIMIT = 20;
 type Approval = { fingerprint:string; approvedBy:string; approvedAt:string; checks:string[]; mode?:string };
-type RenderMetadata = { draftId:string; fingerprint:string; masterFileId:string; backgroundFileId:string; exportFileId?:string; approval?:Approval; exportLease?:{token:string;until:number} };
+// A user-uploaded image placed over the finished photo, in 2160×2700 master pixels. The asset's own
+// file id is immutable (uploads are never replaced), so id + createdAt pins the exact pixels drawn.
+type UserLayer = { id:string; assetId:string; assetVersion:string; assetName:string; x:number; y:number; w:number; h:number; z:number };
+type RenderMetadata = { draftId:string; fingerprint:string; masterFileId:string; backgroundFileId:string; sourceFileId?:string; layers?:UserLayer[]; exportFileId?:string; approval?:Approval; exportLease?:{token:string;until:number} };
+const UUID = /^[0-9a-f-]{36}$/i;
 const fail = (status:number, text:string):never => { throw new DataCoreAccessError(status,text); };
 const parse = (text:unknown) => { try { return JSON.parse(String(text || '{}')); } catch { return {}; } };
 const hash = async (value:unknown) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(value))))).map(b=>b.toString(16).padStart(2,'0')).join('');
@@ -100,10 +106,14 @@ export async function getInstagramSet(db:D1Database,context:DataCoreAccessContex
   for(const item of meta.items as SetItem[]){
     const report=await reviewInstagram(db,context,item.draftId,item.renderId);
     if(!report.approved||report.fingerprint!==item.fingerprint)fail(409,'원본 권한 또는 제작 버전이 변경되었습니다.');
-    items.push({...item,masterFileId:report.masterFileId});
+    // Everything needed to reopen the set and re-composite only the user layers: the photo, the
+    // (maybe AI-edited) background the render was drawn from, its design and the saved layers.
+    items.push({...item,masterFileId:report.masterFileId,sourceId:report.sourceFileId,backgroundFileId:report.backgroundFileId,design:report.design,layers:report.layers,direction:report.direction});
   }
   const generatedTags=Array.isArray(meta.captionGeneratedTags)?(meta.captionGeneratedTags as unknown[]).filter((tag):tag is string=>typeof tag==='string'):[];
-  return {id:row.id,campusId:row.campus_id,title:row.title,createdAt:row.created_at,items,caption:String(row.content_text||''),managedTail:typeof meta.captionManagedTail==='string'?meta.captionManagedTail:null,generatedTags};
+  const captionSources=Array.isArray(meta.captionSources)?(meta.captionSources as unknown[]).filter((v):v is string=>typeof v==='string'):null;
+  return {id:row.id,campusId:row.campus_id,title:row.title,createdAt:row.created_at,version:Number(meta.version)||1,items,caption:String(row.content_text||''),
+    managedTail:typeof meta.captionManagedTail==='string'?meta.captionManagedTail:null,generatedTags,captionSources};
 }
 export async function listInstagramSets(db:D1Database,context:DataCoreAccessContext,campusId:string) {
   await instagramPolicy(db,context,campusId);
@@ -112,14 +122,11 @@ export async function listInstagramSets(db:D1Database,context:DataCoreAccessCont
   const result=await db.prepare(`SELECT id,title,created_at AS createdAt FROM data_records WHERE organization_id=? AND record_type=? AND campus_id=? AND deleted_at IS NULL${owner} ORDER BY created_at DESC,id DESC LIMIT 30`).bind(...bindings).all();
   return {sets:result.results||[]};
 }
-export async function completeInstagramSet(db:D1Database,context:DataCoreAccessContext,input:Record<string,unknown>) {
-  requireWriteAccess(context);
-  const items=input.items as SetItem[],requestId=String(input.requestId||'');
-  if(!/^[0-9a-f-]{36}$/i.test(requestId)||!Array.isArray(items)||items.length<1||items.length>100||new Set(items.map(i=>i?.renderId)).size!==items.length)fail(400,'1~100장의 완성 이미지를 선택하세요.');
-  const id=`instagram-set:${context.user!.internalUserId}:${requestId}`;
-  const existing=await db.prepare('SELECT id,metadata_json FROM data_records WHERE id=? AND organization_id=?').bind(id,ORG).first<{id:string;metadata_json:string}>();
-  if(existing){if(JSON.stringify(parse(existing.metadata_json).items)!==JSON.stringify(items))fail(409,'다른 저장 요청입니다.');return getInstagramSet(db,context,id);}
-  let campusId='',logo='';const sources=new Set(),statements:D1PreparedStatement[]=[];const now=new Date().toISOString();
+const validSetItems=(items:unknown):items is SetItem[]=>Array.isArray(items)&&items.length>=1&&items.length<=100&&new Set(items.map(i=>i?.renderId)).size===items.length;
+// Checks every item against its live draft/render and prepares the approval writes. `keep` lists
+// renders already finalized in this set, which need no second approval write.
+async function finalizeSetItems(db:D1Database,context:DataCoreAccessContext,items:SetItem[],now:string,keep=new Set<string>()) {
+  let campusId='',logo='';const sources=new Set(),statements:D1PreparedStatement[]=[];
   const reads=readPhase(db);
   for(const item of items){
     if(!item||typeof item.draftId!=='string'||typeof item.renderId!=='string')fail(400,'제작 버전을 확인하세요.');
@@ -129,6 +136,7 @@ export async function completeInstagramSet(db:D1Database,context:DataCoreAccessC
     campusId=report.campusId;logo=report.design.logoType;
     const {row,meta}=renderRecord!;
     if(sources.has(source.source.id))fail(400,'중복 원본을 확인하세요.');sources.add(source.source.id);
+    if(keep.has(item.renderId))continue;
     meta.approval={fingerprint:report.fingerprint,approvedBy:context.user!.internalUserId,approvedAt:now,checks:[],mode:'user-finalized-set'};
     statements.push(db.prepare('UPDATE data_records SET metadata_json=?,updated_at=? WHERE id=? AND organization_id=? AND metadata_json=? AND deleted_at IS NULL').bind(JSON.stringify(meta),now,row.id,ORG,row.metadata_json));
     // A failed CAS must abort the whole D1 transaction, including the set and audit.
@@ -136,7 +144,18 @@ export async function completeInstagramSet(db:D1Database,context:DataCoreAccessC
       AND EXISTS(SELECT 1 FROM data_records WHERE id=? AND organization_id=? AND updated_at=? AND deleted_at IS NULL)
       THEN 1 ELSE json('instagram-version-conflict') END`).bind(row.id,ORG,JSON.stringify(meta),item.draftId,ORG,source.revision));
   }
-  statements.push(db.prepare(`INSERT INTO data_records(id,organization_id,campus_id,created_by_user_id,record_type,source_app,title,visibility,status,metadata_json,created_at,updated_at) VALUES (?,?,?,?,?,'instagram',?,'private','active',?,?,?)`).bind(id,ORG,campusId,context.user!.internalUserId,INSTAGRAM_SET,`인스타 이미지 ${items.length}장`,JSON.stringify({schemaVersion:1,items,completedAt:now}),now,now));
+  return {campusId,statements};
+}
+export async function completeInstagramSet(db:D1Database,context:DataCoreAccessContext,input:Record<string,unknown>) {
+  requireWriteAccess(context);
+  const items=input.items as SetItem[],requestId=String(input.requestId||'');
+  if(!UUID.test(requestId)||!validSetItems(items))fail(400,'1~100장의 완성 이미지를 선택하세요.');
+  const id=`instagram-set:${context.user!.internalUserId}:${requestId}`;
+  const existing=await db.prepare('SELECT id,metadata_json FROM data_records WHERE id=? AND organization_id=?').bind(id,ORG).first<{id:string;metadata_json:string}>();
+  if(existing){if(JSON.stringify(parse(existing.metadata_json).items)!==JSON.stringify(items))fail(409,'다른 저장 요청입니다.');return getInstagramSet(db,context,id);}
+  const now=new Date().toISOString();
+  const {campusId,statements}=await finalizeSetItems(db,context,items,now);
+  statements.push(db.prepare(`INSERT INTO data_records(id,organization_id,campus_id,created_by_user_id,record_type,source_app,title,visibility,status,metadata_json,created_at,updated_at) VALUES (?,?,?,?,?,'instagram',?,'private','active',?,?,?)`).bind(id,ORG,campusId,context.user!.internalUserId,INSTAGRAM_SET,`인스타 이미지 ${items.length}장`,JSON.stringify({schemaVersion:1,version:1,items,completedAt:now}),now,now));
   statements.push(await audit(db,context,campusId,'instagram.complete-set',id));
   try{await db.batch(statements);}catch(error){
     // Concurrent duplicate clicks reuse the committed set, never manufacture a second one.
@@ -147,15 +166,50 @@ export async function completeInstagramSet(db:D1Database,context:DataCoreAccessC
   }
   return getInstagramSet(db,context,id);
 }
+// A saved set's pictures change in two ways: a retried photo joins it, or a photo's user layers are
+// re-composited (a new render of the same draft). The set keeps its id and caption; `version` goes up
+// so a stale screen can't overwrite a newer arrangement, and each item is re-checked exactly like a
+// fresh completion.
+export async function updateInstagramSetItems(db:D1Database,context:DataCoreAccessContext,id:string,input:Record<string,unknown>){
+  const {row,meta}=await ownedSet(db,context,id);
+  if(!validSetItems(input.items))fail(400,'1~100장의 완성 이미지를 선택하세요.');
+  const items=(input.items as SetItem[]).map(item=>({draftId:item?.draftId,renderId:item?.renderId,fingerprint:item?.fingerprint}));
+  const version=Number(meta.version)||1;
+  if(input.version!==version)fail(409,'다른 화면에서 이미지 세트가 바뀌었습니다. 세트를 다시 열어주세요.');
+  if(JSON.stringify(meta.items)===JSON.stringify(items))return getInstagramSet(db,context,id);
+  const now=new Date().toISOString();
+  const {campusId,statements}=await finalizeSetItems(db,context,items,now,new Set((meta.items as SetItem[]).map(item=>item.renderId)));
+  if(campusId!==row.campus_id)fail(400,'같은 캠퍼스의 이미지만 세트에 넣을 수 있습니다.');
+  const next=JSON.stringify({...meta,items,version:version+1,itemsUpdatedAt:now});
+  statements.push(db.prepare('UPDATE data_records SET metadata_json=?,title=?,updated_at=? WHERE id=? AND organization_id=? AND record_type=? AND metadata_json=? AND deleted_at IS NULL')
+    .bind(next,`인스타 이미지 ${items.length}장`,now,id,ORG,INSTAGRAM_SET,row.metadata_json));
+  statements.push(db.prepare(`SELECT CASE WHEN EXISTS(SELECT 1 FROM data_records WHERE id=? AND organization_id=? AND metadata_json=?) THEN 1 ELSE json('instagram-set-conflict') END`).bind(id,ORG,next));
+  statements.push(await audit(db,context,campusId,'instagram.update-set',id));
+  try{await db.batch(statements);}catch(error){
+    if(String(error).includes('malformed JSON'))fail(409,'다른 화면에서 이미지 세트가 바뀌었습니다. 세트를 다시 열어주세요.');
+    throw error;
+  }
+  return getInstagramSet(db,context,id);
+}
 export async function saveInstagramSetCaption(db:D1Database,context:DataCoreAccessContext,id:string,input:Record<string,unknown>){
-  await getInstagramSet(db,context,id);
+  const set=await getInstagramSet(db,context,id);
   if(typeof input.caption!=='string'||input.caption.length>12000)fail(400,'홍보 문구를 확인하세요.');
   const caption=input.caption as string;
   const tail=typeof input.managedTail==='string'&&input.managedTail.length<=6000&&(caption===input.managedTail||caption.endsWith('\n\n'+input.managedTail))?input.managedTail:null;
   // The AI's own tags, kept apart from the campus's fixed tags so "현재 결과에 적용" can swap the fixed
   // ones later without dropping what the AI wrote for this particular set.
   const generated=Array.isArray(input.generatedTags)&&input.generatedTags.length<=30&&input.generatedTags.every(tag=>typeof tag==='string'&&tag.length>0&&tag.length<=80)?input.generatedTags as string[]:[];
-  await db.prepare("UPDATE data_records SET content_text=?,metadata_json=json_set(metadata_json,'$.captionManagedTail',?,'$.captionGeneratedTags',json(?)),updated_at=? WHERE id=? AND organization_id=? AND record_type=?").bind(input.caption,tail,JSON.stringify(tail?generated:[]),new Date().toISOString(),id,ORG,INSTAGRAM_SET).run();
+  // Which photos the text was written for, so reopening can say "images changed since" — only ever
+  // photos of this very set.
+  const inSet=new Set(set.items.map(item=>item.sourceId));
+  const sources=Array.isArray(input.sources)?[...new Set(input.sources as unknown[])].filter((v):v is string=>typeof v==='string'&&inSet.has(v)).sort():null;
+  // `previousCaption` makes the write conditional: an automatic caption only lands if nobody saved
+  // (or typed and saved) a different text in the meantime — a late AI answer never overwrites people.
+  const guarded=typeof input.previousCaption==='string';
+  const result=await db.prepare(`UPDATE data_records SET content_text=?,metadata_json=json_set(metadata_json,'$.captionManagedTail',?,'$.captionGeneratedTags',json(?),'$.captionSources',json(?)),updated_at=?
+    WHERE id=? AND organization_id=? AND record_type=?${guarded?" AND COALESCE(content_text,'')=?":''}`)
+    .bind(caption,tail,JSON.stringify(tail?generated:[]),JSON.stringify(sources),new Date().toISOString(),id,ORG,INSTAGRAM_SET,...(guarded?[input.previousCaption]:[])).run();
+  if(guarded&&!Number(result.meta?.changes))fail(409,'그 사이 다른 화면에서 홍보글이 저장되었습니다. 세트를 다시 열어 확인해주세요.');
   return {saved:true};
 }
 
@@ -169,6 +223,7 @@ export async function saveInstagramRender(request:Request,db:D1Database,files:R2
     const editable=current.design.materialKind==='ai-support'||(current.design.workflow==='carousel-v2'&&current.design.materialKind==='real-photo'&&current.design.externalAiConsent);
     if (!editable || !row || !provenance || provenance.derivedFromFileId !== current.source.id || !await canReadRegisteredFile(db,context,row)) fail(403,'학생 작품과 보호 자료는 원본 그대로 배치해야 합니다.');
   }
+  const layers = current.design.workflow==='carousel-v2' ? await userLayers(db,context,form.get('layers'),String(current.draft.campusId||'')) : [];
   const file = form.get('file');
   if (!(file instanceof File) || file.type !== 'image/png' || !file.size || file.size>16*1024*1024) fail(400,'16MB 이하 PNG 미리보기가 필요합니다.');
   const bytes = new Uint8Array(await (file as File).arrayBuffer()); validateOutput(bytes);
@@ -177,7 +232,8 @@ export async function saveInstagramRender(request:Request,db:D1Database,files:R2
     category:DERIVATIVE_CATEGORY,recordType:DERIVATIVE_RECORD_TYPE,sourceApp:'instagram',mime:'image/png',extension:'png',
     metadata:{derivativeType:'instagram-layout',width:2160,height:2700,aspectRatio:'4:5',createdBy:'instagram-editor',
       templateId:current.design.templateId,logoType:current.design.logoType,campusLogoLabel:current.policy.campusLogoLabel,campusOriginalName:current.policy.campusName,
-      materialKind:current.design.materialKind,brandVersion:BRAND_VERSION,backgroundFileId:backgroundId,draftId:id,fingerprint:current.fingerprint,aiEdited:backgroundId !== current.source.id},
+      materialKind:current.design.materialKind,brandVersion:BRAND_VERSION,backgroundFileId:backgroundId,draftId:id,fingerprint:current.fingerprint,aiEdited:backgroundId !== current.source.id,
+      userLayerAssetIds:layers.map(layer=>layer.assetId)},
   }, source=>canReadRegisteredFile(db,context,source));
   const renderId=crypto.randomUUID(),now=new Date().toISOString();
   // carousel-v2 (instagram-carousel.js) never runs the HUMAN_CHECKS reviewer checklist — it already
@@ -189,13 +245,42 @@ export async function saveInstagramRender(request:Request,db:D1Database,files:R2
     ?{fingerprint:current.fingerprint,approvedBy:context.user!.internalUserId,approvedAt:now,checks:[],mode:'carousel-render-saved'}
     :null;
   const metadata={draftId:id,fingerprint:current.fingerprint,masterFileId:output.id,sourceFileId:current.source.id,backgroundFileId:backgroundId,
-    design:current.design,policy:current.policy,approval,renderedBy:context.user!.internalUserId,renderedAt:now};
+    design:current.design,policy:current.policy,layers,approval,renderedBy:context.user!.internalUserId,renderedAt:now};
   await db.batch([
     db.prepare(`INSERT INTO data_records (id,organization_id,campus_id,created_by_user_id,record_type,source_app,title,visibility,status,metadata_json,created_at,updated_at) VALUES (?,?,?,?,?,'instagram','인스타 제작 검수','private','active',?,?,?)`)
       .bind(renderId,ORG,current.draft.campusId,context.user!.internalUserId,INSTAGRAM_RENDER,JSON.stringify(metadata),now,now),
     await audit(db,context,String(current.draft.campusId),'instagram.render',renderId),
   ]);
   return { renderId, file:output, fingerprint:current.fingerprint };
+}
+
+// The browser composites the layers into the PNG it uploads; this records what was placed and checks
+// every referenced image is a live upload of this same campus that the user can read — an id from
+// another campus, a deleted image or a made-up id is refused, never silently skipped.
+async function userLayers(db:D1Database,context:DataCoreAccessContext,raw:FormDataEntryValue|null,campusId:string):Promise<UserLayer[]> {
+  if(raw===null||raw==='')return [];
+  const invalid=()=>fail(400,'사용자 이미지 배치 정보를 확인하세요.');
+  if(typeof raw!=='string'||raw.length>20000)invalid();
+  let value:unknown;try{value=JSON.parse(raw as string);}catch{invalid();}
+  if(!Array.isArray(value))invalid();
+  const list=value as Record<string,unknown>[];
+  if(list.length>USER_LAYER_LIMIT)fail(400,`사용자 이미지는 사진 한 장에 ${USER_LAYER_LIMIT}개까지 넣을 수 있습니다.`);
+  const ids=new Set<string>(),assets=new Map<string,Record<string,unknown>>(),layers:UserLayer[]=[];
+  for(const layer of list){
+    const {id,assetId,x,y,w,h,z}=layer||{};
+    if(typeof id!=='string'||!UUID.test(id)||ids.has(id)||typeof assetId!=='string'||!UUID.test(assetId))invalid();
+    if(![x,y,w,h,z].every(Number.isInteger)||(w as number)<8||(h as number)<8||(w as number)>4320||(h as number)>5400
+      ||(x as number)+(w as number)<=0||(y as number)+(h as number)<=0||(x as number)>=2160||(y as number)>=2700||(z as number)<0||(z as number)>999)invalid();
+    ids.add(id as string);
+    if(!assets.has(assetId as string)){
+      const row=await resolveCustomLogo(db,context,assetId as string);
+      if(!row||row.campus_id!==campusId)fail(403,'사용할 수 없는 사용자 이미지가 있습니다. 삭제되었거나 다른 캠퍼스의 이미지인지 확인해주세요.');
+      assets.set(assetId as string,row!);
+    }
+    const asset=assets.get(assetId as string)!;
+    layers.push({id:id as string,assetId:assetId as string,assetVersion:String(asset.created_at),assetName:String(asset.original_file_name||''),x:x as number,y:y as number,w:w as number,h:h as number,z:z as number});
+  }
+  return layers.sort((a,b)=>a.z-b.z);
 }
 
 export async function reviewInstagram(db:D1Database,context:DataCoreAccessContext,id:string,renderId?:string) {
@@ -222,7 +307,9 @@ async function inspectInstagram(db:D1Database,context:DataCoreAccessContext,id:s
   const blocking=checks.some(item=>['needs_changes','not_run'].includes(item.status));
   const report={ ...current.policy,design:current.design,fingerprint:current.fingerprint,checks,renderId:renderId || null,
     approved:approved && !blocking,canApprove:!!renderId && !blocking,status:blocking?'needs_changes':approved?'pass':'human_required',
-    approval:approved?render?.approval:null,masterFileId:render?.masterFileId || null };
+    approval:approved?render?.approval:null,masterFileId:render?.masterFileId || null,
+    sourceFileId:String(current.source.id),backgroundFileId:render?.backgroundFileId || null,layers:Array.isArray(render?.layers)?render!.layers:[],
+    direction:String(current.draft.summary || '') };
   return {report,current,renderRecord};
 }
 

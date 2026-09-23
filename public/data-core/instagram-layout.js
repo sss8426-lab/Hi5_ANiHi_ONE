@@ -64,19 +64,73 @@ export async function drawLogo(canvas,type,label,signal){
     ctx.restore();
   }finally{logo.close();}
 }
-export async function composeInstagram(sourceUrl,design,label,signal){
-  const start=performance.now();
+// The frame without any user layers: background + official logo + the photo/artwork. User layers are
+// always drawn on top of a fresh base, so editing them never stacks a second copy into the pixels.
+// Returns the canvas and where the photo/artwork actually landed (for placing new layers beside it).
+export async function composeBase(sourceUrl,design,label,signal){
   const image=await loadBitmap(sourceUrl,signal),logo=document.createElement('canvas'),canvas=document.createElement('canvas');
-  const loaded=performance.now();
   canvas.width=MASTER.width;canvas.height=MASTER.height;
   try{
     const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,2160,2700);
     if(design.logoType!=='none'){await drawLogo(logo,design.logoType,label,signal);fitted(ctx,logo,110,32,1940,260);}
-    const box=imageBox(design.materialKind,design.logoType);fitted(ctx,image,box.x,box.y,box.width,box.height,box.fit==='cover');
+    const box=imageBox(design.materialKind,design.logoType),cover=box.fit==='cover';fitted(ctx,image,box.x,box.y,box.width,box.height,cover);
+    const scale=(cover?Math.max:Math.min)(box.width/image.width,box.height/image.height),w=Math.min(box.width,image.width*scale),h=Math.min(box.height,image.height*scale);
+    // top/bottom: the photo frame's own edges — the official logo band above it is never "free space".
+    return {canvas,artwork:{x:box.x+(box.width-w)/2,y:box.y+(box.height-h)/2,w,h,top:box.y,bottom:box.y+box.height}};
+  }catch(error){canvas.width=canvas.height=1;throw error;}
+  finally{image.close();logo.width=logo.height=1;}
+}
+export const USER_LAYER_LIMIT=20;
+// User images are drawn exactly as uploaded — same pixels, alpha kept, only scaled to the layer box.
+export function drawLayers(ctx,layers,assets,scale=1){
+  for(const layer of [...layers].sort((a,b)=>a.z-b.z)){
+    const image=assets.get(layer.assetId);
+    if(!image)throw Error(`'${layer.assetName||'사용자 이미지'}'를 불러오지 못했습니다.`);
+    ctx.drawImage(image,layer.x*scale,layer.y*scale,layer.w*scale,layer.h*scale);
+  }
+}
+// Loads each referenced user image once. A deleted or no-longer-permitted image is reported by name —
+// never replaced or silently left out of the picture.
+export async function loadLayerAssets(layers,signal,cache=new Map()){
+  for(const layer of layers){
+    if(cache.has(layer.assetId))continue;
+    try{cache.set(layer.assetId,await loadBitmap('/api/data-core/files/'+encodeURIComponent(layer.assetId),signal));}
+    catch(error){if(error.name==='AbortError')throw error;throw Error(`'${layer.assetName||'사용자 이미지'}' 이미지를 불러올 수 없습니다. 삭제되었거나 권한이 바뀌었는지 확인하고, 이 이미지를 빼고 다시 적용해주세요.`);}
+  }
+  return cache;
+}
+// Where a newly added user image goes by default: in free space below (or above) the artwork when
+// there is room, so a student's work is never covered unless the user drags it there; otherwise a
+// small bottom-right corner. Several images line up right to left.
+export function defaultLayerBox(asset,artwork,index,occupied=0){
+  const ratio=asset.width/asset.height,margin=56,gap=24;
+  const below=(artwork.bottom??MASTER.height-margin)-(artwork.y+artwork.h),above=artwork.y-(artwork.top??margin);
+  const band=below>=160?{y:artwork.y+artwork.h+(below-Math.min(below-gap,360))/2,h:Math.min(below-gap,360)}:above>=160?{y:artwork.y-Math.min(above-gap,360)-gap/2,h:Math.min(above-gap,360)}:null;
+  let h=band?band.h:360,w=h*ratio;
+  if(w>(band?900:560)){w=band?900:560;h=w/ratio;}
+  const x=MASTER.width-margin-occupied-w,y=band?band.y+(band.h-h)/2:MASTER.height-margin-h;
+  return {x:Math.round(Math.max(0,x)),y:Math.round(y),w:Math.max(8,Math.round(w)),h:Math.max(8,Math.round(h)),z:index};
+}
+export async function composeInstagram(sourceUrl,design,label,signal,{layers=[],place=[],assets}={}){
+  const start=performance.now();
+  const {canvas,artwork}=await composeBase(sourceUrl,design,label,signal);
+  const loaded=performance.now(),cache=assets||new Map();
+  try{
+    // `place`: user images chosen for every photo, not yet positioned on this one.
+    const placed=[...layers];let occupied=0;
+    if(place.length){
+      await loadLayerAssets(place.map(asset=>({assetId:asset.id,assetName:asset.name})),signal,cache);
+      for(const asset of place){
+        const box=defaultLayerBox(cache.get(asset.id),artwork,placed.length,occupied);occupied=MASTER.width-56-box.x+24;
+        placed.push({id:crypto.randomUUID(),assetId:asset.id,assetName:asset.name,...box});
+      }
+    }
+    await loadLayerAssets(placed,signal,cache);
+    drawLayers(canvas.getContext('2d'),placed,cache);
     const composed=performance.now(),blob=await encodeMaster(canvas,signal),encoded=performance.now();
     for(const [name,from,to]of [['source',start,loaded],['compose',loaded,composed],['png',composed,encoded]]){
       performance.clearMeasures('instagram.'+name);performance.measure('instagram.'+name,{start:from,end:to});
     }
-    return blob;
-  }finally{image.close();canvas.width=canvas.height=1;logo.width=logo.height=1;}
+    return {blob,layers:placed.map(({id,assetId,assetName,x,y,w,h,z})=>({id,assetId,assetName,x,y,w,h,z}))};
+  }finally{canvas.width=canvas.height=1;if(!assets)for(const image of cache.values())image.close();}
 }

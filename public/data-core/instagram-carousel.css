@@ -44,5 +44,41 @@
 .ig-no-logo{display:grid;place-items:center;height:84px;}
 .ig-no-logo svg{width:42px;height:42px;color:var(--muted);}
 .ig-no-logo svg,.ig-result-actions svg,.ig-download-actions svg{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+/* 나만의 로고: user images layered over photos (never a replacement for the official logo). */
+.ig-custom-hint{margin:4px 0 8px;color:var(--muted);font-size:14px;line-height:1.6;}
+.ig-custom-tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+.ig-custom-tools input[type=search]{flex:1 1 200px;min-width:0;min-height:40px;}
+.ig-custom-card{position:relative;display:flex;flex-direction:column;min-width:0;}
+.ig-custom-card .ig-logo-choice{flex:1;}
+.ig-custom-card .ig-logo-choice img,.ig-layer-asset img{background:repeating-conic-gradient(#ececec 0 25%,#fff 0 50%) 0 0/16px 16px;}
+.ig-custom-actions{position:absolute;top:6px;right:6px;display:flex;gap:4px;}
+.ig-logo-action{width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:#fff;border:1px solid var(--line);color:var(--text);cursor:pointer;padding:0;}
+.ig-logo-action svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;}
+.ig-custom-actions .ig-logo-remove{position:static;color:#a52b25;}
+.ig-custom-empty{color:var(--muted);margin:8px 0;}
+.ig-custom-empty[hidden]{display:none;}
+/* 사용자 이미지 편집 */
+.ig-preview{position:relative;}
+.ig-layer-canvas{display:block;width:100%;height:auto;aspect-ratio:4/5;border:1px solid var(--primary);touch-action:none;cursor:move;}
+.ig-layer-canvas[hidden],.ig-preview img[hidden]{display:none;}
+.ig-layer-tools{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin:8px 0;}
+.ig-layer-editor{max-width:620px;margin:8px 0 16px;padding:12px 14px;border:1px solid var(--line);border-radius:6px;background:#fff;}
+.ig-layer-editor[hidden]{display:none;}
+.ig-layer-hint{margin:0 0 8px;color:var(--muted);font-size:14px;line-height:1.6;}
+.ig-layer-assets{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0;}
+.ig-layer-asset{display:flex;flex-direction:column;align-items:center;gap:4px;width:96px;padding:6px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer;}
+.ig-layer-asset img{width:80px;height:56px;object-fit:contain;}
+.ig-layer-asset span{font-size:12px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ig-layer-selected{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:8px 0;padding:8px;border-radius:6px;background:#eef4fd;}
+.ig-layer-selected[hidden]{display:none;}
+.ig-layer-selected span{flex:1 1 160px;overflow-wrap:anywhere;font-size:14px;}
+.ig-layer-scope{display:flex;flex-wrap:wrap;gap:16px;border:0;padding:0;margin:8px 0;}
+.ig-layer-scope legend{font-size:14px;color:var(--muted);margin-bottom:4px;}
+#igLayerStatus,#igLayerSummary{overflow-wrap:anywhere;}
+.ig-caption-state{display:inline-block;vertical-align:middle;margin-left:8px;padding:2px 10px;border-radius:999px;border:1px solid var(--line);font-size:13px;font-weight:600;color:var(--muted);background:#fff;}
+.ig-caption-state[data-state=writing]{color:var(--text);border-color:var(--primary);}
+.ig-caption-state[data-state=done]{color:var(--success);border-color:var(--success);}
+.ig-caption-state[data-state=failed]{color:var(--danger);border-color:var(--danger);}
+.ig-caption-state[data-state=dirty]{color:#8a5a00;border-color:#d9a400;}
 @media(max-width:768px){.ig-logo-options{grid-template-columns:repeat(2,minmax(0,1fr));}}
 @media(max-width:390px){.ig-logo-options{grid-template-columns:minmax(0,1fr);}.ig-options select{max-width:100%;}.ig-options{display:block;}}

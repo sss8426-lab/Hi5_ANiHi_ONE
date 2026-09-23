@@ -69,7 +69,7 @@ test('인스타 다중 이미지: AI 요청은 한 번에 하나, 실패분만 �
 test('인스타 홍보글도 최적화 사본을 보내며, 요청 본문은 홍보글 누적 텍스트가 아니라 요청 객체다', () => {
   // Regression: the form once serialized the caption accumulator (`body`, '') instead of the request.
   assert.match(carousel, /const form=new FormData\(\);form\.set\('input',JSON\.stringify\(payload\)\);\s*for\(const id of ids\)\{const blob=await optimizeImageForAi/u);
-  assert.match(carousel, /if\(textOnly\)generated=\(await post\('generate',payload,abort\.signal\)\)\.generated;/u, 'text-only captions stay JSON-only, never carrying image bytes');
+  assert.match(carousel, /if\(textOnly\)generated=\(await captionFetch\('generate',\{method:'POST',headers:\{'content-type':'application\/json'\},body:JSON\.stringify\(payload\),signal:abort\.signal\}\)\)\.generated;/u, 'text-only captions stay JSON-only, never carrying image bytes');
 });
 
 test('SVG 로고는 브라우저에서 PNG로 바꾼 뒤에만 올라간다', () => {
