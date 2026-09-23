@@ -56,6 +56,10 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
   function captionLock(value){captionBusy=value;for(const id of ['igCaptionText','igCaptionSave','igCaptionRetry'])$(id).disabled=value;}
   const backgrounds=new Map();
   const previewUrl=item=>localPreview?.fileId===item.masterFileId?localPreview.url:'/api/data-core/files/'+encodeURIComponent(item.masterFileId);
+  // After a partial failure `items` has gaps (1,3 done, 2 failed); label by the photo's original
+  // selection number so buttons/slides/ZIP names match the 1번/2번/3번 status chips. Sets loaded from
+  // history have no `ids`, and are always complete, so their array position is already correct.
+  const slotNumber=(item,index)=>{const n=ids.indexOf(item.sourceId);return n>=0?n+1:index+1;};
   function releasePreview(){if(localPreview)URL.revokeObjectURL(localPreview.url);localPreview=null;}
   const originalMode=()=>$('igMode').value!=='photo';
   const sourceReason=id=>state.knownFiles?.get(String(id))?.instagramPreserveReason;
@@ -161,9 +165,9 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
     finally{$('igUploadLogo').disabled=false;}
   };
   function preview(index=0){activeIndex=index;$('igPreview').src=previewUrl(items[index]);$('igSlides').replaceChildren(...items.map((item,i)=>{
-    const button=document.createElement('button');button.type='button';button.setAttribute('aria-pressed',String(i===index));button.textContent=String(i+1);button.onclick=()=>preview(i);return button;
+    const button=document.createElement('button');button.type='button';button.setAttribute('aria-pressed',String(i===index));button.textContent=String(slotNumber(item,i));button.onclick=()=>preview(i);return button;
   }));result.hidden=false;}
-  $('igPreview').onclick=()=>window.DataCoreImageGallery.open({scope:'instagram-set',title:'인스타 이미지',anchor:$('igPreview'),index:activeIndex,items:items.map((item,i)=>({src:previewUrl(item),title:`${i+1} / ${items.length}`}))});
+  $('igPreview').onclick=()=>window.DataCoreImageGallery.open({scope:'instagram-set',title:'인스타 이미지',anchor:$('igPreview'),index:activeIndex,items:items.map((item,i)=>({src:previewUrl(item),title:`${slotNumber(item,i)} / ${ids.length||items.length}`}))});
   $('igMode').onchange=()=>{clear();updateTemplateSummary();};$('aiCommand').addEventListener('input',clear);
   $('igCancel').onclick=()=>controller?.abort();
   const currentDirection=()=>$('aiCommand').value.trim()||'선택한 원본을 인스타그램 4:5 규격으로 배치';
@@ -284,22 +288,22 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
       buttons();
     }finally{controller=null;lock(false);}
   };
-  async function exportItemBlob(item,index){
+  async function exportItemBlob(item,slot){
     const response=await fetch(`/api/data-core/content/instagram/${item.draftId}/export`,{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({renderId:item.renderId,fingerprint:item.fingerprint})});
-    if(!response.ok)throw Error(`${index+1}번: ${(await response.json()).error||'다운로드하지 못했습니다.'}`);
+    if(!response.ok)throw Error(`${slot}번: ${(await response.json()).error||'다운로드하지 못했습니다.'}`);
     return response.blob();
   }
   async function downloadZip(button){
     if(!items.length)return;
     const originalText=button.textContent;button.disabled=true;
-    const snapshotItems=[...items];
+    const snapshotItems=[...items],slots=snapshotItems.map(slotNumber);
     const chunks=[];let zipError;
     const zip=new Zip((error,data)=>{if(error)zipError=error;else chunks.push(data);});
     try{
       for(let i=0;i<snapshotItems.length;i++){
         button.textContent=`압축 준비 중 ${i+1}/${snapshotItems.length}`;
-        const blob=await exportItemBlob(snapshotItems[i],i);
-        const entry=new ZipPassThrough(`instagram-${i+1}-1080x1350.png`);zip.add(entry);entry.push(new Uint8Array(await blob.arrayBuffer()),true);
+        const blob=await exportItemBlob(snapshotItems[i],slots[i]);
+        const entry=new ZipPassThrough(`instagram-${slots[i]}-1080x1350.png`);zip.add(entry);entry.push(new Uint8Array(await blob.arrayBuffer()),true);
         if(zipError)throw zipError;
       }
       zip.end();if(zipError)throw zipError;
@@ -318,11 +322,12 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
       children.push(zipBtn);
     }
     children.push(...items.map((item,index)=>{
-      const button=document.createElement('button');let downloading=false;button.className='secondary-btn';button.type='button';button.innerHTML=`<svg aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Download"></use></svg>${index+1}번 이미지 다운로드`;
+      const slot=slotNumber(item,index);
+      const button=document.createElement('button');let downloading=false;button.className='secondary-btn';button.type='button';button.innerHTML=`<svg aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Download"></use></svg>${slot}번 이미지 다운로드`;
       button.onclick=async()=>{if(downloading)return;downloading=true;button.disabled=true;try{
         const response=await fetch(`/api/data-core/content/instagram/${item.draftId}/export`,{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({renderId:item.renderId,fingerprint:item.fingerprint})});
         if(!response.ok)throw Error((await response.json()).error||'다운로드하지 못했습니다.');
-        const url=URL.createObjectURL(await response.blob()),link=document.createElement('a');link.href=url;link.download=`instagram-${index+1}-1080x1350.png`;link.click();setTimeout(()=>URL.revokeObjectURL(url),10000);
+        const url=URL.createObjectURL(await response.blob()),link=document.createElement('a');link.href=url;link.download=`instagram-${slot}-1080x1350.png`;link.click();setTimeout(()=>URL.revokeObjectURL(url),10000);
       }catch(error){toast(error.message,'error');}finally{downloading=false;button.disabled=false;}};return button;
     }));
     $('igDownloads').replaceChildren(...children);

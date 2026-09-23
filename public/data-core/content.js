@@ -987,7 +987,7 @@ async function init() {
     void loadDefaults();void loadAiStatus();
     const listing=loadFiles();
     if(state.sourceApp==='instagram'){
-      const {mountInstagramProduction}=await import('/data-core/instagram-carousel.js?v=20260923-partial2');
+      const {mountInstagramProduction}=await import('/data-core/instagram-carousel.js?v=20260923-partial3');
       instagramProduction=mountInstagramProduction({state,api,$,toast,canWrite,contact:()=>textPresets.contact()});
       instagramProduction.applyDefaults(lastInstagramSettings);
       instagramProduction.refresh();
