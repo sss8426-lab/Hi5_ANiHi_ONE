@@ -3,19 +3,19 @@ import {composeInstagram,drawLogo} from './instagram-layout.js?v=20260921-perfor
 import {assembleCaption,captionTail,replaceManagedTail,assertResolvedText} from './content-caption.js?v=20260922-presets';
 import {normalizeTags} from './content-preset-catalog.js';
 
-const command=(id,label)=>`<button type="button" class="ghost-btn" id="${id}">${label}</button>`;
+const btnHtml=(id,label)=>`<button type="button" class="ghost-btn" id="${id}">${label}</button>`;
 
 export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=>''}) {
   document.body.classList.add('instagram-carousel-mode');
   const command=$('aiCommand').closest('.workflow-section'),section=document.createElement('section');
   section.className='workflow-section ig-carousel';section.id='instagramProduction';
-  section.innerHTML=`<div class="workflow-status-row"><span id="igTemplateSummary" role="status"></span>${command('igOpenTemplate','양식 수정')}</div>
-    <div class="workflow-status-row"><span id="igPresetsSummary" role="status"></span>${command('igOpenPresets','마무리 수정')}</div>
+  section.innerHTML=`<div class="workflow-status-row"><span id="igTemplateSummary" role="status"></span>${btnHtml('igOpenTemplate','양식 수정')}</div>
+    <div class="workflow-status-row"><span id="igPresetsSummary" role="status"></span>${btnHtml('igOpenPresets','마무리 수정')}</div>
     <dialog id="igTemplateDialog" class="workflow-dialog" aria-labelledby="igTemplateDialogTitle">
-      <div class="workflow-heading"><h2 id="igTemplateDialogTitle">양식 수정</h2>${command('igCloseTemplate','닫기')}</div>
+      <div class="workflow-heading"><h2 id="igTemplateDialogTitle">양식 수정</h2>${btnHtml('igCloseTemplate','닫기')}</div>
       <h3>로고 선택</h3><div id="igLogos" class="ig-logo-options" role="group" aria-label="공식 로고"></div>
       <div class="ig-options"><label>제작 방식<select id="igMode"><option value="original">작품 전체 보존</option><option value="photo-layout">공간·학원 사진 크게 배치</option><option value="photo">사진 보정 · AI</option></select></label><span id="igCampusLabel" role="status"></span></div>
-      <div class="blog-actions">${command('igApplyTemplate','이번 글에 적용')}${command('igSaveTemplate','캠퍼스 기본값으로 저장')}${command('igCancelTemplate','취소')}</div>
+      <div class="blog-actions">${btnHtml('igApplyTemplate','이번 글에 적용')}${btnHtml('igSaveTemplate','캠퍼스 기본값으로 저장')}${btnHtml('igCancelTemplate','취소')}</div>
       <span id="igTemplateStatus" role="status"></span>
     </dialog>
     <p id="igSourceNotice" role="status" hidden></p>
