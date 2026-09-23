@@ -239,7 +239,7 @@ function ownerDeleted(tree: LibraryTree, id: string) {
 }
 async function fileFolder(tree: LibraryTree, row: Record<string, any>) {
   if (row.data_record_id) {
-    if (await ownerDeleted(tree, String(row.data_record_id))) error(404, '삭제된 폴더의 파일입니다. 폴더를 복원하면 다시 보입니다.');
+    if (await ownerDeleted(tree, String(row.data_record_id))) error(403, '삭제된 폴더의 파일입니다. 폴더를 복원하면 다시 보입니다.');
     const record = await tree.row(row.data_record_id);
     if (record && [HQ_FOLDER, LIBRARY_FOLDER].includes(record.record_type)) return tree.resolve(record.id);
     if (record && /family|kkumeum/i.test(`${record.record_type} ${record.source_app}`)) error(403, '자료보관함 파일이 아닙니다.');

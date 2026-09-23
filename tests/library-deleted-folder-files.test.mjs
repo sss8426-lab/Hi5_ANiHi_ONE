@@ -29,7 +29,7 @@ test('files of a deleted folder (or of a deleted parent award folder) are not li
     assert.equal((await h.request('DELETE',`${base}/folders/${root.id}`,users.admin)).status,200);
     assert.deepEqual(await listed(),[kept.id],'the deleted folder and its sub-folder keep their files out of the category folder');
     assert.equal(await counted(),1,'and out of the folder count');
-    assert.equal((await open(direct.id)).status,404);assert.equal((await open(nested.id)).status,404,'a live sub-folder under a deleted parent is hidden too');
+    assert.equal((await open(direct.id)).status,403);assert.equal((await open(nested.id)).status,403,'a live sub-folder under a deleted parent is hidden too');
     assert.equal((await open(kept.id)).status,200,'files of other folders are untouched');
     // The pickers' own permission check agrees with the listing now.
     const blog=await h.request('POST','/api/data-core/content/blog/files',users.admin,{fileIds:[direct.id,kept.id],originals:false});
