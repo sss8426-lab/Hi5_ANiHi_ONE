@@ -32,6 +32,18 @@ test('complete catalog, deterministic regional brands and channel-specific text 
  // No academy name stored: never guessed — it reads "저희 학원".
  assert.match(both.find(i=>i.name==='기본 상담'&&i.kind==='closing').content,/^저희 학원은|^관심 있는 전공/u);
  assert.match(recommendedPresets(B,'blog').find(i=>i.name==='기본 상담'&&i.kind==='closing').content,/^저희 학원은 /u);
+ // 인사말 recommended sets: per brand, both channels, only the academy name (or "저희 학원") filled in —
+ // no results, numbers, dates or contact details, and never the other brand's field.
+ for(const app of ['blog','instagram']){
+  const greetings=recommendedPresets(A,app,{names:{anihi:'합성 만화학원'}}).filter(i=>i.kind==='greeting');
+  for(const brand of ['hi5','anihi'])assert.equal(greetings.filter(i=>i.brandScope===brand).length,6,brand+' '+app);
+  for(const item of greetings){clean(item);assert.equal(item.category,'인사말');
+   assert.doesNotMatch(item.content,/\d|합격|수상|1위|%|전화|주소|http/);
+   assert.doesNotMatch(item.content,item.brandScope==='hi5'?/만화|웹툰|애니/:/디자인·미술|미술·디자인/);
+  }
+  assert.ok(greetings.filter(i=>i.brandScope==='anihi').some(i=>i.content.includes('합성 만화학원')));
+  assert.ok(greetings.filter(i=>i.brandScope==='hi5').every(i=>!i.content.includes('합성 만화학원')),'an ANiHi name never lands in a Hi5 greeting');
+ }
  // Course settings never block a set anymore.
  assert.equal(recommendedPresets(A,'blog',{brands:['anihi'],names:{},courses:[]}).find(i=>i.name==='게임·일러스트').unavailable,'');
  assert.equal(substitute('{{학원명}} {{unknown}}',{'학원명':'이름'}).content,'');
