@@ -203,11 +203,17 @@ test('blog multipart path: 10 browser-optimized photos bypass R2 entirely, still
     assert.equal((await h.request('POST','/api/data-core/content/generate',users.staff,multipart(nine,overTotal))).status,413);
     assert.equal(calls,1);
 
-    // Instagram never uses this multipart shape; sending one is rejected outright.
+    // Instagram captions may use this multipart shape too (see instagram-ai-edge), but only with the
+    // AI-use consent; without it the request is refused before any provider traffic, and a text-only
+    // caption may never carry image bytes at all.
     const instagramForm=new FormData();
     instagramForm.set('input',JSON.stringify({sourceApp:'instagram',campusId:A,selectedFileIds:[files[0].id],notes:'x',requestId:crypto.randomUUID()}));
     instagramForm.set(`photo:${files[0].id}`,new Blob([optimized],{type:'image/jpeg'}),'x.jpg');
-    assert.equal((await h.request('POST','/api/data-core/content/generate',users.staff,instagramForm)).status,400);
+    assert.equal((await h.request('POST','/api/data-core/content/generate',users.staff,instagramForm)).status,403);
+    const textOnlyForm=new FormData();
+    textOnlyForm.set('input',JSON.stringify({sourceApp:'instagram',campusId:A,selectedFileIds:[files[0].id],notes:'x',textOnly:true,requestId:crypto.randomUUID()}));
+    textOnlyForm.set(`photo:${files[0].id}`,new Blob([optimized],{type:'image/jpeg'}),'x.jpg');
+    assert.equal((await h.request('POST','/api/data-core/content/generate',users.staff,textOnlyForm)).status,400);
     assert.equal(calls,1);
     // None of this ever wrote to the R2 originals or their file_objects rows.
     assert.deepEqual(await Promise.all(files.map(f=>h.file(f.id))),originalRows);
