@@ -176,8 +176,16 @@ export async function saveInstagramRender(request:Request,db:D1Database,files:R2
       materialKind:current.design.materialKind,brandVersion:BRAND_VERSION,backgroundFileId:backgroundId,draftId:id,fingerprint:current.fingerprint,aiEdited:backgroundId !== current.source.id},
   }, source=>canReadRegisteredFile(db,context,source));
   const renderId=crypto.randomUUID(),now=new Date().toISOString();
+  // carousel-v2 (instagram-carousel.js) never runs the HUMAN_CHECKS reviewer checklist — it already
+  // skips that entirely in completeInstagramSet's own checks:[] approval — so a render that succeeds
+  // there is exportable immediately, without waiting for the full batch/set to finish. The older
+  // single-image workflow (instagram-production.js) still requires its real approve+checklist step:
+  // this must stay null there, or that reviewer gate silently stops applying.
+  const approval=current.design.workflow==='carousel-v2'
+    ?{fingerprint:current.fingerprint,approvedBy:context.user!.internalUserId,approvedAt:now,checks:[],mode:'carousel-render-saved'}
+    :null;
   const metadata={draftId:id,fingerprint:current.fingerprint,masterFileId:output.id,sourceFileId:current.source.id,backgroundFileId:backgroundId,
-    design:current.design,policy:current.policy,approval:null,renderedBy:context.user!.internalUserId,renderedAt:now};
+    design:current.design,policy:current.policy,approval,renderedBy:context.user!.internalUserId,renderedAt:now};
   await db.batch([
     db.prepare(`INSERT INTO data_records (id,organization_id,campus_id,created_by_user_id,record_type,source_app,title,visibility,status,metadata_json,created_at,updated_at) VALUES (?,?,?,?,?,'instagram','인스타 제작 검수','private','active',?,?,?)`)
       .bind(renderId,ORG,current.draft.campusId,context.user!.internalUserId,INSTAGRAM_RENDER,JSON.stringify(metadata),now,now),

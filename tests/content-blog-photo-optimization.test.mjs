@@ -44,7 +44,7 @@ test('사진은 브라우저에서 자동 최적화된 뒤 multipart로 전송�
   // re-sent on retry.
   assert.match(carousel, /if\(itemDesign\.externalAiConsent\)\{/u);
   assert.match(carousel, /const optimized=await optimizeImageForAi\(photoFile\);/u);
-  assert.match(carousel, /postWithPhoto\('image-edit',\{sourceApp:'instagram',campusId,sourceFileId:ids\[i\],direction,material:itemDesign/u);
+  assert.match(carousel, /postWithPhoto\('image-edit',\{sourceApp:'instagram',campusId,sourceFileId:id,direction,material:itemDesign/u);
   assert.match(carousel, /form\.set\('photo:'\+photoId,blob,photoId\+'\.jpg'\);/u);
   assert.doesNotMatch(carousel, /post\('image-edit'/u, 'the plain JSON call must be fully replaced, not left dangling alongside postWithPhoto');
 });
