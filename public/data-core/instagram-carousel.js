@@ -510,7 +510,15 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
       let body='',title='',tags=[];
       const batches=textOnly?[ids]:[ids.slice(0,5),ids.slice(5)].filter(ids=>ids.length);
       for(const ids of batches){
-          const generated=(await post('generate',{sourceApp:'instagram',campusId:target.campusId,selectedFileIds:ids,textOnly,notes:`${direction}\n${label}. ${textOnly?'사진은 제공하지 않았습니다. 사용자가 명시한 내용만 사용하세요.':'사진에서 확인 가능한 내용만 사용하세요.'} 제목형 도입과 본문 ${batches.length>1?'3':'3~6'}문장으로 작성하고 전화번호·날짜·실적은 만들지 마세요.`,material:design,requestId:crypto.randomUUID()},abort.signal)).generated;
+          const payload={sourceApp:'instagram',campusId:target.campusId,selectedFileIds:ids,textOnly,notes:`${direction}\n${label}. ${textOnly?'사진은 제공하지 않았습니다. 사용자가 명시한 내용만 사용하세요.':'사진에서 확인 가능한 내용만 사용하세요.'} 제목형 도입과 본문 ${batches.length>1?'3':'3~6'}문장으로 작성하고 전화번호·날짜·실적은 만들지 마세요.`,material:design,requestId:crypto.randomUUID()};
+          let generated;
+          if(textOnly)generated=(await post('generate',payload,abort.signal)).generated;
+          else{
+            // Like the image edit: send browser-optimized copies, so an oversized original can't 413 the caption.
+            const form=new FormData();form.set('input',JSON.stringify(body));
+            for(const id of ids){const blob=await optimizeImageForAi(state.knownFiles.get(String(id))||{id});if(!valid())return;form.set('photo:'+id,blob,id+'.jpg');}
+            generated=(await api('/api/data-core/content/generate',{method:'POST',body:form,signal:abort.signal})).generated;
+          }
           if(!valid())return;
           title ||= generated.title;body += (body?'\n':'')+(generated.body||generated.content||'');tags.push(...(generated.hashtags||generated.keywords||[]));
       }

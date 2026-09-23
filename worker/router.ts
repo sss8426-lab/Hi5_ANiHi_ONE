@@ -579,7 +579,9 @@ async function handleContentApi(request: Request, env: Env) {
     const { input: parsedInput, photos } = await contentGenerateRequest(request);
     const input = parsedInput as ContentGenerationInput;
     const scope = contentScope(context, input);
-    if (photos && scope.sourceApp !== 'blog') throw new DataCoreAccessError(400, '사진 업로드 방식이 이 콘텐츠 종류와 맞지 않습니다.');
+    // Instagram captions send browser-optimized copies too (same checks via blogAiImages), so an
+    // oversized R2 original no longer 413s the caption. The text-only route must never carry bytes.
+    if (photos && (scope.sourceApp !== 'blog' && scope.sourceApp !== 'instagram' || parsedInput.textOnly === true)) throw new DataCoreAccessError(400, '사진 업로드 방식이 이 콘텐츠 종류와 맞지 않습니다.');
     if(scope.sourceApp==='instagram') await assertInstagramAiUse(env.DB,context,input.selectedFileIds || [],parsedInput);
     // Artwork captions use only the explicit command, never artwork bytes or file descriptors.
     if(scope.sourceApp==='instagram'&&parsedInput.textOnly===true)input.selectedFileIds=[];
