@@ -13,9 +13,13 @@ export function synchronizePhotos(ids,old=[],known=new Map()) {
   const map=new Map(old.map(p=>[p.fileId,p]));
   return [...new Set(ids)].map((fileId,index)=>map.get(fileId)||({fileId,version:'',order:index,kind:known.get(fileId)?.category==='student-artwork'?'student':'unknown',description:'',facts:'',exclude:'',use:true,cover:false,externalAiConsent:false})).map((p,order)=>({...p,order}));
 }
-export function assembleBlocks({body='',lead='',photos=[],template=templateDefaults(),cover=null,footer='',contact='',tags=[]},id=()=>crypto.randomUUID()) {
+// App-managed text blocks. Their place is fixed by role, never by what the AI or a paste produced:
+// 인사말 is the first text block; after the main text come 연락처(링크·상담전화·주소) → 마지막 문구 →
+// 해시태그, and 해시태그 is always the very last block.
+export const MANAGED_BLOCKS=['greeting','contact','closing','hashtags'];
+export function assembleBlocks({body='',lead='',photos=[],template=templateDefaults(),cover=null,greeting='',footer='',contact='',tags=[]},id=()=>crypto.randomUUID()) {
   const blocks=[],text=(type,value)=>{if(value)blocks.push({id:id(),type,text:value});},image=(fileId,role,sourceFileId)=>{if(fileId)blocks.push({id:id(),type:'image',fileId,role,sourceFileId:sourceFileId||fileId});};
-  image(template.topFileId,'top');text('greeting',template.greeting);
+  image(template.topFileId,'top');
   if(cover?.fileId)image(cover.fileId,'cover',cover.sourceFileId);
   const paragraphs=String(body).split(/\n\s*\n/).filter(Boolean);
   if(lead&&paragraphs[0]===lead)paragraphs.shift();
@@ -25,8 +29,18 @@ export function assembleBlocks({body='',lead='',photos=[],template=templateDefau
     if(paragraphs[i])text(paragraphs[i].startsWith('## ')?'heading':'paragraph',paragraphs[i].replace(/^## /,''));
     const photo=used[i];if(photo){image(photo.editedFileId||photo.fileId,'body',photo.fileId);text('caption',photo.description);}
   }
-  text('closing',footer);image(template.bottomFileId,'bottom');text('contact',contact);text('hashtags',tags.map(t=>'#'+t.replace(/^#+/,'')).join(' '));
-  return blocks;
+  image(template.bottomFileId,'bottom');
+  return placeManaged(blocks,{greeting,contact,closing:footer,hashtags:tags.map(t=>'#'+String(t).replace(/^#+/,'')).join(' ')},id);
+}
+// Puts the managed blocks back in their fixed places (keeping each one's id), whatever order a user's
+// block moves or an older saved post left them in. `values` replaces a block's text; a key that is
+// not given keeps the current text. A block whose text is empty is dropped.
+export function placeManaged(blocks,values={},id=()=>crypto.randomUUID()) {
+  const current=Object.fromEntries(MANAGED_BLOCKS.map(type=>[type,blocks.find(b=>b.type===type)]));
+  const rest=blocks.filter(b=>!MANAGED_BLOCKS.includes(b.type));
+  const make=type=>{const text=Object.hasOwn(values,type)?String(values[type]??''):current[type]?.text||'';return text.trim()?{...(current[type]||{id:id(),type}),type,text}:null;};
+  const top=rest.filter(b=>b.type==='image'&&b.role==='top'),body=rest.filter(b=>!(b.type==='image'&&b.role==='top'));
+  return [...top,make('greeting'),...body,make('contact'),make('closing'),make('hashtags')].filter(Boolean);
 }
 export const publishingImages = post => (post.blocks||[]).filter(b=>b.type==='image').map(b=>({id:b.fileId,sourceFileId:b.sourceFileId,role:b.role,blockId:b.id}));
 export const postText = post => [post.title,...(post.blocks||[]).filter(b=>b.type!=='image').map(b=>b.text)].filter(Boolean).join('\n\n');

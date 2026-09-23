@@ -1,4 +1,4 @@
-import {BLOG_SCHEMA,BLOG_TEMPLATES,PHOTO_KINDS,templateDefaults,synchronizePhotos,assembleBlocks,publishingImages,postText,inspectPost} from './blog-post-model.js';
+import {BLOG_SCHEMA,BLOG_TEMPLATES,PHOTO_KINDS,templateDefaults,synchronizePhotos,assembleBlocks,placeManaged,publishingImages,postText,inspectPost} from './blog-post-model.js?v=20260924-order';
 import {buildDownload,startDownload,resolveFiles} from './blog-download.js';
 import {normalizeTags} from './content-preset-catalog.js';
 import {mountBlogCover} from './blog-cover.js';
@@ -9,7 +9,7 @@ const options=map=>Object.entries(map).map(([id,label])=>`<option value="${id}">
 // (cost/size bound) and gets every photo's written description via photoInstructions.
 const AI_IMAGE_PHOTOS=10;
 const command=(id,label)=>`<button type="button" class="ghost-btn" id="${id}">${label}</button>`;
-export function mountBlogWorkflow({state,$,toast,renderSelection,contact}){
+export function mountBlogWorkflow({state,$,toast,renderSelection,managed=()=>({greeting:'',hashtags:'',closing:'',contactText:''})}){
   if(state.sourceApp!=='blog')return null;
   let photos=[],blocks=[],template=templateDefaults(),revision=0,epoch=0,defaultsEdit=0,downloadController,saving=false,lastBody='',saved='',pendingSave=null;
   const timings={},undo=[];let cover=null,reviewCache=new Map(),textController,reviewSnapshot='',reviewResult=null,templates={};
@@ -21,16 +21,14 @@ export function mountBlogWorkflow({state,$,toast,renderSelection,contact}){
   const typeField=document.createElement('label');typeField.className='blog-type-field';typeField.innerHTML=`<span>글 종류</span><select id="blogTemplate">${options(BLOG_TEMPLATES)}</select>`;
   document.querySelector('.workflow-command').before(typeField);
   const setup=document.createElement('div');setup.className='blog-workflow';
-  setup.innerHTML=`<details id="blogMoreRequest"><summary>추가 요청</summary><div class="blog-fields"><label>핵심 메시지<input id="blogMessage" maxlength="1000"></label><label>독자<input id="blogReader" maxlength="160" placeholder="학부모, 학생"></label><label>포함할 내용<textarea id="blogInclude" maxlength="2000"></textarea></label><label>넣지 않을 내용<textarea id="blogExclude" maxlength="2000"></textarea></label><label>날짜·인원 등 정확한 정보<textarea id="blogFacts" maxlength="3000"></textarea></label><label>참고자료·출처<textarea id="blogSources" maxlength="2000"></textarea></label><label>문체<input id="blogStyle" maxlength="300"></label></div></details>
-    <div class="workflow-status-row"><span id="blogTemplateSummary" role="status"></span>${command('blogOpenTemplate','양식 수정')}</div>
-    <div class="workflow-status-row"><span id="blogPresetsSummary" role="status"></span>${command('blogOpenPresets','마무리 수정')}</div>
+  // The main screen shows only 글 종류, 요청, 핵심 메시지·독자 and 문구 설정. These older request fields and
+  // the layout template stay (hidden) so a saved post that used them opens and saves without losing them.
+  setup.innerHTML=`<div id="blogMoreRequest" hidden><div class="blog-fields"><label>포함할 내용<textarea id="blogInclude" maxlength="2000"></textarea></label><label>넣지 않을 내용<textarea id="blogExclude" maxlength="2000"></textarea></label><label>날짜·인원 등 정확한 정보<textarea id="blogFacts" maxlength="3000"></textarea></label><label>참고자료·출처<textarea id="blogSources" maxlength="2000"></textarea></label><label>문체<input id="blogStyle" maxlength="300"></label></div></div>
     <dialog id="blogTemplateDialog" class="workflow-dialog" aria-labelledby="blogTemplateDialogTitle"><div class="workflow-heading"><h2 id="blogTemplateDialogTitle">양식 수정</h2>${command('blogCloseTemplate','닫기')}</div><div class="blog-fields"><label>인사말<textarea id="blogGreeting" maxlength="2000"></textarea></label><label>상단 이미지<select id="blogTop"></select></label><label>하단 이미지<select id="blogBottom"></select></label></div><div class="blog-actions">${command('blogApplyTemplate','이번 글에 적용')}${command('blogSaveTemplate','캠퍼스 기본값으로 저장')}${command('blogCancelTemplate','취소')}</div><span id="blogTemplateStatus" role="status"></span></dialog>`;
   const strategyModeField=$('strategyModeField');
   strategyModeField.querySelector('span').textContent='글 방향';
   setup.querySelector('#blogMoreRequest').append(strategyModeField);
-  strategyModeField.hidden=false;
-  // setup (추가 요청 / 양식 수정 / 마무리 수정) belongs to area② — always reachable before generating,
-  // not gated behind a draft. Only the completion block editor (result) waits inside #aiResult.
+  strategyModeField.hidden=true;
   document.querySelector('.workflow-command').after(setup);
   $('blogBottom').closest('.blog-fields').insertAdjacentHTML('beforeend','<label>정렬<select id="blogAlign"><option value="left">왼쪽</option><option value="center">가운데</option></select></label><label>문단 여백<select id="blogSpacing"><option value="16">16px</option><option value="24" selected>24px</option><option value="32">32px</option></select></label><label>서체<select id="blogFont"><option value="sans-serif">고딕</option><option value="serif">명조</option></select></label><label>연락처<select id="blogContactMode"><option value="verified">확인된 연락처</option><option value="none">표시 안 함</option></select></label>');
   const result=document.createElement('section');result.className='blog-workflow';result.id='blogComplete';
@@ -68,7 +66,7 @@ export function mountBlogWorkflow({state,$,toast,renderSelection,contact}){
   for(const id of fieldIds)$(id).addEventListener('input',changed);
   const brief=()=>({topic:$('aiCommand').value,coreMessage:$('blogMessage').value,reader:$('blogReader').value,include:$('blogInclude').value,exclude:$('blogExclude').value,facts:$('blogFacts').value,sources:$('blogSources').value,style:$('blogStyle').value});
   function readTemplate(){return {...template,templateId:$('blogTemplate').value,greeting:$('blogGreeting').value,topFileId:$('blogTop').value,bottomFileId:$('blogBottom').value,align:$('blogAlign').value,spacing:Number($('blogSpacing').value),font:$('blogFont').value,contactMode:$('blogContactMode').value,logoType:$('blogCoverLogo').value};}
-  function applyTemplate(){for(const [id,key] of [['blogGreeting','greeting'],['blogAlign','align'],['blogSpacing','spacing'],['blogFont','font'],['blogContactMode','contactMode'],['blogCoverLogo','logoType']])$(id).value=template[key];$('blogTop').value='';$('blogBottom').value='';renderPhotos();updateTemplateSummary?.();updatePresetsSummary?.();}
+  function applyTemplate(){for(const [id,key] of [['blogGreeting','greeting'],['blogAlign','align'],['blogSpacing','spacing'],['blogFont','font'],['blogContactMode','contactMode'],['blogCoverLogo','logoType']])$(id).value=template[key];$('blogTop').value='';$('blogBottom').value='';renderPhotos();}
   function read(){
     syncText();
     if(reviewSnapshot&&reviewSnapshot!==reviewKey()){reviewSnapshot='';reviewResult=null;$('blogAiReviewResult').replaceChildren();$('blogTextStatus').textContent='변경 후 미검사';}
@@ -85,13 +83,13 @@ export function mountBlogWorkflow({state,$,toast,renderSelection,contact}){
       blocks.splice(at,0,...paragraphs.slice(textBlocks.length).map(text=>({id:crypto.randomUUID(),type:'paragraph',text})));
       lastBody=body;
     }
-    for(const [type,text] of [['closing',$('resultFooter').value],['contact',$('blogContactMode').value==='none'?'':$('resultContact').value],['hashtags',normalizeTags($('draftTags').value).map(t=>'#'+t).join(' ')]]){
-      const b=blocks.find(b=>b.type===type);if(b)b.text=text;else if(text)blocks.push({id:crypto.randomUUID(),type,text});
-    }
+    // 인사말 first; 연락처(링크·상담전화·주소) → 마지막 문구 → 해시태그 last — by role, whatever the block order.
+    blocks=placeManaged(blocks,{contact:$('resultContact').value,closing:$('resultFooter').value,hashtags:normalizeTags($('draftTags').value).map(t=>'#'+t).join(' ')});
   }
   function assemble(ask=true){
     if(ask&&blocks.length&&!confirm('수정한 사진 배치를 현재 본문·선택 순서로 다시 구성할까요?'))return;
-    checkpoint();template=readTemplate();blocks=assembleBlocks({body:$('draftContent').value,photos,template,cover,footer:$('resultFooter').value,contact:$('resultContact').value,tags:normalizeTags($('draftTags').value)});lastBody=$('draftContent').value;changed();renderBlocks();
+    checkpoint();template=readTemplate();const greeting=blocks.find(b=>b.type==='greeting')?.text??managed().greeting;
+    blocks=assembleBlocks({body:$('draftContent').value,photos,template,cover,greeting,footer:$('resultFooter').value,contact:$('resultContact').value,tags:normalizeTags($('draftTags').value)});lastBody=$('draftContent').value;changed();renderBlocks();
   }
   function checkpoint(){undo.push({blocks:structuredClone(blocks),photos:structuredClone(photos),cover:structuredClone(cover),body:$('draftContent').value});if(undo.length>12)undo.shift();}
   function renderReview(){const p=read();$('blogReview').innerHTML=inspectPost(p).map(i=>`<li data-status="${i.status}">${escape(({needs_changes:'수정 필요',human_required:'사람 확인',unchecked:'미검사'})[i.status])}: ${escape(i.message)}</li>`).join('');for(const row of $('blogBlocks').children){const text=row.querySelector('textarea'),b=blocks.find(b=>b.id===row.dataset.blockId);if(text&&b&&document.activeElement!==text)text.value=b.text;}}
@@ -100,14 +98,14 @@ export function mountBlogWorkflow({state,$,toast,renderSelection,contact}){
     for(const b of blocks){
       const row=document.createElement('div');row.className='blog-block';row.dataset.blockId=b.id;
       if(b.type==='image')row.innerHTML=`<figure><img loading="lazy" src="/api/data-core/files/${encodeURIComponent(b.fileId)}" alt="${escape(b.role||'게시용 이미지')}"><figcaption>${escape(b.role==='body'?'본문 사진':b.role==='top'?'상단 이미지':b.role==='bottom'?'하단 이미지':'대표 이미지')}</figcaption></figure>`;
-      else row.innerHTML=`<label>${escape(b.type==='caption'?'사진 설명':b.type==='lead'?'도입부':b.type==='heading'?'소제목':b.type==='closing'?'마지막 문구':b.type==='contact'?'연락처':b.type==='hashtags'?'해시태그':'본문')}<textarea rows="${b.type==='paragraph'?4:2}" ${b.type==='contact'?'readonly':''}></textarea></label>`;
-      const text=row.querySelector('textarea');if(text){text.value=b.text;text.addEventListener('change',()=>{checkpoint();b.text=text.value;if(['lead','paragraph','heading'].includes(b.type)){lastBody=blocks.filter(v=>['lead','paragraph','heading'].includes(v.type)).map(v=>v.text).join('\n\n');$('draftContent').value=lastBody;}if(b.type==='closing')$('resultFooter').value=b.text;if(b.type==='hashtags')$('draftTags').value=b.text;updatePresetsSummary();changed();renderReview();});}
+      else row.innerHTML=`<label>${escape(b.type==='caption'?'사진 설명':b.type==='greeting'?'인사말':b.type==='lead'?'도입부':b.type==='heading'?'소제목':b.type==='closing'?'마지막 문구':b.type==='contact'?'연락처':b.type==='hashtags'?'해시태그':'본문')}<textarea rows="${b.type==='paragraph'?4:2}" ${b.type==='contact'?'readonly':''}></textarea></label>`;
+      const text=row.querySelector('textarea');if(text){text.value=b.text;text.addEventListener('change',()=>{checkpoint();b.text=text.value;if(['lead','paragraph','heading'].includes(b.type)){lastBody=blocks.filter(v=>['lead','paragraph','heading'].includes(v.type)).map(v=>v.text).join('\n\n');$('draftContent').value=lastBody;}if(b.type==='closing')$('resultFooter').value=b.text;if(b.type==='hashtags')$('draftTags').value=b.text;changed();renderReview();});}
       const tools=document.createElement('div');tools.className='blog-block-tools';
       const copy=document.createElement('button');copy.type='button';copy.className='ghost-btn';copy.textContent=b.type==='image'?'이 게시용 이미지 다운로드':'블록 텍스트 복사';copy.onclick=async()=>{try{if(b.type==='image')await download([b.fileId],false);else{await navigator.clipboard.writeText(b.text);toast('블록 텍스트를 복사했습니다.');}}catch(error){toast(error.message,'error');}};tools.append(copy);
       if(['lead','paragraph','heading','caption'].includes(b.type)){const button=document.createElement('button');button.type='button';button.className='ghost-btn';button.textContent='이 블록만 AI 다듬기';button.onclick=()=>textAction(b);tools.append(button);}
       for(const [label,icon,delta] of [['위로','ArrowLeft',-1],['아래로','ArrowLeft',1],['블록 삭제','Trash2',0]]){
         const button=document.createElement('button');button.type='button';button.className='ghost-btn icon-command';button.title=label;button.setAttribute('aria-label',label);button.innerHTML=`<svg aria-hidden="true" style="transform:rotate(${delta===-1?90:delta===1?-90:0}deg)"><use href="/data-core/assets/core-icons.svg#${icon}"></use></svg>`;
-        button.onclick=()=>{const i=blocks.indexOf(b);if(delta&&(i+delta<0||i+delta>=blocks.length))return;checkpoint();if(delta)[blocks[i],blocks[i+delta]]=[blocks[i+delta],blocks[i]];else{blocks.splice(i,1);if(b.type==='closing')$('resultFooter').value='';if(b.type==='hashtags')$('draftTags').value='';updatePresetsSummary();}lastBody=blocks.filter(v=>['lead','paragraph','heading'].includes(v.type)).map(v=>v.text).join('\n\n');$('draftContent').value=lastBody;changed();renderBlocks();};tools.append(button);
+        button.onclick=()=>{const i=blocks.indexOf(b);if(delta&&(i+delta<0||i+delta>=blocks.length))return;checkpoint();if(delta)[blocks[i],blocks[i+delta]]=[blocks[i+delta],blocks[i]];else{blocks.splice(i,1);if(b.type==='closing')$('resultFooter').value='';if(b.type==='hashtags')$('draftTags').value='';if(b.type==='contact')$('resultContact').value='';}lastBody=blocks.filter(v=>['lead','paragraph','heading'].includes(v.type)).map(v=>v.text).join('\n\n');$('draftContent').value=lastBody;changed();renderBlocks();};tools.append(button);
       }row.append(tools);$('blogBlocks').append(row);
     }
     const n=publishingImages({blocks}).length;$('blogPublishImages').textContent=`게시용 이미지 ${n}장 다운로드`;$('blogPublishImages').disabled=!n;
@@ -192,27 +190,17 @@ export function mountBlogWorkflow({state,$,toast,renderSelection,contact}){
   // 양식 수정 dialog: fields already apply live via the 'change' listeners above (that is what
   // "이번 글에 적용" means here — nothing further to do but close). 취소 restores the snapshot taken
   // when the dialog opened, so an edit made and abandoned mid-dialog never lingers on the post.
-  let templateSnapshot=null;
-  function updateTemplateSummary(){$('blogTemplateSummary').textContent=state.editingDraftId||blocks.some(b=>b.type==='image'&&['top','bottom'].includes(b.role))||template.greeting?'양식 적용됨':'캠퍼스 기본 양식 적용 중';}
-  $('blogOpenTemplate').onclick=()=>{templateSnapshot=readTemplate();$('blogTemplateStatus').textContent='';$('blogTemplateDialog').showModal();};
-  $('blogApplyTemplate').onclick=()=>{updateTemplateSummary();$('blogTemplateDialog').close();};
-  $('blogCloseTemplate').onclick=$('blogCancelTemplate').onclick=()=>{if(templateSnapshot){template=templateSnapshot;applyTemplate();}$('blogTemplateDialog').close();};
-  // 마무리 수정 dialog: the hashtag/closing preset picker (mountTextPresets) is mounted separately
-  // in content.js and exposes its own dialog; this button only needs to open it.
-  $('blogOpenPresets').onclick=()=>window.dispatchEvent(new CustomEvent('open-text-presets'));
-  function updatePresetsSummary(){
-    // Summarizes the fixed 고정 해시태그 / 고정 마지막 문구 that 마무리 수정 edits (same as Instagram), not the
-    // current result's fields — otherwise it read '해시태그 0개 · 미설정' before writing despite saved fixed values.
-    const count=normalizeTags($('defaultHashtags').value).length,footer=$('defaultFooter').value.trim();
-    $('blogPresetsSummary').textContent=`해시태그 ${count}개 · 마지막 문구 ${footer?'적용':'미설정'} · 상담 정보 ${$('blogContactMode').value==='none'?'미포함':'포함'}`;
+  // 문구·태그·연락처만 바뀌면 그 블록만 다시 조립합니다 — 본문·사진은 그대로, 다시 생성하지 않습니다.
+  function applyManaged(values){
+    if(!blocks.length)return false;
+    const tags=normalizeTags(values.hashtags).map(t=>'#'+t).join(' ');
+    checkpoint();$('resultFooter').value=values.closing;$('draftTags').value=tags;$('resultContact').value=values.contactText;
+    blocks=placeManaged(blocks,{greeting:values.greeting,contact:values.contactText,closing:values.closing,hashtags:tags});
+    changed();renderBlocks();return true;
   }
-  for(const id of ['defaultHashtags','defaultFooter'])$(id).addEventListener('input',updatePresetsSummary);
-  $('blogContactMode').addEventListener('change',updatePresetsSummary);
-  window.addEventListener('text-presets-changed',updatePresetsSummary);
-  updateTemplateSummary();updatePresetsSummary();
   window.addEventListener('pagehide',()=>downloadController?.abort());
   renderPhotos();
-  return {read,save,load,reset,selectionChanged:renderPhotos,assemble,review:renderReview,copy:copyText,downloadPackage:()=>$('blogPackage').click(),defaultsToken:()=>defaultsEdit,
+  return {read,save,load,reset,selectionChanged:renderPhotos,assemble,applyManaged,review:renderReview,copy:copyText,downloadPackage:()=>$('blogPackage').click(),defaultsToken:()=>defaultsEdit,
     applyDefaults(value,token){if(token!==defaultsEdit||state.editingDraftId||!value)return;templates=value.templates||{};template={...templateDefaults(),...value.template};$('strategyMode').value=value.strategyMode||'balanced';$('blogTemplate').value=template.templateId;applyTemplate();},
     hasUnsaved:()=>Boolean((blocks.length||photos.length||Object.values(brief()).some(v=>v.trim()))&&signature()!==saved),
     instructions:()=>({brief:brief(),commonDescription:$('blogCommonDescription').value,photos:photos.map(({fileId,kind,description,facts,exclude,externalAiConsent})=>({fileId,kind,description,facts,exclude,externalAiConsent}))}),

@@ -113,7 +113,7 @@ export async function getInstagramSet(db:D1Database,context:DataCoreAccessContex
   const generatedTags=Array.isArray(meta.captionGeneratedTags)?(meta.captionGeneratedTags as unknown[]).filter((tag):tag is string=>typeof tag==='string'):[];
   const captionSources=Array.isArray(meta.captionSources)?(meta.captionSources as unknown[]).filter((v):v is string=>typeof v==='string'):null;
   return {id:row.id,campusId:row.campus_id,title:row.title,createdAt:row.created_at,version:Number(meta.version)||1,items,caption:String(row.content_text||''),
-    managedTail:typeof meta.captionManagedTail==='string'?meta.captionManagedTail:null,generatedTags,captionSources};
+    managedTail:typeof meta.captionManagedTail==='string'?meta.captionManagedTail:null,managedHead:typeof meta.captionManagedHead==='string'?meta.captionManagedHead:null,generatedTags,captionSources};
 }
 export async function listInstagramSets(db:D1Database,context:DataCoreAccessContext,campusId:string) {
   await instagramPolicy(db,context,campusId);
@@ -196,6 +196,8 @@ export async function saveInstagramSetCaption(db:D1Database,context:DataCoreAcce
   if(typeof input.caption!=='string'||input.caption.length>12000)fail(400,'홍보 문구를 확인하세요.');
   const caption=input.caption as string;
   const tail=typeof input.managedTail==='string'&&input.managedTail.length<=6000&&(caption===input.managedTail||caption.endsWith('\n\n'+input.managedTail))?input.managedTail:null;
+  // The app-managed 인사말 at the very start, kept only while the caption really still starts with it.
+  const head=typeof input.managedHead==='string'&&input.managedHead&&input.managedHead.length<=3000&&(caption===input.managedHead||caption.startsWith(input.managedHead+'\n\n'))?input.managedHead:null;
   // The AI's own tags, kept apart from the campus's fixed tags so "현재 결과에 적용" can swap the fixed
   // ones later without dropping what the AI wrote for this particular set.
   const generated=Array.isArray(input.generatedTags)&&input.generatedTags.length<=30&&input.generatedTags.every(tag=>typeof tag==='string'&&tag.length>0&&tag.length<=80)?input.generatedTags as string[]:[];
@@ -206,9 +208,9 @@ export async function saveInstagramSetCaption(db:D1Database,context:DataCoreAcce
   // `previousCaption` makes the write conditional: an automatic caption only lands if nobody saved
   // (or typed and saved) a different text in the meantime — a late AI answer never overwrites people.
   const guarded=typeof input.previousCaption==='string';
-  const result=await db.prepare(`UPDATE data_records SET content_text=?,metadata_json=json_set(metadata_json,'$.captionManagedTail',?,'$.captionGeneratedTags',json(?),'$.captionSources',json(?)),updated_at=?
+  const result=await db.prepare(`UPDATE data_records SET content_text=?,metadata_json=json_set(metadata_json,'$.captionManagedTail',?,'$.captionManagedHead',?,'$.captionGeneratedTags',json(?),'$.captionSources',json(?)),updated_at=?
     WHERE id=? AND organization_id=? AND record_type=?${guarded?" AND COALESCE(content_text,'')=?":''}`)
-    .bind(caption,tail,JSON.stringify(tail?generated:[]),JSON.stringify(sources),new Date().toISOString(),id,ORG,INSTAGRAM_SET,...(guarded?[input.previousCaption]:[])).run();
+    .bind(caption,tail,head,JSON.stringify(tail?generated:[]),JSON.stringify(sources),new Date().toISOString(),id,ORG,INSTAGRAM_SET,...(guarded?[input.previousCaption]:[])).run();
   if(guarded&&!Number(result.meta?.changes))fail(409,'그 사이 다른 화면에서 홍보글이 저장되었습니다. 세트를 다시 열어 확인해주세요.');
   return {saved:true};
 }

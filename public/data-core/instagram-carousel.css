@@ -34,9 +34,6 @@
 .ig-item-status-processing{color:var(--text);border-color:var(--primary);}
 .ig-item-status-done{color:var(--success);border-color:var(--success);}
 .ig-item-status-failed{color:var(--danger);border-color:var(--danger);}
-.instagram-carousel-mode .defaults-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
-.instagram-carousel-mode .defaults-grid label{min-width:0;}
-.instagram-carousel-mode .defaults-grid textarea{width:100%;box-sizing:border-box;min-height:100px;}
 .ig-result-actions,.ig-download-actions{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin:16px 0;}
 .ig-result-actions button,.ig-download-actions button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;max-width:100%;white-space:normal;}
 .ig-result-actions svg,.ig-download-actions svg{width:20px;height:20px;flex-shrink:0;}
@@ -45,9 +42,11 @@
 .ig-no-logo svg{width:42px;height:42px;color:var(--muted);}
 .ig-no-logo svg,.ig-result-actions svg,.ig-download-actions svg{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
 /* 나만의 로고: user images layered over photos (never a replacement for the official logo). */
-.ig-custom-hint{margin:4px 0 8px;color:var(--muted);font-size:14px;line-height:1.6;}
-.ig-custom-tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
-.ig-custom-tools input[type=search]{flex:1 1 200px;min-width:0;min-height:40px;}
+.ig-design h3{font-size:16px;margin:18px 0 0;}
+.ig-custom-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:18px;}
+.ig-custom-head h3{margin:0;}
+.ig-custom-search{width:100%;box-sizing:border-box;min-height:40px;margin-top:10px;}
+.ig-custom-search[hidden]{display:none;}
 .ig-custom-card{position:relative;display:flex;flex-direction:column;min-width:0;}
 .ig-custom-card .ig-logo-choice{flex:1;}
 .ig-custom-card .ig-logo-choice img,.ig-layer-asset img{background:repeating-conic-gradient(#ececec 0 25%,#fff 0 50%) 0 0/16px 16px;}

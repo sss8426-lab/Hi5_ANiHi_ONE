@@ -1,36 +1,25 @@
 import {LOGOS,CUSTOM_LOGO_PATTERN,normalizeDesign} from './instagram-brand-policy.js?v=20260923-logoup';
 import {composeInstagram,composeBase,drawLayers,loadLayerAssets,defaultLayerBox,drawLogo,MASTER,USER_LAYER_LIMIT} from './instagram-layout.js?v=20260924-layers';
-import {assembleCaption,captionTail,replaceManagedTail,assertResolvedText} from './content-caption.js?v=20260922-presets';
-import {normalizeTags} from './content-preset-catalog.js';
+import {assemblePost,managedTail as tailOf,managedHead as headOf,replaceManaged,assertResolvedText} from './content-caption.js?v=20260924-order';
 import {optimizeImageForAi} from './image-ai-optimize.js?v=20260923-imgfix';
 import {Zip,ZipPassThrough} from './vendor/fflate-0.8.3.js';
 
-const btnHtml=(id,label)=>`<button type="button" class="ghost-btn" id="${id}">${label}</button>`;
-
-export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=>'',renderSelection=()=>{}}) {
+export function mountInstagramProduction({state,api,$,toast,canWrite,text=()=>({greeting:'',hashtags:'',closing:'',contactText:'',brand:''}),renderSelection=()=>{}}) {
   document.body.classList.add('instagram-carousel-mode');
   const command=$('aiCommand').closest('.workflow-section'),section=document.createElement('section');
   section.className='workflow-section ig-carousel';section.id='instagramProduction';
-  section.innerHTML=`<div class="workflow-status-row"><span id="igTemplateSummary" role="status"></span>${btnHtml('igOpenTemplate','양식 수정')}</div>
-    <div class="workflow-status-row"><span id="igPresetsSummary" role="status"></span>${btnHtml('igOpenPresets','마무리 수정')}</div>
-    <dialog id="igTemplateDialog" class="workflow-dialog" aria-labelledby="igTemplateDialogTitle">
-      <div class="workflow-heading"><h2 id="igTemplateDialogTitle">양식 수정</h2>${btnHtml('igCloseTemplate','닫기')}</div>
+  section.innerHTML=`<div id="igDesign" class="ig-design">
       <h3>로고 선택</h3><div id="igLogos" class="ig-logo-options" role="group" aria-label="공식 로고"></div>
-      <h3>나만의 로고 선택</h3>
-      <p class="ig-custom-hint">직접 올린 로고·문구·말풍선 이미지는 위의 공식 로고와 별도로 사진 위에 얹힙니다. 고른 이미지는 이번에 만드는 모든 사진에 들어가고, 결과 미리보기의 "사용자 이미지 편집"에서 위치·크기를 바꿀 수 있습니다.</p>
-      <div class="ig-custom-tools">
-        <input type="search" id="igCustomSearch" placeholder="이미지 이름 검색" maxlength="60" aria-label="나만의 로고 이름 검색">
+      <div class="ig-custom-head"><h3>나만의 로고 선택</h3>
         <input type="file" id="igLogoFile" accept="image/png,image/jpeg,image/webp,image/svg+xml,.svg" hidden>
-        ${btnHtml('igUploadLogo','이미지 올리기')}
-      </div>
+        <button type="button" class="ghost-btn" id="igUploadLogo">로고 올리기</button></div>
+      <input type="search" id="igCustomSearch" class="ig-custom-search" placeholder="이미지 이름 검색" maxlength="60" aria-label="나만의 로고 이름 검색" hidden>
       <div id="igCustomLogos" class="ig-logo-options ig-custom-options" role="group" aria-label="나만의 로고"></div>
       <p id="igCustomEmpty" class="ig-custom-empty" hidden>등록된 이미지가 없습니다.</p>
       <button type="button" class="ghost-btn hidden" id="igMoreLogos">더 보기</button>
       <p id="igCustomLogoStatus" role="status"></p>
       <div class="ig-options"><label>제작 방식<select id="igMode"><option value="original">작품 전체 보존</option><option value="photo-layout">공간·학원 사진 크게 배치</option><option value="photo">사진 보정 · AI</option></select></label><span id="igCampusLabel" role="status"></span></div>
-      <div class="blog-actions">${btnHtml('igApplyTemplate','이번 글에 적용')}${btnHtml('igSaveTemplate','캠퍼스 기본값으로 저장')}${btnHtml('igCancelTemplate','취소')}</div>
-      <span id="igTemplateStatus" role="status"></span>
-    </dialog>
+    </div>
     <p id="igSourceNotice" role="status" hidden></p>
     <div id="igResume" class="ig-resume" role="status" hidden><span id="igResumeText"></span><button type="button" id="igResumeGo" class="secondary-btn">이어서 하기</button><button type="button" id="igResumeDismiss" class="ghost-btn">닫기</button></div>
     <div class="form-actions"><button type="button" id="igGenerate" class="primary-btn" disabled>이미지 만들기</button><button type="button" id="igCancel" class="ghost-btn" hidden>중단</button><button type="button" id="igRetryFailed" class="ghost-btn" hidden>실패한 항목만 다시 시도</button></div>
@@ -64,11 +53,10 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
   let ids=[],failures=[],itemStatus=new Map();
   // batchInfo is written onto every draft of the batch (see processOne) so it can be resumed later.
   let batchInfo=null,restoredBatch=false;
-  let campusDefaultLogoType='anihi',campusDefaultMode='original',templateSnapshot=null;
   let localPreview=null;
   let imageState='new',hasSaved=false;
   let captionBusy=false,captionEpoch=0,captionController=null,captionState='none';
-  let managedTail=null;
+  let managedTail=null,managedHead=null;
   // The AI's own tags for the open caption; "현재 결과에 적용" swaps only the campus's fixed tags.
   let generatedTags=[];
   // One automatic caption attempt per saved set; after that only the button writes (no repeat billing).
@@ -122,7 +110,7 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
     $('igGenerate').textContent=originalMode()||preserved===state.selectedFileIds.length?'이미지 만들기':'AI로 이미지 만들기';$('igCancel').hidden=!busy||!controller;
     $('igRetryFailed').hidden=!failures.length;$('igRetryFailed').disabled=busy; }
   function lock(value){busy=value;state.busy=value;$('photoHeading').closest('.workflow-section').inert=value;command.inert=value;$('igLogos').inert=value;$('igMode').disabled=value;history.inert=value;result.querySelectorAll('button,textarea').forEach(el=>el.disabled=value);if(!value)captionLock(captionBusy);buttons();}
-  function clear(keepBackgrounds=false){managedTail=null;generatedTags=[];captionEpoch++;captionController?.abort();captionLock(false);closeLayerEditor();if(keepBackgrounds!==true)backgrounds.clear();releasePreview();generation++;items=[];currentSet=null;signature='';requestId='';imageState='new';ids=[];failures=[];itemStatus=new Map();batchInfo=null;restoredBatch=false;result.hidden=true;$('igProgressWrap').hidden=true;$('igProgress').value=0;$('igPercent').textContent='0%';$('igItemStatuses').hidden=true;$('igItemStatuses').replaceChildren();$('igPreview').removeAttribute('src');$('igSlides').replaceChildren();$('igDownloads').replaceChildren();$('igCaptionSection').hidden=true;$('igCaptionText').value='';setCaptionState('none');$('igStatus').textContent=hasSaved?'변경사항 미저장':'';$('igSaved').textContent=hasSaved?'변경사항 미저장':'저장 전';$('igLayerSummary').textContent='';buttons();}
+  function clear(keepBackgrounds=false){managedTail=null;managedHead=null;generatedTags=[];captionEpoch++;captionController?.abort();captionLock(false);closeLayerEditor();if(keepBackgrounds!==true)backgrounds.clear();releasePreview();generation++;items=[];currentSet=null;signature='';requestId='';imageState='new';ids=[];failures=[];itemStatus=new Map();batchInfo=null;restoredBatch=false;result.hidden=true;$('igProgressWrap').hidden=true;$('igProgress').value=0;$('igPercent').textContent='0%';$('igItemStatuses').hidden=true;$('igItemStatuses').replaceChildren();$('igPreview').removeAttribute('src');$('igSlides').replaceChildren();$('igDownloads').replaceChildren();$('igCaptionSection').hidden=true;$('igCaptionText').value='';setCaptionState('none');$('igStatus').textContent=hasSaved?'변경사항 미저장':'';$('igSaved').textContent=hasSaved?'변경사항 미저장':'저장 전';$('igLayerSummary').textContent='';buttons();}
   async function logos(){
     const campusId=$('draftCampus').value;
     if(policy?.campusId===campusId&&$('igLogos').children.length===Object.keys(LOGOS).length)return;
@@ -134,7 +122,7 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
       for(const [id,spec]of Object.entries(LOGOS)){
         const button=document.createElement('button');button.type='button';button.className='ig-logo-choice';button.dataset.logo=id;button.setAttribute('aria-pressed',String(id===logoType));
         const canvas=document.createElement('canvas'),label=document.createElement('span');label.textContent=spec.label;button.append(canvas,label);$('igLogos').append(button);
-        button.onclick=()=>{if(busy||logoType===id)return;logoType=id;clear(true);$('igLogos').querySelectorAll('button').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.logo===id)));updateTemplateSummary();};
+        button.onclick=()=>{if(busy||logoType===id)return;logoType=id;clear(true);$('igLogos').querySelectorAll('button').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.logo===id)));};
         if(id==='none'){canvas.replaceWith(Object.assign(document.createElement('span'),{className:'ig-no-logo',innerHTML:'<svg aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Image"></use></svg>'}));button.title='로고 없이 이미지만 제작';continue;}
         void drawLogo(canvas,id,value.campusLogoLabel).catch(()=>{if(epoch===policyEpoch){canvas.replaceWith(Object.assign(document.createElement('img'),{src:spec.src,alt:spec.label}));button.title='로고 미리보기를 다시 불러오려면 캠퍼스를 다시 선택하세요.';}});
       }
@@ -147,7 +135,7 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
   // hides this row; an already-composited image is a separate, independent file and keeps it.
   let customLogos=[],customLogosCursor=null,customLogosCampus='',customLogosQuery='',customLogosEpoch=0;
   const iconHtml=name=>`<svg aria-hidden="true"><use href="/data-core/assets/core-icons.svg#${name}"></use></svg>`;
-  function syncOverlayChoices(){$('igCustomLogos').querySelectorAll('.ig-logo-choice').forEach(el=>el.setAttribute('aria-pressed',String(overlayChoices.some(v=>v.id===el.dataset.asset))));updateTemplateSummary();}
+  function syncOverlayChoices(){$('igCustomLogos').querySelectorAll('.ig-logo-choice').forEach(el=>el.setAttribute('aria-pressed',String(overlayChoices.some(v=>v.id===el.dataset.asset))));}
   function renderCustomLogo(item){
     const card=document.createElement('div');card.className='ig-custom-card';
     const button=document.createElement('button');button.type='button';button.className='ig-logo-choice';button.dataset.asset=item.id;
@@ -176,7 +164,7 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
       try{
         await api('/api/data-core/content/instagram-logos/'+encodeURIComponent(item.id),{method:'DELETE'});
         customLogos=customLogos.filter(v=>v.id!==item.id);overlayChoices=overlayChoices.filter(v=>v.id!==item.id);
-        renderCustomLogos();renderLayerAssets();updateTemplateSummary();$('igCustomLogoStatus').textContent='목록에서 삭제했습니다.';
+        renderCustomLogos();renderLayerAssets();$('igCustomLogoStatus').textContent='목록에서 삭제했습니다.';
       }catch(error){$('igCustomLogoStatus').textContent=error.message;}
     };
     actions.append(rename,remove);card.append(button,actions);
@@ -186,6 +174,7 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
     $('igCustomLogos').replaceChildren(...customLogos.map(renderCustomLogo));
     $('igCustomEmpty').hidden=customLogos.length>0;
     $('igCustomEmpty').textContent=customLogosQuery?`'${customLogosQuery}' 이름의 이미지가 없습니다.`:'등록된 이미지가 없습니다.';
+    $('igCustomSearch').hidden=!customLogosCursor&&!customLogosQuery;
   }
   async function loadCustomLogos(reset=false){
     const campusId=$('draftCampus').value;
@@ -257,7 +246,7 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
     const button=document.createElement('button');button.type='button';button.setAttribute('aria-pressed',String(i===index));button.textContent=String(slotNumber(item,i));button.onclick=()=>preview(i);return button;
   }));result.hidden=false;}
   $('igPreview').onclick=()=>window.DataCoreImageGallery.open({scope:'instagram-set',title:'인스타 이미지',anchor:$('igPreview'),index:activeIndex,items:items.map((item,i)=>({src:previewUrl(item),title:`${slotNumber(item,i)} / ${ids.length||items.length}`}))});
-  $('igMode').onchange=()=>{clear();updateTemplateSummary();};$('aiCommand').addEventListener('input',clear);
+  $('igMode').onchange=()=>{clear();};$('aiCommand').addEventListener('input',clear);
   $('igCancel').onclick=()=>controller?.abort();
   const currentDirection=()=>$('aiCommand').value.trim()||DEFAULT_DIRECTION;
   function renderItemStatuses(){
@@ -596,7 +585,7 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
   function saveCaptionText(target,text,{sources=target.captionSources??null,previousCaption,signal}={}){
     assertResolvedText(text);
     return captionFetch('instagram-sets/'+encodeURIComponent(target.id),{method:'PATCH',headers:{'content-type':'application/json'},signal,
-      body:JSON.stringify({caption:text,managedTail,generatedTags,sources,...(previousCaption!==undefined?{previousCaption}:{})})});
+      body:JSON.stringify({caption:text,managedTail,managedHead,generatedTags,sources,...(previousCaption!==undefined?{previousCaption}:{})})});
   }
   const setSources=set=>set.items.map(item=>item.sourceId).filter(Boolean);
   // Reopening says so when retried photos joined the set after its text was written.
@@ -618,17 +607,19 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
     const valid=()=>epoch===captionEpoch&&currentSet?.id===target.id;
     const abort=new AbortController(),timer=setTimeout(()=>abort.abort(),240000);captionController=abort;captionLock(true);
     $('igCaptionSection').hidden=false;setCaptionState('writing',`완성된 ${ids.length}장 기준으로 홍보글을 작성하고 있습니다… 그동안에도 이미지를 내려받을 수 있습니다.`);
-    let text='';
+    let captionText='';
     try{
       if(!ids.length)throw Error('완성된 이미지를 확인할 수 없습니다.');
-      const label=await campusLabel(target.campusId,abort.signal),footer=$('defaultFooter').value,hashtags=$('defaultHashtags').value,contactBlock=contact();
+      const label=await campusLabel(target.campusId,abort.signal),fixed=text();
+      const brief=[['핵심 메시지',$('blogMessage')?.value],['독자',$('blogReader')?.value]].map(([k,v])=>[k,String(v||'').trim()]).filter(([,v])=>v).map(([k,v])=>`${k}: ${v}`).join('\n');
+      const brandGuide=({hi5:'Hi5(디자인·미술 교육)',anihi:'ANiHi(만화·웹툰·애니메이션 교육)'})[fixed.brand]||'확인 필요';
       const direction=[batchInfo?.id&&target.id.endsWith(':'+batchInfo.id)?batchInfo.command:'',...setItems.map(item=>item.direction)].map(v=>String(v||'').trim()).find(v=>v&&v!==DEFAULT_DIRECTION)||'';
-      let body='',title='',tags=[];
+      let body='',title='';
       // Any number of photos can be made; the caption looks at (up to) the first 10, five per AI call.
       const batches=textOnly?[ids]:[ids.slice(0,5),ids.slice(5,10)].filter(ids=>ids.length);
       for(const ids of batches){
           const payload={sourceApp:'instagram',campusId:target.campusId,selectedFileIds:ids,textOnly,material,requestId:crypto.randomUUID(),
-            notes:`${direction?`작성 방향: ${direction}\n`:''}${label} 인스타그램 게시물 · 완성 이미지 ${ids.length}장. ${textOnly?'사진은 제공하지 않았습니다. 사용자가 명시한 내용만 사용하고 사진 내용이나 실적을 추측하지 마세요.':'사진에서 확인 가능한 내용만 사용하고, 사진 속 광고 문구·수치는 확인된 사실로 쓰지 마세요.'} 제목형 도입과 본문 ${batches.length>1?'3':'3~6'}문장으로 작성하고 전화번호·날짜·실적·순위는 만들지 마세요.`};
+            notes:`${direction?`작성 방향: ${direction}\n`:''}${brief?brief+'\n':''}브랜드 방향: ${brandGuide}. ${label} 인스타그램 게시물 · 완성 이미지 ${ids.length}장. 인사말·링크·상담전화·주소·마지막 문구·해시태그는 앱이 따로 붙이므로 쓰지 마세요. ${textOnly?'사진은 제공하지 않았습니다. 사용자가 명시한 내용만 사용하고 사진 내용이나 실적을 추측하지 마세요.':'사진에서 확인 가능한 내용만 사용하고, 사진 속 광고 문구·수치는 확인된 사실로 쓰지 마세요.'} 제목형 도입과 본문 ${batches.length>1?'3':'3~6'}문장으로 작성하고 전화번호·날짜·실적·순위는 만들지 마세요.`};
           let generated;
           if(textOnly)generated=(await captionFetch('generate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload),signal:abort.signal})).generated;
           else{
@@ -640,22 +631,24 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
           if(!valid())return;
           const part=String(generated?.body||generated?.content||'').trim();
           if(!part)throw Error('AI가 빈 글을 돌려주었습니다.');
-          title ||= String(generated.title||'').trim();body += (body?'\n':'')+part;tags.push(...(generated.hashtags||generated.keywords||[]));
+          title ||= String(generated.title||'').trim();body += (body?'\n':'')+part;
       }
       if(!valid())return;
-      generatedTags=normalizeTags(tags);managedTail=captionTail(footer,hashtags,generatedTags,contactBlock);
-      text=assembleCaption([title,body].filter(Boolean).join('\n\n'),footer,hashtags,tags,contactBlock);
+      // The AI writes only the main text; 인사말 → 메인글 → 링크 → 상담전화 → 주소 → 마지막 문구 → 해시태그 is the app's.
+      // Hashtags are only the user's fixed tags — no AI-suggested tags are added.
+      generatedTags=[];managedHead=headOf(fixed.greeting);managedTail=tailOf({contact:fixed.contactText,closing:fixed.closing,hashtags:fixed.hashtags});
+      captionText=assemblePost({greeting:fixed.greeting,body:[title,body].filter(Boolean).join('\n\n'),contact:fixed.contactText,closing:fixed.closing,hashtags:fixed.hashtags});
     }catch(error){
       clearTimeout(timer);
       if(valid()){captionController=null;captionLock(false);setCaptionState('failed',`홍보글을 작성하지 못했습니다 · ${abort.signal.aborted?'응답이 너무 오래 걸려 중단했습니다.':error.message} 이미지 저장·다운로드에는 영향이 없습니다.`);}
       return;
     }
     // The text exists from here on: a failed save leaves it on screen as unsaved, never as "완료".
-    $('igCaptionText').value=text;
+    $('igCaptionText').value=captionText;
     try{
-      await saveCaptionText(target,text,{sources:[...ids].sort(),previousCaption,signal:abort.signal});
+      await saveCaptionText(target,captionText,{sources:[...ids].sort(),previousCaption,signal:abort.signal});
       if(!valid())return;
-      target.caption=text;target.captionSources=[...ids].sort();
+      target.caption=captionText;target.captionSources=[...ids].sort();
       setCaptionState('done',textOnly?'사진 전송 없이 작성 완료 · 게시 전에 내용을 확인하세요.':'홍보글 작성 완료 · 게시 전에 내용을 확인하세요.');
     }catch(error){
       if(valid())setCaptionState('dirty',`글은 작성했지만 저장하지 못했습니다 · ${error.message} 내용을 확인하고 [문구 저장]을 눌러주세요.`);
@@ -711,7 +704,7 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
       button.onclick=async()=>{if(busy)return;lock(true);try{
         const saved=await api('/api/data-core/content/instagram-sets/'+encodeURIComponent(item.id));clear();hideResume();
         // Opening an old set never writes by itself; an empty one offers [홍보글 작성] instead.
-        autoCaptioned.add(saved.id);currentSet=saved;managedTail=saved.managedTail??null;generatedTags=Array.isArray(saved.generatedTags)?saved.generatedTags:[];items=saved.items.map(item=>({...item}));
+        autoCaptioned.add(saved.id);currentSet=saved;managedTail=saved.managedTail??null;managedHead=saved.managedHead??null;generatedTags=Array.isArray(saved.generatedTags)?saved.generatedTags:[];items=saved.items.map(item=>({...item}));
         preview();await downloads();$('igSaved').textContent='저장된 최종본';$('igCaptionText').value=saved.caption;$('igCaptionSection').hidden=false;
         setCaptionState(saved.caption?'done':'none',saved.caption?coverageNote(saved):'아직 홍보글이 없습니다. [홍보글 작성]을 누르면 글만 작성합니다(이미지는 다시 만들지 않습니다).');
       }catch(error){toast(error.message,'error');}finally{lock(false);}};return button;
@@ -719,48 +712,19 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
   }
   history.ontoggle=loadHistory;
   function refresh(){void logos();void loadHistory();buttons();void findResumable();}
-  function applyText({footer,hashtags,contact}){
+  // [설정 저장] re-assembles only the app-managed start (인사말) and end (링크·연락처·마지막 문구·해시태그) of
+  // the open caption; the main text the user may have edited stays as it is. No AI call, no image work.
+  function applyText(values){
+    if($('igCaptionSection').hidden||!currentSet)return false;
     if(captionBusy||busy)throw Error('진행 중 작업이 끝난 후 적용하세요.');
-    if($('igCaptionSection').hidden)throw Error('저장된 이미지 세트의 홍보글을 먼저 열어주세요.');
-    const tail=captionTail(footer,hashtags,generatedTags,contact);
-    if(managedTail===null&&!confirm('기존 글의 문구 경계를 확인할 수 없습니다. 현재 본문을 유지하고 마지막에 새 문구·태그를 추가할까요?'))throw Error('현재 결과를 유지했습니다.');
-    $('igCaptionText').value=replaceManagedTail($('igCaptionText').value,managedTail,tail);managedTail=tail;setCaptionState('dirty','문구 변경사항 미저장 · [문구 저장]을 눌러주세요.');
+    const head=headOf(values.greeting),tail=tailOf({contact:values.contactText,closing:values.closing,hashtags:values.hashtags});
+    if(managedTail===null&&managedHead===null&&$('igCaptionText').value.trim()&&!confirm('기존 글의 문구 경계를 확인할 수 없습니다. 현재 본문을 유지하고 앞뒤에 새 인사말·문구·태그를 붙일까요?'))throw Error('현재 결과를 유지했습니다.');
+    $('igCaptionText').value=replaceManaged($('igCaptionText').value,{previousHead:managedHead,previousTail:managedTail,head,tail});
+    managedHead=head;managedTail=tail;generatedTags=[];setCaptionState('dirty','문구 변경사항 미저장 · [문구 저장]을 눌러주세요.');
+    return true;
   }
-  // 양식 수정 dialog: logo/제작방식/나만의 로고 already apply live via the click/change handlers above
-  // (that is what "이번 글에 적용" means here — nothing further to do but close). 취소 restores the
-  // snapshot taken when the dialog opened, so a change made and abandoned mid-dialog never lingers.
-  function readTemplate(){return {logoType,mode:$('igMode').value,overlays:overlayChoices.map(v=>({...v}))};}
-  function updateTemplateSummary(){$('igTemplateSummary').textContent=(logoType===campusDefaultLogoType&&$('igMode').value===campusDefaultMode?'캠퍼스 기본 양식 적용 중':'양식 적용됨')+(overlayChoices.length?` · 나만의 로고 ${overlayChoices.length}개`:'');}
-  $('igOpenTemplate').onclick=()=>{templateSnapshot=readTemplate();$('igTemplateStatus').textContent='';$('igTemplateDialog').showModal();if(customLogosCampus!==$('draftCampus').value)void loadCustomLogos(true);};
-  $('igApplyTemplate').onclick=()=>{updateTemplateSummary();templateSnapshot=null;$('igTemplateDialog').close();};
-  $('igCloseTemplate').onclick=$('igCancelTemplate').onclick=()=>{
-    if(templateSnapshot&&(templateSnapshot.logoType!==logoType||templateSnapshot.mode!==$('igMode').value)){
-      logoType=templateSnapshot.logoType;$('igLogos').querySelectorAll('button').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.logo===logoType)));
-      $('igMode').value=templateSnapshot.mode;clear(true);updateTemplateSummary();
-    }
-    if(templateSnapshot){overlayChoices=templateSnapshot.overlays;syncOverlayChoices();}
-    templateSnapshot=null;$('igTemplateDialog').close();
-  };
-  $('igSaveTemplate').onclick=async()=>{
-    const campusId=$('draftCampus').value;
-    if(!campusId){$('igTemplateStatus').textContent='캠퍼스를 먼저 선택하세요.';return;}
-    $('igSaveTemplate').disabled=true;
-    try{
-      await api('/api/data-core/content/defaults',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({sourceApp:'instagram',campusId,instagramSettings:{logoType,mode:$('igMode').value}})});
-      campusDefaultLogoType=logoType;campusDefaultMode=$('igMode').value;updateTemplateSummary();
-      $('igTemplateStatus').textContent='캠퍼스 기본 양식 저장 완료';
-    }catch(error){$('igTemplateStatus').textContent=error.message;}
-    finally{$('igSaveTemplate').disabled=false;}
-  };
-  // 마무리 수정 dialog: the hashtag/closing preset picker (mountTextPresets) is mounted separately in
-  // content.js and exposes its own dialog; this button only needs to open it.
-  $('igOpenPresets').onclick=()=>window.dispatchEvent(new CustomEvent('open-text-presets'));
-  function updatePresetsSummary(){
-    const count=normalizeTags($('defaultHashtags').value).length,footer=$('defaultFooter').value.trim();
-    $('igPresetsSummary').textContent=`해시태그 ${count}개 · 마지막 문구 ${footer?'적용':'미설정'} · 상담 정보 ${contact()?'포함':'미포함'}`;
-  }
-  for(const id of ['defaultHashtags','defaultFooter'])$(id).addEventListener('input',updatePresetsSummary);
-  window.addEventListener('text-presets-changed',updatePresetsSummary);
+  // 로고 선택·제작 방식 apply live and are saved as the campus default with [설정 저장] (content.js).
+  function templateSettings(){return {logoType,mode:$('igMode').value};}
   // ── 사용자 이미지 편집 ────────────────────────────────────────────────────────────────
   // The canvas shows the photo's base (background + official logo + photo, never its old layers) with
   // the layers drawn on top, at preview size but in master coordinates. 적용 composites at full size
@@ -856,7 +820,7 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
   }
   $('igLayerEdit').onclick=()=>{if(busy||!items.length)return;if(editor.open){if(editor.dirty&&!confirm('적용하지 않은 변경을 버릴까요?'))return;closeLayerEditor();}else void openLayerEditor(activeIndex);};
   $('igLayerCancel').onclick=()=>{closeLayerEditor();};
-  $('igLayerManage').onclick=()=>$('igOpenTemplate').click();
+  $('igLayerManage').onclick=()=>$('igDesign').scrollIntoView({behavior:'smooth',block:'center'});
   const pointerPoint=event=>{const rect=$('igLayerCanvas').getBoundingClientRect();return {x:(event.clientX-rect.left)/rect.width*MASTER.width,y:(event.clientY-rect.top)/rect.height*MASTER.height,unit:MASTER.width/rect.width};};
   $('igLayerCanvas').addEventListener('pointerdown',event=>{
     if(!editor.open||!editor.base)return;
@@ -934,15 +898,13 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
     buttons();void downloads();
   };
 
-  updateTemplateSummary();updatePresetsSummary();
-  return {read,refresh,applyText,hasUnsaved:()=>Boolean(busy||editor.dirty||(!currentSet&&(items.length||$('aiCommand').value.trim()))||(currentSet&&$('igCaptionText').value!==(currentSet.caption||''))),invalidated:clear,load:()=>{if(!busy)clear();},selectionChanged(){const key=JSON.stringify(state.selectedFileIds);if(key!==selected){selected=key;clear();}buttons();},restore:async()=>{toast('이전 단일 초안입니다. 사진을 선택해 새 이미지 세트로 제작하세요.');},
+  return {read,refresh,applyText,templateSettings,hasUnsaved:()=>Boolean(busy||editor.dirty||(!currentSet&&(items.length||$('aiCommand').value.trim()))||(currentSet&&$('igCaptionText').value!==(currentSet.caption||''))),invalidated:clear,load:()=>{if(!busy)clear();},selectionChanged(){const key=JSON.stringify(state.selectedFileIds);if(key!==selected){selected=key;clear();}buttons();},restore:async()=>{toast('이전 단일 초안입니다. 사진을 선택해 새 이미지 세트로 제작하세요.');},
     applyDefaults(settings){
       if(!settings)return;
       // A campus default saved while 나만의 로고 replaced the official logo becomes what it is now: no
       // official logo, plus that image as a user layer.
       const custom=CUSTOM_LOGO_PATTERN.test(settings.logoType)?settings.logoType.slice('custom:'.length):null;
-      campusDefaultLogoType=custom?'none':settings.logoType;campusDefaultMode=settings.mode;if(templateSnapshot)return;
-      logoType=campusDefaultLogoType;$('igMode').value=settings.mode;
+      logoType=custom?'none':settings.logoType;$('igMode').value=settings.mode;
       if(custom&&!overlayChoices.some(v=>v.id===custom))overlayChoices=[...overlayChoices,{id:custom,name:'나만의 로고'}];
       $('igLogos').querySelectorAll('button').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.logo===logoType)));syncOverlayChoices();
     }};

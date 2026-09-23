@@ -12,7 +12,41 @@ export function contentScope(context: DataCoreAccessContext, input: { sourceApp?
   return { sourceApp, campusId };
 }
 
-export async function contentDefaults(db: D1Database, context: DataCoreAccessContext, input: { sourceApp?: unknown; campusId?: unknown; hashtags?: unknown; footer?: unknown; blogSettings?: any; instagramSettings?: { logoType?: unknown; mode?: unknown } }, save = false) {
+const BRAND_KEYS = ['hi5', 'anihi'] as const;
+const TEXT_KINDS: Record<string, number> = { greeting: 3000, hashtags: 2000, closing: 3000 };
+const CONTACT_LIMITS: Record<string, number> = { phone: 60, address: 300, trialLink: 500, homeLink: 500, instaLink: 500 };
+const unresolved = /\{\{[^}]*\}\}|\b(?:undefined|null)\b/;
+// 메인 화면 문구 설정: each of 인사말 / 고정 해시태그 / 고정 마지막 문구 keeps its chosen brand and one text
+// per brand, plus 상담전화·주소·세 링크. Links are only ever the https address the user typed.
+function cleanTextSettings(value: unknown) {
+  type Settings = { brands?: Record<string, unknown>; values?: Record<string, Record<string, unknown>>; contact?: Record<string, unknown> };
+  const input = value && typeof value === 'object' && !Array.isArray(value) ? value as Settings : null;
+  if (!input) throw new DataCoreAccessError(400, '문구 설정을 확인하세요.');
+  const brands: Record<string, string> = {}, values: Record<string, Record<string, string>> = {}, contact: Record<string, string> = {};
+  for (const [kind, max] of Object.entries(TEXT_KINDS)) {
+    const brand = input.brands?.[kind];
+    if (typeof brand !== 'string' || !(BRAND_KEYS as readonly string[]).includes(brand)) throw new DataCoreAccessError(400, '문구 브랜드를 확인하세요.');
+    brands[kind] = brand; values[kind] = {};
+    for (const key of BRAND_KEYS) {
+      const text = input.values?.[kind]?.[key] ?? '';
+      if (typeof text !== 'string' || text.length > max || unresolved.test(text)) throw new DataCoreAccessError(400, '문구 길이와 내용을 확인하세요.');
+      values[kind][key] = text;
+    }
+  }
+  for (const [key, max] of Object.entries(CONTACT_LIMITS)) {
+    const text = input.contact?.[key] ?? '';
+    if (typeof text !== 'string' || text.length > max || /[\r\n<>]/.test(text) || unresolved.test(text)) throw new DataCoreAccessError(400, '연락처·링크 설정을 확인하세요.');
+    const clean = text.trim();
+    if (clean && key.endsWith('Link')) {
+      let url: URL | null = null; try { url = new URL(clean); } catch { /* reported below */ }
+      if (!url || url.protocol !== 'https:' || url.username || url.password) throw new DataCoreAccessError(400, '링크는 https:// 로 시작하는 주소만 저장할 수 있습니다.');
+    }
+    contact[key] = clean;
+  }
+  return { schemaVersion: 1, brands, values, contact };
+}
+
+export async function contentDefaults(db: D1Database, context: DataCoreAccessContext, input: { sourceApp?: unknown; campusId?: unknown; hashtags?: unknown; footer?: unknown; blogSettings?: any; instagramSettings?: { logoType?: unknown; mode?: unknown }; textSettings?: unknown }, save = false) {
   const { sourceApp, campusId } = contentScope(context, input);
   const id = `content-defaults:${sourceApp}:${campusId || 'organization'}`;
   if (save) {
@@ -20,7 +54,8 @@ export async function contentDefaults(db: D1Database, context: DataCoreAccessCon
     // them exactly as stored instead of overwriting them with whatever the (maybe unsaved/unloaded) fields hold.
     const saveText = input.hashtags !== undefined || input.footer !== undefined;
     if (saveText && (typeof input.hashtags !== 'string' || input.hashtags.length > 2000 || typeof input.footer !== 'string' || input.footer.length > 3000)) throw new DataCoreAccessError(400, '기본 문구 길이를 확인하세요.');
-    if (!saveText && input.blogSettings === undefined && input.instagramSettings === undefined) throw new DataCoreAccessError(400, '저장할 기본값을 확인하세요.');
+    if (!saveText && input.blogSettings === undefined && input.instagramSettings === undefined && input.textSettings === undefined) throw new DataCoreAccessError(400, '저장할 기본값을 확인하세요.');
+    const textSettings = input.textSettings === undefined ? undefined : cleanTextSettings(input.textSettings);
     let blogSettings;
     if(input.blogSettings!==undefined){
       if(sourceApp!=='blog'||!['balanced','search','homefeed'].includes(input.blogSettings?.strategyMode))throw new DataCoreAccessError(400,'블로그 기본 글 방향을 확인하세요.');
@@ -48,7 +83,7 @@ export async function contentDefaults(db: D1Database, context: DataCoreAccessCon
       } else if(!Object.hasOwn(LOGOS,s.logoType))throw new DataCoreAccessError(400,'인스타 기본 양식을 확인하세요.');
       instagramSettings={logoType:s.logoType,mode:s.mode};
     }
-    const metadata = JSON.stringify({ schemaVersion: 1,...(saveText?{ hashtags: (input.hashtags as string).trim(), footer: input.footer }:{}),...(blogSettings?{blogSettings}:{}),...(instagramSettings?{instagramSettings}:{}) });
+    const metadata = JSON.stringify({ schemaVersion: 1,...(saveText?{ hashtags: (input.hashtags as string).trim(), footer: input.footer }:{}),...(blogSettings?{blogSettings}:{}),...(instagramSettings?{instagramSettings}:{}),...(textSettings?{textSettings}:{}) });
     const now = new Date().toISOString();
     await db.prepare(`INSERT INTO data_records (id,organization_id,campus_id,created_by_user_id,record_type,source_app,title,visibility,status,metadata_json,created_at,updated_at)
       VALUES (?,?,?,?,?,?,'콘텐츠 기본 문구',?,'active',?,?,?) ON CONFLICT(id) DO UPDATE SET metadata_json=json_patch(CASE WHEN json_valid(data_records.metadata_json) THEN data_records.metadata_json ELSE '{}' END,excluded.metadata_json),updated_at=excluded.updated_at
@@ -58,7 +93,7 @@ export async function contentDefaults(db: D1Database, context: DataCoreAccessCon
   const row = await db.prepare('SELECT metadata_json FROM data_records WHERE id=? AND organization_id=? AND record_type=? AND campus_id IS ? AND deleted_at IS NULL')
     .bind(id, ORG, CONTENT_DEFAULTS_TYPE, campusId).first<{ metadata_json: string }>();
   let stored; try { stored = JSON.parse(row?.metadata_json || '{}'); } catch { stored = {}; }
-  return { hashtags: typeof stored.hashtags === 'string' ? stored.hashtags : '', footer: typeof stored.footer === 'string' ? stored.footer : '',...(sourceApp==='blog'&&stored.blogSettings?{blogSettings:stored.blogSettings}:{}),...(sourceApp==='instagram'&&stored.instagramSettings?{instagramSettings:stored.instagramSettings}:{}) };
+  return { hashtags: typeof stored.hashtags === 'string' ? stored.hashtags : '', footer: typeof stored.footer === 'string' ? stored.footer : '',...(sourceApp==='blog'&&stored.blogSettings?{blogSettings:stored.blogSettings}:{}),...(sourceApp==='instagram'&&stored.instagramSettings?{instagramSettings:stored.instagramSettings}:{}),...(stored.textSettings&&typeof stored.textSettings==='object'?{textSettings:stored.textSettings}:{}) };
 }
 
 // A single conditional INSERT serializes the per-user lease across Worker isolates.

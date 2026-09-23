@@ -10,9 +10,9 @@
   <link rel="stylesheet" href="/data-core/layout-theme.css?v=20260909-bright-layout">
   <link rel="stylesheet" href="/data-core/design-tokens.css?v=20260913-soft-premium">
   <link rel="stylesheet" href="/data-core/design-system.css?v=20260913-soft-premium">
-  <link rel="stylesheet" href="/data-core/instagram-carousel.css?v=20260924-layers">
+  <link rel="stylesheet" href="/data-core/instagram-carousel.css?v=20260924-order">
   <link rel="stylesheet" href="/data-core/image-gallery.css?v=20260913-fast-images">
-  <link rel="stylesheet" href="/data-core/content-text-presets.css?v=20260922-presets">
+  <link rel="stylesheet" href="/data-core/content-text-presets.css?v=20260924-order">
   <link rel="stylesheet" href="/data-core/blog-workflow.css?v=20260923-unify2">
 </head>
 <body class="data-core-layout">
@@ -47,9 +47,9 @@
         </section>
         <section class="workflow-section">
           <label class="workflow-command"><span id="commandLabel">어떤 글을 만들까요?</span><textarea id="aiCommand" rows="5" maxlength="4000" placeholder="고1 칸만화 수업 사진입니다. 학생들이 인체와 장면 연출을 연습한 내용을 중심으로 학부모가 이해하기 쉽게 홍보 글을 작성해줘."></textarea></label>
-          <label id="strategyModeField"><span>글 방향</span><select id="strategyMode"><option value="balanced" selected>균형형</option><option value="search">검색형</option><option value="homefeed">홈피드형</option></select></label>
-          <div class="defaults-grid"><label><span>기본 해시태그</span><textarea id="defaultHashtags" rows="2" maxlength="2000"></textarea></label><label><span>하단 고정 문구</span><textarea id="defaultFooter" rows="2" maxlength="3000"></textarea></label></div>
-          <div class="defaults-actions"><span id="defaultsStatus" role="status"></span><button class="ghost-btn" id="saveDefaults" type="button">기본 문구 저장</button></div>
+          <div class="brief-grid"><label><span>핵심 메시지</span><input id="blogMessage" maxlength="1000"></label><label><span>독자</span><input id="blogReader" maxlength="160" placeholder="학부모, 학생"></label></div>
+          <label id="strategyModeField" hidden><span>글 방향</span><select id="strategyMode"><option value="balanced" selected>균형형</option><option value="search">검색형</option><option value="homefeed">홈피드형</option></select></label>
+          <div id="textSettingsMount"></div>
           <p id="aiPrivacy">선택한 사진과 입력한 명령만 OpenAI에 전송됩니다.</p>
           <div class="form-actions ai-actions"><button class="primary-btn" id="generateAi" type="button">AI로 블로그 글 작성</button><button class="ghost-btn" id="cancelAi" type="button" hidden>취소</button></div>
           <p id="aiStatus" role="status" aria-live="polite"></p>
@@ -113,7 +113,7 @@
   <script src="/data-core/library-thumbnail.js?v=20260921-performance"></script>
   <script src="/data-core/library-client.js?v=20260922-navigation"></script>
   <script src="/data-core/instagram-derivative.js?v=20260909-derivative-v1"></script>
-  <script type="module" src="/data-core/content.js?v=20260924-layers"></script>
+  <script type="module" src="/data-core/content.js?v=20260924-order"></script>
   <script src="/data-core/content-admin-nav.js?v=20260921-performance"></script>
   <script type="module" src="/data-core/design-shell.js?v=20260912-campus"></script>
 </body>
