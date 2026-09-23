@@ -39,6 +39,7 @@ type CalendarMetadata = {
   eventType: string;
   sourceRecordId?: string;
   sourceApp?: string;
+  holidayOverride?: boolean;
 };
 
 function cleanText(value: unknown, maxLength: number): string {
@@ -85,6 +86,10 @@ function calendarMetadata(value: unknown, fallback: Partial<CalendarMetadata> = 
   if (endTime && !startTime) throw new DataCoreAccessError(400, '시작 시간을 입력하세요.');
   if (startTime && endTime && endDate === startDate && endTime < startTime) throw new DataCoreAccessError(400, '종료 시간은 시작 시간과 같거나 이후여야 합니다.');
   const location = cleanText(input.location ?? fallback.location, 300);
+  // A campus teaching on a public holiday/closure: a class event marking that date as a normal lesson
+  // day, so 출석부 keeps it as a regular column instead of 휴.
+  const holidayOverride = (input.holidayOverride ?? fallback.holidayOverride) === true;
+  if (holidayOverride && eventType !== "class") throw new DataCoreAccessError(400, "공휴일 수업 표시는 수업 일정에만 쓸 수 있습니다.");
   return {
     schemaVersion: 1,
     startDate,
@@ -96,6 +101,7 @@ function calendarMetadata(value: unknown, fallback: Partial<CalendarMetadata> = 
     eventType,
     ...(sourceRecordId ? { sourceRecordId } : {}),
     ...(sourceApp ? { sourceApp } : {}),
+    ...(holidayOverride ? { holidayOverride } : {}),
   };
 }
 

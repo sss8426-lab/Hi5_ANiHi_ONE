@@ -6,7 +6,7 @@ import {rosterFixture,defaultClasses} from './helpers/attendance-roster-fixture.
 import {parseRoster,RosterError} from '../public/data-core/work/attendance-roster-parser.js';
 import {parseSchedule,monthColumns,plannedColumns,lessonCount,ScheduleError} from '../public/data-core/work/attendance-roster-schedule.js';
 import {buildRosterWorkbook,planRosterWorkbook,sheetNames,OUTPUT_HEADERS,COLORS,PRINT} from '../public/data-core/work/attendance-roster-export.js';
-import {holidayDates,fetchHolidays,holidaySummary} from '../public/data-core/work/attendance-holidays.js';
+import {holidayDates,holidayClassDates,fetchHolidays,fetchMonthHolidays,addHolidayClass,removeHolidayClass,holidaySummary} from '../public/data-core/work/attendance-holidays.js';
 import {columnName} from '../public/data-core/work/attendance-template.js';
 
 const env={DOMParser,XMLSerializer};
@@ -129,9 +129,13 @@ test('holidays come from CORE calendar events: no planned lesson, a blue-gray �
   assert.deepEqual([...map.keys()].sort(),['2026-09-01','2026-09-07','2026-09-24','2026-09-25','2026-09-26']);
   assert.equal(holidaySummary(map),'9/1 지난달 · 9/7 캠퍼스 휴무 · 9/24~26 추석 연휴');
   const calls=[];
-  const fetchImpl=async url=>{calls.push(url);const page=calls.length;return {ok:true,json:async()=>page===1?{events:events.slice(0,2),hasMore:true,nextCursor:'c1'}:{events:events.slice(2),hasMore:false}};};
+  const fetchImpl=async url=>{
+    if(/eventType=class/.test(url))return {ok:true,json:async()=>({events:[],hasMore:false})};
+    calls.push(url);const page=calls.length;return {ok:true,json:async()=>page===1?{events:events.slice(0,2),hasMore:true,nextCursor:'c1'}:{events:events.slice(2),hasMore:false}};
+  };
   const fetched=await fetchHolidays({year:2026,month:9,campusId:'campus-a',fetchImpl});
   assert.equal(calls.length,2);assert.match(calls[0],/from=2026-09-01&to=2026-09-30&eventType=holiday/);assert.match(calls[1],/cursor=c1/);
+  assert.doesNotMatch(calls[0],/campusId/,'organization holidays have no campus, so the holiday query is not campus-filtered');
   assert.deepEqual([...fetched.keys()].sort(),[...map.keys()].sort());
   await assert.rejects(fetchHolidays({year:2026,month:9,fetchImpl:async()=>({ok:false,json:async()=>({error:'권한 없음'})})}),/권한 없음/);
 
@@ -146,6 +150,61 @@ test('holidays come from CORE calendar events: no planned lesson, a blue-gray �
   });
   assert.equal(plan.columns.filter(c=>c.day===26).length,2,'휴 Saturday keeps both used slots');
   assert.match([...out.cells.values()].map(c=>c.value).join('|'),/공휴일·휴무: 9\/1 지난달/);
+});
+
+test('공휴일 수업: a campus can teach on a holiday; that date stays a normal lesson day for that campus only', async()=>{
+  const holidayEvents=[
+    {id:'h1',campusId:null,title:'개천절',metadata:{eventType:'holiday',startDate:'2026-10-03'}},
+    {id:'h2',campusId:null,title:'쉬는 날 개천절',metadata:{eventType:'holiday',startDate:'2026-10-05'}},
+    {id:'h3',campusId:null,title:'한글날',metadata:{eventType:'holiday',startDate:'2026-10-09'}},
+  ];
+  const classEvents=[
+    {id:'c1',campusId:'campus-a',title:'공휴일 수업 · 한글날',metadata:{eventType:'class',startDate:'2026-10-09',holidayOverride:true}},
+    {id:'c2',campusId:'campus-b',title:'공휴일 수업 · 개천절',metadata:{eventType:'class',startDate:'2026-10-03',holidayOverride:true}},
+    {id:'c3',campusId:'campus-a',title:'보강 수업',metadata:{eventType:'class',startDate:'2026-10-05'}},
+  ];
+  assert.deepEqual([...holidayClassDates(classEvents,{year:2026,month:10,campusId:'campus-a'})],[['2026-10-09','c1']]);
+  const requests=[];
+  const fetchImpl=async(url,init={})=>{
+    requests.push({url,method:init.method||'GET',body:init.body?JSON.parse(init.body):null});
+    if(init.method==='POST')return {ok:true,json:async()=>({event:{id:'new-event'}})};
+    if(init.method==='DELETE')return {ok:true,json:async()=>({ok:true})};
+    return {ok:true,json:async()=>({events:/eventType=class/.test(url)?classEvents.filter(e=>url.includes('campusId='+e.campusId)):holidayEvents,hasMore:false})};
+  };
+  const month=await fetchMonthHolidays({year:2026,month:10,campusId:'campus-a',fetchImpl});
+  assert.deepEqual([...month.all.keys()],['2026-10-03','2026-10-05','2026-10-09']);
+  assert.deepEqual([...month.classes.keys()],['2026-10-09']);
+  assert.deepEqual([...month.holidays.keys()],['2026-10-03','2026-10-05']);
+  assert.match(requests.find(r=>/eventType=class/.test(r.url)).url,/campusId=campus-a/);
+  // Another campus still has 한글날 off and teaches on 개천절 instead.
+  const other=await fetchMonthHolidays({year:2026,month:10,campusId:'campus-b',fetchImpl});
+  assert.deepEqual([...other.holidays.keys()],['2026-10-05','2026-10-09']);
+
+  // Saving and undoing the choice go through the CORE calendar as a campus class event.
+  assert.equal(await addHolidayClass({date:'2026-10-03',name:'개천절',campusId:'campus-a',fetchImpl}),'new-event');
+  const post=requests.find(r=>r.method==='POST');
+  assert.equal(post.url,'/api/data-core/calendar');
+  assert.deepEqual({title:post.body.title,campusId:post.body.campusId,visibility:post.body.visibility,metadata:post.body.metadata},
+    {title:'공휴일 수업 · 개천절',campusId:'campus-a',visibility:'campus',metadata:{startDate:'2026-10-03',eventType:'class',allDay:true,holidayOverride:true}});
+  await removeHolidayClass({id:'c1',fetchImpl});
+  assert.deepEqual(requests.filter(r=>r.method==='DELETE').map(r=>r.url),['/api/data-core/calendar/c1']);
+  await assert.rejects(addHolidayClass({date:'2026-10-03',name:'개천절',campusId:'campus-a',fetchImpl:async()=>({ok:false,json:async()=>({error:'권한이 없습니다'})})}),/권한이 없습니다/);
+
+  // The workbook: 10/9 is a regular column with planned lessons, 10/3·10/5 are 휴, and the footer says so.
+  const roster=parse({classes:[{name:'A반',students:[student('가','월금토1')]}]});
+  const classDays=new Map([...month.all].filter(([d])=>month.classes.has(d)));
+  const plan=planRosterWorkbook(roster,{year:2026,month:10,holidays:month.holidays,classDays});
+  const cols=plan.sheets[0].columns,planned=plan.sheets[0].students[0].planned;
+  const at=day=>cols.map((c,i)=>({...c,planned:planned[i]})).filter(c=>c.day===day);
+  assert.equal(at(9)[0].holiday,null);assert.equal(at(9)[0].planned,true,'금 10/9 is a lesson');
+  assert.equal(at(5)[0].holiday,'쉬는 날 개천절');assert.equal(at(5)[0].planned,false);
+  assert.equal(at(3)[0].holiday,'개천절');assert.equal(at(3)[0].planned,false);
+  // 월 4(-1) + 금 5 + 토1 5(-1) = 12 → "12"
+  assert.equal(plan.sheets[0].students[0].count.label,'12');
+  const out=openOutput(buildRosterWorkbook(roster,{year:2026,month:10,holidays:month.holidays,classDays}).bytes).sheets[0];
+  const text=[...out.cells.values()].map(c=>c.value).join('|');
+  assert.match(text,/공휴일·휴무: 10\/3 개천절 · 10\/5 쉬는 날 개천절/);
+  assert.match(text,/공휴일 수업\(정상 수업\): 10\/9 한글날/);
 });
 
 // ---------- workbook structure ----------

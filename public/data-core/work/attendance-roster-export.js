@@ -4,7 +4,7 @@
 import {zipSync,strToU8} from '../vendor/fflate-0.8.3.js';
 import {columnName} from './attendance-template.js?v=20260919-sparse-import';
 import {monthColumns,plannedColumns,lessonCount,SLOT_ORDER} from './attendance-roster-schedule.js?v=20260924-roster';
-import {holidaySummary} from './attendance-holidays.js?v=20260924-roster';
+import {holidaySummary} from './attendance-holidays.js?v=20260924-class-days';
 
 export const OUTPUT_HEADERS=['No','이름','학교','학년','학생연락처','학부모연락처','등록일','수업요일','일수'];
 const INFO_WIDTHS=[3.5,6.5,7.5,3.5,8.5,9,6.5,10,4.5],DATE_WIDTH=2;
@@ -29,7 +29,7 @@ export function sheetNames(names){
 }
 
 /** Everything a sheet shows, shared by the Excel writer and the on-screen preview. */
-export function planRosterWorkbook(roster,{year,month,holidays=new Map()}){
+export function planRosterWorkbook(roster,{year,month,holidays=new Map(),classDays=new Map()}){
   const names=sheetNames(roster.classes.map(c=>c.name));
   const sheets=roster.classes.map((group,i)=>{
     const used=new Set(group.students.flatMap(s=>s.schedule?.slots||[]));
@@ -37,7 +37,7 @@ export function planRosterWorkbook(roster,{year,month,holidays=new Map()}){
     const students=group.students.map(s=>{const planned=plannedColumns(s.schedule,columns);return {...s,planned,count:lessonCount(s.schedule,planned)};});
     return {name:names[i],className:group.name,columns,students};
   });
-  return {campus:roster.campus,year,month,holidays,sheets,holidayNote:holidaySummary(holidays)};
+  return {campus:roster.campus,year,month,holidays,sheets,holidayNote:holidaySummary(holidays),classDayNote:holidaySummary(classDays)};
 }
 
 function styleBook(){
@@ -123,6 +123,7 @@ function sheetXml(sheet,plan,styles,sheetIndex){
   let noteRow=lastRow+1;
   row(noteRow,11,span(noteRow,'파란색 = 예정 수업 · 일수 = 4주 기준 수업수 ± 이 달 실제 예정 수업 차이 · A4 가로 1페이지 폭, 학생이 많으면 세로 다음 장',noteStyle));merges.push(`A${noteRow}:${last}${noteRow}`);
   if(plan.holidayNote){noteRow++;row(noteRow,11,span(noteRow,`공휴일·휴무: ${plan.holidayNote}`,noteStyle));merges.push(`A${noteRow}:${last}${noteRow}`);}
+  if(plan.classDayNote){noteRow++;row(noteRow,11,span(noteRow,`공휴일 수업(정상 수업): ${plan.classDayNote}`,noteStyle));merges.push(`A${noteRow}:${last}${noteRow}`);}
   const cols=[...INFO_WIDTHS.map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`),columns.length?`<col min="${FIRST_DATE_COLUMN}" max="${lastColumn}" width="${DATE_WIDTH}" customWidth="1"/>`:''].join('');
   const plannedRef=`${columnName(FIRST_DATE_COLUMN)}${FIRST_STUDENT_ROW}:${last}${lastRow}`;
   const m=PRINT.margins;

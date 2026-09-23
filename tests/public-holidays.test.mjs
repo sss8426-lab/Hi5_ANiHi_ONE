@@ -113,6 +113,24 @@ test('설날·추석 always get the day before and after, even when the feed lis
   } finally {await h.mf.dispose();}
 });
 
+test('공휴일 수업 marks are campus class events that keep holidayOverride; only class events may carry it', async()=>{
+  const h=await libraryHarness();
+  try{
+    const body={title:'공휴일 수업 · 한글날',campusId:A,visibility:'campus',metadata:{startDate:`${year}-10-09`,eventType:'class',allDay:true,holidayOverride:true}};
+    const created=await h.request('POST','/api/data-core/calendar',users.campusAdmin,body);
+    assert.equal(created.status,201,JSON.stringify(created.body));
+    assert.equal(created.body.event.metadata.holidayOverride,true);assert.equal(created.body.event.campusId,A);assert.equal(created.body.event.canManage,true);
+    const listed=await h.request('GET',`/api/data-core/calendar?from=${year}-10-01&to=${year}-10-31&eventType=class&campusId=${A}`,users.campusAdmin);
+    assert.deepEqual(listed.body.events.map(e=>[e.title,e.metadata.holidayOverride]),[['공휴일 수업 · 한글날',true]]);
+    // Another campus never sees or changes it.
+    assert.equal((await h.request('GET',`/api/data-core/calendar?from=${year}-10-01&to=${year}-10-31&eventType=class&campusId=${A}`,users.foreign)).status,403);
+    assert.equal((await h.request('POST','/api/data-core/calendar',users.campusAdmin,{...body,metadata:{...body.metadata,eventType:'holiday'}})).status,400);
+    assert.equal((await h.request('DELETE',`/api/data-core/calendar/${created.body.event.id}`,users.campusAdmin)).status,200);
+    const after=await h.request('GET',`/api/data-core/calendar?from=${year}-10-01&to=${year}-10-31&eventType=class&campusId=${A}`,users.campusAdmin);
+    assert.equal(after.body.events.length,0);
+  } finally {await h.mf.dispose();}
+});
+
 test('the daily cron handler runs the same sync', async()=>{
   const h=await libraryHarness();
   try{
