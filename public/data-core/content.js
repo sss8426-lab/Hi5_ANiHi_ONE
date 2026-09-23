@@ -3,7 +3,7 @@ import {mountAiUsage} from './ai-usage.js?v=20260921-performance';
 import {mountTextPresets} from './content-text-presets.js?v=20260924-order';
 import {normalizeTags} from './content-preset-catalog.js';
 import {captionTail,assemblePost} from './content-caption.js?v=20260924-order';
-import {mountBlogWorkflow} from './blog-workflow.js?v=20260924-order';
+import {mountBlogWorkflow} from './blog-workflow.js?v=20260924-order2';
 import {optimizeImageForAi} from './image-ai-optimize.js?v=20260923-imgfix';
 
 const state = {
@@ -996,7 +996,7 @@ async function init() {
     void loadDefaults();void loadAiStatus();
     const listing=loadFiles();
     if(state.sourceApp==='instagram'){
-      const {mountInstagramProduction}=await import('/data-core/instagram-carousel.js?v=20260924-order');
+      const {mountInstagramProduction}=await import('/data-core/instagram-carousel.js?v=20260924-order2');
       instagramProduction=mountInstagramProduction({state,api,$,toast,canWrite,text:()=>textPresets.values(),renderSelection:()=>{renderSelectedFiles();renderFilePicker();}});
       instagramProduction.applyDefaults(lastInstagramSettings);
       instagramProduction.refresh();

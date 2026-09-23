@@ -29,6 +29,8 @@ export function mountBlogWorkflow({state,$,toast,renderSelection,managed=()=>({g
   strategyModeField.querySelector('span').textContent='글 방향';
   setup.querySelector('#blogMoreRequest').append(strategyModeField);
   strategyModeField.hidden=true;
+  // Nothing in it is shown on the main screen any more (kept only so older posts round-trip).
+  setup.hidden=true;
   document.querySelector('.workflow-command').after(setup);
   $('blogBottom').closest('.blog-fields').insertAdjacentHTML('beforeend','<label>정렬<select id="blogAlign"><option value="left">왼쪽</option><option value="center">가운데</option></select></label><label>문단 여백<select id="blogSpacing"><option value="16">16px</option><option value="24" selected>24px</option><option value="32">32px</option></select></label><label>서체<select id="blogFont"><option value="sans-serif">고딕</option><option value="serif">명조</option></select></label><label>연락처<select id="blogContactMode"><option value="verified">확인된 연락처</option><option value="none">표시 안 함</option></select></label>');
   const result=document.createElement('section');result.className='blog-workflow';result.id='blogComplete';

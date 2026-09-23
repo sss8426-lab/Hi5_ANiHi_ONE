@@ -126,6 +126,20 @@ test('Instagram caption keeps its app-managed 인사말 (head) and tail so setti
   }finally{await h.mf.dispose();}
 });
 
+test('every element the content screens look up by id still exists after the layout change',()=>{
+  // Regression (found in the browser): the Instagram module still labeled the old fixed-text fields and
+  // stopped mounting ("자동화 작업실을 시작하지 못했습니다").
+  const files=['content.js','blog-workflow.js','instagram-carousel.js','content-text-presets.js','blog-cover.js'].map(name=>fs.readFileSync('public/data-core/'+name,'utf8'));
+  const defined=new Set();
+  for(const source of [fs.readFileSync('public/data-core/content.html','utf8'),...files])for(const m of source.matchAll(/id="([A-Za-z][\w-]*)"|(?:command|btnHtml)\('(\w+)'/g))defined.add(m[1]||m[2]);
+  const presets=files[3];for(const m of presets.matchAll(/'((?:default|setting)[A-Z]\w+)'/g))defined.add(m[1]);
+  for(const m of presets.matchAll(/id:'(\w+)'/g))defined.add(m[1]);defined.add('saveDefaults');
+  const missing=[];
+  files.forEach((source,i)=>{for(const m of source.matchAll(/\$\('([A-Za-z][\w-]*)'\)/g))if(!defined.has(m[1]))missing.push(`${['content.js','blog-workflow.js','instagram-carousel.js','content-text-presets.js','blog-cover.js'][i]}: ${m[1]}`);});
+  assert.deepEqual([...new Set(missing)],[]);
+  assert.doesNotMatch(files[2],/\$\('default(?:Hashtags|Footer)'\)\.closest\(/);
+});
+
 test('main screens show exactly the attached layout: no 양식/마무리 summary rows, brand dropdown or 추천 설정 panel',()=>{
   const html=fs.readFileSync('public/data-core/content.html','utf8'),blog=fs.readFileSync('public/data-core/blog-workflow.js','utf8');
   const ig=fs.readFileSync('public/data-core/instagram-carousel.js','utf8'),presets=fs.readFileSync('public/data-core/content-text-presets.js','utf8');

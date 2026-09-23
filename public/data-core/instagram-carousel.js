@@ -44,8 +44,6 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,text=()=>({
     <section id="igCaptionSection" hidden><h2>인스타 홍보용 글 <span id="igCaptionState" class="ig-caption-state" data-state="none">작성 전</span></h2><textarea id="igCaptionText" rows="8" maxlength="12000" aria-label="인스타 홍보용 글"></textarea><div class="form-actions"><button id="igCopy" type="button" class="secondary-btn">문구 복사</button><button id="igCaptionSave" type="button" class="ghost-btn">문구 저장</button><button id="igCaptionRetry" type="button" class="ghost-btn" hidden>홍보글 작성</button></div><p id="igCaptionStatus" role="status" aria-live="polite"></p></section>`;
   section.after(result);
   const history=document.createElement('details');history.className='workflow-details';history.innerHTML='<summary>저장한 이미지 세트</summary><div id="igHistory"></div>';result.after(history);
-  $('defaultHashtags').closest('label').querySelector('span').textContent='고정 해시태그';
-  $('defaultFooter').closest('label').querySelector('span').textContent='고정 마지막 문구';
   $('defaultHashtags').placeholder='#학원소식 #수업기록';$('defaultFooter').placeholder='문의 안내 등 마지막에 넣을 문구';
   let logoType='anihi',policy=null,policyEpoch=0,generation=0,busy=false,items=[],currentSet=null,controller=null,selected='',signature='',requestId='',activeIndex=0;
   // ids: the full selection this batch was started for, in original order — slide/download numbering
