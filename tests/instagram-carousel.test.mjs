@@ -156,6 +156,29 @@ test('batch info written on each draft survives, is found by batch id, and stays
   }finally{await h.mf.dispose();}
 });
 
+test('a set keeps the AI\'s own caption tags apart from the fixed tags, so "현재 결과에 적용" can keep them',async()=>{
+  const h=await libraryHarness();
+  try{
+    const folder=(await h.folder('category:'+A+':class-photo','SYNTHETIC tags',users.staff)).body.folder;
+    const file=(await h.upload(folder.id,users.staff,{name:'SYNTHETIC-tags.png',mime:'image/png',bytes:png(40,50)})).body.file;
+    const draft=(await h.request('POST','/api/data-core/content',users.staff,{sourceApp:'instagram',campusId:A,title:'SYNTHETIC',relatedFileIds:[file.id],metadata:{instagramDesign:material}})).body.draft;
+    const base='/api/data-core/content/instagram/'+draft.id,review=await h.request('GET',base+'/review',users.staff);
+    const form=new FormData();form.set('file',new Blob([png(2160,2700)],{type:'image/png'}),'master.png');form.set('fingerprint',review.body.fingerprint);
+    const render=(await h.request('POST',base+'/render',users.staff,form)).body;
+    const set=(await h.request('POST','/api/data-core/content/instagram-sets',users.staff,{requestId:crypto.randomUUID(),items:[{draftId:draft.id,renderId:render.renderId,fingerprint:render.fingerprint}]})).body;
+    const resource='/api/data-core/content/instagram-sets/'+encodeURIComponent(set.id);
+    const tail='문의 DM\n\n#고정태그 #AI태그';
+    assert.equal((await h.request('PATCH',resource,users.staff,{caption:'본문\n\n'+tail,managedTail:tail,generatedTags:['AI태그']})).status,200);
+    assert.deepEqual((await h.request('GET',resource,users.staff)).body.generatedTags,['AI태그']);
+    // Malformed tags are never stored, and tags without a verified tail boundary are not kept either.
+    await h.request('PATCH',resource,users.staff,{caption:'본문\n\n'+tail,managedTail:tail,generatedTags:[{bad:1}]});
+    assert.deepEqual((await h.request('GET',resource,users.staff)).body.generatedTags,[]);
+    await h.request('PATCH',resource,users.staff,{caption:'직접 고친 글',managedTail:tail,generatedTags:['AI태그']});
+    const edited=(await h.request('GET',resource,users.staff)).body;
+    assert.equal(edited.managedTail,null);assert.deepEqual(edited.generatedTags,[]);
+  }finally{await h.mf.dispose();}
+});
+
 test('text-only captions never transmit artwork and verify campus before provider access',async()=>{
   const h=await libraryHarness(),previous=globalThis.fetch;let calls=0;
   try{

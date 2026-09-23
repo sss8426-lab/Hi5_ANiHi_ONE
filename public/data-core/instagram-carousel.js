@@ -56,6 +56,8 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
   let imageState='new',hasSaved=false;
   let captionBusy=false,captionEpoch=0,captionController=null;
   let managedTail=null;
+  // The AI's own tags for the open caption; "현재 결과에 적용" swaps only the campus's fixed tags.
+  let generatedTags=[];
   function captionLock(value){captionBusy=value;for(const id of ['igCaptionText','igCaptionSave','igCaptionRetry'])$(id).disabled=value;}
   const backgrounds=new Map();
   const previewUrl=item=>localPreview?.fileId===item.masterFileId?localPreview.url:'/api/data-core/files/'+encodeURIComponent(item.masterFileId);
@@ -87,7 +89,7 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
     $('igGenerate').textContent=originalMode()||preserved===state.selectedFileIds.length?'이미지 만들기':'AI로 이미지 만들기';$('igCancel').hidden=!busy||!controller;
     $('igRetryFailed').hidden=!failures.length;$('igRetryFailed').disabled=busy; }
   function lock(value){busy=value;state.busy=value;$('photoHeading').closest('.workflow-section').inert=value;command.inert=value;$('igLogos').inert=value;$('igMode').disabled=value;history.inert=value;result.querySelectorAll('button,textarea').forEach(el=>el.disabled=value);buttons();}
-  function clear(keepBackgrounds=false){managedTail=null;captionEpoch++;captionController?.abort();captionLock(false);if(keepBackgrounds!==true)backgrounds.clear();releasePreview();generation++;items=[];currentSet=null;signature='';requestId='';imageState='new';ids=[];failures=[];itemStatus=new Map();batchInfo=null;restoredBatch=false;result.hidden=true;$('igProgressWrap').hidden=true;$('igProgress').value=0;$('igPercent').textContent='0%';$('igItemStatuses').hidden=true;$('igItemStatuses').replaceChildren();$('igPreview').removeAttribute('src');$('igSlides').replaceChildren();$('igDownloads').replaceChildren();$('igCaptionSection').hidden=true;$('igCaptionText').value='';$('igCaptionStatus').textContent='';$('igStatus').textContent=hasSaved?'변경사항 미저장':'';$('igSaved').textContent=hasSaved?'변경사항 미저장':'저장 전';$('igCaptionRetry').hidden=true;buttons();}
+  function clear(keepBackgrounds=false){managedTail=null;generatedTags=[];captionEpoch++;captionController?.abort();captionLock(false);if(keepBackgrounds!==true)backgrounds.clear();releasePreview();generation++;items=[];currentSet=null;signature='';requestId='';imageState='new';ids=[];failures=[];itemStatus=new Map();batchInfo=null;restoredBatch=false;result.hidden=true;$('igProgressWrap').hidden=true;$('igProgress').value=0;$('igPercent').textContent='0%';$('igItemStatuses').hidden=true;$('igItemStatuses').replaceChildren();$('igPreview').removeAttribute('src');$('igSlides').replaceChildren();$('igDownloads').replaceChildren();$('igCaptionSection').hidden=true;$('igCaptionText').value='';$('igCaptionStatus').textContent='';$('igStatus').textContent=hasSaved?'변경사항 미저장':'';$('igSaved').textContent=hasSaved?'변경사항 미저장':'저장 전';$('igCaptionRetry').hidden=true;buttons();}
   async function logos(){
     const campusId=$('draftCampus').value;
     if(policy?.campusId===campusId&&$('igLogos').children.length===Object.keys(LOGOS).length)return;
@@ -525,7 +527,7 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
           title ||= generated.title;body += (body?'\n':'')+(generated.body||generated.content||'');tags.push(...(generated.hashtags||generated.keywords||[]));
       }
       if(!valid())return;
-      managedTail=captionTail(footer,hashtags,tags,contactBlock);
+      generatedTags=normalizeTags(tags);managedTail=captionTail(footer,hashtags,generatedTags,contactBlock);
       $('igCaptionText').value=assembleCaption([title,body].filter(Boolean).join('\n\n'),footer,hashtags,tags,contactBlock);
       $('igCaptionStatus').textContent='홍보글 저장 중…';
       await saveCaption(target.id,$('igCaptionText').value,abort.signal);
@@ -534,7 +536,7 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
     }catch{if(valid()){$('igCaptionStatus').textContent='이미지 저장은 완료되었습니다. 홍보글은 작성하지 못했습니다. 다시 작성하거나 직접 입력할 수 있습니다.';$('igCaptionRetry').hidden=false;}}
     finally{if(valid()){captionController=null;captionLock(false);}}
   }
-  async function saveCaption(id,text,signal){assertResolvedText(text);await api('/api/data-core/content/instagram-sets/'+encodeURIComponent(id),{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({caption:text,managedTail}),signal});}
+  async function saveCaption(id,text,signal){assertResolvedText(text);await api('/api/data-core/content/instagram-sets/'+encodeURIComponent(id),{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({caption:text,managedTail,generatedTags}),signal});}
   $('igComplete').onclick=async()=>{
     if(busy||currentSet||signature!==snapshot()||items.length!==state.selectedFileIds.length)return;
     imageState='saving';lock(true);$('igSaved').textContent='저장 중…';let completed=false;
@@ -551,7 +553,7 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
     const campusId=$('draftCampus').value;$('igHistory').textContent='불러오는 중...';
     try{const data=await api('/api/data-core/content/instagram-sets?campusId='+encodeURIComponent(campusId));if(campusId!==$('draftCampus').value||!history.open)return;$('igHistory').replaceChildren(...data.sets.map(item=>{
       const button=document.createElement('button');button.type='button';button.className='ghost-btn';button.textContent=`${item.title} · ${item.createdAt.slice(0,10)}`;
-      button.onclick=async()=>{if(busy)return;lock(true);try{const saved=await api('/api/data-core/content/instagram-sets/'+encodeURIComponent(item.id));clear();hideResume();currentSet=saved;managedTail=saved.managedTail??null;items=saved.items;preview();await downloads();$('igSaved').textContent='저장된 최종본';$('igCaptionText').value=saved.caption;$('igCaptionSection').hidden=false;}catch(error){toast(error.message,'error');}finally{lock(false);}};return button;
+      button.onclick=async()=>{if(busy)return;lock(true);try{const saved=await api('/api/data-core/content/instagram-sets/'+encodeURIComponent(item.id));clear();hideResume();currentSet=saved;managedTail=saved.managedTail??null;generatedTags=Array.isArray(saved.generatedTags)?saved.generatedTags:[];items=saved.items;preview();await downloads();$('igSaved').textContent='저장된 최종본';$('igCaptionText').value=saved.caption;$('igCaptionSection').hidden=false;}catch(error){toast(error.message,'error');}finally{lock(false);}};return button;
     }));if(!data.sets.length)$('igHistory').textContent='저장된 이미지 세트가 없습니다.';}catch(error){if(campusId===$('draftCampus').value)$('igHistory').textContent=error.message;}
   }
   history.ontoggle=loadHistory;
@@ -559,7 +561,7 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
   function applyText({footer,hashtags,contact}){
     if(captionBusy||busy)throw Error('진행 중 작업이 끝난 후 적용하세요.');
     if($('igCaptionSection').hidden)throw Error('저장된 이미지 세트의 홍보글을 먼저 열어주세요.');
-    const tail=captionTail(footer,hashtags,[],contact);
+    const tail=captionTail(footer,hashtags,generatedTags,contact);
     if(managedTail===null&&!confirm('기존 글의 문구 경계를 확인할 수 없습니다. 현재 본문을 유지하고 마지막에 새 문구·태그를 추가할까요?'))throw Error('현재 결과를 유지했습니다.');
     $('igCaptionText').value=replaceManagedTail($('igCaptionText').value,managedTail,tail);managedTail=tail;$('igCaptionStatus').textContent='문구 변경사항 미저장';
   }

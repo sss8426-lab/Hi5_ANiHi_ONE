@@ -129,13 +129,14 @@ test('client-optimized upload bypasses the R2 original size cap, still enforces 
 test('instagram caption sends client-optimized copies too — an oversized original no longer 413s the caption',async()=>{
   const width=64,height=80,simple=encode({width,height,channels:3,depth:8,data:new Uint8Array(width*height*3).fill(90)});
   const oversizedOriginal=new Uint8Array(8*1024*1024+1024);
-  let calls=0,sentImages=[];
+  let calls=0,sentImages=[],upstreamStatus=200;
   const names=['index.js',...(await readdir('dist/server',{recursive:true})).filter(n=>n.endsWith('.js')&&n!=='index.js')];
   const mf=new Miniflare({modules:names.map(n=>({type:'ESModule',path:path.resolve('dist/server',n)})),modulesRoot:path.resolve('dist/server'),
     compatibilityDate:'2026-05-15',compatibilityFlags:['nodejs_compat'],d1Databases:['DB','FAMILY_DB'],r2Buckets:['FILES','FAMILY_FILES'],
     bindings:{DATA_CORE_SUPER_ADMIN_EMAILS:'edge3@example.test',OPENAI_API_KEY:'synthetic-only'},outboundService:async request=>{
       assert.equal(request.url,'https://api.openai.com/v1/responses');
       calls++;
+      if(upstreamStatus!==200)return new Response('upstream failure',{status:upstreamStatus});
       const body=await request.json();
       sentImages=body.input[0].content.filter(c=>c.type==='input_image').map(c=>Buffer.from(c.image_url.split(',')[1],'base64'));
       return Response.json({status:'completed',usage:{},output:[{type:'message',content:[{type:'output_text',text:JSON.stringify({title:'SYNTHETIC',body:'SYNTHETIC 본문',hashtags:['합성'],cta:'문의'})}]}]});
@@ -175,5 +176,11 @@ test('instagram caption sends client-optimized copies too — an oversized origi
     const wrongCampusRes=await request('/api/data-core/content/generate',wrongCampus);// Rejected by the existing same-campus rule before any permission or AI work.
     assert.equal(wrongCampusRes.status,400,JSON.stringify(wrongCampusRes.body));
     assert.equal(calls,1,'rejected requests never reach OpenAI');
+    // An AI-server failure says which step failed instead of one generic message.
+    upstreamStatus=500;
+    const failedForm=new FormData();failedForm.set('input',JSON.stringify({...input,requestId:crypto.randomUUID()}));failedForm.set('photo:'+id,new Blob([simple],{type:'image/png'}),id+'.jpg');
+    const failed=await request('/api/data-core/content/generate',failedForm);
+    assert.equal(failed.status,502,JSON.stringify(failed.body));assert.equal(failed.body.code,'provider_error');
+    assert.match(failed.body.error,/AI 서버 응답 500/u);
   }finally{await mf.dispose();}
 });
