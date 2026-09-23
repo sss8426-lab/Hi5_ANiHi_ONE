@@ -11,6 +11,7 @@ import { LibraryTree, LibraryFolder, LIBRARY_FOLDER, HQ_FOLDER, LIBRARY_SOURCE, 
 import { SIMPLE_UPLOAD_MAX_BYTES, startLibraryMultipartUpload, uploadLibraryMultipartPart,
   completeLibraryMultipartUpload, abortLibraryMultipartUpload, parseUploadedParts } from './data-core-library-multipart';
 import { moveLibraryItems } from './library-move';
+import { AWARD_FOLDER, AWARD_DEPTH, awardMetadata } from './data-core-awards';
 import { acquireLibraryWrite } from './library-write-lease';
 import { runLibraryUploadRequest } from './library-upload-request';
 
@@ -214,8 +215,31 @@ async function renameFolder(tree: LibraryTree, id: string, input: Record<string,
   return { ok: true, id, title };
 }
 
+// A file whose own folder — or, for 공모전 files, any award folder above it — was deleted belongs to no
+// folder any more. It must not surface in a default category folder, counts, 최근 업로드 or pickers,
+// where the generation/export permission check (canReadRegisteredFile) would refuse it anyway. It
+// comes back by itself when that folder is restored from its trash.
+const deletedOwners = new WeakMap<LibraryTree, Map<string, Promise<boolean>>>();
+function ownerDeleted(tree: LibraryTree, id: string) {
+  if (!deletedOwners.has(tree)) deletedOwners.set(tree, new Map());
+  const cache = deletedOwners.get(tree)!;
+  if (!cache.has(id)) cache.set(id, (async () => {
+    let record = await tree.row(id);
+    if (!record) return Boolean(await tree.db.prepare('SELECT 1 AS gone FROM data_records WHERE id = ? AND organization_id = ? AND deleted_at IS NOT NULL').bind(id, ORG).first());
+    for (let depth = 0; record.record_type === AWARD_FOLDER && depth < AWARD_DEPTH; depth++) {
+      const parent = awardMetadata(record).parentFolderId;
+      if (typeof parent !== 'string' || !parent) return false;
+      const next = await tree.row(parent);
+      if (!next) return true;
+      record = next;
+    }
+    return false;
+  })());
+  return cache.get(id)!;
+}
 async function fileFolder(tree: LibraryTree, row: Record<string, any>) {
   if (row.data_record_id) {
+    if (await ownerDeleted(tree, String(row.data_record_id))) error(403, '삭제된 폴더의 파일입니다. 폴더를 복원하면 다시 보입니다.');
     const record = await tree.row(row.data_record_id);
     if (record && [HQ_FOLDER, LIBRARY_FOLDER].includes(record.record_type)) return tree.resolve(record.id);
     if (record && /family|kkumeum/i.test(`${record.record_type} ${record.source_app}`)) error(403, '자료보관함 파일이 아닙니다.');
@@ -350,7 +374,7 @@ async function fileCounts(tree:LibraryTree, folders:LibraryFolder[]) {
   const ids=folders.map(f=>f.id), legacy=folders.filter(f=>f.id.startsWith('category:')).map(f=>f.category!);
   const linked = "dr.record_type IN ('library-folder','hq-library-folder')";
   const effective = `CASE WHEN ${linked} THEN fo.data_record_id END`;
-  const rows = (await tree.db.prepare(`SELECT ${effective} AS data_record_id, fo.campus_id, fo.category, fo.source_app,
+  const rows = (await tree.db.prepare(`SELECT ${effective} AS data_record_id, fo.data_record_id AS owner_record_id, fo.campus_id, fo.category, fo.source_app,
     fo.visibility, fo.area, fo.owner_user_id, fo.organization_id, COUNT(*) AS n
     FROM file_objects fo LEFT JOIN data_records dr ON dr.id = fo.data_record_id
     WHERE fo.organization_id = ? AND fo.campus_id IS ? AND fo.deleted_at IS NULL
@@ -358,11 +382,14 @@ async function fileCounts(tree:LibraryTree, folders:LibraryFolder[]) {
     AND fo.source_app NOT LIKE '%family%' AND fo.source_app NOT LIKE '%kkumeum%' AND fo.r2_key NOT LIKE 'family/%' AND fo.r2_key NOT LIKE 'kkumeum/%'
     AND COALESCE(dr.record_type,'') NOT LIKE '%family%' AND COALESCE(dr.record_type,'') NOT LIKE '%kkumeum%'
     AND COALESCE(dr.source_app,'') NOT LIKE '%family%' AND COALESCE(dr.source_app,'') NOT LIKE '%kkumeum%'
-    GROUP BY ${effective}, fo.campus_id, fo.category, fo.source_app, fo.visibility, fo.area, fo.owner_user_id`)
+    GROUP BY ${effective}, fo.data_record_id, fo.campus_id, fo.category, fo.source_app, fo.visibility, fo.area, fo.owner_user_id`)
     .bind(ORG, folders[0].campusId, ...ids, ...legacy).all<Record<string,unknown>>()).results || [];
   const wanted = new Set(folders.map(f => f.id));
   for (const row of rows) {
-    try { const f = await fileFolder(tree, row); if (wanted.has(f.id) && libraryFileReadable(tree.context,f,row)) counts.set(f.id,(counts.get(f.id)||0)+Number(row.n)); }
+    try {
+      // Same rule as listing: files of a deleted folder are not counted anywhere.
+      if (row.owner_record_id && await ownerDeleted(tree, String(row.owner_record_id))) continue;
+      const f = await fileFolder(tree, row); if (wanted.has(f.id) && libraryFileReadable(tree.context,f,row)) counts.set(f.id,(counts.get(f.id)||0)+Number(row.n)); }
     catch(e) { if (!(e instanceof DataCoreAccessError)) throw e; }
   }
   return counts;
