@@ -25,6 +25,9 @@
 .ig-progress output{font-variant-numeric:tabular-nums;min-width:4ch;text-align:right;}
 .ig-progress progress{display:block;width:100%;height:12px;margin-top:8px;accent-color:var(--primary);}
 #igSourceNotice{overflow-wrap:anywhere;color:var(--muted);}
+.ig-resume{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:12px 0;padding:12px 14px;border:1px solid var(--primary);border-radius:6px;background:#fff;}
+.ig-resume[hidden]{display:none;}
+.ig-resume span{flex:1 1 240px;overflow-wrap:anywhere;}
 .ig-item-statuses{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
 .ig-item-statuses[hidden]{display:none;}
 .ig-item-status{font-size:13px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--muted);}

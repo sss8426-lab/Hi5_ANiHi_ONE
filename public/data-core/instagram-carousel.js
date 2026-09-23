@@ -7,7 +7,7 @@ import {Zip,ZipPassThrough} from './vendor/fflate-0.8.3.js';
 
 const btnHtml=(id,label)=>`<button type="button" class="ghost-btn" id="${id}">${label}</button>`;
 
-export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=>''}) {
+export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=>'',renderSelection=()=>{}}) {
   document.body.classList.add('instagram-carousel-mode');
   const command=$('aiCommand').closest('.workflow-section'),section=document.createElement('section');
   section.className='workflow-section ig-carousel';section.id='instagramProduction';
@@ -19,7 +19,7 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
       <h3>나만의 로고 선택</h3>
       <div id="igCustomLogos" class="ig-logo-options" role="group" aria-label="나만의 로고"></div>
       <div class="blog-actions">
-        <input type="file" id="igLogoFile" accept="image/png,image/jpeg,image/webp" hidden>
+        <input type="file" id="igLogoFile" accept="image/png,image/jpeg,image/webp,image/svg+xml,.svg" hidden>
         ${btnHtml('igUploadLogo','로고 올리기')}
         <button type="button" class="ghost-btn hidden" id="igMoreLogos">더 보기</button>
       </div>
@@ -29,6 +29,7 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
       <span id="igTemplateStatus" role="status"></span>
     </dialog>
     <p id="igSourceNotice" role="status" hidden></p>
+    <div id="igResume" class="ig-resume" role="status" hidden><span id="igResumeText"></span><button type="button" id="igResumeGo" class="secondary-btn">이어서 하기</button><button type="button" id="igResumeDismiss" class="ghost-btn">닫기</button></div>
     <div class="form-actions"><button type="button" id="igGenerate" class="primary-btn" disabled>이미지 만들기</button><button type="button" id="igCancel" class="ghost-btn" hidden>중단</button><button type="button" id="igRetryFailed" class="ghost-btn" hidden>실패한 항목만 다시 시도</button></div>
     <div id="igProgressWrap" class="ig-progress" hidden><label for="igProgress">전체 단계 진행률 <output id="igPercent">0%</output></label><progress id="igProgress" max="100" value="0"></progress></div>
     <div id="igItemStatuses" class="ig-item-statuses" role="status" hidden></div>
@@ -48,6 +49,8 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
   // ids: the full selection this batch was started for, in original order — slide/download numbering
   // and retry-only-failed both key off this fixed order, independent of completion order.
   let ids=[],failures=[],itemStatus=new Map();
+  // batchInfo is written onto every draft of the batch (see processOne) so it can be resumed later.
+  let batchInfo=null,restoredBatch=false;
   let campusDefaultLogoType='anihi',campusDefaultMode='original',templateSnapshot=null;
   let localPreview=null;
   let imageState='new',hasSaved=false;
@@ -84,7 +87,7 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
     $('igGenerate').textContent=originalMode()||preserved===state.selectedFileIds.length?'이미지 만들기':'AI로 이미지 만들기';$('igCancel').hidden=!busy||!controller;
     $('igRetryFailed').hidden=!failures.length;$('igRetryFailed').disabled=busy; }
   function lock(value){busy=value;state.busy=value;$('photoHeading').closest('.workflow-section').inert=value;command.inert=value;$('igLogos').inert=value;$('igMode').disabled=value;history.inert=value;result.querySelectorAll('button,textarea').forEach(el=>el.disabled=value);buttons();}
-  function clear(keepBackgrounds=false){managedTail=null;captionEpoch++;captionController?.abort();captionLock(false);if(keepBackgrounds!==true)backgrounds.clear();releasePreview();generation++;items=[];currentSet=null;signature='';requestId='';imageState='new';ids=[];failures=[];itemStatus=new Map();result.hidden=true;$('igProgressWrap').hidden=true;$('igProgress').value=0;$('igPercent').textContent='0%';$('igItemStatuses').hidden=true;$('igItemStatuses').replaceChildren();$('igPreview').removeAttribute('src');$('igSlides').replaceChildren();$('igDownloads').replaceChildren();$('igCaptionSection').hidden=true;$('igCaptionText').value='';$('igCaptionStatus').textContent='';$('igStatus').textContent=hasSaved?'변경사항 미저장':'';$('igSaved').textContent=hasSaved?'변경사항 미저장':'저장 전';$('igCaptionRetry').hidden=true;buttons();}
+  function clear(keepBackgrounds=false){managedTail=null;captionEpoch++;captionController?.abort();captionLock(false);if(keepBackgrounds!==true)backgrounds.clear();releasePreview();generation++;items=[];currentSet=null;signature='';requestId='';imageState='new';ids=[];failures=[];itemStatus=new Map();batchInfo=null;restoredBatch=false;result.hidden=true;$('igProgressWrap').hidden=true;$('igProgress').value=0;$('igPercent').textContent='0%';$('igItemStatuses').hidden=true;$('igItemStatuses').replaceChildren();$('igPreview').removeAttribute('src');$('igSlides').replaceChildren();$('igDownloads').replaceChildren();$('igCaptionSection').hidden=true;$('igCaptionText').value='';$('igCaptionStatus').textContent='';$('igStatus').textContent=hasSaved?'변경사항 미저장':'';$('igSaved').textContent=hasSaved?'변경사항 미저장':'저장 전';$('igCaptionRetry').hidden=true;buttons();}
   async function logos(){
     const campusId=$('draftCampus').value;
     if(policy?.campusId===campusId&&$('igLogos').children.length===Object.keys(LOGOS).length)return;
@@ -151,14 +154,40 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
   }
   $('igMoreLogos').onclick=()=>void loadCustomLogos(false);
   $('igUploadLogo').onclick=()=>{if(!$('draftCampus').value){$('igCustomLogoStatus').textContent='캠퍼스를 먼저 선택하세요.';return;}$('igLogoFile').click();};
+  // SVG never reaches the server: it is rendered by an <img> (no scripts, no external loads) onto a
+  // transparent canvas here and uploaded as PNG, so storage and compositing only ever see raster pixels.
+  async function rasterizeSvgLogo(file){
+    if(file.size>1024*1024)throw Error('SVG 로고는 1MB 이하로 올려주세요.');
+    const svg=new DOMParser().parseFromString(await file.text(),'image/svg+xml').documentElement;
+    if(svg.nodeName!=='svg')throw Error('SVG 로고를 읽을 수 없습니다.');
+    const box=(svg.getAttribute('viewBox')||'').trim().split(/[\s,]+/).map(Number);
+    const size=name=>{const v=parseFloat(svg.getAttribute(name)||'');return /%/.test(svg.getAttribute(name)||'')?NaN:v;};
+    let width=size('width'),height=size('height');
+    if(!(width>0&&height>0)&&box.length===4&&box[2]>0&&box[3]>0){const ratio=box[2]/box[3];width=width>0?width:height>0?height*ratio:box[2];height=height>0?height:width/ratio;}
+    if(!(width>0&&height>0))throw Error('SVG 로고에 크기(width·height 또는 viewBox)가 필요합니다.');
+    const scale=2000/Math.max(width,height),canvas=document.createElement('canvas');
+    canvas.width=Math.max(1,Math.round(width*scale));canvas.height=Math.max(1,Math.round(height*scale));
+    const url=URL.createObjectURL(new Blob([await file.arrayBuffer()],{type:'image/svg+xml'}));
+    try{
+      const image=new Image();
+      await new Promise((resolve,reject)=>{image.onload=resolve;image.onerror=()=>reject(Error('SVG 로고를 그릴 수 없습니다.'));image.src=url;});
+      canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);
+      const blob=await new Promise((resolve,reject)=>{try{canvas.toBlob(b=>b?resolve(b):reject(Error('SVG 로고를 변환하지 못했습니다.')),'image/png');}catch{reject(Error('이 SVG는 안전하게 변환할 수 없습니다. PNG로 올려주세요.'));}});
+      if(blob.size>5*1024*1024)throw Error('변환된 로고가 5MB를 넘습니다. 더 단순한 SVG나 PNG로 올려주세요.');
+      return new File([blob],file.name.replace(/\.svg$/i,'')+'.png',{type:'image/png'});
+    }finally{URL.revokeObjectURL(url);canvas.width=canvas.height=1;}
+  }
   $('igLogoFile').onchange=async()=>{
-    const file=$('igLogoFile').files[0];$('igLogoFile').value='';
+    let file=$('igLogoFile').files[0];$('igLogoFile').value='';
     if(!file)return;
     const campusId=$('draftCampus').value;if(!campusId){$('igCustomLogoStatus').textContent='캠퍼스를 먼저 선택하세요.';return;}
-    if(file.size>5*1024*1024){$('igCustomLogoStatus').textContent='로고 이미지는 5MB 이하로 올려주세요.';return;}
-    $('igUploadLogo').disabled=true;$('igCustomLogoStatus').textContent='업로드 중...';
+    const isSvg=file.type==='image/svg+xml'||/\.svg$/i.test(file.name);
+    if(!isSvg&&file.size>5*1024*1024){$('igCustomLogoStatus').textContent='로고 이미지는 5MB 이하로 올려주세요.';return;}
+    const name=file.name.replace(/\.[^.]+$/,'');
+    $('igUploadLogo').disabled=true;$('igCustomLogoStatus').textContent=isSvg?'SVG를 PNG로 변환하는 중...':'업로드 중...';
     try{
-      const form=new FormData();form.set('campusId',campusId);form.set('file',file);form.set('name',file.name.replace(/\.[^.]+$/,''));
+      if(isSvg){file=await rasterizeSvgLogo(file);$('igCustomLogoStatus').textContent='업로드 중...';}
+      const form=new FormData();form.set('campusId',campusId);form.set('file',file);form.set('name',name);
       const value=await api('/api/data-core/content/instagram-logos',{method:'POST',body:form});
       customLogos=[value.logo,...customLogos];renderCustomLogos();$('igCustomLogoStatus').textContent='업로드 완료';
     }catch(error){$('igCustomLogoStatus').textContent=error.message;}
@@ -190,62 +219,114 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
     $('igSaved').textContent=hasSaved?'변경사항 미저장':done?`${done}장 완료 · 완료된 사진은 아래에서 개별/일괄로 받을 수 있습니다.${failed?' 실패 항목은 다시 시도해주세요.':''}`:'저장 전';
     buttons();
   }
-  // One image's full pipeline (파일읽기→전처리→AI요청→합성→저장). Thrown errors are caught per-item by
-  // runBatch — one photo failing must never stop the rest of the batch, and a successful item here is
-  // never re-run: retry only ever calls this again for ids still present in `failures`.
-  async function processOne(id,design,campusId,direction,policyValue,backgroundKeyFor){
+  // Lookups for 이어서 하기 / draft reuse: a missing or revoked item there just means 'not resumable',
+  // so they must not go through api(), whose 401/403 handling wipes the whole page's private state.
+  const quiet=async(url,signal)=>{const response=await fetch(url,{credentials:'same-origin',cache:'no-store',signal});if(!response.ok){const error=Error('HTTP '+response.status);error.status=response.status;throw error;}return response.json();};
+  const designMatches=(a,b)=>Boolean(a&&b)&&a.workflow===b.workflow&&a.logoType===b.logoType&&a.materialKind===b.materialKind&&a.externalAiConsent===b.externalAiConsent;
+  // One image's full pipeline (파일읽기→전처리→AI요청→합성→저장). Anything a failed attempt already paid
+  // for — its draft, its AI-edited background — is attached to the thrown error as `partial` and handed
+  // back through `prior` on retry, so a retry neither re-bills the AI nor leaves a second draft behind.
+  async function processOne(id,{design,campusId,direction,policyValue,backgroundKeyFor,signal,aiLock,decodeLock,prior}){
     const preserve=preserveSource(id);
     const itemDesign=preserve?normalizeDesign({...design,materialKind:'student-artwork',externalAiConsent:false}):design;
-    let backgroundId=id;
-    if(itemDesign.externalAiConsent){
-      itemStatus.set(id,{status:'processing',message:'AI 사진 보정 중'});renderItemStatuses();
-      if(!backgrounds.has(backgroundKeyFor(id))){
-        itemStatus.set(id,{status:'processing',message:'AI 사진 보정 · 사진 준비 중'});renderItemStatuses();
-        const photoFile=state.knownFiles.get(String(id));
-        if(!photoFile)throw Error('선택한 사진 정보를 확인할 수 없습니다. 사진을 다시 선택해주세요.');
-        const optimized=await optimizeImageForAi(photoFile);
-        itemStatus.set(id,{status:'processing',message:'AI 사진 보정 · 응답 대기'});renderItemStatuses();
-        const timer=setTimeout(()=>controller?.abort(),290000);
-        try{backgroundId=(await postWithPhoto('image-edit',{sourceApp:'instagram',campusId,sourceFileId:id,direction,material:itemDesign,requestId:crypto.randomUUID()},id,optimized,controller.signal)).file.id;backgrounds.set(backgroundKeyFor(id),backgroundId);}
-        finally{clearTimeout(timer);}
-      } else backgroundId=backgrounds.get(backgroundKeyFor(id));
+    const step=message=>{itemStatus.set(id,{status:'processing',message});renderItemStatuses();};
+    const partial={draftId:null,backgroundId:null};
+    try{
+      let reuse=null;
+      if(prior?.draftId){
+        try{
+          const report=await quiet(`/api/data-core/content/instagram/${encodeURIComponent(prior.draftId)}/review`,signal);
+          if(designMatches(report.design,itemDesign)){
+            if(report.approved&&report.renderId&&report.masterFileId)return {blob:null,item:{sourceId:id,draftId:prior.draftId,renderId:report.renderId,fingerprint:report.fingerprint,masterFileId:report.masterFileId}};
+            reuse={draftId:prior.draftId,fingerprint:report.fingerprint};partial.draftId=prior.draftId;
+          }
+        }catch(error){if(signal.aborted)throw error;}
+      }
+      let backgroundId=id;
+      if(itemDesign.externalAiConsent){
+        const key=backgroundKeyFor(id);
+        if(!backgrounds.has(key)&&prior?.backgroundId)backgrounds.set(key,prior.backgroundId);
+        if(backgrounds.has(key))backgroundId=backgrounds.get(key);
+        else{
+          const photoFile=state.knownFiles.get(String(id));
+          if(!photoFile)throw Error('선택한 사진 정보를 확인할 수 없습니다. 사진을 다시 선택해주세요.');
+          step('AI 사진 보정 · 사진 준비 대기');
+          const optimized=await decodeLock(()=>{signal.throwIfAborted();step('AI 사진 보정 · 사진 준비 중');return optimizeImageForAi(photoFile);});
+          step('AI 사진 보정 · 순서 대기');
+          backgroundId=await aiLock(async()=>{
+            signal.throwIfAborted();step('AI 사진 보정 · 응답 대기');
+            // A slow photo times out on its own and becomes a failed item; only 중단 stops the batch.
+            const itemController=new AbortController(),stop=()=>itemController.abort();
+            signal.addEventListener('abort',stop,{once:true});const timer=setTimeout(stop,290000);
+            try{return (await postWithPhoto('image-edit',{sourceApp:'instagram',campusId,sourceFileId:id,direction,material:itemDesign,requestId:crypto.randomUUID()},id,optimized,itemController.signal)).file.id;}
+            catch(error){if(!signal.aborted&&itemController.signal.aborted)throw Error('AI 응답이 290초 안에 오지 않았습니다.');throw error;}
+            finally{clearTimeout(timer);signal.removeEventListener('abort',stop);}
+          });
+          backgrounds.set(key,backgroundId);
+        }
+        partial.backgroundId=backgroundId;
+      }
+      step(preserve?'원본 보존·로고 합성 대기':'로고 합성 대기');
+      const composing=decodeLock(()=>{signal.throwIfAborted();step(preserve?'원본 보존·로고 합성 중':'로고 합성 중');return composeInstagram('/api/data-core/files/'+encodeURIComponent(backgroundId),itemDesign,policyValue.campusLogoLabel,signal);});
+      const drafting=reuse?Promise.resolve(reuse):(async()=>{
+        const draft=(await post('',{sourceApp:'instagram',campusId,title:`인스타 이미지 ${ids.indexOf(id)+1}`,summary:direction,relatedFileIds:[id],
+          metadata:{instagramDesign:itemDesign,instagramBatch:{...batchInfo,slot:ids.indexOf(id),backgroundFileId:backgroundId!==id?backgroundId:null}}},signal)).draft;
+        partial.draftId=draft.id;
+        return {draftId:draft.id,fingerprint:(await api(`/api/data-core/content/instagram/${draft.id}/review`,{signal})).fingerprint};
+      })();
+      // allSettled, not all: if composing fails, still learn the draft id so the retry can reuse it.
+      const [composed,drafted]=await Promise.allSettled([composing,drafting]);
+      if(composed.status==='rejected')throw composed.reason;
+      if(drafted.status==='rejected')throw drafted.reason;
+      signal.throwIfAborted();step('이미지 저장 중');
+      const blob=composed.value,{draftId,fingerprint}=drafted.value;
+      const form=new FormData();form.set('file',blob,'instagram-master.png');form.set('fingerprint',fingerprint);form.set('backgroundFileId',backgroundId);
+      const saved=await api(`/api/data-core/content/instagram/${draftId}/render`,{method:'POST',body:form,signal});
+      return {blob,item:{sourceId:id,draftId,renderId:saved.renderId,fingerprint:saved.fingerprint,masterFileId:saved.file.id}};
+    }catch(error){
+      if(error&&typeof error==='object')error.partial=partial;
+      throw error;
     }
-    itemStatus.set(id,{status:'processing',message:preserve?'원본 보존·로고 합성 중':'로고 합성 중'});renderItemStatuses();
-    // Only one decoded image at a time; metadata work can overlap composition.
-    const [blob,report]=await Promise.all([
-      composeInstagram('/api/data-core/files/'+encodeURIComponent(backgroundId),itemDesign,policyValue.campusLogoLabel,controller.signal),
-      (async()=>{const draft=(await post('',{sourceApp:'instagram',campusId,title:`인스타 이미지 ${ids.indexOf(id)+1}`,summary:direction,relatedFileIds:[id],metadata:{instagramDesign:itemDesign}},controller.signal)).draft;return {draft,...await api(`/api/data-core/content/instagram/${draft.id}/review`,{signal:controller.signal})};})(),
-    ]);
-    controller.signal.throwIfAborted();
-    itemStatus.set(id,{status:'processing',message:'이미지 저장 중'});renderItemStatuses();
-    const draft=report.draft;
-    const form=new FormData();form.set('file',blob,'instagram-master.png');form.set('fingerprint',report.fingerprint);form.set('backgroundFileId',backgroundId);
-    const saved=await api(`/api/data-core/content/instagram/${draft.id}/render`,{method:'POST',body:form,signal:controller.signal});
-    return {blob,item:{sourceId:id,draftId:draft.id,renderId:saved.renderId,fingerprint:saved.fingerprint,masterFileId:saved.file.id}};
   }
-  // Processed strictly one image at a time (not a concurrent pool): this pipeline calls a paid
-  // external AI per photo and cancellation aborts an in-flight request, so real parallelism needs
-  // supervised testing against the live AI backend before it can safely ship — see final report.
-  async function runBatch(targetIds,design,campusId,direction,policyValue,epoch,backgroundKeyFor){
-    for(const id of targetIds){
-      controller.signal.throwIfAborted();
-      itemStatus.set(id,{status:'processing',message:'준비 중'});renderItemStatuses();
-      try{
-        const {blob,item}=await processOne(id,design,campusId,direction,policyValue,backgroundKeyFor);
+  function recordFailure(id,message,partial,prior){
+    const entry={id,message,draftId:partial?.draftId||prior?.draftId||null,backgroundId:partial?.backgroundId||prior?.backgroundId||null};
+    itemStatus.set(id,{status:'failed',message});failures=[...failures.filter(f=>f.id!==id),entry];
+    renderItemStatuses();updateOverallProgress();buttons();
+  }
+  // The server allows one in-flight AI request per user (withAiRequest answers 409 otherwise), and a
+  // full-size decode plus a 2160×2700 canvas is what a low-memory tablet can afford at once. So two
+  // photos move through the pipeline together — one waiting on the AI while the other composes or
+  // uploads — but never two AI calls, and never two decodes, at the same time.
+  const IG_CONCURRENCY=2;
+  const serial=()=>{let tail=Promise.resolve();return task=>{const run=tail.then(task);tail=run.then(()=>{},()=>{});return run;};};
+  async function runBatch(targetIds,context,epoch){
+    const {signal}=context,queue=[...targetIds],job={...context,aiLock:serial(),decodeLock:serial()};
+    const worker=async()=>{
+      while(queue.length&&!signal.aborted&&epoch===generation){
+        const id=queue.shift(),prior=failures.find(f=>f.id===id);
+        itemStatus.set(id,{status:'processing',message:'준비 중'});renderItemStatuses();
+        let outcome;
+        try{outcome=await processOne(id,{...job,prior});}
+        catch(error){
+          if(epoch!==generation)return;
+          if(signal.aborted){recordFailure(id,'중단됨',error?.partial,prior);return;}
+          const stage=(itemStatus.get(id)?.message||'').replace(/ (중|대기)$/,'');
+          recordFailure(id,stage?`${stage} 단계 오류 · ${error.message}`:error.message,error?.partial,prior);
+          continue;
+        }
         if(epoch!==generation)return;
-        releasePreview();localPreview={fileId:item.masterFileId,url:URL.createObjectURL(blob)};
+        const {blob,item}=outcome;
+        if(blob){releasePreview();localPreview={fileId:item.masterFileId,url:URL.createObjectURL(blob)};}
         items=[...items.filter(v=>v.sourceId!==id),item].sort((a,b)=>ids.indexOf(a.sourceId)-ids.indexOf(b.sourceId));
         itemStatus.set(id,{status:'done'});failures=failures.filter(f=>f.id!==id);
         renderItemStatuses();preview(items.findIndex(v=>v.sourceId===id));void downloads();updateOverallProgress();
-      }catch(error){
-        if(error.name==='AbortError')throw error;
-        const stageAtFailure=itemStatus.get(id)?.message||'';
-        const message=stageAtFailure?`${stageAtFailure.replace(/ 중$/,'')} 중 오류 · ${error.message}`:error.message;
-        itemStatus.set(id,{status:'failed',message});
-        failures=[...failures.filter(f=>f.id!==id),{id,message}];
-        renderItemStatuses();updateOverallProgress();buttons();
       }
-    }
+    };
+    // Wait for every worker to actually stop before returning, so nothing lands after the UI unlocks.
+    await Promise.allSettled(Array.from({length:Math.min(IG_CONCURRENCY,queue.length)},worker));
+    if(epoch!==generation||!signal.aborted)return;
+    for(const id of targetIds)if(!items.some(v=>v.sourceId===id)&&!failures.some(f=>f.id===id))recordFailure(id,'중단됨');
+    throw new DOMException('작업을 중단했습니다.','AbortError');
   }
   $('igGenerate').onclick=async()=>{
     if(busy||!canWrite()||state.selectedFileIds.length<1||state.selectedFileIds.length>10)return;
@@ -255,18 +336,20 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
     const pending=selectionIds.filter(id=>!preserveSource(id)&&!backgrounds.has(backgroundKeyFor(id)));
     if(!originalMode()&&pending.length&&!confirm(`선택한 ${pending.length}장의 사진만 외부 AI에 전송합니다. 학생 작품·로고·성적 자료가 아니며 홍보 사용과 AI 처리 동의가 확인된 사진인가요?`))return;
     if((originalMode()||selectionIds.every(preserveSource))&&!confirm(`선택한 ${selectionIds.length}장의 홍보 사용 권한을 확인했나요? 원본을 보존하며, 홍보글 작성에는 사진 없이 입력한 방향만 AI에 전송합니다.`))return;
-    clear(true);ids=selectionIds;signature=snapshot();requestId=crypto.randomUUID();const epoch=generation;controller=new AbortController();lock(true);
+    clear(true);hideResume();ids=selectionIds;
+    batchInfo={id:crypto.randomUUID(),sources:ids.map(id=>({id:String(id),folderId:state.knownFiles.get(String(id))?.folderId||null})),command:$('aiCommand').value,mode:$('igMode').value,logoType};
+    requestId=batchInfo.id;signature=snapshot();const epoch=generation;controller=new AbortController();lock(true);
     progress(0,'준비 중...');renderItemStatuses();
     let stage='캠퍼스 확인';
     try{
       await logos();if(!policy||policy.campusId!==campusId)throw Error('캠퍼스 정보를 확인하세요.');
       stage='이미지 제작';
-      await runBatch(ids,design,campusId,direction,policy,epoch,backgroundKeyFor);
+      await runBatch(ids,{design,campusId,direction,policyValue:policy,backgroundKeyFor,signal:controller.signal},epoch);
       if(epoch!==generation)return;
       renderSummary();
     }catch(error){
       if(epoch!==generation)return;
-      $('igStatus').textContent=error.name==='AbortError'?'작업을 중단했습니다. 이미 전송된 AI 작업은 과금될 수 있습니다.':`${stage}: ${error.message}`;
+      $('igStatus').textContent=error.name==='AbortError'?'작업을 중단했습니다. 완료된 사진은 그대로 두고, 나머지는 "실패한 항목만 다시 시도"로 이어서 만들 수 있습니다.':`${stage}: ${error.message}`;
       if(items.length){$('igSaved').textContent=`${items.length}장 완료 · 완료된 사진은 아래에서 개별/일괄로 받을 수 있습니다. 나머지는 다시 시도해주세요.`;void downloads();}
       buttons();
     }finally{controller=null;lock(false);}
@@ -276,17 +359,102 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
     const retryIds=failures.map(f=>f.id),campusId=$('draftCampus').value,design=read(),direction=currentDirection();
     const backgroundKeyFor=id=>JSON.stringify([campusId,id,direction,$('igMode').value]);
     if(!campusId){$('igStatus').textContent='캠퍼스를 선택하세요.';return;}
+    // A batch resumed after reloading was consented to in an earlier visit; ask again before any photo
+    // that still has no AI result is sent out.
+    const pending=retryIds.filter(id=>!preserveSource(id)&&!backgrounds.has(backgroundKeyFor(id))&&!failures.find(f=>f.id===id)?.backgroundId);
+    if(restoredBatch&&!originalMode()&&pending.length&&!confirm(`다시 시도하는 ${pending.length}장의 사진을 외부 AI에 전송합니다. 학생 작품·로고·성적 자료가 아니며 홍보 사용과 AI 처리 동의가 확인된 사진인가요?`))return;
     const epoch=generation;controller=new AbortController();lock(true);updateOverallProgress();
     try{
       await logos();if(!policy||policy.campusId!==campusId)throw Error('캠퍼스 정보를 확인하세요.');
-      await runBatch(retryIds,design,campusId,direction,policy,epoch,backgroundKeyFor);
+      await runBatch(retryIds,{design,campusId,direction,policyValue:policy,backgroundKeyFor,signal:controller.signal},epoch);
       if(epoch!==generation)return;
       renderSummary();
     }catch(error){
       if(epoch!==generation)return;
-      $('igStatus').textContent=error.name==='AbortError'?'작업을 중단했습니다. 이미 전송된 AI 작업은 과금될 수 있습니다.':`재시도 실패: ${error.message}`;
+      $('igStatus').textContent=error.name==='AbortError'?'작업을 중단했습니다. 완료된 사진은 그대로 두고, 나머지는 "실패한 항목만 다시 시도"로 이어서 만들 수 있습니다.':`재시도 실패: ${error.message}`;
       buttons();
     }finally{controller=null;lock(false);}
+  };
+  // 이어서 하기: every photo's draft carries its batch (id, slot, sources, settings), so a batch left
+  // unsaved — by a reload, a closed tab, or another device — can be picked up again from the server:
+  // finished photos come back as-is and only the rest need to be made.
+  let resumeCandidate=null,resumeEpoch=0;
+  const dismissKey=()=>'hi5:ig-batch-dismissed:'+(state.context?.user?.internalUserId||'');
+  function dismissedBatches(){try{const v=JSON.parse(localStorage.getItem(dismissKey())||'[]');return Array.isArray(v)?v:[];}catch{return [];}}
+  function hideResume(){resumeEpoch++;resumeCandidate=null;$('igResume').hidden=true;}
+  async function findResumable(){
+    hideResume();const epoch=resumeEpoch,campusId=$('draftCampus').value,me=state.context?.user?.internalUserId;
+    if(!campusId||!me||!canWrite()||busy||items.length||currentSet)return;
+    try{
+      const listing=async query=>((await quiet('/api/data-core/content?'+new URLSearchParams({sourceApp:'instagram',campusId,...query}))).drafts||[]).filter(d=>d.createdByUserId===me&&d.metadata?.instagramBatch?.id);
+      const latest=(await listing({limit:'20'})).find(d=>Date.parse(d.createdAt)>Date.now()-7*864e5);
+      if(!latest||epoch!==resumeEpoch)return;
+      const batch=latest.metadata.instagramBatch;
+      if(typeof batch.id!=='string'||!/^[0-9a-f-]{36}$/i.test(batch.id)||dismissedBatches().includes(batch.id))return;
+      try{await quiet('/api/data-core/content/instagram-sets/'+encodeURIComponent(`instagram-set:${me}:${batch.id}`));return;}
+      catch(error){if(error.status!==404)return;}
+      const sources=(Array.isArray(batch.sources)?batch.sources:[]).filter(s=>s&&typeof s.id==='string').slice(0,10);
+      if(!sources.length||epoch!==resumeEpoch)return;
+      const slots=sources.map(()=>null);
+      const drafts=(await listing({limit:'40',q:batch.id})).filter(d=>d.metadata.instagramBatch.id===batch.id).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+      for(const draft of drafts){
+        const slot=draft.metadata.instagramBatch.slot;
+        if(!Number.isInteger(slot)||slot<0||slot>=sources.length||String(draft.metadata.relatedFileIds?.[0])!==sources[slot].id||slots[slot]?.item)continue;
+        let report;try{report=await quiet(`/api/data-core/content/instagram/${encodeURIComponent(draft.id)}/review`);}catch{continue;}
+        if(report.approved&&report.renderId&&report.masterFileId)slots[slot]={item:{sourceId:sources[slot].id,draftId:draft.id,renderId:report.renderId,fingerprint:report.fingerprint,masterFileId:report.masterFileId}};
+        else if(!slots[slot])slots[slot]={draftId:draft.id,backgroundId:draft.metadata.instagramBatch.backgroundFileId||null};
+      }
+      const done=slots.filter(s=>s?.item).length;
+      if(!done||epoch!==resumeEpoch||busy||items.length||currentSet||campusId!==$('draftCampus').value)return;
+      resumeCandidate={batch,sources,slots,campusId};
+      const when=new Date(latest.createdAt).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+      $('igResumeText').textContent=`${when}에 만들던 이미지 세트가 저장되지 않았습니다 · ${sources.length}장 중 ${done}장 완료`;
+      $('igResume').hidden=false;
+    }catch{/* 이어서 하기 is a convenience; a failed lookup just means no banner */}
+  }
+  $('igResumeDismiss').onclick=()=>{
+    const id=resumeCandidate?.batch.id;
+    if(id){try{localStorage.setItem(dismissKey(),JSON.stringify([id,...dismissedBatches().filter(v=>v!==id)].slice(0,30)));}catch{/* per-browser convenience only */}}
+    hideResume();
+  };
+  $('igResumeGo').onclick=async()=>{
+    const candidate=resumeCandidate;
+    if(!candidate||busy)return;
+    if(candidate.campusId!==$('draftCampus').value)return hideResume();
+    lock(true);$('igResumeText').textContent='이전 작업을 불러오는 중...';
+    try{
+      // Photo details come from the same library listing the picker uses (folder protection included),
+      // never from stored draft data, so 원본 보존 / AI eligibility is decided exactly as for a fresh pick.
+      const unavailable=new Set();
+      for(const source of candidate.sources){
+        if(state.knownFiles.has(source.id))continue;
+        if(!source.folderId){unavailable.add(source.id);continue;}
+        try{
+          const view=await quiet('/api/data-core/library/files?'+new URLSearchParams({folderId:source.folderId,focusId:source.id,page:'1'}));
+          const file=(view.files||[]).find(f=>String(f.id)===source.id);
+          if(file)state.knownFiles.set(source.id,file);else unavailable.add(source.id);
+        }catch{unavailable.add(source.id);}
+      }
+      const b=candidate.batch;
+      clear(true);
+      if(typeof b.logoType==='string')logoType=normalizeDesign({workflow:'carousel-v2',logoType:b.logoType}).logoType;
+      if(['original','photo-layout','photo'].includes(b.mode))$('igMode').value=b.mode;
+      if(typeof b.command==='string')$('aiCommand').value=b.command;
+      for(const grid of [$('igLogos'),$('igCustomLogos')])grid.querySelectorAll('button').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.logo===logoType)));
+      updateTemplateSummary();
+      state.selectedFileIds=candidate.sources.map(s=>s.id);selected=JSON.stringify(state.selectedFileIds);renderSelection();
+      ids=[...state.selectedFileIds];restoredBatch=true;
+      batchInfo={id:b.id,sources:candidate.sources,command:$('aiCommand').value,mode:$('igMode').value,logoType};
+      requestId=b.id;signature=snapshot();
+      items=candidate.slots.map(s=>s?.item).filter(Boolean);
+      failures=candidate.sources.flatMap((s,i)=>candidate.slots[i]?.item?[]:[{id:s.id,
+        message:unavailable.has(s.id)?'원본 사진을 다시 찾을 수 없습니다(이동·삭제·권한 변경). 선택에서 빼고 다시 만들어주세요.':'이전 작업에서 완료되지 않았습니다.',
+        draftId:candidate.slots[i]?.draftId||null,backgroundId:candidate.slots[i]?.backgroundId||null}]);
+      itemStatus=new Map([...items.map(v=>[v.sourceId,{status:'done'}]),...failures.map(f=>[f.id,{status:'failed',message:f.message}])]);
+      renderItemStatuses();updateOverallProgress();if(items.length)preview(0);await downloads();renderSummary();
+      hideResume();
+    }catch(error){$('igResumeText').textContent=error.message;}
+    finally{lock(false);}
   };
   async function exportItemBlob(item,slot){
     const response=await fetch(`/api/data-core/content/instagram/${item.draftId}/export`,{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({renderId:item.renderId,fingerprint:item.fingerprint})});
@@ -373,11 +541,11 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
     const campusId=$('draftCampus').value;$('igHistory').textContent='불러오는 중...';
     try{const data=await api('/api/data-core/content/instagram-sets?campusId='+encodeURIComponent(campusId));if(campusId!==$('draftCampus').value||!history.open)return;$('igHistory').replaceChildren(...data.sets.map(item=>{
       const button=document.createElement('button');button.type='button';button.className='ghost-btn';button.textContent=`${item.title} · ${item.createdAt.slice(0,10)}`;
-      button.onclick=async()=>{if(busy)return;lock(true);try{const saved=await api('/api/data-core/content/instagram-sets/'+encodeURIComponent(item.id));clear();currentSet=saved;managedTail=saved.managedTail??null;items=saved.items;preview();await downloads();$('igSaved').textContent='저장된 최종본';$('igCaptionText').value=saved.caption;$('igCaptionSection').hidden=false;}catch(error){toast(error.message,'error');}finally{lock(false);}};return button;
+      button.onclick=async()=>{if(busy)return;lock(true);try{const saved=await api('/api/data-core/content/instagram-sets/'+encodeURIComponent(item.id));clear();hideResume();currentSet=saved;managedTail=saved.managedTail??null;items=saved.items;preview();await downloads();$('igSaved').textContent='저장된 최종본';$('igCaptionText').value=saved.caption;$('igCaptionSection').hidden=false;}catch(error){toast(error.message,'error');}finally{lock(false);}};return button;
     }));if(!data.sets.length)$('igHistory').textContent='저장된 이미지 세트가 없습니다.';}catch(error){if(campusId===$('draftCampus').value)$('igHistory').textContent=error.message;}
   }
   history.ontoggle=loadHistory;
-  function refresh(){void logos();void loadHistory();buttons();}
+  function refresh(){void logos();void loadHistory();buttons();void findResumable();}
   function applyText({footer,hashtags,contact}){
     if(captionBusy||busy)throw Error('진행 중 작업이 끝난 후 적용하세요.');
     if($('igCaptionSection').hidden)throw Error('저장된 이미지 세트의 홍보글을 먼저 열어주세요.');

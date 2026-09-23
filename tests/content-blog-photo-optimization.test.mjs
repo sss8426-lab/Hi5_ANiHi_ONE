@@ -43,8 +43,31 @@ test('사진은 브라우저에서 자동 최적화된 뒤 multipart로 전송�
   // the same externalAiConsent gate and a cache so an already-edited photo is never re-optimized or
   // re-sent on retry.
   assert.match(carousel, /if\(itemDesign\.externalAiConsent\)\{/u);
-  assert.match(carousel, /const optimized=await optimizeImageForAi\(photoFile\);/u);
+  // Decoding for the AI copy runs under the same one-at-a-time lock as composition (low-memory tablets).
+  assert.match(carousel, /const optimized=await decodeLock\(\(\)=>\{[^}]*return optimizeImageForAi\(photoFile\);\}\);/u);
   assert.match(carousel, /postWithPhoto\('image-edit',\{sourceApp:'instagram',campusId,sourceFileId:id,direction,material:itemDesign/u);
   assert.match(carousel, /form\.set\('photo:'\+photoId,blob,photoId\+'\.jpg'\);/u);
   assert.doesNotMatch(carousel, /post\('image-edit'/u, 'the plain JSON call must be fully replaced, not left dangling alongside postWithPhoto');
+});
+
+test('인스타 다중 이미지: AI 요청은 한 번에 하나, 실패분만 재시도하며 이전 결과·초안을 재사용한다', () => {
+  // withAiRequest allows one in-flight AI job per user; the pipeline must never race it.
+  assert.match(carousel, /const IG_CONCURRENCY=2;/u);
+  assert.equal((carousel.match(/postWithPhoto\('image-edit'/gu) || []).length, 1, 'exactly one AI call site');
+  assert.match(carousel, /backgroundId=await aiLock\(async\(\)=>\{/u, 'the AI call runs inside the per-batch AI lock');
+  assert.match(carousel, /const composing=decodeLock\(/u, 'composition shares the one-at-a-time decode lock');
+  // A retry hands back what the failed attempt already paid for, instead of re-billing or re-drafting.
+  assert.match(carousel, /prior=failures\.find\(f=>f\.id===id\)/u);
+  assert.match(carousel, /if\(!backgrounds\.has\(key\)&&prior\?\.backgroundId\)backgrounds\.set\(key,prior\.backgroundId\);/u);
+  assert.match(carousel, /const drafting=reuse\?Promise\.resolve\(reuse\)/u);
+  // 이어서 하기: every draft records its batch, and resumable lookups never trip api()'s 401/403 wipe.
+  assert.match(carousel, /instagramBatch:\{\.\.\.batchInfo,slot:ids\.indexOf\(id\)/u);
+  assert.match(carousel, /const view=await quiet\('\/api\/data-core\/library\/files\?'/u, 'resume re-reads photo details from the picker listing (folder protection included)');
+  assert.doesNotMatch(carousel.slice(carousel.indexOf('async function findResumable'), carousel.indexOf("$('igResumeDismiss')")), /\bapi\(/u);
+});
+
+test('SVG 로고는 브라우저에서 PNG로 바꾼 뒤에만 올라간다', () => {
+  assert.match(carousel, /accept="image\/png,image\/jpeg,image\/webp,image\/svg\+xml,\.svg"/u);
+  assert.match(carousel, /if\(isSvg\)\{file=await rasterizeSvgLogo\(file\);/u);
+  assert.match(carousel, /return new File\(\[blob\],file\.name\.replace\(\/\\\.svg\$\/i,''\)\+'\.png',\{type:'image\/png'\}\);/u);
 });
