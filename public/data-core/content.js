@@ -992,7 +992,7 @@ async function init() {
     void loadDefaults();void loadAiStatus();
     const listing=loadFiles();
     if(state.sourceApp==='instagram'){
-      const {mountInstagramProduction}=await import('/data-core/instagram-carousel.js?v=20260923-nobrand');
+      const {mountInstagramProduction}=await import('/data-core/instagram-carousel.js?v=20260924-layers');
       instagramProduction=mountInstagramProduction({state,api,$,toast,canWrite,contact:()=>textPresets.contact(),renderSelection:()=>{renderSelectedFiles();renderFilePicker();}});
       instagramProduction.applyDefaults(lastInstagramSettings);
       instagramProduction.refresh();

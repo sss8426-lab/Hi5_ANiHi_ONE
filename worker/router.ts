@@ -66,8 +66,8 @@ import { handleKkumeumApi } from "./kkumeum-router";
 import { aiModels, boundedJson, ContentAiError, editInstagramImage, openAiContentProvider, unavailable, type OpenAiEnv } from './content-openai-provider';
 import { contentDefaults, contentScope, withAiRequest } from './content-ai-settings';
 import { textPresets } from './content-text-presets';
-import { instagramPolicy, saveInstagramRender, reviewInstagram, approveInstagram, exportInstagram, assertInstagramAiUse, completeInstagramSet, getInstagramSet, listInstagramSets, saveInstagramSetCaption } from './instagram-production';
-import { listCustomLogos, uploadCustomLogo, deleteCustomLogo, CUSTOM_LOGO_MAX_BYTES } from './instagram-custom-logos';
+import { instagramPolicy, saveInstagramRender, reviewInstagram, approveInstagram, exportInstagram, assertInstagramAiUse, completeInstagramSet, getInstagramSet, listInstagramSets, saveInstagramSetCaption, updateInstagramSetItems } from './instagram-production';
+import { listCustomLogos, uploadCustomLogo, deleteCustomLogo, renameCustomLogo, CUSTOM_LOGO_MAX_BYTES } from './instagram-custom-logos';
 import { AI_PHOTO_LIMIT } from './content-ai-images';
 
 interface Env extends OpenAiEnv {
@@ -486,7 +486,7 @@ async function handleContentApi(request: Request, env: Env) {
   }
   if (url.pathname === '/api/data-core/content/instagram-policy' && request.method === 'GET') return jsonResponse(await instagramPolicy(env.DB,context,url.searchParams.get('campusId') || ''));
   if (url.pathname === '/api/data-core/content/instagram-logos') {
-    if (request.method === 'GET') return jsonResponse(await listCustomLogos(env.DB, context, url.searchParams.get('campusId'), url.searchParams.get('cursor')));
+    if (request.method === 'GET') return jsonResponse(await listCustomLogos(env.DB, context, url.searchParams.get('campusId'), url.searchParams.get('cursor'), url.searchParams.get('q')));
     if (request.method === 'POST') {
       if (!env.FILES) throw new DataCoreAccessError(503, '파일 저장소가 연결되지 않았습니다.');
       const contentType = request.headers.get('content-type') || '';
@@ -504,9 +504,14 @@ async function handleContentApi(request: Request, env: Env) {
     await deleteCustomLogo(env.DB, context, decodeURIComponent(customLogoMatch[1]));
     return jsonResponse({ ok: true });
   }
+  if (customLogoMatch && request.method === 'PATCH') {
+    const input = await contentJson(request);
+    return jsonResponse({ logo: await renameCustomLogo(env.DB, context, decodeURIComponent(customLogoMatch[1]), input.name) });
+  }
   if(url.pathname==='/api/data-core/content/instagram-sets'){
     if(request.method==='POST'){
-      const start=performance.now(),result=await completeInstagramSet(env.DB,context,await contentJson(request));
+      // 100 items × ~180 bytes of ids is past the 16KB default.
+      const start=performance.now(),result=await completeInstagramSet(env.DB,context,await contentJson(request,65536));
       return jsonResponse(result,{status:201,headers:{'server-timing':`complete;dur=${(performance.now()-start).toFixed(1)}`}});
     }
     if(request.method==='GET')return jsonResponse(await listInstagramSets(env.DB,context,url.searchParams.get('campusId')||''));
@@ -537,7 +542,11 @@ async function handleContentApi(request: Request, env: Env) {
   if(setMatch){
     const id=decodeURIComponent(setMatch[1]);
     if(request.method==='GET')return jsonResponse(await getInstagramSet(env.DB,context,id));
-    if(request.method==='PATCH')return jsonResponse(await saveInstagramSetCaption(env.DB,context,id,await contentJson(request)));
+    if(request.method==='PATCH'){
+      // A 12,000-character Korean caption is ~36KB of UTF-8, and 100 items are ~18KB.
+      const input=await contentJson(request,65536);
+      return jsonResponse(Array.isArray(input.items)?await updateInstagramSetItems(env.DB,context,id,input):await saveInstagramSetCaption(env.DB,context,id,input));
+    }
   }
   const productionMatch=url.pathname.match(/^\/api\/data-core\/content\/instagram\/([^/]+)\/(review|render|approve|export)$/);
   if (productionMatch) {

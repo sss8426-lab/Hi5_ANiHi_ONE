@@ -116,3 +116,52 @@ only the final browser composition resizes them. Final master/export contracts,
 legacy callers, key/model and original permissions remain unchanged. Reproduction,
 protected intermediate metadata and verification boundaries are documented in
 `docs/INSTAGRAM_AI_PHOTO_FIX_2026-09-21.md`.
+
+## Follow-up (2026-09-24): automatic captions and user image layers
+
+Caption root cause (reproduced on production data, not assumed):
+- The server path was healthy: the exact text-only request for an uncaptioned
+  10-photo set returned 200 in ~8s, and the full 3-photo flow captioned itself.
+- The caption only started from "완료 및 저장", which stayed disabled unless every
+  selected photo succeeded. After partial results became downloadable (#252), a
+  single failed photo meant no caption at all.
+- A set reopened from "저장한 이미지 세트" with no caption offered no way to write one.
+- Failures before/around the request were silent: `policy.campusLogoLabel` was read
+  outside the try, and a 401/403 went through `api()`, which wipes the page (and so
+  the caption message with it).
+- One uncaptioned production set was made from a tab still running pre-#253 code
+  (its drafts lack `instagramBatch`); such tabs pick up fixes only after a reload.
+
+Now: when a batch (or a retry) finishes, the finished photos are saved as the set —
+failed ones are simply not in it — and the caption is written once for that set.
+States: 작성 전 / 작성 중 / 작성 완료 / 작성 실패 / 변경사항 미저장, with [홍보글 작성] /
+[홍보글 다시 작성] (text only; images are never redone). Caption calls never go through
+`api()`. An empty AI answer is a failure. The automatic write is conditional on the set
+still having no text (`previousCaption`), so a late answer or another tab can't overwrite
+saved text. `captionSources` records which photos the text was written for.
+Assembly order is unchanged: AI body → 고정 마지막 문구 → verified contact → hashtags.
+
+A saved set is now updated in place (`PATCH /instagram-sets/:id` with `items` +
+`version`) when retried photos join it or a photo's layers are re-composited; every
+item is re-validated like a fresh completion, and a stale version is 409.
+
+나만의 로고 are overlay layers, no longer a replacement for the official logo:
+- Chosen images in 양식 수정 go on every photo of the next batch, placed in free space
+  beside the artwork when there is room (never over the logo band), otherwise small in
+  the bottom-right corner.
+- "사용자 이미지 편집" on the result preview: add, drag, resize with a locked ratio,
+  front/back, remove; apply to the current photo or all finished photos.
+- The browser composites layers into the real 2160×2700 master from a layer-free base,
+  so edits never stack. Each apply is a new render (new renderId → a fresh 1080×1350
+  export, no stale cache), and no AI call is involved.
+- The render stores its layers (id, assetId, assetVersion, x/y/w/h in master pixels,
+  z). Only live uploads of the draft's own campus are accepted; a deleted or foreign
+  asset is 403, never dropped. Reopening restores the layers. A missing asset is shown
+  as a marked box and blocks applying until the user removes it.
+- The image list supports rename (`PATCH /instagram-logos/:id`), name search (`q`,
+  wildcards literal), 더 보기 paging, and soft delete that never touches finished
+  composites.
+
+Also fixed: 이어서 하기 restored at most 10 photos (left over from the old limit);
+set/caption JSON bodies were capped at 16KB (a 12,000-character Korean caption is
+~36KB), now 64KB.
