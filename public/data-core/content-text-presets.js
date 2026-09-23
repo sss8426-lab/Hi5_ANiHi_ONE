@@ -92,6 +92,8 @@ export function mountTextPresets({api,state,$,applyResult}) {
   } else if(statusOwnedByBlock){
    status.textContent='';statusOwnedByBlock=false;
   }
+  // Loading/clearing can flip the contact checkbox without a change event; keep summaries in step.
+  window.dispatchEvent(new CustomEvent('text-presets-changed'));
  }
  function receive(value){data=value;for(const k of Object.keys(chosen))if(data.presets.find(i=>i.id===chosen[k])?.deletedAt)chosen[k]=null;render();}
  async function send(payload){

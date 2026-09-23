@@ -1,9 +1,9 @@
 import {instagramImageMime} from './instagram-image-formats.js';
 import {mountAiUsage} from './ai-usage.js?v=20260921-performance';
-import {mountTextPresets} from './content-text-presets.js?v=20260923-brandfix';
+import {mountTextPresets} from './content-text-presets.js?v=20260923-summary';
 import {normalizeTags} from './content-preset-catalog.js';
 import {captionTail} from './content-caption.js?v=20260922-presets';
-import {mountBlogWorkflow} from './blog-workflow.js?v=20260923-unify2';
+import {mountBlogWorkflow} from './blog-workflow.js?v=20260923-summary';
 import {optimizeImageForAi} from './image-ai-optimize.js?v=20260923-imgfix';
 
 const state = {
@@ -81,6 +81,8 @@ function observeThumbnails() {
 }
 
 const $ = (id) => document.getElementById(id);
+// Hashtag/closing fields set from code fire no input event; the '해시태그 n개 · …' summaries listen for this.
+const notifyTextFields = () => window.dispatchEvent(new CustomEvent('text-presets-changed'));
 
 function h(value) {
   return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
@@ -478,7 +480,7 @@ function loadDraftIntoForm(draft) {
   $('draftContent').value = draft.content || '';
   $('draftTags').value = (draft.tags || []).join(', ');
   $('publishStatus').value = metadata.publishStatus || 'draft';
-  $('resultFooter').value = metadata.footer || metadata.callToAction || '';
+  $('resultFooter').value = metadata.footer || metadata.callToAction || '';notifyTextFields();
   $('resultContact').value = metadata.contactBlock || '';
   state.selectedFileIds = Array.isArray(metadata.relatedFileIds) ? metadata.relatedFileIds.map(String) : [];
   state.selectedDerivedFileIds = Array.isArray(metadata.derivedFileIds) ? metadata.derivedFileIds.map(String) : [];
@@ -634,7 +636,7 @@ function bindEvents() {
   };
   $('draftTags').addEventListener('input', renderPublishChecklist);
   $('resultFooter').addEventListener('input', renderPublishChecklist);
-  $('manualDraft').onclick = () => { $('titlePicker').hidden = true; $('aiResult').hidden = false; $('resultHeading').textContent = state.sourceApp === 'blog' ? '블로그 완성본' : '작성 결과'; $('resultFooter').value = $('defaultFooter').value; };
+  $('manualDraft').onclick = () => { $('titlePicker').hidden = true; $('aiResult').hidden = false; $('resultHeading').textContent = state.sourceApp === 'blog' ? '블로그 완성본' : '작성 결과'; $('resultFooter').value = $('defaultFooter').value; notifyTextFields(); };
   $('compareImage').onclick = () => {
     const visible = !$('aiOriginalFigure').hidden;
     $('aiOriginalFigure').hidden = visible; $('compareImage').setAttribute('aria-pressed', String(!visible));
@@ -662,6 +664,7 @@ async function loadDefaults() {
   const edit=defaultsEdited;
   const blogToken=blogWorkflow?.defaultsToken();
   $('defaultHashtags').value = ''; $('defaultFooter').value = '';
+  notifyTextFields();
   savedDefaultsSnapshot=defaultsSnapshot();
   $('defaultsStatus').textContent = '';
   try {
@@ -669,6 +672,7 @@ async function loadDefaults() {
     const result = await api('/api/data-core/content/defaults?' + params);
     if (token !== state.defaultsGeneration || edit!==defaultsEdited) return;
     $('defaultHashtags').value = result.defaults.hashtags; $('defaultFooter').value = result.defaults.footer;
+    notifyTextFields();
     savedDefaultsSnapshot=defaultsSnapshot();
     blogWorkflow?.applyDefaults(result.defaults.blogSettings,blogToken);
     lastInstagramSettings=result.defaults.instagramSettings;
@@ -784,7 +788,7 @@ function applyBlogTitleAndBody(kind) {
   $('draftTitle').value = state.blogTitles[kind];
   $('draftContent').value = [state.currentLead, state.currentBody].filter(Boolean).join('\n\n');
   $('draftTags').value = normalizedHashtags($('defaultHashtags').value, state.lastHashtags).map((tag) => '#' + tag).join(' ');
-  $('resultFooter').value = $('defaultFooter').value || state.lastCta || '';
+  $('resultFooter').value = $('defaultFooter').value || state.lastCta || '';notifyTextFields();
   $('resultContact').value = textPresets?.contact() || '';
   $('titlePicker').hidden = true;
   $('aiResult').hidden = false;
@@ -880,7 +884,7 @@ async function runAi(captionOnly = false, quick = false) {
       $('aiImageSaved').textContent = '저장 완료 · 2160 × 2700px · 4:5';
       $('draftTitle').value = '인스타 홍보 이미지';
       $('draftContent').value = ''; $('draftTags').value = $('defaultHashtags').value;
-      $('resultFooter').value = $('defaultFooter').value;
+      $('resultFooter').value = $('defaultFooter').value;notifyTextFields();
       renderSelectedFiles();
       $('aiStatus').textContent = '이미지가 저장되었습니다. 홍보 문구를 작성하고 있습니다…';
     }
@@ -905,7 +909,7 @@ async function runAi(captionOnly = false, quick = false) {
       $('draftTitle').value = generated.title;
       $('draftContent').value = generated.body || generated.content;
       $('draftTags').value = normalizedHashtags($('defaultHashtags').value, generated.hashtags || generated.keywords).map(tag => '#' + tag).join(' ');
-      $('resultFooter').value = $('defaultFooter').value || generated.cta || generated.callToAction || '';
+      $('resultFooter').value = $('defaultFooter').value || generated.cta || generated.callToAction || '';notifyTextFields();
       $('aiResult').hidden = false;
       $('resultHeading').textContent = '인스타 결과';
       $('aiStatus').textContent = '작성이 완료되었습니다.';
@@ -979,7 +983,7 @@ async function init() {
   textPresets=mountTextPresets({api,state,$,applyResult:({footer,hashtags,contact})=>{
     if(state.sourceApp==='instagram'){if(!instagramProduction)throw Error('이미지 세트를 먼저 불러오세요.');instagramProduction.applyText({footer,hashtags,contact});return;}
     if($('aiResult').hidden)throw Error('작성 결과를 먼저 열어주세요.');
-    $('resultFooter').value=footer;$('draftTags').value=normalizedHashtags(hashtags).map(t=>'#'+t).join(' ');$('resultContact').value=contact;renderPublishChecklist();
+    $('resultFooter').value=footer;$('draftTags').value=normalizedHashtags(hashtags).map(t=>'#'+t).join(' ');$('resultContact').value=contact;renderPublishChecklist();notifyTextFields();
   }});
   renderSelectedFiles();
   if (state.context?.authenticated) {
