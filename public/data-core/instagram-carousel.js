@@ -110,7 +110,7 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
       try{
         await api('/api/data-core/content/instagram-logos/'+encodeURIComponent(item.id),{method:'DELETE'});
         customLogos=customLogos.filter(v=>v.id!==item.id);
-        if(logoType===value){logoType=campusDefaultLogoType;clear(true);}
+        if(logoType===value){logoType=campusDefaultLogoType;clear(true);$('igLogos').querySelectorAll('button').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.logo===logoType)));}
         renderCustomLogos();updateTemplateSummary();
       }catch(error){$('igCustomLogoStatus').textContent=error.message;}
     };
