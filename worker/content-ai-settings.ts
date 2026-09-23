@@ -12,7 +12,7 @@ export function contentScope(context: DataCoreAccessContext, input: { sourceApp?
   return { sourceApp, campusId };
 }
 
-export async function contentDefaults(db: D1Database, context: DataCoreAccessContext, input: { sourceApp?: unknown; campusId?: unknown; hashtags?: unknown; footer?: unknown; blogSettings?: any }, save = false) {
+export async function contentDefaults(db: D1Database, context: DataCoreAccessContext, input: { sourceApp?: unknown; campusId?: unknown; hashtags?: unknown; footer?: unknown; blogSettings?: any; instagramSettings?: any }, save = false) {
   const { sourceApp, campusId } = contentScope(context, input);
   const id = `content-defaults:${sourceApp}:${campusId || 'organization'}`;
   if (save) {
@@ -32,7 +32,15 @@ export async function contentDefaults(db: D1Database, context: DataCoreAccessCon
       const normalized={templateId:t.templateId,templateVersion:1,topFileId:t.topFileId||'',bottomFileId:t.bottomFileId||'',greeting:t.greeting,logoType:Object.hasOwn(LOGOS,t.logoType)?t.logoType:'none',align:t.align==='center'?'center':'left',spacing:[16,24,32].includes(t.spacing)?t.spacing:24,font:t.font==='serif'?'serif':'sans-serif',coverWidth:1200,coverHeight:900,contactMode:t.contactMode==='none'?'none':'verified'};
       blogSettings={strategyMode:input.blogSettings.strategyMode,template:normalized,templates:{[t.templateId]:normalized}};
     }
-    const metadata = JSON.stringify({ schemaVersion: 1, hashtags: input.hashtags.trim(), footer: input.footer,...(blogSettings?{blogSettings}:{}) });
+    let instagramSettings;
+    if(input.instagramSettings!==undefined){
+      if(sourceApp!=='instagram')throw new DataCoreAccessError(400,'인스타 기본 양식을 확인하세요.');
+      const {LOGOS}=await import('../public/data-core/instagram-brand-policy.js');
+      const s=input.instagramSettings;
+      if(!s||!Object.hasOwn(LOGOS,s.logoType)||!['original','photo-layout','photo'].includes(s.mode))throw new DataCoreAccessError(400,'인스타 기본 양식을 확인하세요.');
+      instagramSettings={logoType:s.logoType,mode:s.mode};
+    }
+    const metadata = JSON.stringify({ schemaVersion: 1, hashtags: input.hashtags.trim(), footer: input.footer,...(blogSettings?{blogSettings}:{}),...(instagramSettings?{instagramSettings}:{}) });
     const now = new Date().toISOString();
     await db.prepare(`INSERT INTO data_records (id,organization_id,campus_id,created_by_user_id,record_type,source_app,title,visibility,status,metadata_json,created_at,updated_at)
       VALUES (?,?,?,?,?,?,'콘텐츠 기본 문구',?,'active',?,?,?) ON CONFLICT(id) DO UPDATE SET metadata_json=json_patch(CASE WHEN json_valid(data_records.metadata_json) THEN data_records.metadata_json ELSE '{}' END,excluded.metadata_json),updated_at=excluded.updated_at
@@ -42,7 +50,7 @@ export async function contentDefaults(db: D1Database, context: DataCoreAccessCon
   const row = await db.prepare('SELECT metadata_json FROM data_records WHERE id=? AND organization_id=? AND record_type=? AND campus_id IS ? AND deleted_at IS NULL')
     .bind(id, ORG, CONTENT_DEFAULTS_TYPE, campusId).first<{ metadata_json: string }>();
   let stored; try { stored = JSON.parse(row?.metadata_json || '{}'); } catch { stored = {}; }
-  return { hashtags: typeof stored.hashtags === 'string' ? stored.hashtags : '', footer: typeof stored.footer === 'string' ? stored.footer : '',...(sourceApp==='blog'&&stored.blogSettings?{blogSettings:stored.blogSettings}:{}) };
+  return { hashtags: typeof stored.hashtags === 'string' ? stored.hashtags : '', footer: typeof stored.footer === 'string' ? stored.footer : '',...(sourceApp==='blog'&&stored.blogSettings?{blogSettings:stored.blogSettings}:{}),...(sourceApp==='instagram'&&stored.instagramSettings?{instagramSettings:stored.instagramSettings}:{}) };
 }
 
 // A single conditional INSERT serializes the per-user lease across Worker isolates.

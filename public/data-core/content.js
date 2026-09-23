@@ -1,6 +1,6 @@
 import {instagramImageMime} from './instagram-image-formats.js';
 import {mountAiUsage} from './ai-usage.js?v=20260921-performance';
-import {mountTextPresets} from './content-text-presets.js?v=20260923-unify2';
+import {mountTextPresets} from './content-text-presets.js?v=20260923-brandfix';
 import {normalizeTags} from './content-preset-catalog.js';
 import {captionTail} from './content-caption.js?v=20260922-presets';
 import {mountBlogWorkflow} from './blog-workflow.js?v=20260923-unify2';
@@ -49,7 +49,7 @@ const AI_OPTIMIZE_STEPS = [
 const AI_OPTIMIZE_TARGET_BYTES = 1.5 * 1024 * 1024;
 const AI_OPTIMIZE_HARD_CAP_BYTES = 2 * 1024 * 1024;
 
-let derivativeEditor, instagramProduction, aiUsagePanel, textPresets, blogWorkflow;
+let derivativeEditor, instagramProduction, aiUsagePanel, textPresets, blogWorkflow, lastInstagramSettings;
 let browseController, renderedFolder='', defaultsEdited=0;
 let savedDraftSnapshot='',savedDefaultsSnapshot='';
 const draftSnapshot=()=>JSON.stringify(['draftTitle','draftSummary','draftContent','draftTags','resultFooter','resultContact','publishStatus','contentPurpose'].map(id=>$(id).value));
@@ -680,6 +680,8 @@ async function loadDefaults() {
     $('defaultHashtags').value = result.defaults.hashtags; $('defaultFooter').value = result.defaults.footer;
     savedDefaultsSnapshot=defaultsSnapshot();
     blogWorkflow?.applyDefaults(result.defaults.blogSettings,blogToken);
+    lastInstagramSettings=result.defaults.instagramSettings;
+    instagramProduction?.applyDefaults(lastInstagramSettings);
   } catch (error) { if (token === state.defaultsGeneration) $('defaultsStatus').textContent = error.message; }
 }
 
@@ -1028,8 +1030,9 @@ async function init() {
     void loadDefaults();void loadAiStatus();
     const listing=loadFiles();
     if(state.sourceApp==='instagram'){
-      const {mountInstagramProduction}=await import('/data-core/instagram-carousel.js?v=20260922-presets');
+      const {mountInstagramProduction}=await import('/data-core/instagram-carousel.js?v=20260923-brandfix2');
       instagramProduction=mountInstagramProduction({state,api,$,toast,canWrite,contact:()=>textPresets.contact()});
+      instagramProduction.applyDefaults(lastInstagramSettings);
       instagramProduction.refresh();
     }
     await listing;

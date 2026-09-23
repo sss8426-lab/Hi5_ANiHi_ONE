@@ -13,6 +13,11 @@ export function mountTextPresets({api,state,$,applyResult}) {
  const chosen={hashtags:null,closing:null},inputs={hashtags:$('defaultHashtags'),closing:$('defaultFooter')},mounts={};
  const status=element('p','',{className:'preset-status'});status.setAttribute('role','status');
  const toolbar=element('div','',{className:'preset-toolbar'}),brand=element('select','');brand.setAttribute('aria-label','게시물 대상 브랜드');
+ // Post-level brand choice is independent of the campus's official operating-brand profile (which
+ // starts empty for most campuses) — these three options must always be selectable, never derived
+ // from data.profile.brands, or the dropdown is empty until a campus admin fills in 캠퍼스 추천 설정.
+ const POST_BRANDS=[['hi5','Hi5'],['anihi','ANiHi'],['combined','Hi5·ANiHi']];
+ let statusOwnedByBlock=false;
  const contact=element('input','',{type:'checkbox'}),contactLabel=element('label','확인된 연락처 포함 ');contactLabel.prepend(contact);
  const profileButton=button('캠퍼스 추천 설정',()=>editProfile());
  const apply=button('현재 결과에 적용',()=>{
@@ -28,24 +33,20 @@ export function mountTextPresets({api,state,$,applyResult}) {
   label.before(column);column.append(label);
   label.querySelector('span').textContent=kind==='hashtags'?'고정 해시태그':'고정 마지막 문구';
   const selected=element('small','',{className:'preset-selected'}),list=element('div','',{className:'preset-buttons'}),actions=element('div','',{className:'preset-actions'});
-  const note=element('p','',{className:'preset-note'});note.setAttribute('role','status');note.hidden=true;
   const add=button('+ 새 저장',()=>edit(kind)),all=button('전체 보기',()=>browse(kind)),trash=button('삭제한 세트',()=>browse(kind,true));
-  actions.append(add,all,trash);column.append(selected,list,note,actions);mounts[kind]={selected,list,add,all,trash,note};
+  actions.append(add,all,trash);column.append(selected,list,actions);mounts[kind]={selected,list,add,all,trash};
   input.addEventListener('input',()=>selection(kind));
  }
- // Blog moves the whole picker into a "마무리 수정" dialog (opened by blog-workflow.js's button via
- // a window event, since the two modules mount independently); Instagram keeps the original
- // always-visible inline layout untouched — this feature predates the blog reorganisation there and
- // the spec explicitly leaves Instagram's screen alone.
+ // Both apps move the whole picker into a "마무리 수정" dialog, opened by a status-row button that
+ // each app-specific module (blog-workflow.js / instagram-carousel.js) places in its own layout via
+ // a window event, since the two modules mount independently of this one.
  const grid=document.querySelector('.defaults-grid'),actionsBar=grid.nextElementSibling;
- if(state.sourceApp==='blog'){
-  const presetsDialog=element('dialog','',{className:'workflow-dialog'});presetsDialog.setAttribute('aria-labelledby','textPresetsDialogTitle');
-  const heading=element('div','',{className:'workflow-heading'});heading.append(element('h2','마무리 수정',{id:'textPresetsDialogTitle'}),button('닫기',()=>presetsDialog.close()));
-  presetsDialog.append(heading,grid,actionsBar,toolbar,status);document.body.append(presetsDialog);
-  window.addEventListener('open-text-presets',()=>presetsDialog.showModal());
- } else grid.after(toolbar,status);
+ const presetsDialog=element('dialog','',{className:'workflow-dialog'});presetsDialog.setAttribute('aria-labelledby','textPresetsDialogTitle');
+ const heading=element('div','',{className:'workflow-heading'});heading.append(element('h2','마무리 수정',{id:'textPresetsDialogTitle'}),button('닫기',()=>presetsDialog.close()));
+ presetsDialog.append(heading,grid,actionsBar,toolbar,status);document.body.append(presetsDialog);
+ window.addEventListener('open-text-presets',()=>presetsDialog.showModal());
  brand.onchange=()=>{for(const k of Object.keys(chosen))chosen[k]=null;render();};
- contact.onchange=()=>{status.textContent=contact.checked?(data?.contactBlock||'등록된 연락처가 없습니다.') :'';};
+ contact.onchange=()=>{status.textContent=contact.checked?(data?.contactBlock||'등록된 연락처가 없습니다.') :'';window.dispatchEvent(new CustomEvent('text-presets-changed'));};
  function close(){if(dialog){dialog.close();dialog.remove();dialog=null;}}
  function modal(title){close();const opened=element('dialog','',{className:'preset-dialog'});dialog=opened;const h=element('h2',title),content=element('div','');opened.append(h,content,button('닫기',close));document.body.append(opened);opened.addEventListener('close',()=>{opened.remove();if(dialog===opened)dialog=null;},{once:true});opened.showModal();return content;}
  function scopeInput(){return {campusId:$('draftCampus').value,sourceApp:state.sourceApp};}
@@ -72,22 +73,25 @@ export function mountTextPresets({api,state,$,applyResult}) {
   load.setAttribute('aria-label',item.name);group.append(icon('Menu',item.name+' 메뉴',()=>menu(item)));return group;
  }
  function render(){
+  // The sort in options() always puts any usable item before unavailable ones, so every item in the
+  // default two-slot view being unavailable means there is truly nothing usable to load yet — never
+  // just an unlucky top-2 pick. Surface that once, in the shared status line below, instead of a
+  // duplicate per-column banner (previously repeated above both 해시태그 and 마지막 문구).
+  let blockedReason='';
   for(const kind of Object.keys(inputs)){
    const top=options(kind).slice(0,2);
    mounts[kind].list.replaceChildren(...top.map(item=>row(item)));selection(kind);
    mounts[kind].add.disabled=!data||busy;mounts[kind].all.disabled=!data;mounts[kind].trash.disabled=!data;
-   // The sort in options() always puts any usable item before unavailable ones, so every item in
-   // the default two-slot view being unavailable means there is truly nothing usable to load yet —
-   // never just an unlucky top-2 pick. Say why, right next to the greyed-out buttons, instead of
-   // leaving the column looking broken with only a hover title as the explanation.
-   const blocked=top.length>0&&top.every(item=>item.unavailable);
-   mounts[kind].note.hidden=!blocked;
-   if(blocked){
-    mounts[kind].note.replaceChildren(top[0].unavailable+'. ');
-    mounts[kind].note.append(data?.canManageShared?button('캠퍼스 추천 설정',()=>editProfile()):document.createTextNode('캠퍼스 관리자에게 브랜드·과정 설정을 요청해주세요.'));
-   }
+   if(!blockedReason&&top.length>0&&top.every(item=>item.unavailable))blockedReason=top[0].unavailable;
   }
   profileButton.hidden=!data?.canManageShared;apply.disabled=!data;contact.disabled=!data?.contactBlock;
+  if(blockedReason){
+   status.replaceChildren(blockedReason+'. ');
+   status.append(data?.canManageShared?button('캠퍼스 추천 설정',()=>editProfile()):document.createTextNode('캠퍼스 관리자에게 브랜드·과정 설정을 요청해주세요.'));
+   statusOwnedByBlock=true;
+  } else if(statusOwnedByBlock){
+   status.textContent='';statusOwnedByBlock=false;
+  }
  }
  function receive(value){data=value;for(const k of Object.keys(chosen))if(data.presets.find(i=>i.id===chosen[k])?.deletedAt)chosen[k]=null;render();}
  async function send(payload){
@@ -136,7 +140,7 @@ export function mountTextPresets({api,state,$,applyResult}) {
   const phone=field(form,'확인된 상담전화',profile.phone),address=field(form,'확인된 주소',profile.address),link=field(form,'확인된 상담 링크 (https)',profile.link),message=element('p',''),save=element('button','설정 저장',{type:'submit'});
   const revision=data.revision;form.append(message,save);form.onsubmit=async event=>{event.preventDefault();save.disabled=true;try{if(await send({action:'profile',revision,profile:{brands:Object.keys(checks).filter(k=>checks[k].checked),names:Object.fromEntries(Object.keys(names).map(k=>[k,names[k].value])),courses:Object.keys(courseChecks).filter(k=>courseChecks[k].checked),phone:phone.value,address:address.value,link:link.value}})){close();brandOptions();}}catch(error){message.textContent=error.message;}finally{save.disabled=false;}};
  }
- function brandOptions(){const previous=brand.value;brand.replaceChildren(element('option','게시물 브랜드 선택',{value:''}),...data.profile.brands.map(b=>element('option',BRANDS[b].label,{value:b})));brand.value=data.profile.brands.includes(previous)?previous:data.profile.brands.length===1?data.profile.brands[0]:'';status.textContent=data.profile.brands.length?'':'캠퍼스 브랜드 확인 필요 · 변수 없는 공통 문구는 사용 가능합니다.';render();}
+ function brandOptions(){const previous=brand.value;brand.replaceChildren(element('option','게시물 브랜드 선택',{value:''}),...POST_BRANDS.map(([key,label])=>element('option',label,{value:key})));brand.value=POST_BRANDS.some(([key])=>key===previous)?previous:'';render();}
  async function load(force=false){
   const next=JSON.stringify(scopeInput());if(next===scope&&!force)return;
   scope=next;const token=++epoch;controller?.abort();controller=new AbortController();close();data=null;busy=false;chosen.hashtags=null;chosen.closing=null;contact.checked=false;status.replaceChildren();render();
