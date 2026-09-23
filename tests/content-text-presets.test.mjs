@@ -10,30 +10,34 @@ const write=(h,body,user=users.admin,s=scope)=>h.request('POST',url,user,{...s,.
 
 test('complete catalog, deterministic regional brands and channel-specific text without guessed contacts',()=>{
  assert.equal(TAG_CATALOG.length,33);assert.equal(CLOSING_CATALOG.length,20);
- const profile={brands:['anihi','hi5'],names:{anihi:'합성 ANiHi',hi5:'합성 HI5'},courses:['game','elementary','middle','high','artsHigh','imageboard','expression','portfolio']};
- for(const [campusId,region]of Object.entries(REGIONS))for(const app of ['blog','instagram']){
-  const items=recommendedPresets(campusId,app,profile);assert.equal(new Set(items.map(i=>i.id)).size,items.length);
-  for(const item of items){assert.doesNotMatch(item.content,/\{\{|undefined|\bnull\b|##/);
-   if(item.kind==='hashtags'){assert.equal(normalizeTags(item.content).length,app==='blog'?8:5);
-    if(!item.name.includes('부평'))assert.ok(item.content.includes(region));
-    if(item.brandScope==='hi5')assert.doesNotMatch(item.content,/#애니하이|만화학원|웹툰학원/);
-    else assert.doesNotMatch(item.content,/#하이파이브/);
+ const clean=item=>{assert.doesNotMatch(item.content,/\{\{|undefined|\bnull\b|##/);assert.ok(item.content.trim());assert.equal(item.unavailable,'','recommended sets are always usable');};
+ // One brand chosen in 캠퍼스 추천 설정: exactly that brand's tags, never the other brand's.
+ for(const [brand,other] of [['hi5',/#애니하이|만화학원|웹툰학원/],['anihi',/#하이파이브/]]){
+  const profile={brands:[brand],names:{[brand]:'합성 학원'},courses:[]};
+  for(const [campusId,region]of Object.entries(REGIONS))for(const app of ['blog','instagram']){
+   const items=recommendedPresets(campusId,app,profile);assert.equal(new Set(items.map(i=>i.id)).size,items.length);
+   for(const item of items){clean(item);
+    if(item.kind==='hashtags'){assert.equal(normalizeTags(item.content).length,app==='blog'?8:5);
+     if(!item.name.includes('부평'))assert.ok(item.content.includes(region));
+     assert.doesNotMatch(item.content,other);
+    }
    }
+   if(![A,'campus-design-admission'].includes(campusId))assert.ok(items.every(i=>!i.name.includes('부평')));
   }
-  if(![A,'campus-design-admission'].includes(campusId))assert.ok(items.every(i=>!i.name.includes('부평')));
  }
- assert.equal(recommendedPresets(A,'blog').find(i=>i.name==='학생 작품'&&i.kind==='closing').unavailable,'');
- assert.ok(recommendedPresets(B,'blog').find(i=>i.kind==='hashtags').unavailable);
- // Regression: a campus that has never had its brand confirmed (the real, common starting state for
- // most campuses — only the two admission campuses get a brand pre-filled) must have every built-in
- // hashtag preset unavailable with this exact message, since the UI's "브랜드 정보 확인 필요" inline
- // note (content-text-presets.js render()) is only shown/worded from this server contract, never
- // computed independently client-side. Closing presets are not all blocked the same way: several
- // closing texts never reference {{학원명}} at all, so they stay usable without a confirmed brand —
- // the fix must not show the note for that column when nothing is actually blocking it.
- const unconfirmed=recommendedPresets(B,'blog');
- assert.ok(unconfirmed.filter(i=>i.kind==='hashtags').every(i=>i.unavailable==='캠퍼스 브랜드·학원명 확인 필요'));
- assert.ok(unconfirmed.some(i=>i.kind==='closing'&&!i.unavailable));
+ // Both brands: common sets carry both brands' tags; brand-specific sets only their own.
+ const both=recommendedPresets(B,'instagram',{brands:['hi5','anihi'],names:{},courses:[]});both.forEach(clean);
+ assert.equal(new Set(both.map(i=>i.id)).size,both.length);
+ const dream=both.find(i=>i.name==='꿈·진로'&&i.kind==='hashtags');assert.match(dream.content,/#하이파이브미술학원/);assert.match(dream.content,/#애니하이만화학원/);
+ assert.doesNotMatch(both.find(i=>i.name==='기초디자인').content,/#애니하이/);
+ // No brand chosen yet (most campuses' starting state): still every set usable — brand tags are simply
+ // left out, never guessed, and an academy name falls back to "저희 학원".
+ const unconfirmed=recommendedPresets(B,'blog');unconfirmed.forEach(clean);
+ assert.ok(unconfirmed.every(i=>!/#하이파이브|#애니하이/.test(i.content)));
+ assert.ok(unconfirmed.some(i=>i.name==='기초디자인')&&unconfirmed.some(i=>i.name==='꿈·진로'&&i.kind==='hashtags'));
+ assert.match(unconfirmed.find(i=>i.name==='기본 상담'&&i.kind==='closing').content,/^저희 학원은 /u);
+ // Course settings never block a set anymore.
+ assert.equal(recommendedPresets(A,'blog',{brands:['anihi'],names:{},courses:[]}).find(i=>i.name==='게임·일러스트').unavailable,'');
  assert.equal(substitute('{{학원명}} {{unknown}}',{'학원명':'이름'}).content,'');
  assert.equal(substitute('{{toString}}',{}).content,'');
  assert.throws(()=>captionTail('{{학원명}}','#태그'));
@@ -115,5 +119,24 @@ test('concurrent same-name saves and approved profile/contact isolation',async()
   r=await read(h);assert.equal(r.body.presets.filter(i=>i.name==='동시 저장').length,1);
   assert.equal((await read(h,users.admin,{...scope,sourceApp:'instagram'})).body.profile.brands.length,1);
   assert.equal((await write(h,{action:'profile',revision:r.body.revision,profile:{...profile,link:'javascript:alert(1)'}})).status,400);
+  // Choosing just the brand (no academy name) is enough; sets stay usable and the name reads "저희 학원".
+  r=await read(h);const brandOnly=await write(h,{action:'profile',revision:r.body.revision,profile:{brands:['hi5'],names:{},courses:[],phone:'',address:'',link:''}});
+  assert.equal(brandOnly.status,200,JSON.stringify(brandOnly.body));
+  assert.ok(brandOnly.body.presets.filter(i=>i.builtInKey).every(i=>!i.unavailable));
+  assert.match(brandOnly.body.presets.find(i=>i.name==='꿈·진로'&&i.kind==='hashtags').content,/#하이파이브미술학원/);
+ }finally{await h.mf.dispose();}
+});
+
+test('a 양식(template) save never touches the saved fixed 해시태그 / 마지막 문구',async()=>{
+ const h=await libraryHarness();try{
+  for(const sourceApp of ['instagram','blog']){
+   const s={campusId:A,sourceApp};
+   assert.equal((await h.request('PUT','/api/data-core/content/defaults',users.admin,{...s,hashtags:'#고정태그',footer:'고정 문구'})).status,200);
+   const settings=sourceApp==='instagram'?{instagramSettings:{logoType:'hi5',mode:'original'}}:{blogSettings:{strategyMode:'balanced',template:{templateId:'class',greeting:''}}};
+   const saved=await h.request('PUT','/api/data-core/content/defaults',users.admin,{...s,...settings});
+   assert.equal(saved.status,200,JSON.stringify(saved.body));
+   assert.equal(saved.body.defaults.hashtags,'#고정태그');assert.equal(saved.body.defaults.footer,'고정 문구');
+   assert.equal((await h.request('PUT','/api/data-core/content/defaults',users.admin,s)).status,400,'an empty save is rejected, not stored as blanks');
+  }
  }finally{await h.mf.dispose();}
 });

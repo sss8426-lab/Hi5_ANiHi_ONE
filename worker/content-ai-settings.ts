@@ -16,7 +16,11 @@ export async function contentDefaults(db: D1Database, context: DataCoreAccessCon
   const { sourceApp, campusId } = contentScope(context, input);
   const id = `content-defaults:${sourceApp}:${campusId || 'organization'}`;
   if (save) {
-    if (typeof input.hashtags !== 'string' || input.hashtags.length > 2000 || typeof input.footer !== 'string' || input.footer.length > 3000) throw new DataCoreAccessError(400, '기본 문구 길이를 확인하세요.');
+    // Fixed 해시태그/마지막 문구 are only written when this request is about them; a 양식-only save leaves
+    // them exactly as stored instead of overwriting them with whatever the (maybe unsaved/unloaded) fields hold.
+    const saveText = input.hashtags !== undefined || input.footer !== undefined;
+    if (saveText && (typeof input.hashtags !== 'string' || input.hashtags.length > 2000 || typeof input.footer !== 'string' || input.footer.length > 3000)) throw new DataCoreAccessError(400, '기본 문구 길이를 확인하세요.');
+    if (!saveText && input.blogSettings === undefined && input.instagramSettings === undefined) throw new DataCoreAccessError(400, '저장할 기본값을 확인하세요.');
     let blogSettings;
     if(input.blogSettings!==undefined){
       if(sourceApp!=='blog'||!['balanced','search','homefeed'].includes(input.blogSettings?.strategyMode))throw new DataCoreAccessError(400,'블로그 기본 글 방향을 확인하세요.');
@@ -44,7 +48,7 @@ export async function contentDefaults(db: D1Database, context: DataCoreAccessCon
       } else if(!Object.hasOwn(LOGOS,s.logoType))throw new DataCoreAccessError(400,'인스타 기본 양식을 확인하세요.');
       instagramSettings={logoType:s.logoType,mode:s.mode};
     }
-    const metadata = JSON.stringify({ schemaVersion: 1, hashtags: input.hashtags.trim(), footer: input.footer,...(blogSettings?{blogSettings}:{}),...(instagramSettings?{instagramSettings}:{}) });
+    const metadata = JSON.stringify({ schemaVersion: 1,...(saveText?{ hashtags: (input.hashtags as string).trim(), footer: input.footer }:{}),...(blogSettings?{blogSettings}:{}),...(instagramSettings?{instagramSettings}:{}) });
     const now = new Date().toISOString();
     await db.prepare(`INSERT INTO data_records (id,organization_id,campus_id,created_by_user_id,record_type,source_app,title,visibility,status,metadata_json,created_at,updated_at)
       VALUES (?,?,?,?,?,?,'콘텐츠 기본 문구',?,'active',?,?,?) ON CONFLICT(id) DO UPDATE SET metadata_json=json_patch(CASE WHEN json_valid(data_records.metadata_json) THEN data_records.metadata_json ELSE '{}' END,excluded.metadata_json),updated_at=excluded.updated_at

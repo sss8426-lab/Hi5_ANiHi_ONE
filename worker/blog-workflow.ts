@@ -6,6 +6,7 @@ import {decode} from 'fast-png';
 import {inflateSync} from 'node:zlib';
 import { getContentDraft } from './data-core-content';
 import {ensureDataCoreMigrations} from './data-core-migrations';
+import {PHOTO_SAFETY_LIMIT} from './content-ai-images';
 import {instagramPreserveReason} from '../public/data-core/instagram-source-policy.js';
 import {inspectPost} from '../public/data-core/blog-post-model.js';
 
@@ -24,7 +25,7 @@ export async function resolveBlogFiles(db:D1Database,bucket:R2Bucket,context:Dat
   requireAuthenticatedAccess(context);
   const campusId=typeof input.campusId==='string'&&input.campusId?input.campusId:null;
   if(!context.isSuperAdmin||campusId)requireCampusAccess(context,campusId);
-  if(!Array.isArray(input.fileIds)||input.fileIds.length>40||input.fileIds.some((id:any)=>typeof id!=='string'||id.length>120))fail('파일 목록을 확인하세요.');
+  if(!Array.isArray(input.fileIds)||input.fileIds.length>PHOTO_SAFETY_LIMIT||input.fileIds.some((id:any)=>typeof id!=='string'||id.length>120))fail('파일 목록을 확인하세요.');
   const items:any[]=new Array(input.fileIds.length);let next=0;
   await Promise.all(Array.from({length:Math.min(3,input.fileIds.length)},async()=>{
   for(let index=next++;index<input.fileIds.length;index=next++){
@@ -86,8 +87,8 @@ export async function saveBlogPost(db:D1Database,bucket:R2Bucket,context:DataCor
   if(!object(input)||!object(input.post)||!/^[-a-f0-9]{36}$/i.test(input.requestId||''))fail('저장 요청을 확인하세요.');
   const p=input.post,campusId=typeof input.campusId==='string'&&input.campusId?input.campusId:null;
   if(!context.isSuperAdmin||campusId)requireCampusAccess(context,campusId);
-  if(p.schemaVersion!==1||!Array.isArray(p.photos)||p.photos.length>10||!Array.isArray(p.blocks)||p.blocks.length>160||!Number.isInteger(p.revision)||p.revision<0)fail('게시물 구조 또는 버전을 확인하세요.');
-  if(typeof p.title!=='string'||!p.title.trim()||p.title.length>240||JSON.stringify(p).length>180000)fail('제목 또는 게시물 길이를 확인하세요.');
+  if(p.schemaVersion!==1||!Array.isArray(p.photos)||p.photos.length>PHOTO_SAFETY_LIMIT||!Array.isArray(p.blocks)||p.blocks.length>PHOTO_SAFETY_LIMIT*6||!Number.isInteger(p.revision)||p.revision<0)fail('게시물 구조 또는 버전을 확인하세요.');
+  if(typeof p.title!=='string'||!p.title.trim()||p.title.length>240||JSON.stringify(p).length>800000)fail('제목 또는 게시물 길이를 확인하세요.');
   if(p.photos.some((v:any)=>!object(v)||typeof v.fileId!=='string'||v.fileId.length>120)||new Set(p.photos.map((v:any)=>v.fileId)).size!==p.photos.length)fail('사진 참조를 확인하세요.');
   if(p.brief&&(!object(p.brief)||Object.values(p.brief).some(v=>typeof v!=='string')))fail('작성 조건을 확인하세요.');
   if(p.photos.some((v:any)=>['description','facts','exclude'].some(key=>v[key]!==undefined&&(typeof v[key]!=='string'||v[key].length>2000))))fail('사진 설명을 확인하세요.');

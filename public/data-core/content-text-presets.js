@@ -1,4 +1,4 @@
-import {BRANDS,COURSES} from './content-preset-catalog.js';
+import {BRANDS} from './content-preset-catalog.js';
 import {captionTail} from './content-caption.js?v=20260922-presets';
 
 const titles={hashtags:'해시태그',closing:'마지막 문구'};
@@ -12,11 +12,8 @@ export function mountTextPresets({api,state,$,applyResult}) {
  let scope='',epoch=0,controller,data=null,dialog=null,busy=false;
  const chosen={hashtags:null,closing:null},inputs={hashtags:$('defaultHashtags'),closing:$('defaultFooter')},mounts={};
  const status=element('p','',{className:'preset-status'});status.setAttribute('role','status');
- const toolbar=element('div','',{className:'preset-toolbar'}),brand=element('select','');brand.setAttribute('aria-label','게시물 대상 브랜드');
- // Post-level brand choice is independent of the campus's official operating-brand profile (which
- // starts empty for most campuses) — these three options must always be selectable, never derived
- // from data.profile.brands, or the dropdown is empty until a campus admin fills in 캠퍼스 추천 설정.
- const POST_BRANDS=[['hi5','Hi5'],['anihi','ANiHi'],['combined','Hi5·ANiHi']];
+ // No per-post brand: which brand's fixed hashtags apply is decided once, in 캠퍼스 추천 설정.
+ const toolbar=element('div','',{className:'preset-toolbar'});
  let statusOwnedByBlock=false;
  const contact=element('input','',{type:'checkbox'}),contactLabel=element('label','확인된 연락처 포함 ');contactLabel.prepend(contact);
  const profileButton=button('캠퍼스 추천 설정',()=>editProfile());
@@ -26,7 +23,7 @@ export function mountTextPresets({api,state,$,applyResult}) {
    status.textContent='현재 결과에 적용했습니다. 게시물 저장은 별도입니다.';
   }catch(error){status.textContent=error.message;}
  });
- toolbar.append(brand,contactLabel,profileButton,apply);
+ toolbar.append(contactLabel,profileButton,apply);
  $('saveDefaults').textContent='현재 값을 기본값으로 저장';
  for(const kind of Object.keys(inputs)){
   const input=inputs[kind],label=input.closest('label'),column=element('div','',{className:'preset-column'});
@@ -45,7 +42,6 @@ export function mountTextPresets({api,state,$,applyResult}) {
  const heading=element('div','',{className:'workflow-heading'});heading.append(element('h2','마무리 수정',{id:'textPresetsDialogTitle'}),button('닫기',()=>presetsDialog.close()));
  presetsDialog.append(heading,grid,actionsBar,toolbar,status);document.body.append(presetsDialog);
  window.addEventListener('open-text-presets',()=>presetsDialog.showModal());
- brand.onchange=()=>{for(const k of Object.keys(chosen))chosen[k]=null;render();};
  contact.onchange=()=>{status.textContent=contact.checked?(data?.contactBlock||'등록된 연락처가 없습니다.') :'';window.dispatchEvent(new CustomEvent('text-presets-changed'));};
  function close(){if(dialog){dialog.close();dialog.remove();dialog=null;}}
  function modal(title){close();const opened=element('dialog','',{className:'preset-dialog'});dialog=opened;const h=element('h2',title),content=element('div','');opened.append(h,content,button('닫기',close));document.body.append(opened);opened.addEventListener('close',()=>{opened.remove();if(dialog===opened)dialog=null;},{once:true});opened.showModal();return content;}
@@ -57,11 +53,10 @@ export function mountTextPresets({api,state,$,applyResult}) {
   mounts[kind].list.querySelectorAll('[data-preset]').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.preset===chosen[kind])));
  }
  function options(kind,deleted=false){
-  const used=counts();return (data?.presets||[]).filter(i=>i.kind===kind&&Boolean(i.deletedAt)===deleted&&(!brand.value||['common','unconfirmed',brand.value].includes(i.brandScope)))
+  const used=counts();return (data?.presets||[]).filter(i=>i.kind===kind&&Boolean(i.deletedAt)===deleted)
    .sort((a,b)=>Number(b.favorite)-Number(a.favorite)||(used[b.id]||0)-(used[a.id]||0)||Number(Boolean(a.unavailable))-Number(Boolean(b.unavailable))||a.name.localeCompare(b.name,'ko-KR',{numeric:true}));
  }
  function use(item){
-  if(!brand.value&&data.profile.brands.length>1&&item.brandScope!=='common'){status.textContent='게시물 대상 브랜드를 먼저 선택하세요.';return;}
   if(item.unavailable){status.textContent=item.unavailable;return;}
   if(item.notice&&!confirm(item.notice+'\n이 게시물에 해당하는 내용인가요?'))return;
   inputs[item.kind].value=item.content;chosen[item.kind]=item.id;inputs[item.kind].dispatchEvent(new Event('input',{bubbles:true}));
@@ -121,7 +116,7 @@ export function mountTextPresets({api,state,$,applyResult}) {
   const message=element('p','');message.setAttribute('role','status');const save=element('button','저장',{type:'submit'});form.append(message,save);
   const requestId=crypto.randomUUID(),token=epoch;
   form.onsubmit=async(event)=>{event.preventDefault();if(token!==epoch)return;save.disabled=true;
-   try{const ok=await send({action:item&&!duplicate?'update':'create',presetId:item?.id,revision:item?.revision,requestId,kind,name:name.value,content:content.value,category:category.value,favorite:fav.checked,shared:shared.checked,brandScope:item?.brandScope||brand.value||'common'});
+   try{const ok=await send({action:item&&!duplicate?'update':'create',presetId:item?.id,revision:item?.revision,requestId,kind,name:name.value,content:content.value,category:category.value,favorite:fav.checked,shared:shared.checked,brandScope:item?.brandScope||'common'});
     if(ok)close();
    }catch(error){message.textContent=error.message;if(error.status===409){const refresh=button('최신 세트 다시 불러오기',()=>{close();void load(true);});message.append(refresh);}}finally{save.disabled=false;}
   };
@@ -133,22 +128,21 @@ export function mountTextPresets({api,state,$,applyResult}) {
   const refresh=()=>{list.replaceChildren(...options(kind,deleted).filter(i=>i.name.includes(search.value)&&(!category.value||category.value===i.category)).map(i=>row(i,deleted)));if(!list.childElementCount)list.textContent='세트가 없습니다.';};search.oninput=refresh;category.onchange=refresh;refresh();
  }
  function editProfile(){
-  const box=modal('캠퍼스 추천 설정'),form=element('form',''),profile=data.profile,checks={},names={},courseChecks={};box.append(form);
-  form.append(element('p','실제 운영하는 브랜드·과정과 확인된 연락처만 저장하세요. 지역: '+(data.region||'확인 필요')));
+  const box=modal('캠퍼스 추천 설정'),form=element('form',''),profile=data.profile,checks={},names={};box.append(form);
+  form.append(element('p','고정 해시태그에 사용할 브랜드를 선택하세요. 학원명과 연락처는 확인된 경우에만 입력하세요(학원명을 비우면 "저희 학원"으로 표시). 지역: '+(data.region||'확인 필요')));
   for(const [key,value]of Object.entries(BRANDS)){
-   const check=element('input','',{type:'checkbox',checked:profile.brands.includes(key)}),label=element('label',value.label);label.prepend(check);form.append(label);checks[key]=check;names[key]=field(form,value.label+' 실제 학원명',profile.names[key]);
+   const check=element('input','',{type:'checkbox',checked:profile.brands.includes(key)}),label=element('label',value.label+' 해시태그 사용');label.prepend(check);form.append(label);checks[key]=check;names[key]=field(form,value.label+' 실제 학원명 (선택)',profile.names[key]);
   }
-  for(const [key,value]of Object.entries(COURSES)){const check=element('input','',{type:'checkbox',checked:profile.courses.includes(key)}),label=element('label',value);label.prepend(check);form.append(label);courseChecks[key]=check;}
   const phone=field(form,'확인된 상담전화',profile.phone),address=field(form,'확인된 주소',profile.address),link=field(form,'확인된 상담 링크 (https)',profile.link),message=element('p',''),save=element('button','설정 저장',{type:'submit'});
-  const revision=data.revision;form.append(message,save);form.onsubmit=async event=>{event.preventDefault();save.disabled=true;try{if(await send({action:'profile',revision,profile:{brands:Object.keys(checks).filter(k=>checks[k].checked),names:Object.fromEntries(Object.keys(names).map(k=>[k,names[k].value])),courses:Object.keys(courseChecks).filter(k=>courseChecks[k].checked),phone:phone.value,address:address.value,link:link.value}})){close();brandOptions();}}catch(error){message.textContent=error.message;}finally{save.disabled=false;}};
+  // Courses no longer gate any set; keep whatever was stored rather than silently clearing it.
+  const revision=data.revision;form.append(message,save);form.onsubmit=async event=>{event.preventDefault();save.disabled=true;try{if(await send({action:'profile',revision,profile:{brands:Object.keys(checks).filter(k=>checks[k].checked),names:Object.fromEntries(Object.keys(names).map(k=>[k,names[k].value])),courses:profile.courses||[],phone:phone.value,address:address.value,link:link.value}})){close();}}catch(error){message.textContent=error.message;}finally{save.disabled=false;}};
  }
- function brandOptions(){const previous=brand.value;brand.replaceChildren(element('option','게시물 브랜드 선택',{value:''}),...POST_BRANDS.map(([key,label])=>element('option',label,{value:key})));brand.value=POST_BRANDS.some(([key])=>key===previous)?previous:'';render();}
  async function load(force=false){
   const next=JSON.stringify(scopeInput());if(next===scope&&!force)return;
   scope=next;const token=++epoch;controller?.abort();controller=new AbortController();close();data=null;busy=false;chosen.hashtags=null;chosen.closing=null;contact.checked=false;status.replaceChildren();render();
   if(!$('draftCampus').value)return;
-  try{const value=await api('/api/data-core/content/text-presets?'+new URLSearchParams(scopeInput()),{signal:controller.signal});if(token!==epoch)return;receive(value);brandOptions();}
+  try{const value=await api('/api/data-core/content/text-presets?'+new URLSearchParams(scopeInput()),{signal:controller.signal});if(token!==epoch)return;receive(value);}
   catch(error){if(token===epoch&&error.name!=='AbortError'){status.textContent=error.message;status.append(button('세트 다시 불러오기',()=>void load(true)));}}
  }
- return {load,contact:()=>contact.checked?data?.contactBlock||'':'',clear(){epoch++;controller?.abort();data=null;scope='';busy=false;close();for(const k of Object.keys(chosen))chosen[k]=null;brand.replaceChildren();contact.checked=false;status.textContent='';render();}};
+ return {load,contact:()=>contact.checked?data?.contactBlock||'':'',clear(){epoch++;controller?.abort();data=null;scope='';busy=false;close();for(const k of Object.keys(chosen))chosen[k]=null;contact.checked=false;status.textContent='';render();}};
 }

@@ -6,13 +6,13 @@ const content = fs.readFileSync('public/data-core/content.js', 'utf8');
 const carousel = fs.readFileSync('public/data-core/instagram-carousel.js', 'utf8');
 const optimizeModule = fs.readFileSync('public/data-core/image-ai-optimize.js', 'utf8');
 
-test('블로그와 인스타 사진 선택은 10장까지이며 기존 선택을 덮어쓰지 않는다', () => {
-  assert.match(content, /const BLOG_PHOTO_LIMIT = 10;/u);
-  assert.doesNotMatch(content, /\bPHOTO_LIMIT\b(?!_)/u, 'the old shared PHOTO_LIMIT constant must not remain referenced anywhere');
-
-  // Both pickers share the ten-photo bound; generation has its own server validation.
-  assert.match(content, /state\.selectedFileIds\.length >= BLOG_PHOTO_LIMIT/u);
-  assert.match(content, /사진은 최대 \$\{BLOG_PHOTO_LIMIT\}장까지 선택할 수 있습니다\./u);
+test('블로그와 인스타 사진 선택은 장수 제한이 없고(서버 보호용 100장) 기존 선택을 덮어쓰지 않는다', () => {
+  assert.match(content, /const PHOTO_SAFETY_LIMIT = 100;/u);
+  assert.doesNotMatch(content, /BLOG_PHOTO_LIMIT|\/ 10`/u, 'no leftover 10-photo limit or "n / 10" counter');
+  assert.match(content, /state\.selectedFileIds\.length >= PHOTO_SAFETY_LIMIT/u);
+  assert.match(carousel, /state\.selectedFileIds\.length>100\)return;/u);
+  // The AI still sees a bounded number of images: first 10 for the Instagram caption and blog analysis.
+  assert.match(carousel, /\[ids\.slice\(0,5\),ids\.slice\(5,10\)\]/u);
 
   assert.doesNotMatch(content, /state\.selectedFileIds = \[id\]/u);
   assert.match(content, /state\.selectedFileIds\.push\(id\)/u);

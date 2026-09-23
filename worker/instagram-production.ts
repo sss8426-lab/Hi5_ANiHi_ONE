@@ -115,7 +115,7 @@ export async function listInstagramSets(db:D1Database,context:DataCoreAccessCont
 export async function completeInstagramSet(db:D1Database,context:DataCoreAccessContext,input:Record<string,unknown>) {
   requireWriteAccess(context);
   const items=input.items as SetItem[],requestId=String(input.requestId||'');
-  if(!/^[0-9a-f-]{36}$/i.test(requestId)||!Array.isArray(items)||items.length<1||items.length>10||new Set(items.map(i=>i?.renderId)).size!==items.length)fail(400,'1~10장의 완성 이미지를 선택하세요.');
+  if(!/^[0-9a-f-]{36}$/i.test(requestId)||!Array.isArray(items)||items.length<1||items.length>100||new Set(items.map(i=>i?.renderId)).size!==items.length)fail(400,'1~100장의 완성 이미지를 선택하세요.');
   const id=`instagram-set:${context.user!.internalUserId}:${requestId}`;
   const existing=await db.prepare('SELECT id,metadata_json FROM data_records WHERE id=? AND organization_id=?').bind(id,ORG).first<{id:string;metadata_json:string}>();
   if(existing){if(JSON.stringify(parse(existing.metadata_json).items)!==JSON.stringify(items))fail(409,'다른 저장 요청입니다.');return getInstagramSet(db,context,id);}
@@ -303,7 +303,7 @@ export async function exportInstagram(db:D1Database,files:R2Bucket,context:DataC
 export async function assertInstagramAiUse(db:D1Database,context:DataCoreAccessContext,ids:string[],input:Record<string,unknown>,edit=false) {
   const design=normalizeDesign(input.material);
   const textOnly=!edit&&design.workflow==='carousel-v2'&&input.textOnly===true;
-  const max=textOnly?10:design.workflow==='carousel-v2'&&!edit?6:1;
+  const max=textOnly?100:design.workflow==='carousel-v2'&&!edit?6:1;
   if(!Array.isArray(ids)||ids.length<1||ids.length>max||new Set(ids).size!==ids.length||ids.some(id=>typeof id!=='string'||id.length>120))fail(400,'선택한 원본 이미지 수를 확인하세요.');
   if(textOnly){
     if(design.usePermission!=='allowed')fail(403,'홍보 사용 권한을 확인하세요.');

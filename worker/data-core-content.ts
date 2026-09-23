@@ -66,7 +66,7 @@ function normalizeFileIds(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return Array.from(
     new Set(value.map((item) => cleanText(item, 120)).filter(Boolean)),
-  ).slice(0, 30);
+  ).slice(0, 100);
 }
 
 function normalizeTags(value: unknown): string[] {

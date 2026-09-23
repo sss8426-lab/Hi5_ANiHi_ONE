@@ -333,7 +333,7 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
     throw new DOMException('작업을 중단했습니다.','AbortError');
   }
   $('igGenerate').onclick=async()=>{
-    if(busy||!canWrite()||state.selectedFileIds.length<1||state.selectedFileIds.length>10)return;
+    if(busy||!canWrite()||state.selectedFileIds.length<1||state.selectedFileIds.length>100)return;
     if(!originalMode()&&state.selectedFileIds.some(id=>!preserveSource(id))&&!$('aiCommand').value.trim())return toast('원하는 느낌을 입력해주세요.','error');
     const campusId=$('draftCampus').value,design=read(),direction=currentDirection(),selectionIds=[...state.selectedFileIds];
     const backgroundKeyFor=id=>JSON.stringify([campusId,id,direction,$('igMode').value]);
@@ -512,7 +512,8 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
     $('igCaptionSection').hidden=false;$('igCaptionRetry').hidden=true;$('igCaptionStatus').textContent='홍보글을 작성하고 있습니다...';
     try{
       let body='',title='',tags=[];
-      const batches=textOnly?[ids]:[ids.slice(0,5),ids.slice(5)].filter(ids=>ids.length);
+      // Any number of photos can be made; the caption looks at (up to) the first 10, five per AI call.
+      const batches=textOnly?[ids]:[ids.slice(0,5),ids.slice(5,10)].filter(ids=>ids.length);
       for(const ids of batches){
           const payload={sourceApp:'instagram',campusId:target.campusId,selectedFileIds:ids,textOnly,notes:`${direction}\n${label}. ${textOnly?'사진은 제공하지 않았습니다. 사용자가 명시한 내용만 사용하세요.':'사진에서 확인 가능한 내용만 사용하세요.'} 제목형 도입과 본문 ${batches.length>1?'3':'3~6'}문장으로 작성하고 전화번호·날짜·실적은 만들지 마세요.`,material:design,requestId:crypto.randomUUID()};
           let generated;
@@ -584,7 +585,7 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
     if(!campusId){$('igTemplateStatus').textContent='캠퍼스를 먼저 선택하세요.';return;}
     $('igSaveTemplate').disabled=true;
     try{
-      await api('/api/data-core/content/defaults',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({sourceApp:'instagram',campusId,hashtags:$('defaultHashtags').value,footer:$('defaultFooter').value,instagramSettings:{logoType,mode:$('igMode').value}})});
+      await api('/api/data-core/content/defaults',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({sourceApp:'instagram',campusId,instagramSettings:{logoType,mode:$('igMode').value}})});
       campusDefaultLogoType=logoType;campusDefaultMode=$('igMode').value;updateTemplateSummary();
       $('igTemplateStatus').textContent='캠퍼스 기본 양식 저장 완료';
     }catch(error){$('igTemplateStatus').textContent=error.message;}
