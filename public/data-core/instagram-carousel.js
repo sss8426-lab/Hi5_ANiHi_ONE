@@ -269,9 +269,11 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
       step(preserve?'원본 보존·로고 합성 대기':'로고 합성 대기');
       const composing=decodeLock(()=>{signal.throwIfAborted();step(preserve?'원본 보존·로고 합성 중':'로고 합성 중');return composeInstagram('/api/data-core/files/'+encodeURIComponent(backgroundId),itemDesign,policyValue.campusLogoLabel,signal);});
       const drafting=reuse?Promise.resolve(reuse):(async()=>{
+        // Not tied to 중단: an aborted create can still land server-side, leaving a draft the retry never
+        // learns about. Letting this quick call finish means its id is always recorded and reused.
         const draft=(await post('',{sourceApp:'instagram',campusId,title:`인스타 이미지 ${ids.indexOf(id)+1}`,summary:direction,relatedFileIds:[id],
-          metadata:{instagramDesign:itemDesign,instagramBatch:{...batchInfo,slot:ids.indexOf(id),backgroundFileId:backgroundId!==id?backgroundId:null}}},signal)).draft;
-        partial.draftId=draft.id;
+          metadata:{instagramDesign:itemDesign,instagramBatch:{...batchInfo,slot:ids.indexOf(id),backgroundFileId:backgroundId!==id?backgroundId:null}}})).draft;
+        partial.draftId=draft.id;signal.throwIfAborted();
         return {draftId:draft.id,fingerprint:(await api(`/api/data-core/content/instagram/${draft.id}/review`,{signal})).fingerprint};
       })();
       // allSettled, not all: if composing fails, still learn the draft id so the retry can reuse it.
