@@ -594,14 +594,19 @@ async function handleContentApi(request: Request, env: Env) {
     }
   }
   if (url.pathname === '/api/data-core/content/image-edit' && request.method === 'POST') {
-    const input = await contentJson(request);
+    // The browser resizes/compresses the selected photo before upload (see instagram-carousel.js,
+    // same pattern as blog's photo optimization) — the R2 original is never touched or resized in
+    // place. When the client sends a photo:<sourceFileId> field, that already-optimized copy is what
+    // reaches OpenAI, so an oversized *original* no longer hard-fails the whole edit.
+    const { input, photos } = await contentGenerateRequest(request);
     const { campusId, sourceApp } = contentScope(context, input);
     if (sourceApp !== 'instagram' || typeof input.sourceFileId !== 'string' || input.sourceFileId.length > 120 || typeof input.direction !== 'string' || !input.direction.trim() || input.direction.length > 4000) throw new DataCoreAccessError(400, '대표 사진 1장과 홍보 방향을 입력하세요.');
     await assertInstagramAiUse(env.DB,context,[input.sourceFileId],input,true);
     try {
       if (!env.FILES || !env.OPENAI_API_KEY) throw unavailable();
       const resizeToMaster = input.material?.workflow !== 'carousel-v2';
-      const file = await withAiRequest(env.DB, context, input.requestId, campusId, () => editInstagramImage(env, env.DB!, env.FILES!, context, input.sourceFileId, campusId, input.direction, request.signal, resizeToMaster));
+      const clientOptimized = photos?.get(input.sourceFileId);
+      const file = await withAiRequest(env.DB, context, input.requestId, campusId, () => editInstagramImage(env, env.DB!, env.FILES!, context, input.sourceFileId, campusId, input.direction, request.signal, resizeToMaster, clientOptimized));
       return jsonResponse({ file }, { status: 201 });
     } catch (error) {
       if (error instanceof ContentAiError) return jsonResponse({ error: error.message, code: error.code }, { status: error.status });

@@ -325,9 +325,29 @@ export function openAiContentProvider(env: OpenAiEnv, db: D1Database, files: R2B
   } };
 }
 
-export async function editInstagramImage(env: OpenAiEnv, db: D1Database, files: R2Bucket, context: DataCoreAccessContext, sourceId: string, campusId: string | null, direction: string, signal?: AbortSignal, resizeToMaster = true) {
+// Same permission/existence/mime checks as selectedAiImages(), minus the R2 read + hard byte cap —
+// used only when the browser already sent an optimized working copy, so the R2 original's own size
+// is irrelevant here (it is never read or resized in place).
+async function verifyAiSourceOwnership(db: D1Database, context: DataCoreAccessContext, id: string, campusId: string | null) {
+  const row = await db.prepare('SELECT * FROM file_objects WHERE id=? AND organization_id=? AND deleted_at IS NULL')
+    .bind(id, DEFAULT_ORGANIZATION_ID).first<Record<string, unknown>>();
+  if (!row) throw new DataCoreAccessError(404, '선택한 사진을 찾을 수 없습니다.');
+  if (row.campus_id) requireCampusAccess(context, String(row.campus_id));
+  if (campusId && row.campus_id && row.campus_id !== campusId || !await canReadRegisteredFile(db, context, row)) throw new DataCoreAccessError(403, '선택한 사진을 사용할 권한이 없습니다.');
+  if ([DERIVATIVE_CATEGORY,THUMBNAIL_CATEGORY].includes(String(row.category))) throw new DataCoreAccessError(415, 'JPEG, PNG, WebP 원본 사진을 선택하세요.');
+  return row;
+}
+
+export async function editInstagramImage(env: OpenAiEnv, db: D1Database, files: R2Bucket, context: DataCoreAccessContext, sourceId: string, campusId: string | null, direction: string, signal?: AbortSignal, resizeToMaster = true, clientOptimized?: { bytes: Uint8Array; mime: string }) {
   if (!env.OPENAI_API_KEY) throw unavailable();
-  const [source] = await selectedAiImages(db, files, context, [sourceId], campusId);
+  let source: { row: Record<string, unknown>; mime: string; bytes: Uint8Array };
+  if (clientOptimized) {
+    if (!['image/jpeg','image/png','image/webp'].includes(clientOptimized.mime) || clientOptimized.bytes.length > AI_IMAGE_BYTES) throw new DataCoreAccessError(413, '최적화된 사진을 준비하지 못했습니다. 다시 시도해주세요.');
+    const row = await verifyAiSourceOwnership(db, context, sourceId, campusId);
+    source = { row, mime: clientOptimized.mime, bytes: sanitizeAiImage(clientOptimized.bytes, clientOptimized.mime) };
+  } else {
+    [source] = await selectedAiImages(db, files, context, [sourceId], campusId);
+  }
   const form = new FormData(), model = aiModels(env).image;
   form.set('model', model); form.set('n', '1'); form.set('size', '1024x1536'); form.set('quality', 'medium'); form.set('output_format', 'png');
   form.set('image[]', new Blob([new Uint8Array(source.bytes)], { type: source.mime }), `selected-image.${source.mime.split('/')[1]}`);

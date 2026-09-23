@@ -4,6 +4,7 @@ import test from 'node:test';
 
 const content = fs.readFileSync('public/data-core/content.js', 'utf8');
 const carousel = fs.readFileSync('public/data-core/instagram-carousel.js', 'utf8');
+const optimizeModule = fs.readFileSync('public/data-core/image-ai-optimize.js', 'utf8');
 
 test('블로그와 인스타 사진 선택은 10장까지이며 기존 선택을 덮어쓰지 않는다', () => {
   assert.match(content, /const BLOG_PHOTO_LIMIT = 10;/u);
@@ -17,23 +18,33 @@ test('블로그와 인스타 사진 선택은 10장까지이며 기존 선택을
   assert.match(content, /state\.selectedFileIds\.push\(id\)/u);
 });
 
-test('블로그 사진은 브라우저에서 자동 최적화된 뒤 multipart로 전송되고, 인스타 요청은 기존 JSON 방식 그대로 유지된다', () => {
-  // The optimize pipeline: sequential, closes each bitmap, adaptive ladder, hard cap enforced.
-  assert.match(content, /async function optimizeImageForAi\(file\)/u);
-  assert.match(content, /createImageBitmap\(sourceBlob\)/u);
-  assert.match(content, /bitmap\.close\(\);/u);
-  assert.match(content, /AI_OPTIMIZE_HARD_CAP_BYTES/u);
+test('사진은 브라우저에서 자동 최적화된 뒤 multipart로 전송된다 (블로그 분석, 인스타 이미지 편집 모두 공유 모듈 사용)', () => {
+  // The optimize pipeline lives in one shared module now — blog and Instagram both import it
+  // instead of each keeping their own copy. Sequential, closes each bitmap, adaptive ladder, hard
+  // cap enforced.
+  assert.match(optimizeModule, /export async function optimizeImageForAi\(file\)/u);
+  assert.match(optimizeModule, /createImageBitmap\(sourceBlob\)/u);
+  assert.match(optimizeModule, /bitmap\.close\(\);/u);
+  assert.match(optimizeModule, /AI_OPTIMIZE_HARD_CAP_BYTES/u);
+  assert.match(content, /import \{optimizeImageForAi\} from '\.\/image-ai-optimize\.js/u);
+  assert.match(carousel, /import \{optimizeImageForAi\} from '\.\/image-ai-optimize\.js/u);
+  assert.doesNotMatch(content, /async function optimizeImageForAi/u, 'must not keep a second, drifting copy in content.js');
   assert.match(content, /async function prepareBlogPhotos\(files, signal\)/u);
   // One photo decoded/optimized at a time, not Promise.all — protects low-memory tablets.
   assert.doesNotMatch(content, /Promise\.all\([^)]*optimizeImageForAi/u);
 
-  // Instagram's carousel uses JSON per item; blog keeps optimized multipart analysis.
-  assert.match(carousel, /post\('generate',\{sourceApp:'instagram'/u);
+  // Blog's multi-photo analysis: optimized copies sent as multipart alongside the JSON input.
   assert.match(content, /const photos = await prepareBlogPhotos\(photoFiles, signal\);/u);
   assert.match(content, /form\.set\(`photo:\$\{id\}`, blob, `\$\{id\}\.jpg`\);/u);
   assert.match(content, /await api\('\/api\/data-core\/content\/generate', \{ method: 'POST', signal, body: form \}\);/u);
 
-  // Image edit still uses JSON, with explicit source kind and consent.
-  assert.match(carousel, /if\(itemDesign\.externalAiConsent\)/u);
-  assert.match(carousel, /post\('image-edit',\{sourceApp:'instagram',campusId,sourceFileId:ids\[i\],direction,material:itemDesign/u);
+  // Instagram's single-photo AI edit now also sends a browser-optimized working copy as multipart
+  // (same reasoning as blog: the R2 original is never read/resized server-side for this call), with
+  // the same externalAiConsent gate and a cache so an already-edited photo is never re-optimized or
+  // re-sent on retry.
+  assert.match(carousel, /if\(itemDesign\.externalAiConsent\)\{/u);
+  assert.match(carousel, /const optimized=await optimizeImageForAi\(photoFile\);/u);
+  assert.match(carousel, /postWithPhoto\('image-edit',\{sourceApp:'instagram',campusId,sourceFileId:ids\[i\],direction,material:itemDesign/u);
+  assert.match(carousel, /form\.set\('photo:'\+photoId,blob,photoId\+'\.jpg'\);/u);
+  assert.doesNotMatch(carousel, /post\('image-edit'/u, 'the plain JSON call must be fully replaced, not left dangling alongside postWithPhoto');
 });

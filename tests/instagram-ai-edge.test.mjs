@@ -73,3 +73,55 @@ test('built Worker preserves detailed AI intermediates without redundant master 
     assert.equal((await request('/api/data-core/files/'+derived.id)).status,403,'deleted source remains inaccessible through intermediate');
   }finally{await mf.dispose();}
 });
+
+test('client-optimized upload bypasses the R2 original size cap, still enforces ownership/permission',async()=>{
+  const width=64,height=80,simple=encode({width,height,channels:3,depth:8,data:new Uint8Array(width*height*3).fill(130)});
+  const oversizedOriginal=new Uint8Array(8*1024*1024+1024); // > AI_IMAGE_BYTES; only ever stored in R2, never optimized/read here
+  let calls=0;
+  const names=['index.js',...(await readdir('dist/server',{recursive:true})).filter(n=>n.endsWith('.js')&&n!=='index.js')];
+  const mf=new Miniflare({modules:names.map(n=>({type:'ESModule',path:path.resolve('dist/server',n)})),modulesRoot:path.resolve('dist/server'),
+    compatibilityDate:'2026-05-15',compatibilityFlags:['nodejs_compat'],d1Databases:['DB','FAMILY_DB'],r2Buckets:['FILES','FAMILY_FILES'],
+    bindings:{DATA_CORE_SUPER_ADMIN_EMAILS:'edge2@example.test',OPENAI_API_KEY:'synthetic-only'},outboundService:async request=>{
+      calls++;
+      const form=await request.formData();
+      assert.deepEqual(new Uint8Array(await form.get('image[]').arrayBuffer()),simple,'server must send the CLIENT-optimized bytes to OpenAI, not the raw oversized original');
+      return Response.json({data:[{b64_json:Buffer.from(simple).toString('base64')}]});
+    }});
+  try{
+    const headers={'oai-authenticated-user-id':'synthetic-ai-edge-2','oai-authenticated-user-email':'edge2@example.test','oai-authenticated-user-full-name':'Synthetic',origin:'http://localhost'};
+    async function request(url,body){
+      const h={...headers};let encoded=body;
+      if(body instanceof FormData){const r=new Request('http://localhost',{method:'POST',body});h['content-type']=r.headers.get('content-type');encoded=new Uint8Array(await r.arrayBuffer());}
+      else if(body){h['content-type']='application/json';encoded=JSON.stringify(body);}
+      const r=await mf.dispatchFetch('http://localhost'+url,{method:body?'POST':'GET',headers:h,body:encoded});
+      return {status:r.status,body:r.headers.get('content-type')?.includes('json')?await r.json():new Uint8Array(await r.arrayBuffer())};
+    }
+    await request('/api/data-core/context');
+    const campusId='campus-anihi-admission';
+    const folder=await request('/api/data-core/library/folders',{parentFolderId:'category:'+campusId+':academy-photo',title:'SYNTHETIC LARGE'});
+    assert.equal(folder.status,201,JSON.stringify(folder));
+    const uploadForm=new FormData();uploadForm.set('recordId',folder.body.folder.id);uploadForm.set('file',new Blob([oversizedOriginal],{type:'image/png'}),'large-original.png');
+    const file=await request('/api/data-core/library/files',uploadForm);
+    assert.equal(file.status,201,JSON.stringify(file));
+    const input={sourceApp:'instagram',campusId,sourceFileId:file.body.file.id,direction:'Brighten this synthetic image',material:{workflow:'carousel-v2',materialKind:'real-photo',usePermission:'allowed',externalAiConsent:true}};
+    // Without a client-optimized copy, the oversized R2 original is rejected outright (existing hard cap, unchanged).
+    const plain=await request('/api/data-core/content/image-edit',{...input,requestId:crypto.randomUUID()});
+    assert.equal(plain.status,413,JSON.stringify(plain));
+    assert.equal(calls,0,'must not call OpenAI for a rejected oversized original');
+    // With a client-optimized working copy attached, the SAME oversized original now succeeds — the
+    // R2 file itself is never read or resized in place, only the uploaded copy is used for the edit.
+    const editForm=new FormData();editForm.set('input',JSON.stringify({...input,requestId:crypto.randomUUID()}));
+    editForm.set('photo:'+file.body.file.id,new Blob([simple],{type:'image/png'}),file.body.file.id+'.jpg');
+    const optimized=await request('/api/data-core/content/image-edit',editForm);
+    assert.equal(optimized.status,201,JSON.stringify(optimized));
+    assert.equal(calls,1);
+    assert.deepEqual((await request('/api/data-core/files/'+file.body.file.id)).body,oversizedOriginal,'R2 original remains untouched and unresized');
+    // Ownership/permission checks still apply on the client-optimized path: a mismatched campusId
+    // must still be rejected, even though the oversized-original size check is skipped.
+    const wrongCampusForm=new FormData();wrongCampusForm.set('input',JSON.stringify({...input,campusId:'campus-design-admission',requestId:crypto.randomUUID()}));
+    wrongCampusForm.set('photo:'+file.body.file.id,new Blob([simple],{type:'image/png'}),file.body.file.id+'.jpg');
+    const wrongCampus=await request('/api/data-core/content/image-edit',wrongCampusForm);
+    assert.equal(wrongCampus.status,403,JSON.stringify(wrongCampus));
+    assert.equal(calls,1,'must not call OpenAI when ownership check fails');
+  }finally{await mf.dispose();}
+});
