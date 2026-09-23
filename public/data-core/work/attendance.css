@@ -48,3 +48,8 @@
 #attendanceHost .ar-table th,#attendanceHost .ar-table td{border:1px solid #b9c7d6;padding:6px 10px;text-align:left;font-size:13px;letter-spacing:0;text-transform:none;vertical-align:middle}#attendanceHost .ar-table thead th{background:#5b9bd5;color:#fff;font-weight:650}#attendanceHost .ar-table tbody th{background:#eaf2f8;font-weight:600;color:#17365d}#attendanceHost .ar-table td{color:var(--core-text,#171917)}
 .at-legacy{border-top:1px solid var(--core-border,#dedcd5);padding-top:16px}.at-legacy>summary{cursor:pointer;font-size:14px;color:var(--core-text-secondary,#747872);margin-bottom:16px}
 #attendanceHost .ar-table thead th,#attendanceHost .ar-table td:not(:last-child){white-space:nowrap}
+.ar-days-off{border:1px solid var(--core-border,#dedcd5);border-radius:6px;padding:12px 14px;margin:0;min-width:0}.ar-days-off legend{font-size:14px;padding:0 4px}
+.ar-days-off small{display:block;font-size:12px;line-height:1.6;color:var(--core-text-secondary,#747872);margin-bottom:6px}
+.ar-days-off ul{list-style:none;margin:0;padding:0;display:grid;gap:2px}.ar-days-off li{border-bottom:1px solid var(--core-border,#dedcd5)}.ar-days-off li:last-child{border-bottom:0}
+.ar-days-off .at-check{min-height:40px;font-size:14px}.ar-days-off em{font-style:normal;font-size:12px;margin-left:6px;padding:1px 6px;border-radius:4px;background:#8497b0;color:#fff}
+.ar-days-off input:checked+span em{background:#b7cce3;color:#17365d}.ar-days-off .ar-empty{font-size:13px;color:var(--core-text-secondary,#747872);padding:6px 0}
