@@ -4,6 +4,7 @@ import {mountTextPresets} from './content-text-presets.js?v=20260923-brandfix';
 import {normalizeTags} from './content-preset-catalog.js';
 import {captionTail} from './content-caption.js?v=20260922-presets';
 import {mountBlogWorkflow} from './blog-workflow.js?v=20260923-unify2';
+import {optimizeImageForAi} from './image-ai-optimize.js?v=20260923-imgfix';
 
 const state = {
   context: null,
@@ -38,16 +39,6 @@ const state = {
   blogRecentTitlesCache: [],
 };
 const BLOG_PHOTO_LIMIT = 10;
-// Adaptive long-edge/quality ladder tried in order until the JPEG lands at or under the soft
-// target; the browser never upscales a smaller original past its own size.
-const AI_OPTIMIZE_STEPS = [
-  { edge: 2048, quality: 0.82 },
-  { edge: 1800, quality: 0.78 },
-  { edge: 1600, quality: 0.74 },
-  { edge: 1280, quality: 0.70 },
-];
-const AI_OPTIMIZE_TARGET_BYTES = 1.5 * 1024 * 1024;
-const AI_OPTIMIZE_HARD_CAP_BYTES = 2 * 1024 * 1024;
 
 let derivativeEditor, instagramProduction, aiUsagePanel, textPresets, blogWorkflow, lastInstagramSettings;
 let browseController, renderedFolder='', defaultsEdited=0;
@@ -711,40 +702,6 @@ function setAiBusy(busy) {
   if (!busy) derivativeEditor?.update(selectedFiles(), state.sourceApp === 'instagram');
 }
 
-// Resizes/compresses one selected photo for the AI request in the browser; the R2 original itself
-// is never touched. Tries the ladder in order and keeps the smallest attempt as a fallback so a
-// stubborn photo still lands under the hard cap instead of failing outright.
-async function optimizeImageForAi(file) {
-  const name = file.fileName || '사진';
-  const url = file.previewUrl || '/api/data-core/files/' + encodeURIComponent(file.id);
-  let sourceBlob;
-  try {
-    const response = await fetch(url, { credentials: 'same-origin' });
-    if (!response.ok) throw new Error();
-    sourceBlob = await response.blob();
-  } catch { throw new Error(`${name} 사진을 불러오지 못했습니다.`); }
-  let bitmap;
-  try { bitmap = await createImageBitmap(sourceBlob); }
-  catch { throw new Error(`${name} 사진을 AI 분석용으로 준비하지 못했습니다.`); }
-  try {
-    let best = null;
-    for (const step of AI_OPTIMIZE_STEPS) {
-      const scale = Math.min(1, step.edge / Math.max(bitmap.width, bitmap.height));
-      const width = Math.max(1, Math.round(bitmap.width * scale));
-      const height = Math.max(1, Math.round(bitmap.height * scale));
-      const canvas = new OffscreenCanvas(width, height);
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(bitmap, 0, 0, width, height);
-      best = await canvas.convertToBlob({ type: 'image/jpeg', quality: step.quality });
-      if (best.size <= AI_OPTIMIZE_TARGET_BYTES) break;
-    }
-    if (!best || !best.size || best.size > AI_OPTIMIZE_HARD_CAP_BYTES) throw new Error(`${name} 사진을 AI 분석용으로 준비하지 못했습니다.`);
-    return best;
-  } finally {
-    bitmap.close();
-  }
-}
-
 // One photo at a time: decode, resize/compress, release, next. Never decodes more than one
 // original into memory at once (protects low-memory tablets from a 10-photo decode spike).
 async function prepareBlogPhotos(files, signal) {
@@ -1030,7 +987,7 @@ async function init() {
     void loadDefaults();void loadAiStatus();
     const listing=loadFiles();
     if(state.sourceApp==='instagram'){
-      const {mountInstagramProduction}=await import('/data-core/instagram-carousel.js?v=20260923-brandfix2');
+      const {mountInstagramProduction}=await import('/data-core/instagram-carousel.js?v=20260923-imgfix');
       instagramProduction=mountInstagramProduction({state,api,$,toast,canWrite,contact:()=>textPresets.contact()});
       instagramProduction.applyDefaults(lastInstagramSettings);
       instagramProduction.refresh();

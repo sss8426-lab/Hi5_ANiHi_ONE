@@ -2,6 +2,7 @@ import {LOGOS,normalizeDesign} from './instagram-brand-policy.js';
 import {composeInstagram,drawLogo} from './instagram-layout.js?v=20260921-performance';
 import {assembleCaption,captionTail,replaceManagedTail,assertResolvedText} from './content-caption.js?v=20260922-presets';
 import {normalizeTags} from './content-preset-catalog.js';
+import {optimizeImageForAi} from './image-ai-optimize.js?v=20260923-imgfix';
 
 const btnHtml=(id,label)=>`<button type="button" class="ghost-btn" id="${id}">${label}</button>`;
 
@@ -51,6 +52,10 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
   const read=()=>normalizeDesign({workflow:'carousel-v2',logoType,templateId:'academy',materialKind:$('igMode').value==='original'?'student-artwork':'real-photo',usePermission:'allowed',externalAiConsent:!originalMode()});
   const snapshot=()=>JSON.stringify([state.selectedFileIds,$('draftCampus').value,$('aiCommand').value,logoType,$('igMode').value]);
   const post=(path,body,signal)=>api('/api/data-core/content'+(path?'/'+path:''),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body),signal:signal||AbortSignal.timeout(150000)});
+  // Sends the already browser-optimized working copy alongside the request body — same
+  // multipart/form-data shape as blog's photo upload — instead of asking the server to re-read (and
+  // hard-cap) the R2 original.
+  const postWithPhoto=(path,body,photoId,blob,signal)=>{const form=new FormData();form.set('input',JSON.stringify(body));form.set('photo:'+photoId,blob,photoId+'.jpg');return api('/api/data-core/content'+(path?'/'+path:''),{method:'POST',body:form,signal:signal||AbortSignal.timeout(150000)});};
   function buttons(){ $('igGenerate').disabled=busy||!canWrite()||!state.selectedFileIds.length||!$('draftCampus').value;
     $('igComplete').disabled=busy||!items.length||items.length!==state.selectedFileIds.length||signature!==snapshot()||Boolean(currentSet);
     const saved=Boolean(currentSet);$('igComplete').innerHTML=saved?'<svg aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Check"></use></svg>완료':imageState==='saving'?'저장 중…':imageState==='failed'?'다시 저장':hasSaved?'변경사항 저장':'완료 및 저장';
@@ -105,9 +110,16 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
         const reportProgress=(fraction,message)=>progress((i+fraction)/ids.length*100,message);
         stage=`${i+1} / ${ids.length} ${preserve?'원본 보존 제작':'이미지 제작'}`;reportProgress(.05,stage+' 중...');let backgroundId=ids[i];
         if(itemDesign.externalAiConsent){
-          stage=`${i+1} / ${ids.length} AI 사진 보정`;reportProgress(.1,stage+' · AI 응답 대기');
-          const timer=setTimeout(()=>controller?.abort(),290000);
-          try{backgroundId=backgrounds.get(backgroundKey(ids[i]))||(await post('image-edit',{sourceApp:'instagram',campusId,sourceFileId:ids[i],direction,material:itemDesign,requestId:crypto.randomUUID()},controller.signal)).file.id;backgrounds.set(backgroundKey(ids[i]),backgroundId);}finally{clearTimeout(timer);}
+          stage=`${i+1} / ${ids.length} AI 사진 보정`;
+          if(!backgrounds.has(backgroundKey(ids[i]))){
+            reportProgress(.08,stage+' · 사진 준비 중');
+            const photoFile=state.knownFiles.get(String(ids[i]));
+            if(!photoFile)throw Error('선택한 사진 정보를 확인할 수 없습니다. 사진을 다시 선택해주세요.');
+            const optimized=await optimizeImageForAi(photoFile);
+            reportProgress(.1,stage+' · AI 응답 대기');
+            const timer=setTimeout(()=>controller?.abort(),290000);
+            try{backgroundId=(await postWithPhoto('image-edit',{sourceApp:'instagram',campusId,sourceFileId:ids[i],direction,material:itemDesign,requestId:crypto.randomUUID()},ids[i],optimized,controller.signal)).file.id;backgrounds.set(backgroundKey(ids[i]),backgroundId);}finally{clearTimeout(timer);}
+          } else backgroundId=backgrounds.get(backgroundKey(ids[i]));
         }
         stage=`${i+1} / ${ids.length} ${preserve?'원본 보존·로고 합성':'로고 합성'}`;reportProgress(.75,stage+' 중...');
         // Only one decoded image at a time; metadata work can overlap composition.
@@ -123,11 +135,14 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
         // Keep only the latest saved frame in memory; no redundant multi-MB GET
         // for its preview. Earlier slides/history still use authenticated reads.
         releasePreview();localPreview={fileId:saved.file.id,url:URL.createObjectURL(blob)};
-        items.push({draftId:draft.id,renderId:saved.renderId,fingerprint:saved.fingerprint,masterFileId:saved.file.id});preview(i);reportProgress(1,`${i+1} / ${ids.length} 이미지 제작 완료`);
+        items.push({sourceId:ids[i],draftId:draft.id,renderId:saved.renderId,fingerprint:saved.fingerprint,masterFileId:saved.file.id});preview(i);reportProgress(1,`${i+1} / ${ids.length} 이미지 제작 완료`);
+        // A completed photo's own draft/render is already persisted server-side — its individual
+        // download does not need to wait for the rest of the batch (or the bundled 세트 save).
+        void downloads();
       }
       $('igStatus').textContent=`${items.length}장 제작 완료`;$('igSaved').textContent=hasSaved?'변경사항 미저장':'저장 전';
     }catch(error){$('igStatus').textContent=error.name==='AbortError'?'작업을 중단했습니다. 이미 전송된 AI 작업은 과금될 수 있습니다.':`${stage}: ${error.message}`;
-      if(items.length)$('igSaved').textContent=`${items.length}장만 제작되었습니다. 전체 제작 완료 후 저장할 수 있습니다.`;
+      if(items.length){$('igSaved').textContent=`${items.length}장 완료 · 완료된 사진은 아래에서 개별로 받을 수 있습니다. 나머지는 다시 시도해주세요.`;void downloads();}
     }finally{controller=null;lock(false);}
   };
   async function downloads(){

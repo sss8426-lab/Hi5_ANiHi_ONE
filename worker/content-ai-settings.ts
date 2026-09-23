@@ -12,7 +12,7 @@ export function contentScope(context: DataCoreAccessContext, input: { sourceApp?
   return { sourceApp, campusId };
 }
 
-export async function contentDefaults(db: D1Database, context: DataCoreAccessContext, input: { sourceApp?: unknown; campusId?: unknown; hashtags?: unknown; footer?: unknown; blogSettings?: any; instagramSettings?: any }, save = false) {
+export async function contentDefaults(db: D1Database, context: DataCoreAccessContext, input: { sourceApp?: unknown; campusId?: unknown; hashtags?: unknown; footer?: unknown; blogSettings?: any; instagramSettings?: { logoType?: unknown; mode?: unknown } }, save = false) {
   const { sourceApp, campusId } = contentScope(context, input);
   const id = `content-defaults:${sourceApp}:${campusId || 'organization'}`;
   if (save) {
@@ -37,7 +37,7 @@ export async function contentDefaults(db: D1Database, context: DataCoreAccessCon
       if(sourceApp!=='instagram')throw new DataCoreAccessError(400,'인스타 기본 양식을 확인하세요.');
       const {LOGOS}=await import('../public/data-core/instagram-brand-policy.js');
       const s=input.instagramSettings;
-      if(!s||!Object.hasOwn(LOGOS,s.logoType)||!['original','photo-layout','photo'].includes(s.mode))throw new DataCoreAccessError(400,'인스타 기본 양식을 확인하세요.');
+      if(!s||typeof s.logoType!=='string'||!Object.hasOwn(LOGOS,s.logoType)||typeof s.mode!=='string'||!['original','photo-layout','photo'].includes(s.mode))throw new DataCoreAccessError(400,'인스타 기본 양식을 확인하세요.');
       instagramSettings={logoType:s.logoType,mode:s.mode};
     }
     const metadata = JSON.stringify({ schemaVersion: 1, hashtags: input.hashtags.trim(), footer: input.footer,...(blogSettings?{blogSettings}:{}),...(instagramSettings?{instagramSettings}:{}) });
