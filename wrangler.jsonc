@@ -4,6 +4,7 @@
   "compatibility_date": "2026-05-15",
   "compatibility_flags": ["nodejs_compat"],
   "main": "./worker/family-shell-router.ts",
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
   "vars": {
     "OPENAI_PROJECT_ID": "proj_xGBBMJiRALx3Hn9FISmnPgcD",
     "CLOUDFLARE_USAGE_ACCOUNT_ID": "44d44ea5985018a83d093a28f5fb7511",

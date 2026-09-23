@@ -14,7 +14,9 @@ export const aiModels = (env: OpenAiEnv) => ({ text: env.OPENAI_TEXT_MODEL || en
 export class ContentAiError extends DataCoreAccessError {
   constructor(public code: string, status: number, message: string) { super(status, message); }
 }
-const failure = () => new ContentAiError('provider_error', 502, 'AI 작업을 완료하지 못했습니다. 다시 시도해주세요.');
+// `detail` names where it failed (AI server status, connection, response shape) so a failed photo's
+// 실패 사유 is diagnosable from the screen, not only from Worker logs.
+const failure = (detail?: string) => new ContentAiError('provider_error', 502, `AI 작업을 완료하지 못했습니다${detail ? ` (${detail})` : ''}. 다시 시도해주세요.`);
 export const unavailable = () => new ContentAiError('provider_not_configured', 503, 'AI 연결 설정을 확인해주세요.');
 
 export async function boundedJson(response: Response, maxBytes: number) {
@@ -58,7 +60,7 @@ async function callOpenAi(env: OpenAiEnv, endpoint: 'responses' | 'images/edits'
       if ([401,403,404].includes(response.status)) throw unavailable();
       if (response.status === 429) throw new ContentAiError('rate_limit', 429, 'AI 사용량이 많습니다. 잠시 후 다시 시도해주세요.');
       if (response.status === 400) throw new ContentAiError('unsupported_input', 400, '선택한 이미지와 AI 모델 설정을 확인해주세요.');
-      throw failure();
+      throw failure(`AI 서버 응답 ${response.status}`);
     }
     const output=await boundedJson(response, endpoint === 'responses' ? 128 * 1024 : 12 * 1024 * 1024);
     await meter('confirmed',output.usage);return output;
@@ -66,7 +68,7 @@ async function callOpenAi(env: OpenAiEnv, endpoint: 'responses' | 'images/edits'
     if (error instanceof ContentAiError) throw error;
     if (controller.signal.aborted) throw new ContentAiError('timeout', 504, 'AI 작업 대기 시간이 지났습니다. 잠시 후 다시 시도해주세요.');
     console.error('[openai]', { endpoint, code: 'transport_error' });
-    throw failure();
+    throw failure('AI 서버 연결 실패');
   } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
 }
 
@@ -245,7 +247,7 @@ async function responsesCall(env: OpenAiEnv, instructions: string, content: unkn
   }), signal);
   if (response.status !== 'completed' || !Array.isArray(response.output)) {
     console.error('[openai]', { code: 'incomplete_response', schema: schemaName });
-    throw failure();
+    throw failure('AI 응답이 완료되지 않음');
   }
   const texts = response.output.filter((item: { type?: string }) => item.type === 'message').flatMap((item: { content?: unknown[] }) => item.content || []) as { type?: string; text?: string }[];
   if (texts.some(item => item.type === 'refusal')) throw new ContentAiError('refused', 422, '이 요청은 AI로 처리할 수 없습니다. 사진이나 명령을 바꿔주세요.');
