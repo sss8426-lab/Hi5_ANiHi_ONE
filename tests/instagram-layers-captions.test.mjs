@@ -197,4 +197,8 @@ test('client: captions follow saved results (partial too), once, with visible st
   assert.match(apply,/await saveRender\(item\.draftId,item\.fingerprint,background,blob,placed\)/u);
   assert.doesNotMatch(apply,/generate|image-edit|caption\(/u);
   assert.match(apply,/불러올 수 없는 이미지/u,'a missing image blocks applying instead of being dropped');
+  // Regression (found in the browser): a set reopened from history shared its items array with the
+  // screen, so a layer edit looked "already saved" and the set was never updated.
+  assert.doesNotMatch(carousel,/items=saved\.items;/u);
+  assert.doesNotMatch(apply,/items\[index\]=/u);
 });

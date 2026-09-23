@@ -711,7 +711,7 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
       button.onclick=async()=>{if(busy)return;lock(true);try{
         const saved=await api('/api/data-core/content/instagram-sets/'+encodeURIComponent(item.id));clear();hideResume();
         // Opening an old set never writes by itself; an empty one offers [홍보글 작성] instead.
-        autoCaptioned.add(saved.id);currentSet=saved;managedTail=saved.managedTail??null;generatedTags=Array.isArray(saved.generatedTags)?saved.generatedTags:[];items=saved.items;
+        autoCaptioned.add(saved.id);currentSet=saved;managedTail=saved.managedTail??null;generatedTags=Array.isArray(saved.generatedTags)?saved.generatedTags:[];items=saved.items.map(item=>({...item}));
         preview();await downloads();$('igSaved').textContent='저장된 최종본';$('igCaptionText').value=saved.caption;$('igCaptionSection').hidden=false;
         setCaptionState(saved.caption?'done':'none',saved.caption?coverageNote(saved):'아직 홍보글이 없습니다. [홍보글 작성]을 누르면 글만 작성합니다(이미지는 다시 만들지 않습니다).');
       }catch(error){toast(error.message,'error');}finally{lock(false);}};return button;
@@ -918,7 +918,8 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
           const {blob,layers:placed}=await composeInstagram('/api/data-core/files/'+encodeURIComponent(background),item.design,label,undefined,{layers:own,assets});
           const saved=await saveRender(item.draftId,item.fingerprint,background,blob,placed);
           if(epoch!==generation)return;
-          items[index]={...item,renderId:saved.renderId,fingerprint:saved.fingerprint,masterFileId:saved.file.id,layers:placed};
+          // A new array: `items` must never alias currentSet.items, or the set would look already saved.
+          items=items.map((v,i)=>i===index?{...item,renderId:saved.renderId,fingerprint:saved.fingerprint,masterFileId:saved.file.id,layers:placed}:v);
           if(index===activeIndex){releasePreview();localPreview={fileId:saved.file.id,url:URL.createObjectURL(blob)};}
           done++;
         }catch(error){problems.push(`${slot}번: ${error.message}`);}
