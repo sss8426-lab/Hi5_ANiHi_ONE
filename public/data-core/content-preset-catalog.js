@@ -60,6 +60,23 @@ const closingRows = [
  ['19','방학·특강','게시물에 안내한 특강의 대상과 일정, 수업 내용을 확인해 주세요.\n현재 준비 중인 과목과 보완하고 싶은 부분을 알려주시면 과정 선택에 필요한 내용을 안내해드리겠습니다.\n개설 여부와 등록 가능 인원은 해당 캠퍼스에 문의해 주세요.','이번 과정에서 집중하고 싶은 것은 무엇인가요?\n특강 대상과 일정, 등록 가능 여부는 DM으로 문의해 주세요.'],
  ['20','포트폴리오','포트폴리오는 작품의 수뿐 아니라 어떤 생각과 과정을 보여줄 것인지 함께 살펴보는 작업입니다.\n목표 분야와 제출 요건, 현재 준비한 작품을 바탕으로 필요한 방향을 상담합니다.\n관련 과정 운영 여부와 상담 내용은 해당 캠퍼스로 문의해 주세요.','나의 생각과 표현을 작품으로 정리하는 과정.\n포트폴리오 준비와 관련 수업은 DM으로 문의해 주세요.'],
 ];
+// 인사말: the very first block of a post. Only the brand's confirmed direction and the academy name
+// (or "저희 학원") — no results, numbers, dates, courses or contact details.
+const greetingRows = [
+ ['01','기본 인사','anihi','안녕하세요, {{학원명}}입니다.\n그림으로 이야기를 만들어 가는 학생들의 수업 소식을 전해드립니다.','안녕하세요, {{학원명}}입니다.\n그림으로 이야기를 만드는 수업 소식을 전해드려요.'],
+ ['02','수업 소식','anihi','안녕하세요, {{학원명}}입니다.\n오늘은 만화·웹툰·애니메이션 수업 시간에 학생들이 작업한 과정을 소개해드리려 합니다.','{{학원명}}의 만화·웹툰·애니메이션 수업 이야기입니다.'],
+ ['03','학생 작품','anihi','안녕하세요, {{학원명}}입니다.\n학생들이 직접 구상하고 완성한 작품을 함께 소개해드립니다.','학생들이 직접 구상하고 완성한 작품을 소개합니다.'],
+ ['04','전공 준비','anihi','안녕하세요, {{학원명}}입니다.\n만화·애니메이션 전공을 준비하는 학생들의 실기 수업 이야기를 전해드립니다.','만화·애니메이션 전공을 준비하는 학생들의 수업 이야기입니다.'],
+ ['05','꿈·진로','anihi','안녕하세요, {{학원명}}입니다.\n좋아하는 그림을 꿈으로 이어가고 있는 학생들의 이야기를 들려드릴게요.','좋아하는 그림을 꿈으로 이어가는 학생들의 이야기입니다.'],
+ ['06','처음 알아보는 분께','anihi','안녕하세요, {{학원명}}입니다.\n만화·웹툰 수업을 처음 알아보시는 분들께 저희 수업을 소개해드립니다.','만화·웹툰 수업을 처음 알아보시는 분들께 수업을 소개합니다.'],
+ ['01','기본 인사','hi5','안녕하세요, {{학원명}}입니다.\n관찰하고 표현하며 성장하는 학생들의 수업 소식을 전해드립니다.','안녕하세요, {{학원명}}입니다.\n관찰하고 표현하는 수업 소식을 전해드려요.'],
+ ['02','수업 소식','hi5','안녕하세요, {{학원명}}입니다.\n오늘은 디자인·미술 수업 시간에 학생들이 작업한 과정을 소개해드리려 합니다.','{{학원명}}의 디자인·미술 수업 이야기입니다.'],
+ ['03','학생 작품','hi5','안녕하세요, {{학원명}}입니다.\n학생들이 고민하고 완성한 작품을 함께 소개해드립니다.','학생들이 고민하고 완성한 작품을 소개합니다.'],
+ ['04','전공 준비','hi5','안녕하세요, {{학원명}}입니다.\n디자인·미술 전공을 준비하는 학생들의 실기 수업 이야기를 전해드립니다.','디자인·미술 전공을 준비하는 학생들의 수업 이야기입니다.'],
+ ['05','꿈·진로','hi5','안녕하세요, {{학원명}}입니다.\n그림과 디자인으로 꿈을 키워가는 학생들의 이야기를 들려드릴게요.','그림과 디자인으로 꿈을 키워가는 학생들의 이야기입니다.'],
+ ['06','처음 알아보는 분께','hi5','안녕하세요, {{학원명}}입니다.\n미술·디자인 수업을 처음 알아보시는 분들께 저희 수업을 소개해드립니다.','미술·디자인 수업을 처음 알아보시는 분들께 수업을 소개합니다.'],
+];
+export const GREETING_CATALOG = greetingRows.map(([key,name,brandScope,blog,instagram])=>({key:'greeting-'+key,name,brandScope,blog,instagram,kind:'greeting',notice:''}));
 export const TAG_CATALOG = tagRows.map(([key,name,brandScope,course,base,extra,notice=''])=>({key:'tags-'+key,name,brandScope,course,base:'{{브랜드태그}} '+base,extra,notice,kind:'hashtags'}));
 export const CLOSING_CATALOG = closingRows.map(([key,name,blog,instagram])=>({key:'closing-'+key,name,blog,instagram,kind:'closing',brandScope:key==='12'?'hi5':key==='13'?'anihi':'common',notice:['07','08','15','19'].includes(key)?'게시물의 실제 사실 확인 후 사용':''}));
 export function normalizeTags(...values) {
@@ -88,14 +105,14 @@ export function recommendedPresets(campusId,sourceApp,profile={brands:[],names:{
  // Each text area on the main screen picks [Hi5] or [ANiHi] itself, so every recommended set exists once
  // per brand it fits: a common set in a Hi5 and an ANiHi version, a brand-only set just for its brand.
  const names=profile.names||{},regionField=brand=>region?'#'+region+BRANDS[brand].field:'';
- for(const row of [...TAG_CATALOG,...CLOSING_CATALOG]){
+ for(const row of [...GREETING_CATALOG,...TAG_CATALOG,...CLOSING_CATALOG]){
   const scopes=row.brandScope==='common'?Object.keys(BRANDS):[row.brandScope];
   for(const scope of scopes){
    if(row.course==='bucheon'&&campusId!==(scope==='anihi'?'campus-anihi-admission':'campus-design-admission'))continue;
    const fields={'브랜드태그':BRANDS[scope].tag,'지역':region,'지역분야태그':regionField(scope),'학원명':names[scope]};
    const text=row.kind==='hashtags'?row.base+(sourceApp==='blog'?' '+row.extra:''):row[sourceApp];
    // `builtin:<key>:<brand>` — the id a campus's single confirmed brand already used, so edits and favorites keep matching.
-   items.push({id:'builtin:'+row.key+':'+scope,builtInKey:row.key+':'+scope,catalogVersion:CATALOG_VERSION,kind:row.kind,name:row.name,category:row.kind==='hashtags'?(row.course? '과정':'주제'):'마지막 문구',brandScope:scope,
+   items.push({id:'builtin:'+row.key+':'+scope,builtInKey:row.key+':'+scope,catalogVersion:CATALOG_VERSION,kind:row.kind,name:row.name,category:row.kind==='hashtags'?(row.course? '과정':'주제'):row.kind==='greeting'?'인사말':'마지막 문구',brandScope:scope,
     content:fill(text,fields,row.kind),notice:row.notice,unavailable:'',revision:0,deletedAt:null,favorite:false,ownerUserId:null});
   }
  }
