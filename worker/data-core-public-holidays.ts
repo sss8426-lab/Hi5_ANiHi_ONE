@@ -39,6 +39,17 @@ export function parsePublicHolidays(ics: string): PublicHoliday[] {
       if (endDate > existing.endDate) existing.endDate = endDate;
     } else byDate.set(startDate, { startDate, endDate, title });
   }
+  // 설날·추석 are always three days off (the day before, the day, the day after). The feed sometimes
+  // lists only two of them for later years, so fill the missing side from the day itself.
+  for (const holiday of [...byDate.values()]) {
+    for (const name of ["설날", "추석"]) {
+      if (!holiday.title.split(" · ").includes(name)) continue;
+      for (const offset of [-1, 1]) {
+        const date = shift(holiday.startDate, offset);
+        if (!byDate.has(date)) byDate.set(date, { startDate: date, endDate: date, title: `${name} 연휴` });
+      }
+    }
+  }
   return [...byDate.values()].sort((a, b) => a.startDate.localeCompare(b.startDate));
 }
 

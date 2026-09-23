@@ -98,6 +98,21 @@ test('a broken or unreachable feed changes nothing; only MASTER can run the sync
   } finally {await h.mf.dispose();}
 });
 
+test('설날·추석 always get the day before and after, even when the feed lists only two days', async()=>{
+  const h=await libraryHarness();
+  try{
+    // Shape of Google's later-year data: 설날 + 설날 연휴 (day after) + 대체공휴일, but no day before.
+    const events=[...base(),vevent(d(2,7),'설날','공휴일'),vevent(d(2,8),'설날 연휴','공휴일'),vevent(d(2,9),'쉬는 날 설날','공휴일'),
+      vevent(d(9,15),'추석','공휴일'),vevent(d(9,16),'추석 연휴','공휴일')];
+    const res=await withFeed(feed(events),()=>h.request('POST','/api/data-core/calendar/public-holidays/sync',users.admin));
+    assert.equal(res.status,200,JSON.stringify(res.body));
+    const titles=(await holidays(h)).map(e=>`${e.metadata.startDate.slice(5)} ${e.title}`);
+    for(const t of ['02-06 설날 연휴','02-07 설날','02-08 설날 연휴','02-09 쉬는 날 설날','09-14 추석 연휴','09-15 추석','09-16 추석 연휴'])assert.ok(titles.includes(t),t);
+    assert.ok(!titles.includes('02-10 설날 연휴'),'쉬는 날 is not treated as 설날 itself');
+    assert.equal(res.body.added,9+7);
+  } finally {await h.mf.dispose();}
+});
+
 test('the daily cron handler runs the same sync', async()=>{
   const h=await libraryHarness();
   try{
