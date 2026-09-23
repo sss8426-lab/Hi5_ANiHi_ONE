@@ -515,7 +515,7 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
           if(textOnly)generated=(await post('generate',payload,abort.signal)).generated;
           else{
             // Like the image edit: send browser-optimized copies, so an oversized original can't 413 the caption.
-            const form=new FormData();form.set('input',JSON.stringify(body));
+            const form=new FormData();form.set('input',JSON.stringify(payload));
             for(const id of ids){const blob=await optimizeImageForAi(state.knownFiles.get(String(id))||{id});if(!valid())return;form.set('photo:'+id,blob,id+'.jpg');}
             generated=(await api('/api/data-core/content/generate',{method:'POST',body:form,signal:abort.signal})).generated;
           }
