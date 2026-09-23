@@ -1,5 +1,5 @@
-import {LOGOS,normalizeDesign} from './instagram-brand-policy.js';
-import {composeInstagram,drawLogo} from './instagram-layout.js?v=20260921-performance';
+import {LOGOS,normalizeDesign} from './instagram-brand-policy.js?v=20260923-logoup';
+import {composeInstagram,drawLogo} from './instagram-layout.js?v=20260923-logoup';
 import {assembleCaption,captionTail,replaceManagedTail,assertResolvedText} from './content-caption.js?v=20260922-presets';
 import {normalizeTags} from './content-preset-catalog.js';
 import {optimizeImageForAi} from './image-ai-optimize.js?v=20260923-imgfix';
@@ -15,6 +15,14 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
     <dialog id="igTemplateDialog" class="workflow-dialog" aria-labelledby="igTemplateDialogTitle">
       <div class="workflow-heading"><h2 id="igTemplateDialogTitle">양식 수정</h2>${btnHtml('igCloseTemplate','닫기')}</div>
       <h3>로고 선택</h3><div id="igLogos" class="ig-logo-options" role="group" aria-label="공식 로고"></div>
+      <h3>나만의 로고 선택</h3>
+      <div id="igCustomLogos" class="ig-logo-options" role="group" aria-label="나만의 로고"></div>
+      <div class="blog-actions">
+        <input type="file" id="igLogoFile" accept="image/png,image/jpeg,image/webp" hidden>
+        ${btnHtml('igUploadLogo','로고 올리기')}
+        <button type="button" class="ghost-btn hidden" id="igMoreLogos">더 보기</button>
+      </div>
+      <p id="igCustomLogoStatus" role="status"></p>
       <div class="ig-options"><label>제작 방식<select id="igMode"><option value="original">작품 전체 보존</option><option value="photo-layout">공간·학원 사진 크게 배치</option><option value="photo">사진 보정 · AI</option></select></label><span id="igCampusLabel" role="status"></span></div>
       <div class="blog-actions">${btnHtml('igApplyTemplate','이번 글에 적용')}${btnHtml('igSaveTemplate','캠퍼스 기본값으로 저장')}${btnHtml('igCancelTemplate','취소')}</div>
       <span id="igTemplateStatus" role="status"></span>
@@ -81,9 +89,70 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
         if(id==='none'){canvas.replaceWith(Object.assign(document.createElement('span'),{className:'ig-no-logo',innerHTML:'<svg aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Image"></use></svg>'}));button.title='로고 없이 이미지만 제작';continue;}
         void drawLogo(canvas,id,value.campusLogoLabel).catch(()=>{if(epoch===policyEpoch){canvas.replaceWith(Object.assign(document.createElement('img'),{src:spec.src,alt:spec.label}));button.title='로고 미리보기를 다시 불러오려면 캠퍼스를 다시 선택하세요.';}});
       }
+      void loadCustomLogos(true);
     }catch(error){if(epoch===policyEpoch)$('igCampusLabel').textContent=error.message;}
     buttons();
   }
+  // 나만의 로고: uploaded once per campus, selectable alongside the official marks above. Deleting one
+  // only hides this row — it never touches an already-composited image (a separate, independent file).
+  let customLogos=[],customLogosCursor=null,customLogosCampus='';
+  function renderCustomLogo(item){
+    const value='custom:'+item.id;
+    const button=document.createElement('button');button.type='button';button.className='ig-logo-choice';button.dataset.logo=value;button.setAttribute('aria-pressed',String(value===logoType));
+    const img=document.createElement('img');img.src='/api/data-core/files/'+encodeURIComponent(item.id);img.alt=item.name;img.loading='lazy';
+    const label=document.createElement('span');label.textContent=item.name;
+    const remove=document.createElement('span');remove.className='ig-logo-remove';remove.setAttribute('role','button');remove.tabIndex=0;remove.setAttribute('aria-label',item.name+' 삭제');
+    remove.innerHTML='<svg aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Trash2"></use></svg>';
+    button.append(img,label,remove);
+    const removeLogo=async(event)=>{
+      event.stopPropagation();
+      if(busy||!confirm(`'${item.name}' 로고를 삭제할까요? 이미 완성한 이미지에는 영향이 없습니다.`))return;
+      try{
+        await api('/api/data-core/content/instagram-logos/'+encodeURIComponent(item.id),{method:'DELETE'});
+        customLogos=customLogos.filter(v=>v.id!==item.id);
+        if(logoType===value){logoType=campusDefaultLogoType;clear(true);}
+        renderCustomLogos();updateTemplateSummary();
+      }catch(error){$('igCustomLogoStatus').textContent=error.message;}
+    };
+    remove.onclick=removeLogo;remove.onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();removeLogo(event);}};
+    button.onclick=event=>{
+      if(event.target.closest('.ig-logo-remove')||busy||logoType===value)return;
+      logoType=value;clear(true);
+      $('igCustomLogos').querySelectorAll('button').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.logo===value)));
+      $('igLogos').querySelectorAll('button').forEach(el=>el.setAttribute('aria-pressed','false'));
+      updateTemplateSummary();
+    };
+    return button;
+  }
+  function renderCustomLogos(){$('igCustomLogos').replaceChildren(...customLogos.map(renderCustomLogo));}
+  async function loadCustomLogos(reset=false){
+    const campusId=$('draftCampus').value;
+    if(!campusId){customLogos=[];customLogosCursor=null;customLogosCampus='';renderCustomLogos();$('igMoreLogos').classList.add('hidden');return;}
+    if(reset){customLogos=[];customLogosCursor=null;customLogosCampus=campusId;}
+    else if(customLogosCampus!==campusId)return;
+    try{
+      const params=new URLSearchParams({campusId});if(customLogosCursor)params.set('cursor',customLogosCursor);
+      const value=await api('/api/data-core/content/instagram-logos?'+params);
+      if(customLogosCampus!==campusId)return;
+      customLogos=reset?value.logos:[...customLogos,...value.logos];customLogosCursor=value.nextCursor;
+      renderCustomLogos();$('igMoreLogos').classList.toggle('hidden',!customLogosCursor);
+    }catch(error){$('igCustomLogoStatus').textContent=error.message;}
+  }
+  $('igMoreLogos').onclick=()=>void loadCustomLogos(false);
+  $('igUploadLogo').onclick=()=>{if(!$('draftCampus').value){$('igCustomLogoStatus').textContent='캠퍼스를 먼저 선택하세요.';return;}$('igLogoFile').click();};
+  $('igLogoFile').onchange=async()=>{
+    const file=$('igLogoFile').files[0];$('igLogoFile').value='';
+    if(!file)return;
+    const campusId=$('draftCampus').value;if(!campusId){$('igCustomLogoStatus').textContent='캠퍼스를 먼저 선택하세요.';return;}
+    if(file.size>5*1024*1024){$('igCustomLogoStatus').textContent='로고 이미지는 5MB 이하로 올려주세요.';return;}
+    $('igUploadLogo').disabled=true;$('igCustomLogoStatus').textContent='업로드 중...';
+    try{
+      const form=new FormData();form.set('campusId',campusId);form.set('file',file);form.set('name',file.name.replace(/\.[^.]+$/,''));
+      const value=await api('/api/data-core/content/instagram-logos',{method:'POST',body:form});
+      customLogos=[value.logo,...customLogos];renderCustomLogos();$('igCustomLogoStatus').textContent='업로드 완료';
+    }catch(error){$('igCustomLogoStatus').textContent=error.message;}
+    finally{$('igUploadLogo').disabled=false;}
+  };
   function preview(index=0){activeIndex=index;$('igPreview').src=previewUrl(items[index]);$('igSlides').replaceChildren(...items.map((item,i)=>{
     const button=document.createElement('button');button.type='button';button.setAttribute('aria-pressed',String(i===index));button.textContent=String(i+1);button.onclick=()=>preview(i);return button;
   }));result.hidden=false;}
@@ -244,5 +313,5 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,contact=()=
   window.addEventListener('text-presets-changed',updatePresetsSummary);
   updateTemplateSummary();updatePresetsSummary();
   return {read,refresh,applyText,hasUnsaved:()=>Boolean(busy||(!currentSet&&(items.length||$('aiCommand').value.trim()))||(currentSet&&$('igCaptionText').value!==(currentSet.caption||''))),invalidated:clear,load:()=>{if(!busy)clear();},selectionChanged(){const key=JSON.stringify(state.selectedFileIds);if(key!==selected){selected=key;clear();}buttons();},restore:async()=>{toast('이전 단일 초안입니다. 사진을 선택해 새 이미지 세트로 제작하세요.');},
-    applyDefaults(settings){if(!settings)return;campusDefaultLogoType=settings.logoType;campusDefaultMode=settings.mode;if(templateSnapshot)return;logoType=settings.logoType;$('igMode').value=settings.mode;$('igLogos').querySelectorAll('button').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.logo===logoType)));updateTemplateSummary();}};
+    applyDefaults(settings){if(!settings)return;campusDefaultLogoType=settings.logoType;campusDefaultMode=settings.mode;if(templateSnapshot)return;logoType=settings.logoType;$('igMode').value=settings.mode;for(const grid of [$('igLogos'),$('igCustomLogos')])grid.querySelectorAll('button').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.logo===logoType)));updateTemplateSummary();}};
 }

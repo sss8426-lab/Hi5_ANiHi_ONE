@@ -35,9 +35,13 @@ export async function contentDefaults(db: D1Database, context: DataCoreAccessCon
     let instagramSettings;
     if(input.instagramSettings!==undefined){
       if(sourceApp!=='instagram')throw new DataCoreAccessError(400,'인스타 기본 양식을 확인하세요.');
-      const {LOGOS}=await import('../public/data-core/instagram-brand-policy.js');
+      const {LOGOS,CUSTOM_LOGO_PATTERN}=await import('../public/data-core/instagram-brand-policy.js');
       const s=input.instagramSettings;
-      if(!s||typeof s.logoType!=='string'||!Object.hasOwn(LOGOS,s.logoType)||typeof s.mode!=='string'||!['original','photo-layout','photo'].includes(s.mode))throw new DataCoreAccessError(400,'인스타 기본 양식을 확인하세요.');
+      if(!s||typeof s.logoType!=='string'||typeof s.mode!=='string'||!['original','photo-layout','photo'].includes(s.mode))throw new DataCoreAccessError(400,'인스타 기본 양식을 확인하세요.');
+      if(CUSTOM_LOGO_PATTERN.test(s.logoType)){
+        const {resolveCustomLogo}=await import('./instagram-custom-logos');
+        if(!await resolveCustomLogo(db,context,s.logoType.slice('custom:'.length)))throw new DataCoreAccessError(400,'선택한 로고를 확인하세요.');
+      } else if(!Object.hasOwn(LOGOS,s.logoType))throw new DataCoreAccessError(400,'인스타 기본 양식을 확인하세요.');
       instagramSettings={logoType:s.logoType,mode:s.mode};
     }
     const metadata = JSON.stringify({ schemaVersion: 1, hashtags: input.hashtags.trim(), footer: input.footer,...(blogSettings?{blogSettings}:{}),...(instagramSettings?{instagramSettings}:{}) });

@@ -67,6 +67,7 @@ import { aiModels, boundedJson, ContentAiError, editInstagramImage, openAiConten
 import { contentDefaults, contentScope, withAiRequest } from './content-ai-settings';
 import { textPresets } from './content-text-presets';
 import { instagramPolicy, saveInstagramRender, reviewInstagram, approveInstagram, exportInstagram, assertInstagramAiUse, completeInstagramSet, getInstagramSet, listInstagramSets, saveInstagramSetCaption } from './instagram-production';
+import { listCustomLogos, uploadCustomLogo, deleteCustomLogo, CUSTOM_LOGO_MAX_BYTES } from './instagram-custom-logos';
 import { AI_PHOTO_LIMIT } from './content-ai-images';
 
 interface Env extends OpenAiEnv {
@@ -484,6 +485,25 @@ async function handleContentApi(request: Request, env: Env) {
     if (request.method === 'PUT') return jsonResponse({ defaults: await contentDefaults(env.DB, context, await contentJson(request), true) });
   }
   if (url.pathname === '/api/data-core/content/instagram-policy' && request.method === 'GET') return jsonResponse(await instagramPolicy(env.DB,context,url.searchParams.get('campusId') || ''));
+  if (url.pathname === '/api/data-core/content/instagram-logos') {
+    if (request.method === 'GET') return jsonResponse(await listCustomLogos(env.DB, context, url.searchParams.get('campusId'), url.searchParams.get('cursor')));
+    if (request.method === 'POST') {
+      if (!env.FILES) throw new DataCoreAccessError(503, '파일 저장소가 연결되지 않았습니다.');
+      const contentType = request.headers.get('content-type') || '';
+      if (!contentType.includes('multipart/form-data')) throw new DataCoreAccessError(400, '로고 파일 형식을 확인하세요.');
+      let form: FormData;
+      try { form = await request.formData(); } catch { throw new DataCoreAccessError(400, '로고 파일을 읽지 못했습니다.'); }
+      const campusId = form.get('campusId'), file = form.get('file');
+      if (!(file instanceof File) || file.size > CUSTOM_LOGO_MAX_BYTES) throw new DataCoreAccessError(413, '로고 이미지는 5MB 이하로 올려주세요.');
+      const logo = await uploadCustomLogo(env.DB, env.FILES, context, campusId, form.get('name') ?? file.name, file.type, new Uint8Array(await file.arrayBuffer()));
+      return jsonResponse({ logo }, { status: 201 });
+    }
+  }
+  const customLogoMatch = url.pathname.match(/^\/api\/data-core\/content\/instagram-logos\/([^/]+)$/);
+  if (customLogoMatch && request.method === 'DELETE') {
+    await deleteCustomLogo(env.DB, context, decodeURIComponent(customLogoMatch[1]));
+    return jsonResponse({ ok: true });
+  }
   if(url.pathname==='/api/data-core/content/instagram-sets'){
     if(request.method==='POST'){
       const start=performance.now(),result=await completeInstagramSet(env.DB,context,await contentJson(request));

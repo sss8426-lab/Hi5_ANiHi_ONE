@@ -1,5 +1,5 @@
 import {drawLogo,loadBitmap} from './instagram-layout.js';
-import {LOGOS} from './instagram-brand-policy.js';
+import {LOGOS} from './instagram-brand-policy.js?v=20260923-logoup';
 import {resolveFiles} from './blog-download.js';
 
 export function mountBlogCover({host,$,state,onApply,onError}){
