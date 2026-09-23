@@ -98,13 +98,13 @@ export function mountBlogWorkflow({state,$,toast,renderSelection,contact}){
       const row=document.createElement('div');row.className='blog-block';row.dataset.blockId=b.id;
       if(b.type==='image')row.innerHTML=`<figure><img loading="lazy" src="/api/data-core/files/${encodeURIComponent(b.fileId)}" alt="${escape(b.role||'게시용 이미지')}"><figcaption>${escape(b.role==='body'?'본문 사진':b.role==='top'?'상단 이미지':b.role==='bottom'?'하단 이미지':'대표 이미지')}</figcaption></figure>`;
       else row.innerHTML=`<label>${escape(b.type==='caption'?'사진 설명':b.type==='lead'?'도입부':b.type==='heading'?'소제목':b.type==='closing'?'마지막 문구':b.type==='contact'?'연락처':b.type==='hashtags'?'해시태그':'본문')}<textarea rows="${b.type==='paragraph'?4:2}" ${b.type==='contact'?'readonly':''}></textarea></label>`;
-      const text=row.querySelector('textarea');if(text){text.value=b.text;text.addEventListener('change',()=>{checkpoint();b.text=text.value;if(['lead','paragraph','heading'].includes(b.type)){lastBody=blocks.filter(v=>['lead','paragraph','heading'].includes(v.type)).map(v=>v.text).join('\n\n');$('draftContent').value=lastBody;}if(b.type==='closing')$('resultFooter').value=b.text;if(b.type==='hashtags')$('draftTags').value=b.text;changed();renderReview();});}
+      const text=row.querySelector('textarea');if(text){text.value=b.text;text.addEventListener('change',()=>{checkpoint();b.text=text.value;if(['lead','paragraph','heading'].includes(b.type)){lastBody=blocks.filter(v=>['lead','paragraph','heading'].includes(v.type)).map(v=>v.text).join('\n\n');$('draftContent').value=lastBody;}if(b.type==='closing')$('resultFooter').value=b.text;if(b.type==='hashtags')$('draftTags').value=b.text;updatePresetsSummary();changed();renderReview();});}
       const tools=document.createElement('div');tools.className='blog-block-tools';
       const copy=document.createElement('button');copy.type='button';copy.className='ghost-btn';copy.textContent=b.type==='image'?'이 게시용 이미지 다운로드':'블록 텍스트 복사';copy.onclick=async()=>{try{if(b.type==='image')await download([b.fileId],false);else{await navigator.clipboard.writeText(b.text);toast('블록 텍스트를 복사했습니다.');}}catch(error){toast(error.message,'error');}};tools.append(copy);
       if(['lead','paragraph','heading','caption'].includes(b.type)){const button=document.createElement('button');button.type='button';button.className='ghost-btn';button.textContent='이 블록만 AI 다듬기';button.onclick=()=>textAction(b);tools.append(button);}
       for(const [label,icon,delta] of [['위로','ArrowLeft',-1],['아래로','ArrowLeft',1],['블록 삭제','Trash2',0]]){
         const button=document.createElement('button');button.type='button';button.className='ghost-btn icon-command';button.title=label;button.setAttribute('aria-label',label);button.innerHTML=`<svg aria-hidden="true" style="transform:rotate(${delta===-1?90:delta===1?-90:0}deg)"><use href="/data-core/assets/core-icons.svg#${icon}"></use></svg>`;
-        button.onclick=()=>{const i=blocks.indexOf(b);if(delta&&(i+delta<0||i+delta>=blocks.length))return;checkpoint();if(delta)[blocks[i],blocks[i+delta]]=[blocks[i+delta],blocks[i]];else{blocks.splice(i,1);if(b.type==='closing')$('resultFooter').value='';if(b.type==='hashtags')$('draftTags').value='';}lastBody=blocks.filter(v=>['lead','paragraph','heading'].includes(v.type)).map(v=>v.text).join('\n\n');$('draftContent').value=lastBody;changed();renderBlocks();};tools.append(button);
+        button.onclick=()=>{const i=blocks.indexOf(b);if(delta&&(i+delta<0||i+delta>=blocks.length))return;checkpoint();if(delta)[blocks[i],blocks[i+delta]]=[blocks[i+delta],blocks[i]];else{blocks.splice(i,1);if(b.type==='closing')$('resultFooter').value='';if(b.type==='hashtags')$('draftTags').value='';updatePresetsSummary();}lastBody=blocks.filter(v=>['lead','paragraph','heading'].includes(v.type)).map(v=>v.text).join('\n\n');$('draftContent').value=lastBody;changed();renderBlocks();};tools.append(button);
       }row.append(tools);$('blogBlocks').append(row);
     }
     const n=publishingImages({blocks}).length;$('blogPublishImages').textContent=`게시용 이미지 ${n}장 다운로드`;$('blogPublishImages').disabled=!n;
@@ -203,6 +203,7 @@ export function mountBlogWorkflow({state,$,toast,renderSelection,contact}){
   }
   for(const id of ['draftTags','resultFooter'])$(id).addEventListener('input',updatePresetsSummary);
   $('blogContactMode').addEventListener('change',updatePresetsSummary);
+  window.addEventListener('text-presets-changed',updatePresetsSummary);
   updateTemplateSummary();updatePresetsSummary();
   window.addEventListener('pagehide',()=>downloadController?.abort());
   renderPhotos();

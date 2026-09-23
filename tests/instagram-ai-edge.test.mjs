@@ -125,3 +125,55 @@ test('client-optimized upload bypasses the R2 original size cap, still enforces 
     assert.equal(calls,1,'must not call OpenAI when ownership check fails');
   }finally{await mf.dispose();}
 });
+
+test('instagram caption sends client-optimized copies too — an oversized original no longer 413s the caption',async()=>{
+  const width=64,height=80,simple=encode({width,height,channels:3,depth:8,data:new Uint8Array(width*height*3).fill(90)});
+  const oversizedOriginal=new Uint8Array(8*1024*1024+1024);
+  let calls=0,sentImages=[];
+  const names=['index.js',...(await readdir('dist/server',{recursive:true})).filter(n=>n.endsWith('.js')&&n!=='index.js')];
+  const mf=new Miniflare({modules:names.map(n=>({type:'ESModule',path:path.resolve('dist/server',n)})),modulesRoot:path.resolve('dist/server'),
+    compatibilityDate:'2026-05-15',compatibilityFlags:['nodejs_compat'],d1Databases:['DB','FAMILY_DB'],r2Buckets:['FILES','FAMILY_FILES'],
+    bindings:{DATA_CORE_SUPER_ADMIN_EMAILS:'edge3@example.test',OPENAI_API_KEY:'synthetic-only'},outboundService:async request=>{
+      assert.equal(request.url,'https://api.openai.com/v1/responses');
+      calls++;
+      const body=await request.json();
+      sentImages=body.input[0].content.filter(c=>c.type==='input_image').map(c=>Buffer.from(c.image_url.split(',')[1],'base64'));
+      return Response.json({status:'completed',usage:{},output:[{type:'message',content:[{type:'output_text',text:JSON.stringify({title:'SYNTHETIC',body:'SYNTHETIC 본문',hashtags:['합성'],cta:'문의'})}]}]});
+    }});
+  try{
+    const headers={'oai-authenticated-user-id':'synthetic-ai-edge-3','oai-authenticated-user-email':'edge3@example.test','oai-authenticated-user-full-name':'Synthetic',origin:'http://localhost'};
+    async function request(url,body){
+      const h={...headers};let encoded=body;
+      if(body instanceof FormData){const r=new Request('http://localhost',{method:'POST',body});h['content-type']=r.headers.get('content-type');encoded=new Uint8Array(await r.arrayBuffer());}
+      else if(body){h['content-type']='application/json';encoded=JSON.stringify(body);}
+      const r=await mf.dispatchFetch('http://localhost'+url,{method:body?'POST':'GET',headers:h,body:encoded});
+      return {status:r.status,body:r.headers.get('content-type')?.includes('json')?await r.json():new Uint8Array(await r.arrayBuffer())};
+    }
+    await request('/api/data-core/context');
+    const campusId='campus-anihi-admission';
+    const folder=await request('/api/data-core/library/folders',{parentFolderId:'category:'+campusId+':academy-photo',title:'SYNTHETIC CAPTION'});
+    const uploadForm=new FormData();uploadForm.set('recordId',folder.body.folder.id);uploadForm.set('file',new Blob([oversizedOriginal],{type:'image/png'}),'large-original.png');
+    const file=await request('/api/data-core/library/files',uploadForm);assert.equal(file.status,201,JSON.stringify(file));
+    const id=file.body.file.id;
+    const input={sourceApp:'instagram',campusId,selectedFileIds:[id],textOnly:false,notes:'SYNTHETIC',material:{workflow:'carousel-v2',materialKind:'real-photo',usePermission:'allowed',externalAiConsent:true}};
+    // The old JSON-only caption reads the R2 original and hits the 8MB cap — that is the reported bug.
+    assert.equal((await request('/api/data-core/content/generate',{...input,requestId:crypto.randomUUID()})).status,413);
+    assert.equal(calls,0);
+    const form=new FormData();form.set('input',JSON.stringify({...input,requestId:crypto.randomUUID()}));form.set('photo:'+id,new Blob([simple],{type:'image/png'}),id+'.jpg');
+    const captioned=await request('/api/data-core/content/generate',form);
+    assert.equal(captioned.status,200,JSON.stringify(captioned));
+    assert.equal(captioned.body.generated.title,'SYNTHETIC');
+    assert.equal(calls,1);assert.equal(sentImages.length,1);
+    assert.deepEqual([decode(new Uint8Array(sentImages[0])).width,decode(new Uint8Array(sentImages[0])).height],[width,height],'the AI got the small optimized copy, never the 8MB original');
+    // Text-only captions must never carry image bytes, even if a client attaches some.
+    const textOnlyForm=new FormData();textOnlyForm.set('input',JSON.stringify({...input,textOnly:true,requestId:crypto.randomUUID()}));textOnlyForm.set('photo:'+id,new Blob([simple],{type:'image/png'}),id+'.jpg');
+    const textOnlyRes=await request('/api/data-core/content/generate',textOnlyForm);assert.equal(textOnlyRes.status,400,JSON.stringify(textOnlyRes.body));
+    // Consent and campus scope still apply on the optimized path.
+    const noConsent=new FormData();noConsent.set('input',JSON.stringify({...input,material:{...input.material,externalAiConsent:false},requestId:crypto.randomUUID()}));noConsent.set('photo:'+id,new Blob([simple],{type:'image/png'}),id+'.jpg');
+    const noConsentRes=await request('/api/data-core/content/generate',noConsent);assert.equal(noConsentRes.status,403,JSON.stringify(noConsentRes.body));
+    const wrongCampus=new FormData();wrongCampus.set('input',JSON.stringify({...input,campusId:'campus-design-admission',requestId:crypto.randomUUID()}));wrongCampus.set('photo:'+id,new Blob([simple],{type:'image/png'}),id+'.jpg');
+    const wrongCampusRes=await request('/api/data-core/content/generate',wrongCampus);// Rejected by the existing same-campus rule before any permission or AI work.
+    assert.equal(wrongCampusRes.status,400,JSON.stringify(wrongCampusRes.body));
+    assert.equal(calls,1,'rejected requests never reach OpenAI');
+  }finally{await mf.dispose();}
+});

@@ -96,7 +96,7 @@ export async function selectedAiImages(db: D1Database, files: R2Bucket, context:
 
 export type BlogAiPhoto = { bytes: Uint8Array; mime: string };
 
-// Blog path: the browser already resized/compressed each selected photo (see content.js), so the
+// Blog analysis and Instagram captions: the browser already resized/compressed each selected photo, so the
 // R2 original is never re-read here — only its DB row is used, to re-verify the same permission,
 // campus-scope, deleted and mime-type rules that selectedAiImages() enforces for every other path.
 // Every optimized upload is still re-checked against server-side count/size hard caps and passed
@@ -272,8 +272,8 @@ export function openAiContentProvider(env: OpenAiEnv, db: D1Database, files: R2B
     const measuredEnv={...env,meter:(id:string,status:string,usage?:unknown)=>recordAiCall(db,context,id,input.sourceApp,status,usage,env)};
     // The authorized Instagram text-only route deliberately omits private image bytes.
     const blogPhotos=input.photoInstructions?input.selectedFiles.filter(file=>photos?.has(file.id)):input.selectedFiles;
-    const images = input.sourceApp === 'blog' && input.photoInstructions && !blogPhotos.length ? [] : input.sourceApp === 'instagram' && !input.selectedFiles.length ? [] : input.sourceApp === 'blog' && photos
-      ? await blogAiImages(db, context, blogPhotos, photos, input.campusId)
+    const images = input.sourceApp === 'blog' && input.photoInstructions && !blogPhotos.length ? [] : input.sourceApp === 'instagram' && !input.selectedFiles.length ? [] : photos
+      ? await blogAiImages(db, context, input.sourceApp === 'blog' ? blogPhotos : input.selectedFiles, photos, input.campusId)
       : await selectedAiImages(db, files, context, input.selectedFiles.map(file => file.id), input.campusId);
     const content = [{ type: 'input_text', text: input.notes + (input.coreMessage ? '\n' + input.coreMessage : '') },
       ...(input.photoInstructions?[{type:'input_text',text:JSON.stringify({photoInstructions:input.photoInstructions})}]:[]),

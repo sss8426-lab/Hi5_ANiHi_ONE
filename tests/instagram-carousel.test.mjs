@@ -128,6 +128,34 @@ test('a carousel-v2 render is individually exportable the moment it saves — pa
   }finally{await h.mf.dispose();}
 });
 
+test('batch info written on each draft survives, is found by batch id, and stays campus-scoped (이어서 하기 contract)',async()=>{
+  const h=await libraryHarness();
+  try{
+    const folder=(await h.folder('category:'+A+':class-photo','SYNTHETIC resume',users.staff)).body.folder;
+    const file=(await h.upload(folder.id,users.staff,{name:'SYNTHETIC-resume.png',mime:'image/png',bytes:png(40,50)})).body.file;
+    const batchId=crypto.randomUUID();
+    const instagramBatch={id:batchId,slot:0,sources:[{id:file.id,folderId:folder.id}],command:'SYNTHETIC',mode:'original',logoType:'horizontal',backgroundFileId:null};
+    const created=await h.request('POST','/api/data-core/content',users.staff,{sourceApp:'instagram',campusId:A,title:'인스타 이미지 1',relatedFileIds:[file.id],metadata:{instagramDesign:material,instagramBatch}});
+    assert.equal(created.status,201,JSON.stringify(created.body));
+    const other=await h.request('POST','/api/data-core/content',users.staff,{sourceApp:'instagram',campusId:A,title:'unrelated',relatedFileIds:[file.id],metadata:{instagramDesign:material}});
+    assert.equal(other.status,201);
+    const found=await h.request('GET',`/api/data-core/content?sourceApp=instagram&campusId=${A}&limit=40&q=${batchId}`,users.staff);
+    assert.equal(found.status,200);
+    assert.deepEqual(found.body.drafts.map(d=>d.id),[created.body.draft.id],'the batch-id search returns exactly that batch');
+    const draft=found.body.drafts[0];
+    assert.deepEqual(draft.metadata.instagramBatch,instagramBatch,'batch info round-trips unchanged');
+    assert.equal(draft.createdByUserId,created.body.draft.createdByUserId);
+    assert.ok(draft.createdByUserId,'creator is exposed so a user only resumes their own batch');
+    // The review a resumed slot relies on still works on this draft, and a foreign campus cannot see it.
+    assert.equal((await h.request('GET','/api/data-core/content/instagram/'+draft.id+'/review',users.staff)).status,200);
+    const foreign=await h.request('GET',`/api/data-core/content?sourceApp=instagram&campusId=${A}&q=${batchId}`,users.foreign);
+    assert.ok(foreign.status===403||!(foreign.body.drafts||[]).length,'another campus never sees the batch');
+    // Unsaved batch → the deterministic set id is a 404, which is what makes it resumable.
+    const setId=`instagram-set:${draft.createdByUserId}:${batchId}`;
+    assert.equal((await h.request('GET','/api/data-core/content/instagram-sets/'+encodeURIComponent(setId),users.staff)).status,404);
+  }finally{await h.mf.dispose();}
+});
+
 test('text-only captions never transmit artwork and verify campus before provider access',async()=>{
   const h=await libraryHarness(),previous=globalThis.fetch;let calls=0;
   try{
