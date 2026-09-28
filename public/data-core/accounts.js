@@ -44,7 +44,7 @@ async function load() {
 
 function render(accounts) {
   accounts = accounts.filter(account => !account.retiredCampus || $('showRetiredAccounts').checked);
-  $('accountsBody').innerHTML = accounts.map((account) => `<tr><td>${escapeHtml(account.display_name)}</td><td>${escapeHtml(account.login_id)}</td><td>${escapeHtml(account.campus_name || '조직 공통')} · ${escapeHtml(account.role)}</td><td><span class="status-${escapeHtml(account.status)}">${account.status === 'active' ? '사용 중' : '비활성'}</span><p>${escapeHtml(passwordStatus(account))}</p></td><td>${account.last_login_at ? new Date(account.last_login_at).toLocaleString('ko-KR', {timeZone:'Asia/Seoul'}) : '-'}</td><td><div class="account-actions">${passwordActions(account)}<button class="ghost-btn" data-action="sessions" data-id="${escapeHtml(account.id)}">세션 해제</button><button class="ghost-btn" data-action="status" data-status="${escapeHtml(account.status)}" data-id="${escapeHtml(account.id)}">${account.status === 'active' ? '비활성화' : '다시 사용'}</button></div></td></tr>`).join('');
+  $('accountsBody').innerHTML = accounts.map((account) => `<tr><td>${escapeHtml(account.display_name)}${account.position || account.phone ? `<p>${escapeHtml([account.position, account.phone].filter(Boolean).join(' · '))}</p>` : ''}</td><td>${escapeHtml(account.login_id)}</td><td>${escapeHtml(account.campus_name || '조직 공통')} · ${escapeHtml(account.role)}</td><td><span class="status-${escapeHtml(account.status)}">${account.status === 'active' ? '사용 중' : '비활성'}</span><p>${escapeHtml(passwordStatus(account))}</p></td><td>${account.last_login_at ? new Date(account.last_login_at).toLocaleString('ko-KR', {timeZone:'Asia/Seoul'}) : '-'}</td><td><div class="account-actions">${passwordActions(account)}<button class="ghost-btn" data-action="sessions" data-id="${escapeHtml(account.id)}">세션 해제</button><button class="ghost-btn" data-action="status" data-status="${escapeHtml(account.status)}" data-id="${escapeHtml(account.id)}">${account.status === 'active' ? '비활성화' : '다시 사용'}</button></div></td></tr>`).join('');
   $('empty').classList.toggle('hidden', accounts.length > 0);
 }
 
@@ -158,3 +158,52 @@ window.addEventListener('focus',loadPresence);
 setInterval(loadPresence,60_000);
 $('refreshBtn').addEventListener('click', load);
 load();
+
+// 직원인증 신청: the applicant chose their own ID and password; accepting creates the account as-is.
+const SIGNUP_ROLES = [['CAMPUS_ADMIN', '캠퍼스 관리자'], ['CAMPUS_DIRECTOR', '캠퍼스 원장'], ['TEACHER', '교사'], ['STAFF', '직원'], ['MASTER', '마스터 관리자']];
+let signupRows = [];
+let signupBusy = false;
+function renderSignups() {
+  $('signupCount').textContent = signupRows.length ? `${signupRows.length}건` : '';
+  $('signupEmpty').classList.toggle('hidden', signupRows.length > 0);
+  $('signupBody').innerHTML = signupRows.map((row) => {
+    const id = escapeHtml(row.id);
+    return `<tr><td>${escapeHtml(kst(row.created_at))}</td><td>${escapeHtml(row.display_name)}</td><td>${escapeHtml(row.campus_name || row.campus_id)}</td><td>${escapeHtml(row.position)}</td><td>${escapeHtml(row.login_id)}</td><td>${escapeHtml(row.phone)}</td>`
+      + `<td><select data-signup-role="${id}" aria-label="${escapeHtml(row.display_name)} 권한">${SIGNUP_ROLES.map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}</select></td>`
+      + `<td><div class="account-actions"><button class="primary-btn" data-signup="approve" data-id="${id}">수락</button><button class="ghost-btn" data-signup="reject" data-id="${id}">거절</button></div></td></tr>`;
+  }).join('');
+}
+async function loadSignups() {
+  try {
+    signupRows = (await api('/api/auth/signup-requests', { cache: 'no-store' })).requests || [];
+    $('signupError').textContent = '';
+    renderSignups();
+  } catch (error) { $('signupError').textContent = error.message; }
+}
+$('signupBody').addEventListener('click', async (event) => {
+  const button = event.target.closest('button[data-signup]');
+  if (!button || signupBusy) return;
+  const row = signupRows.find((item) => item.id === button.dataset.id);
+  if (!row) return;
+  const approve = button.dataset.signup === 'approve';
+  const role = $('signupBody').querySelector(`[data-signup-role="${CSS.escape(row.id)}"]`)?.value || 'CAMPUS_ADMIN';
+  const roleLabel = SIGNUP_ROLES.find(([value]) => value === role)?.[1] || role;
+  const question = approve
+    ? `${row.display_name}(${row.login_id}) 님을 ${roleLabel}(으)로 수락할까요?${role === 'MASTER' ? '\n마스터 관리자는 모든 캠퍼스와 계정 관리 권한을 가집니다.' : ''}`
+    : `${row.display_name}(${row.login_id}) 님의 신청을 거절할까요?`;
+  if (!confirm(question)) return;
+  signupBusy = true;
+  $('signupBody').querySelectorAll('button').forEach((node) => { node.disabled = true; });
+  try {
+    await api(`/api/auth/signup-requests/${encodeURIComponent(row.id)}/${approve ? 'approve' : 'reject'}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(approve ? { role, campusId: role === 'MASTER' ? null : row.campus_id } : {}),
+    });
+    notice(approve ? `${row.display_name} 님을 수락했습니다. 이제 ${row.login_id} 아이디로 로그인할 수 있습니다.` : `${row.display_name} 님의 신청을 거절했습니다.`);
+    await Promise.all([loadSignups(), approve ? load() : null]);
+  } catch (error) { notice(error.message); await loadSignups(); }
+  finally { signupBusy = false; }
+});
+$('signupRefresh').addEventListener('click', loadSignups);
+window.addEventListener('focus', loadSignups);
+loadSignups();

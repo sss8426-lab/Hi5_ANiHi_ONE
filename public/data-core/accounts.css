@@ -58,3 +58,9 @@ body.campus-accounts table th { background:var(--core-surface-soft); }
 .password-dialog-form input[type=checkbox] { width: 20px; height: 20px; flex: 0 0 auto; }
 .password-note { color: var(--muted); font-size: 13px; line-height: 1.6; }
 .password-dialog-form [hidden] { display: none; }
+.signup-requests { margin: 24px 0; }
+.signup-count { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: var(--core-brand, #174f44); color: #fff; font-size: 12px; vertical-align: middle; }
+.signup-count:empty { display: none; }
+.signup-requests select { min-height: 36px; border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; background: #fff; color: var(--text); font: inherit; font-size: 13px; }
+.signup-requests td p, #accountsBody td p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+#signupError:empty { display: none; }

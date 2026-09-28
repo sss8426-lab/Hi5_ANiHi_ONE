@@ -33,9 +33,26 @@
       if(active)node.setAttribute('aria-current','page');else node.removeAttribute('aria-current');
     });
   }
+  let signupChecked=false;
+  // MASTER sees how many 직원인증 requests wait for approval next to 캠퍼스 계정 관리.
+  async function showSignupCount(){
+    if(signupChecked||typeof fetch!=='function')return;signupChecked=true;
+    try{
+      const response=await fetch('/api/auth/signup-requests',{credentials:'include',cache:'no-store'});
+      if(!response.ok)return;
+      const count=((await response.json()).requests||[]).length;
+      document.querySelectorAll('[data-work-menu="accounts"]').forEach(node=>{
+        node.querySelector('.nav-badge')?.remove();
+        if(!count)return;
+        const badge=document.createElement('span');badge.className='nav-badge';badge.textContent=String(count);
+        badge.title=`직원인증 신청 ${count}건`;badge.setAttribute('aria-label',badge.title);node.append(badge);
+      });
+    }catch{/* the badge is optional */}
+  }
   function setContext(context){
     document.querySelectorAll('[data-work-navigation="admin"]').forEach(node=>node.classList.toggle('hidden',!context?.authenticated||!context.isSuperAdmin));
+    if(context?.authenticated&&context.isSuperAdmin)void showSignupCount();
   }
   select(entries.find(item=>item[2]===location.pathname)?.[0]);
-  window.DataCoreWorkNavigation={select,setContext};
+  window.DataCoreWorkNavigation={select,setContext,signupCount:showSignupCount};
 })();

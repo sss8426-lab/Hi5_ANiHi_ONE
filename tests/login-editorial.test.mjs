@@ -39,7 +39,7 @@ async function harness({session = {authenticated: false}, search = '', respond} 
 test('approved local image, accessible exact headline and isolated versioned login stylesheet', () => {
   assert.match(html, /너와 나의 합격의 순간<br>하이파이브/);
   assert.match(html, /login-highfive-v1\.webp" width="1536" height="1024" fetchpriority="high"/);
-  assert.match(html, /login\.css\?v=20260910-editorial-v1/);
+  assert.match(html, /login\.css\?v=20260928-signup/);
   assert.doesNotMatch(html, /layout-theme\.css|mode-sidebar\.svg|https?:\/\//);
   assert.match(html, /href="\/data-core\/counseling"/);
   assert.match(html, /autocomplete="username" required/);
@@ -131,6 +131,38 @@ test('pending change identifies the account and switch-account clears the old cr
   for(const id of ['password','currentPassword','nextPassword','confirmPassword'])assert.equal(h.nodes.get(id).value,'');
   assert.equal(h.nodes.get('passwordFormWrap').classList.contains('hidden'),true);
   assert.equal(h.nodes.get('loginFormWrap').classList.contains('hidden'),false);
+});
+
+test('직원인증 button sits under the login button and opens the application form', async () => {
+  assert.match(html, /<button type="submit">로그인<\/button>\s*<\/form>\s*<div class="signup-entry"><button id="openSignup"[^>]*>직원인증<\/button>/);
+  for (const id of ['signupName', 'signupCampus', 'signupPosition', 'signupLoginId', 'signupPassword', 'signupPasswordConfirm', 'signupPhone']) assert.match(html, new RegExp(`id="${id}"`));
+  const h = await harness({respond: async path => path === '/api/auth/signup/options'
+    ? {body: {campuses: [{id: 'campus-wonjong', name: '부천 원종 캠퍼스'}]}} : {status: 201, body: {id: 'r1', status: 'pending'}}});
+  await h.nodes.get('openSignup').listeners.click();
+  await tick();
+  assert.equal(h.nodes.get('loginFormWrap').classList.contains('hidden'), true);
+  assert.equal(h.nodes.get('signupFormWrap').classList.contains('hidden'), false);
+  assert.match(h.nodes.get('signupCampus').innerHTML, /campus-wonjong/);
+});
+
+test('직원인증 checks the form before sending and shows the pending notice after', async () => {
+  const h = await harness({respond: async () => ({status: 201, body: {id: 'r1', status: 'pending'}})});
+  const fill = values => { for (const [id, value] of Object.entries(values)) h.nodes.get(id).value = value; };
+  fill({signupName: '가상 선생님', signupCampus: 'campus-wonjong', signupPosition: '강사', signupLoginId: 'Synthetic-UI',
+    signupPassword: 'synthetic-only-password', signupPasswordConfirm: 'synthetic-other', signupPhone: '010-0000-1234'});
+  await h.submit('signupForm');
+  assert.equal(h.nodes.get('signupMessage').textContent, '비밀번호 확인이 일치하지 않습니다.');
+  assert.equal(h.calls.length, 1, 'nothing sent while the form is wrong');
+  fill({signupPasswordConfirm: 'synthetic-only-password'});
+  await h.submit('signupForm');
+  const call = h.calls.at(-1);
+  assert.equal(call.path, '/api/auth/signup'); assert.equal(call.options.method, 'POST');
+  assert.deepEqual(JSON.parse(call.options.body), {displayName: '가상 선생님', campusId: 'campus-wonjong', position: '강사',
+    loginId: 'synthetic-ui', password: 'synthetic-only-password', phone: '010-0000-1234'});
+  assert.equal(h.nodes.get('signupDoneWrap').classList.contains('hidden'), false);
+  assert.match(h.nodes.get('signupDoneText').textContent, /synthetic-ui/);
+  assert.equal(h.nodes.get('signupPassword').value, '', 'password is cleared from the form');
+  assert.deepEqual(h.redirects, []);
 });
 
 test('password change keeps PUT contract, handles failure and successful retry', async () => {

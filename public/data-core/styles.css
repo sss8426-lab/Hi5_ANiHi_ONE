@@ -565,3 +565,5 @@ body.mode-home-artwork-active .photographic-modes .mode-overlay {
 .sidebar .nav-icon { width: 20px; height: 20px; flex-shrink: 0; }
 /* Shared library names: keep text shrinkable without truncating adjacent controls. */
 .library-item-name{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:anywhere;min-width:0;max-width:100%;white-space:normal;line-height:1.5}
+/* 직원인증 대기 건수 (MASTER sidebar) */
+.nav-item .nav-badge { margin-left: auto; min-width: 20px; padding: 1px 6px; border-radius: 999px; background: #d4543b; color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; }
