@@ -496,9 +496,15 @@ async function handleApi(request: Request, env: Env) {
       }
       if (url.pathname === '/api/data') {
         const legacy = await readAppData(request,env) as Record<string, unknown>;
-        if (request.method === 'GET') return Response.json(await readCampusAdmissions(env.DB,context,url,legacy), {headers:{'cache-control':'private, no-store'}});
+        if (request.method === 'GET') {
+          const data = await readCampusAdmissions(env.DB,context,url,legacy);
+          const { managementDeletedIds } = await import('./university-management');
+          return Response.json({...data, _universityManagementDeletedIds: await managementDeletedIds(env.DB,data.universities)}, {headers:{'cache-control':'private, no-store'}});
+        }
         if (request.method === 'PUT') {
-          const result = await saveCampusAdmissions(env.DB,context,url,legacy,await request.json());
+          const input = await request.json() as Record<string,unknown>;
+          if (input && typeof input === 'object') delete input._universityManagementDeletedIds;
+          const result = await saveCampusAdmissions(env.DB,context,url,legacy,input);
           if (result.legacy) await saveAppData(env,result.legacy);
           return Response.json({ok:true}, {headers:{'cache-control':'private, no-store'}});
         }

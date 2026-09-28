@@ -1160,14 +1160,15 @@ function casesFor(id){
   if(!id) return [];
   return caseRowsFromStudents().filter(x=>Number(x.universityId)===Number(id));
 }
-function sortedUniversities(){
+function sortedUniversities({management=false}={}){
   const priority = university => {
     if(university.latestAdmissionComplete === true && isUniversityChecked(university)) return 0;
     if(isUniversityChecked(university)) return 1;
     if(university.latestAdmissionComplete === true) return 2;
     return 3;
   };
-  return state.data.universities.slice().sort((a,b)=>{
+  const deleted = new Set(management ? (state.data._universityManagementDeletedIds || []).map(String) : []);
+  return state.data.universities.filter(u=>!deleted.has(String(u.id))).sort((a,b)=>{
     const priorityDiff = priority(a) - priority(b);
     if(priorityDiff) return priorityDiff;
     const nameDiff = String(a.name||'').localeCompare(String(b.name||''),'ko');
@@ -1500,7 +1501,7 @@ function renderPage(page){
     if(page==='admin') renderAdmin();
     if(page==='awards') renderAwards();
     if(page==='settings') renderSettings();
-    if(page==='susi' || page==='jungsi') import('./guidelines.js?v=20260910-connected').then(m=>m.renderGuidelines(page)).catch(()=>{ $(page).textContent='입시요강 화면을 불러오지 못했습니다. 새로고침해주세요.'; });
+    if(page==='susi' || page==='jungsi') import('./guidelines.js?v=20260929-links').then(m=>m.renderGuidelines(page)).catch(()=>{ $(page).textContent='입시요강 화면을 불러오지 못했습니다. 새로고침해주세요.'; });
   }catch(error){
     renderAppError(error, page);
   }
@@ -2193,7 +2194,8 @@ function applyPdfMatchToAdmin(matchIndex){
 }
 
 function renderAdmin(){
-  const allUniversities = sortedUniversities();
+  const allUniversities = sortedUniversities({management:true});
+  if (state.adminMode !== 'add' && !allUniversities.some(u=>String(u.id)===String(state.selectedUniversityId))) state.selectedUniversityId = allUniversities[0]?.id ?? null;
   const adminQuery = String(state.adminSearch || '').trim().toLowerCase();
   const adminTrackQuery = state.adminTrackSearch || '';
   const adminTrackOptions = trackOptionsMarkup(adminTrackQuery, true);
@@ -2202,7 +2204,7 @@ function renderAdmin(){
     const trackMatched = !adminTrackQuery || universityMatchesTrack(u, adminTrackQuery);
     return textMatched && trackMatched;
   });
-  const baseCurrent = state.adminMode === 'add' ? blankUniversity() : (uni(state.selectedUniversityId) || allUniversities[0] || blankUniversity());
+  const baseCurrent = state.adminMode === 'add' ? blankUniversity() : (allUniversities.find(u=>String(u.id)===String(state.selectedUniversityId)) || allUniversities[0] || blankUniversity());
   const current = state.adminDraft && state.adminDraft.mode === state.adminMode && String(state.adminDraft.id || '') === String(baseCurrent.id || 'add')
     ? { ...baseCurrent, ...state.adminDraft.university }
     : baseCurrent;
@@ -2339,7 +2341,7 @@ async function deleteUniversity(){
   state.data.universities = (state.data.universities || []).filter(university => Number(university.id) !== Number(removed.id));
   clearComputedCaches();
   refreshUniversityRecommendations();
-  state.selectedUniversityId = sortedUniversities()[0]?.id ?? null;
+  state.selectedUniversityId = sortedUniversities({management:true})[0]?.id ?? null;
   state.adminMode = 'edit';
   state.adminEditing = false;
   state.adminDraft = null;

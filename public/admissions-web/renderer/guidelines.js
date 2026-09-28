@@ -1,4 +1,4 @@
-import {guidelineSections, projectPublicDetails} from '/data-core/guideline-details.js?v=20260909-1';
+import {guidelineSections, projectPublicDetails, universityWebsiteUrl} from '/data-core/guideline-details.js?v=20260929-links';
 import { careerMajorKeywords, mappingReasonLabels } from '/data-core/admissions-model.js?v=20260910-connected';
 import { occupationImageConcepts } from '/data-core/occupation-image-concepts.js?v=20260909-1';
 
@@ -23,6 +23,15 @@ export function detail(row,{counseling=false}={}) {
   const facts={...projectPublicDetails(row.publicDetails),...row};
   dialog.innerHTML=`<header><div><p class="guideline-note">${h(row.academicYear)}학년도 · ${h(names[row.admissionSeason])}</p><h2>${h(row.universityName)}</h2><p>${h(row.department)} · ${h(row.admissionType)}</p></div><button class="close" aria-label="상세 닫기">×</button></header><p class="guideline-note" data-mapping-review>${h(mappingStatuses[row.mappingStatus] || '연결 확인 필요')} · ${h(mappingReasonLabels[row.mappingReason] || '검토 필요')}. 대학 연결은 공식 모집요강 검수와 별개입니다.</p><div class="guideline-detail-sections">${guidelineSections.map(([title,fields])=>`<section><h3>${title}</h3><dl>${fields.map(([key,label])=>`<dt>${label}</dt><dd>${h(facts[key] ?? '공개 자료에서 확인 필요')}</dd>`).join('')}</dl></section>`).join('')}</div><footer><h3>출처</h3><p class="guideline-note">출처: ${h(row.sourceName || '그리날다')}<br>정보 확인일: ${h(date(row.detailsCheckedAt || row.fetchedAt))}<br>원본 파일 갱신: ${h(date(row.sourceUpdatedAt))}<br>DATA CORE 동기화일: ${h(date(row.fetchedAt))}</p><p class="guideline-warning">실제 지원 전 해당 대학의 공식 모집요강을 반드시 확인하세요.</p></footer>`;
   if(row.sourceUrl && /^https:\/\/grinalda\.net\/univ-info-(susi|jungsi)\/$/.test(row.sourceUrl)){const a=document.createElement('a');a.href=row.sourceUrl;a.target='_blank';a.rel='noopener noreferrer';a.textContent='원문 보기 ↗';dialog.querySelector('footer').append(a);}
+  if (row.admissionSeason === 'susi') {
+    const href = universityWebsiteUrl(facts.universityWebsite);
+    const label = [...dialog.querySelectorAll('dt')].find(el=>el.textContent==='대학 홈페이지');
+    if (href && label?.nextElementSibling) {
+      const a=document.createElement('a');a.href=href;a.target='_blank';a.rel='noopener noreferrer';
+      a.textContent=facts.universityWebsite;a.setAttribute('aria-label', `대학 홈페이지 새 창 열기: ${row.universityName}`);
+      a.style.overflowWrap='anywhere';label.nextElementSibling.replaceChildren(a);
+    }
+  }
   if(counseling)dialog.querySelector('[data-mapping-review]')?.remove();
   if(row.universityId&&!counseling){const a=document.createElement('a');a.href=`/#page=admin&university=${encodeURIComponent(row.universityId)}`;a.target='_top';a.textContent=' · 연결된 대학 데이터 보기';dialog.querySelector('footer').append(a);}
   document.body.append(dialog);dialog.querySelector('.close').onclick=()=>dialog.close();dialog.addEventListener('close',()=>dialog.remove());

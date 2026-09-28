@@ -15,6 +15,13 @@ export function projectPublicDetails(value) {
   }
   return result;
 }
+export function universityWebsiteUrl(value) {
+  if (typeof value !== 'string' || [...value].some(char=>char.charCodeAt(0)<32 || char.charCodeAt(0)===127)) return null;
+  try {
+    const url = new URL(value.trim());
+    return ['https:', 'http:'].includes(url.protocol) && !url.username && !url.password ? url.href : null;
+  } catch { return null; }
+}
 export function enrichPublicDetails(previous, incoming) {
   if (Number(previous.sourcePriority || 0)>50 || /^(verified|manual-verified|official-university)$/.test(previous.verificationStatus || '')) return previous;
   const merged = {...projectPublicDetails(incoming),...projectPublicDetails(previous.publicDetails)};
