@@ -1,5 +1,8 @@
 /* Presentation only. Repeated scope specificity wins over legacy mode/sidebar variants. */
 .core-logo { display: block; width: 48px; height: 48px; flex: 0 0 48px; object-fit: contain; background: #fff; border-radius: 6px; }
+/* Mode selection is a standalone screen; work and counseling keep their navigation. */
+body.data-core-layout.data-core-layout.mode-home-artwork-active .app-shell { grid-template-columns: minmax(0, 1fr); }
+body.data-core-layout.data-core-layout.mode-home-artwork-active :is(.sidebar, .core-menu-toggle, .core-nav-dialog) { display: none; }
 body:is(.data-core-layout, .roadmap-page, .admissions-counseling) {
   --bg: var(--core-bg); --surface: var(--core-surface); --surface-soft: var(--core-surface-soft);
   --text: var(--core-ink); --muted: var(--core-ink-secondary); --line: var(--core-line);

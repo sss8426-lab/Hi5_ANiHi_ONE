@@ -223,6 +223,15 @@ async function runDiagnostics() {
   finally { button.disabled = false; button.textContent = '진단 실행'; }
 }
 
+async function refreshSystemStatus() {
+  $('refreshSystemBtn').disabled = true;
+  try {
+    const health = await api('/api/data-core/health');
+    $('bindingStatus').textContent = `D1 ${health.bindings?.database ? '연결됨' : '확인 필요'} · R2 ${health.bindings?.files ? '연결됨' : '확인 필요'}`;
+  } catch (error) { $('bindingStatus').textContent = error.message; }
+  finally { $('refreshSystemBtn').disabled = false; }
+}
+
 let awardTrashOffset=null;
 async function loadAwardTrash(more=false) {
   if(!state.context?.isSuperAdmin)return;
@@ -240,6 +249,7 @@ async function loadAwardTrash(more=false) {
   }catch(error){toast(error.message,'error');}
 }
 function bindEvents() {
+  $('refreshSystemBtn').onclick = refreshSystemStatus;
   $('refreshAwardTrashBtn').onclick=()=>loadAwardTrash();$('awardTrashMore').onclick=()=>loadAwardTrash(true);
   $('refreshTrashBtn').onclick = loadTrash; $('trashSearchBtn').onclick = loadTrash; $('trashCampus').onchange = loadTrash;
   $('trashSearch').onkeydown = (event) => { if (event.key === 'Enter') loadTrash(); };
@@ -249,6 +259,10 @@ function bindEvents() {
 
 async function init() {
   bindEvents(); renderDiagnostics(); renderKnowledgeStatus(); await loadContext();
+  if (state.context?.isSuperAdmin) {
+    void refreshSystemStatus();
+    if (location.hash === '#diagnosticPanel') $('diagnosticPanel').scrollIntoView();
+  }
   if (state.context?.authenticated) {
     await loadTrash();
     if (state.context.isSuperAdmin) await Promise.all([loadBackups(), loadKnowledgeStatus(), loadAwardTrash()]);
