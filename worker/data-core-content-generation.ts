@@ -2,6 +2,8 @@ import { DEFAULT_ORGANIZATION_ID } from "./data-core";
 import { canReadRegisteredFile } from './data-core-derivative-policy';
 import { AI_PHOTO_LIMIT, PHOTO_SAFETY_LIMIT } from './content-ai-images';
 import { campusDisplayName } from './campus-directory';
+import { loadCampusKeywords } from './content-campus-keywords';
+import { seoGuide } from '../public/data-core/campus-seo-keywords.js';
 import {
   DataCoreAccessContext,
   DataCoreAccessError,
@@ -28,6 +30,8 @@ export type ContentGenerationInput = {
   requestId?: string;
   strategyMode?: BlogStrategyMode;
   recentTitles?: string[];
+  // Which brand's 캠퍼스 고정 키워드 the post uses (hi5 | anihi); the keywords themselves are read on the server.
+  keywordBrand?: string | null;
   photoInstructions?: {brief:Record<string,string>;commonDescription:string;photos:Array<{fileId:string;kind:string;description:string;facts:string;exclude:string;externalAiConsent:boolean}>};
 };
 
@@ -61,6 +65,8 @@ export type ContentGenerationProviderRequest = {
   brandContext: typeof HI5_CONTENT_BRAND_CONTEXT;
   strategyMode?: BlogStrategyMode;
   recentTitles?: string[];
+  // SEO words for the text: campus regions + region-free keywords from the campus's saved fixed keywords.
+  seo?: { regions: string[]; keywords: string[] } | null;
   selectedFiles: Array<{
     id: string;
     category: string;
@@ -219,6 +225,11 @@ async function selectedFileDescriptors(
   return descriptors;
 }
 
+async function blogSeo(db: D1Database, campusId: string | null, brand: unknown) {
+  const tags = await loadCampusKeywords(db, campusId, brand);
+  return tags ? seoGuide(campusId, tags) : null;
+}
+
 export async function generateContentDraft(
   db: D1Database,
   context: DataCoreAccessContext,
@@ -247,6 +258,7 @@ export async function generateContentDraft(
     // Grounds the blog "지역 키워드" rule in the caller's own selected campus, never a client-typed
     // string — campusDisplayName() only resolves known campus ids/codes.
     campusName: sourceApp === 'blog' ? campusDisplayName(campusId) : null,
+    seo: sourceApp === 'blog' ? await blogSeo(db, campusId, input.keywordBrand) : null,
     contentPurpose: cleanText(input.contentPurpose || "class-story", 80) || "class-story",
     notes: cleanText(input.notes, 4000),
     coreMessage: cleanText(input.coreMessage, 1200),

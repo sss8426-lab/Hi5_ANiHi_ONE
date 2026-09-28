@@ -71,6 +71,7 @@ import { handleKkumeumApi } from "./kkumeum-router";
 import { aiModels, boundedJson, ContentAiError, editInstagramImage, openAiContentProvider, unavailable, type OpenAiEnv } from './content-openai-provider';
 import { contentDefaults, contentScope, withAiRequest } from './content-ai-settings';
 import { textPresets } from './content-text-presets';
+import { campusKeywords } from './content-campus-keywords';
 import { instagramPolicy, saveInstagramRender, reviewInstagram, approveInstagram, exportInstagram, assertInstagramAiUse, completeInstagramSet, getInstagramSet, listInstagramSets, saveInstagramSetCaption, updateInstagramSetItems } from './instagram-production';
 import { listCustomLogos, uploadCustomLogo, deleteCustomLogo, renameCustomLogo, CUSTOM_LOGO_MAX_BYTES } from './instagram-custom-logos';
 import { AI_PHOTO_LIMIT } from './content-ai-images';
@@ -552,6 +553,10 @@ async function handleContentApi(request: Request, env: Env) {
   if (url.pathname === '/api/data-core/content/blog/save' && request.method === 'POST') {
     if(!env.FILES)throw new DataCoreAccessError(503,'파일 저장소를 확인하세요.');
     return jsonResponse({draft:await saveBlogPost(env.DB,env.FILES,context,await contentJson(request,200000))});
+  }
+  if (url.pathname === '/api/data-core/content/campus-keywords') {
+    if (request.method === 'GET') return jsonResponse(await campusKeywords(env.DB, context, Object.fromEntries(url.searchParams)), {headers:{'cache-control':'private, no-store'}});
+    if (request.method === 'PUT') return jsonResponse(await campusKeywords(env.DB, context, await contentJson(request), true), {headers:{'cache-control':'private, no-store'}});
   }
   if (url.pathname === '/api/data-core/content/text-presets') {
     if (request.method === 'GET') return jsonResponse(await textPresets(env.DB, context, Object.fromEntries(url.searchParams)), {headers:{'cache-control':'private, no-store'}});
