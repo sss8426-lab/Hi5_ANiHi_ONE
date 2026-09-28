@@ -5,6 +5,7 @@ import {foundationImages} from './foundation-images.js?v=20260910-1';
 import { occupationImageConcepts } from './occupation-image-concepts.js?v=20260919-work-v2';
 import { paginate } from './pagination.js?v=20260909-1';
 import { renderCareerVisuals } from './career-visuals.js?v=20260911-editorial-1';
+import { careerProfiles } from './career-profiles.js?v=20260929-all';
 
 const content = window.HI5_ROADMAP_CONTENT || { careers: [], tracks: [], lessonAreas: [], sources: [] };
 const $ = (id) => document.getElementById(id);
@@ -57,6 +58,24 @@ function renderCatalog() {
   $('goalGrid').innerHTML = careers.length ? careers.map((career) => `<a class="dream-card" href="${pathFor(career)}">${art(career)}<span class="dream-copy"><small>${h(career.group)}</small><strong>${h(career.name)}</strong><span class="dream-summary">${h(career.summary)}</span></span></a>`).join('') : '<p class="empty-state">검색된 꿈이 없어요. 다른 직업명이나 전공을 입력해보세요.</p>';
 }
 
+// 직업 소개 next to the job image: description, main work and related jobs (photo cards linking to them).
+// On PC the job image stretches to the panel's height (data-layout=fill).
+function renderCareerProfile(career) {
+  const profile = careerProfiles[career.id];
+  const panel = $('careerProfile');
+  panel.hidden = !profile;
+  $('resultVisual').dataset.layout = profile ? 'fill' : '';
+  if (!profile) { panel.replaceChildren(); return; }
+  const related = profile.related.map((item) => {
+    const target = item.id && content.careers.find((c) => c.id === item.id);
+    const body = `<span class="related-copy"><strong>${h(target?.name || item.name)}</strong><span>${h(item.reason)}</span></span>`;
+    return `<li>${target ? `<a href="${pathFor(target)}"><span class="related-photo">${art(target)}</span>${body}<b aria-hidden="true">→</b></a>` : `<div>${body}</div>`}</li>`;
+  }).join('');
+  panel.innerHTML = `<h2 class="profile-heading">어떤 일을 하나요?</h2><p class="profile-description">${h(profile.description)}</p>`
+    + `<h3 class="profile-subheading">이런 일을 해요</h3><ul class="profile-tasks">${profile.tasks.map((task) => `<li>${h(task)}</li>`).join('')}</ul>`
+    + `<h3 class="profile-subheading">함께 알아보면 좋은 직업</h3><ul class="profile-related">${related}</ul>`;
+}
+
 function renderEducation(career) {
   const track = content.tracks.find((t) => t.id === career.trackId);
   $('resultGroup').textContent = `${familyNames[career.family]} / ${career.group}`;
@@ -64,6 +83,7 @@ function renderEducation(career) {
   $('resultGoalSummary').textContent = career.summary;
   $('careerDistinction').textContent = career.distinction || '';
   $('resultPortrait').innerHTML = art(career, true);
+  renderCareerProfile(career);
   $('changeGoalBtn').href = `#family=${career.family}`;
   renderCareerVisuals($('careerVisualSections'), career);
   $('universityExamples').innerHTML = career.universityExamples.map((example) => `<li>${h(example)}</li>`).join('');
