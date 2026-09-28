@@ -87,6 +87,8 @@ jobs:
           node --check public/data-core/admissions-model.js
           node --check public/data-core/occupation-image-concepts.js
           node --check public/admissions-web/renderer/app.js
+          node --check public/admissions-web/renderer/verified-grade-engine.js
+          node --check public/admissions-web/renderer/verified-grades.js
           node --check public/admissions-web/renderer/guidelines.js
           node --check public/data-core/readiness.js
           node --check public/data-core/login.js
