@@ -1,7 +1,5 @@
-import { mountAttendance } from './attendance.js?v=20260921-weekend-selection';
-import { mountRosterAttendance } from './attendance-roster.js?v=20260928-template';
+import { mountRosterAttendance } from './attendance-roster.js?v=20260928-expanded-roster';
 
-const LEGACY_OPEN_KEY = 'core.attendance.legacyOpen';
 export const TEMPLATE_URL = '/data-core/work/templates/attendance-roster-template.xlsx?v=20260928';
 export const TEMPLATE_NAME = '출석부_종합입력_기본양식.xlsx';
 
@@ -38,31 +36,17 @@ export function mountAttendancePage(host, { context, campuses }) {
   const head = document.createElement('div');
   head.className = 'at-head';
   head.append(label, template);
-  // 종합입력 → 반별 출석부 is the standard flow; the older "last month's sheet → next month" tool stays
-  // available below for campuses that still keep per-class files.
   const roster = document.createElement('div');
-  const legacy = document.createElement('details');
-  legacy.className = 'at-legacy';
-  const summary = document.createElement('summary');
-  summary.textContent = '지난달 출석부로 다음 달 만들기 (기존 방식)';
-  const tool = document.createElement('div');
-  legacy.append(summary, tool);
-  try { legacy.open = localStorage.getItem(LEGACY_OPEN_KEY) === '1'; } catch { /* storage unavailable */ }
-  legacy.ontoggle = () => { try { localStorage.setItem(LEGACY_OPEN_KEY, legacy.open ? '1' : '0'); } catch { /* storage unavailable */ } };
-  host.append(head, roster, legacy);
+  host.append(head, roster);
   let cleanups = [];
   const render = () => {
     cleanups.forEach(cleanup => cleanup?.());
     cleanups = [];
     roster.replaceChildren();
-    tool.replaceChildren();
     const campus = allowed.find(item => item.id === select.value);
-    if (campus) cleanups = [
-      mountRosterAttendance(roster, { campusId: campus.id, campusName: campus.name }),
-      mountAttendance(tool, { campusName: campus.name }),
-    ];
+    if (campus) cleanups = [mountRosterAttendance(roster, { campusId: campus.id, campusName: campus.name })];
   };
   select.onchange = render;
   render();
-  return () => { cleanups.forEach(cleanup => cleanup?.()); select.onchange = null; legacy.ontoggle = null; host.replaceChildren(); };
+  return () => { cleanups.forEach(cleanup => cleanup?.()); select.onchange = null; host.replaceChildren(); };
 }

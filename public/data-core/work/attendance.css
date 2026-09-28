@@ -46,7 +46,6 @@
 #arStatus{font-size:14px;line-height:1.6;margin:16px 0}#arResult{margin-top:12px}#arHolidays,.ar-note{font-size:13px;line-height:1.6;color:var(--core-text-secondary,#747872)}
 .ar-table-wrap{overflow:auto;max-width:100%}.ar-table{border-collapse:collapse;min-width:420px;width:100%;font-size:13px}
 #attendanceHost .ar-table th,#attendanceHost .ar-table td{border:1px solid #b9c7d6;padding:6px 10px;text-align:left;font-size:13px;letter-spacing:0;text-transform:none;vertical-align:middle}#attendanceHost .ar-table thead th{background:#5b9bd5;color:#fff;font-weight:650}#attendanceHost .ar-table tbody th{background:#eaf2f8;font-weight:600;color:#17365d}#attendanceHost .ar-table td{color:var(--core-text,#171917)}
-.at-legacy{border-top:1px solid var(--core-border,#dedcd5);padding-top:16px}.at-legacy>summary{cursor:pointer;font-size:14px;color:var(--core-text-secondary,#747872);margin-bottom:16px}
 #attendanceHost .ar-table thead th,#attendanceHost .ar-table td:not(:last-child){white-space:nowrap}
 .ar-days-off{border:1px solid var(--core-border,#dedcd5);border-radius:6px;padding:12px 14px;margin:0;min-width:0}.ar-days-off legend{font-size:14px;padding:0 4px}
 .ar-days-off small{display:block;font-size:12px;line-height:1.6;color:var(--core-text-secondary,#747872);margin-bottom:6px}

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DOMParser,XMLSerializer} from '@xmldom/xmldom';
 import {unzipSync,strFromU8,strToU8,zipSync} from '../public/data-core/vendor/fflate-0.8.3.js';
-import {rosterFixture,defaultClasses} from './helpers/attendance-roster-fixture.mjs';
+import {rosterFixture,expandedRosterFixture,defaultClasses} from './helpers/attendance-roster-fixture.mjs';
 import {parseRoster,RosterError} from '../public/data-core/work/attendance-roster-parser.js';
 import {parseSchedule,monthColumns,plannedColumns,lessonCount,ScheduleError} from '../public/data-core/work/attendance-roster-schedule.js';
 import {buildRosterWorkbook,planRosterWorkbook,sheetNames,OUTPUT_HEADERS,COLORS,PRINT} from '../public/data-core/work/attendance-roster-export.js';
@@ -82,6 +82,25 @@ test('수업요일 reads exact slots; weekends need their time number', ()=>{
   }
   assert.throws(()=>parseSchedule('토토'),/타임 번호/);
   assert.throws(()=>parseSchedule('토4'),/타임 번호/);
+});
+
+test('요일별 번호 타임과 점 구분 복수 타임을 읽고 날짜 열을 분리한다', ()=>{
+  const schedule=parseSchedule('월1.2 수3 금1.2.3 토1.2 일2.3');
+  assert.deepEqual(schedule.slots,['월1','월2','수3','금1','금2','금3','토1','토2','일2','일3']);
+  const columns=monthColumns(2026,9,schedule.slots),monday=columns.filter(c=>c.date==='2026-09-07');
+  assert.deepEqual(monday.map(c=>c.slot),['월1','월2']);
+  assert.deepEqual(columns.filter(c=>c.date==='2026-09-04').map(c=>c.slot),['금1','금2','금3']);
+  assert.equal(lessonCount(schedule,plannedColumns(schedule,columns)).label,'40+1');
+});
+
+test('요일별 1~3타임 입력 양식을 읽고 생성물에 타임별 일자 열을 만든다', ()=>{
+  const {bytes}=expandedRosterFixture(),roster=parseRoster(bytes,env);
+  assert.equal(roster.classes.length,1);assert.equal(roster.studentCount,2);
+  assert.deepEqual(roster.issues,[]);assert.deepEqual(roster.warnings,[]);
+  assert.deepEqual(roster.classes[0].students[0].schedule.slots,['월1','월2','수3','금1','금2','금3','토1','토2','일2','일3']);
+  const out=openOutput(buildRosterWorkbook(roster,{year:2026,month:9}).bytes).sheets[0];
+  assert.equal(out.at('I5').value,'40+1');
+  assert.deepEqual([out.at('J3').value,out.at('K3').value,out.at('L3').value,out.at('M3').value,out.at('N3').value,out.at('L4').value,out.at('M4').value,out.at('N4').value],['1','2','4','4','4','금1','금2','금3']);
 });
 
 test('화목토2일1 marks only 화·목·토2·일1 columns', ()=>{
@@ -234,24 +253,24 @@ test('the downloadable 기본 양식 is the file the upload reads: blank rows an
   assert.throws(()=>parseRoster(campusOnly,env),/반 구분 바를 하나도 찾지 못했습니다/);
   // A normally filled form: one class of two, one class of one, everything else left blank.
   const bytes=await filledTemplate({A2:'캠퍼스: SYNTHETIC 캠퍼스',
-    A5:'SYNTHETIC 1반',B6:'가상학생1',C6:'가상고',D6:'1',E6:'010-0000-0001',F6:'부:010-0000-1001',G6:'26-03-02',H6:'화목토2일1',
-    B7:'가상학생2',H7:'월수금',
-    A47:'SYNTHETIC 3반',B48:'가상학생3',H48:'토1토3'});
+    A6:'SYNTHETIC 1반',A7:'1',B7:'가상학생1',C7:'가상고',D7:'1',E7:'010-0000-0001',F7:'부:010-0000-1001',G7:'26-03-02',H7:'화1 목1 토2',
+    A8:'2',B8:'가상학생2',H8:'월1 수1 금1',
+    A57:'SYNTHETIC 3반',A58:'1',B58:'가상학생3',H58:'토1 토3'});
   const roster=parseRoster(bytes,env);
   assert.deepEqual(roster.issues,[]);assert.deepEqual(roster.warnings,[]);
   assert.equal(roster.campus,'SYNTHETIC 캠퍼스');
   assert.deepEqual(roster.classes.map(c=>[c.name,c.students.map(s=>s.name)]),[['SYNTHETIC 1반',['가상학생1','가상학생2']],['SYNTHETIC 3반',['가상학생3']]]);
   const first=roster.classes[0].students[0];
   assert.deepEqual([first.no,first.school,first.grade,first.studentPhone,first.parentPhone,first.registered.iso,first.schedule.slots.join('')],
-    [1,'가상고','1','010-0000-0001','부:010-0000-1001','2026-03-02','화목토2일1']);
+    [1,'가상고','1','010-0000-0001','부:010-0000-1001','2026-03-02','화1목1토2']);
   const out=openOutput(buildRosterWorkbook(roster,{year:2026,month:10}).bytes);
   assert.deepEqual(out.sheets.map(s=>s.name),['SYNTHETIC 1반','SYNTHETIC 3반']);
   // Mistakes a person can make in the form are reported, not guessed.
-  const broken=parseRoster(await filledTemplate({A2:'캠퍼스: SYNTHETIC 캠퍼스',A5:'SYNTHETIC 1반',B6:'가상학생1',H6:'월',C7:'이름없는학교',B27:'바 없는 학생',H27:'화'}),env);
+  const broken=parseRoster(await filledTemplate({A2:'캠퍼스: SYNTHETIC 캠퍼스',A6:'SYNTHETIC 1반',A7:'1',B7:'가상학생1',H7:'월1',C8:'이름없는학교',A57:'',B58:'바 없는 학생',H58:'화1'}),env);
   const messages=broken.issues.map(i=>`${i.row}:${i.message}`);
-  assert.ok(messages.some(m=>/^7:학생 이름\(B열\)이 비어/.test(m)),messages.join('\n'));
-  assert.ok(messages.some(m=>/^26:26행 반 구분 바에 반 이름이 없습니다/.test(m)),messages.join('\n'));
-  assert.equal(broken.issues.length,2,messages.join('\n'));
+  assert.ok(messages.some(m=>/^8:학생 이름\(B열\)이 비어/.test(m)),messages.join('\n'));
+  assert.ok(messages.some(m=>/^57:57행 반 구분 바에 반 이름이 없습니다/.test(m)),messages.join('\n'));
+  assert.equal(broken.issues.length,3,messages.join('\n'));
 });
 
 // ---------- workbook structure ----------
@@ -344,7 +363,7 @@ test('clear errors for broken input files', ()=>{
   assert.throws(()=>parseRoster(strToU8('not a zip'),env),e=>e instanceof RosterError&&/xlsx/.test(e.message));
   const wrongHeader=[...defaultClasses(1,1)];
   assert.throws(()=>parse({headers:['No','이름','학교']}),e=>e instanceof RosterError&&/헤더/.test(e.message));
-  assert.throws(()=>parse({headers:['No','이름','학교','학년','학생 전화번호','학부모 전화번호','등록일','요일','월','화','수','목','금','토(1)','토(2)','토(3)','일(1)','일(2)','일(3)','총횟수','비고']}),/H열 "수업요일"/);
+  assert.throws(()=>parse({headers:['No','이름','학교','학년','학생 전화번호','학부모 전화번호','등록일','요일','월','화','수','목','금','토(1)','토(2)','토(3)','일(1)','일(2)','일(3)','총횟수','비고']}),/공식 규격/);
   assert.throws(()=>parse({campus:null,classes:wrongHeader}),e=>e instanceof RosterError&&/캠퍼스명/.test(e.message));
   assert.throws(()=>parse({classes:[]}),e=>e instanceof RosterError&&/반 구분 바/.test(e.message));
   // A workbook with no 종합입력 header anywhere.
