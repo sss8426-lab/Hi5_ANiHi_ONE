@@ -4,7 +4,10 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import { webcrypto } from 'node:crypto';
 
-const source = fs.readFileSync('public/data-core/accounts.js', 'utf8');
+const moduleSource = fs.readFileSync('public/data-core/accounts.js', 'utf8');
+assert.match(moduleSource, /^import \{ initAccountRoles \} from '\.\/account-roles\.js\?[^']+';/);
+// This form unit test injects the tab dependency; the browser test exercises the real module.
+const source = moduleSource.replace(/^import \{ initAccountRoles \} from '[^']+';\r?\n/, '');
 
 async function accountForm({ rejectCreate = false } = {}) {
   const elements = new Map();
@@ -21,7 +24,9 @@ async function accountForm({ rejectCreate = false } = {}) {
     return elements.get(id);
   }
   let accountLoads = 0;
+  let roleInitializations = 0;
   vm.runInNewContext(source, {
+    initAccountRoles() { roleInitializations++; },
     document: { getElementById: element }, crypto: webcrypto,
     window: { addEventListener() {} }, setInterval() {},
     location: { assign() { throw new Error('Unexpected login redirect'); } },
@@ -51,6 +56,7 @@ async function accountForm({ rejectCreate = false } = {}) {
   event.currentTarget = null;
   completeCreate();
   await pending;
+  assert.equal(roleInitializations, 1, 'account reloads must not duplicate tab listeners');
   return { element, calls, accountLoads };
 }
 
