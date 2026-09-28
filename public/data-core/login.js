@@ -1,8 +1,5 @@
 const $ = (id) => document.getElementById(id);
-const nextPath = (() => {
-  const value = new URLSearchParams(location.search).get('next') || '/data-core/work';
-  return value.startsWith('/data-core/') ? value : '/data-core/work';
-})();
+const nextPath = '/data-core';
 
 async function request(path, options = {}) {
   const response = await fetch(path, { credentials: 'include', ...options });
