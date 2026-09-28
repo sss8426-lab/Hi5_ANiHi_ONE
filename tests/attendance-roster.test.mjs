@@ -4,7 +4,7 @@ import {DOMParser,XMLSerializer} from '@xmldom/xmldom';
 import {unzipSync,strFromU8,strToU8,zipSync} from '../public/data-core/vendor/fflate-0.8.3.js';
 import {rosterFixture,expandedRosterFixture,defaultClasses} from './helpers/attendance-roster-fixture.mjs';
 import {parseRoster,RosterError} from '../public/data-core/work/attendance-roster-parser.js';
-import {parseSchedule,monthColumns,plannedColumns,lessonCount,ScheduleError} from '../public/data-core/work/attendance-roster-schedule.js';
+import {parseSchedule,scheduleLabel,monthColumns,plannedColumns,lessonCount,ScheduleError} from '../public/data-core/work/attendance-roster-schedule.js';
 import {buildRosterWorkbook,planRosterWorkbook,sheetNames,OUTPUT_HEADERS,COLORS,PRINT} from '../public/data-core/work/attendance-roster-export.js';
 import {holidayDates,holidayClassDates,fetchHolidays,fetchMonthHolidays,addHolidayClass,removeHolidayClass,holidaySummary} from '../public/data-core/work/attendance-holidays.js';
 import {columnName} from '../public/data-core/work/attendance-template.js';
@@ -74,9 +74,11 @@ test('등록일 stays a real date shown as yy-mm-dd', ()=>{
 
 // ---------- 수업요일 ----------
 test('수업요일 reads exact slots; weekends need their time number', ()=>{
-  assert.deepEqual(parseSchedule('화목토2일1').slots,['화','목','토2','일1']);
+  assert.deepEqual(parseSchedule('화목토2일1').slots,['화1','목1','토2','일1'],'a weekday without a number is its 1st time');
   assert.deepEqual(parseSchedule('토1토3').slots,['토1','토3']);
-  assert.deepEqual(parseSchedule('금, 월 수').slots,['월','수','금']);
+  assert.deepEqual(parseSchedule('금, 월 수').slots,['월1','수1','금1']);
+  assert.deepEqual(parseSchedule('화1수1').slots,['화1','수1']);
+  assert.equal(scheduleLabel(parseSchedule('토1.2 월2.3 화1수1')),'월2.3 화1 수1 토1.2');
   for(const bad of ['토','토토','일일','일','토4','화목토','월월','','월x']){
     assert.throws(()=>parseSchedule(bad),ScheduleError,bad);
   }
@@ -100,7 +102,11 @@ test('요일별 1~3타임 입력 양식을 읽고 생성물에 타임별 일자 
   assert.deepEqual(roster.classes[0].students[0].schedule.slots,['월1','월2','수3','금1','금2','금3','토1','토2','일2','일3']);
   const out=openOutput(buildRosterWorkbook(roster,{year:2026,month:9}).bytes).sheets[0];
   assert.equal(out.at('I5').value,'40+1');
-  assert.deepEqual([out.at('J3').value,out.at('K3').value,out.at('L3').value,out.at('M3').value,out.at('N3').value,out.at('L4').value,out.at('M4').value,out.at('N4').value],['1','2','4','4','4','금1','금2','금3']);
+  // 9/1 화 (only 화3 used) → "화3", 9/2 수 → "수3", 9/3 목 (unused) → plain "목", 9/4 금 → 금1·금2·금3.
+  const header=['J','K','L','M','N','O'].map(c=>[out.at(c+'3').value,out.at(c+'4').value].join(' '));
+  assert.deepEqual(header,['1 화3','2 수3','3 목','4 금1','4 금2','4 금3']);
+  assert.equal(out.at('H5').value,'월1.2 수3 금1.2.3 토1.2 일2.3');
+  assert.equal(out.at('H6').value,'화3');
 });
 
 test('화목토2일1 marks only 화·목·토2·일1 columns', ()=>{
@@ -108,8 +114,10 @@ test('화목토2일1 marks only 화·목·토2·일1 columns', ()=>{
   assert.deepEqual([...new Set(columns.filter(c=>c.weekend).map(c=>c.slot))],['토2','일1']);
   const planned=plannedColumns(schedule,columns);
   const slots=[...new Set(columns.filter((_,i)=>planned[i]).map(c=>c.slot))].sort();
-  assert.deepEqual(slots,['목','일1','토2','화'].sort());
-  assert.ok(columns.every((c,i)=>!['월','수','금'].includes(c.slot)||!planned[i]));
+  assert.deepEqual(slots,['목1','일1','토2','화1'].sort());
+  assert.ok(columns.every((c,i)=>!['월1','수1','금1'].includes(c.slot)||!planned[i]));
+  // Weekdays keep the plain look ("화"), weekends stay numbered ("토2").
+  assert.deepEqual([...new Set(columns.map(c=>c.label))],['화','수','목','금','토2','일1','월']);
 });
 
 test('토1토3 leaves 토2 unplanned even when a classmate uses 토2', ()=>{
@@ -133,7 +141,9 @@ test('일수 is the 4-week base with the month difference: 12, 12+2, 12-1', ()=>
   assert.deepEqual(lessonCount({weekly:3},[true,true]),{base:12,actual:2,diff:-10,label:'12-10'});
   const out=openOutput(buildRosterWorkbook(roster,{year:2026,month:9,holidays}).bytes).sheets[0];
   assert.deepEqual(['I5','I6','I7'].map(r=>out.at(r).value),['12','12+2','12-1']);
-  assert.match(out.at('I5').formula,/^TEXT\(4\*\(/);assert.match(out.at('I5').formula,/COUNTIF\(\$J5:\$[A-Z]+5,1\)/);
+  // The 4-week base is a number in the formula (not re-read from the 수업요일 text).
+  assert.match(out.at('I5').formula,/^TEXT\(12,"0"\)&IF\(COUNTIF\(\$J5:\$[A-Z]+5,1\)=12,/);
+  assert.equal(out.at('I6').formula.match(/\b12\b/g).length,4);
 });
 
 test('holidays come from CORE calendar events: no planned lesson, a blue-gray 휴 header', async()=>{
@@ -384,7 +394,7 @@ test('row problems are listed with their row numbers instead of silently guessin
   assert.match(messages[3],/^라:.*토4/);assert.match(messages[4],/이름\(B열\)이 비어/);
   assert.match(messages[5],/"빈반" 반 아래에 학생이 없습니다/);
   assert.ok(roster.issues.every(i=>Number.isInteger(i.row)&&i.row>4));
-  assert.deepEqual(roster.classes.find(c=>c.name==='A반').students.at(-1).schedule.slots,['화','목']);
+  assert.deepEqual(roster.classes.find(c=>c.name==='A반').students.at(-1).schedule.slots,['화1','목1']);
 });
 
 test('an unmerged class bar still reads, with a warning; check marks that disagree only warn', ()=>{
@@ -394,6 +404,6 @@ test('an unmerged class bar still reads, with a warning; check marks that disagr
   const xml=strFromU8(files['xl/worksheets/sheet1.xml']).replace(/<c r="K6"[^>]*>.*?<\/c>/,'').replace('</row></sheetData>','<c r="L6"><v>1</v></c></row></sheetData>');
   files['xl/worksheets/sheet1.xml']=strToU8(xml);
   const checked=parseRoster(zipSync(files),env);
-  assert.deepEqual(checked.issues,[]);assert.match(checked.warnings.join(),/체크칸\(월목\)과 수업요일\(월수\)/);
-  assert.deepEqual(checked.classes[0].students[0].schedule.slots,['월','수']);
+  assert.deepEqual(checked.issues,[]);assert.match(checked.warnings.join(),/체크칸\(월1 목1\)과 수업요일\(월1 수1\)/);
+  assert.deepEqual(checked.classes[0].students[0].schedule.slots,['월1','수1']);
 });

@@ -3,7 +3,7 @@
 // and print setting is exact; nothing is copied from the uploaded file except the data.
 import {zipSync,strToU8} from '../vendor/fflate-0.8.3.js';
 import {columnName} from './attendance-template.js?v=20260919-sparse-import';
-import {monthColumns,plannedColumns,lessonCount,SLOT_ORDER} from './attendance-roster-schedule.js?v=20260928-multi-slots';
+import {monthColumns,plannedColumns,lessonCount,scheduleLabel,SLOT_ORDER} from './attendance-roster-schedule.js?v=20260928-output-format';
 import {holidaySummary} from './attendance-holidays.js?v=20260924-class-days';
 
 export const OUTPUT_HEADERS=['No','이름','학교','학년','학생연락처','학부모연락처','등록일','수업요일','일수'];
@@ -102,13 +102,14 @@ function sheetXml(sheet,plan,styles,sheetIndex){
     const text=(c,h='center')=>styles.style({size:7,h,shrink:true,border:b(c)});
     const reg=s.registered;
     // 일수 is a live formula (4주 기준 ± 이 달의 실제 예정수업) with the same value cached, so it opens
-    // correct and stays correct when a planned cell is changed by hand.
-    const tokens=SLOT_ORDER.map(t=>`--ISNUMBER(SEARCH("${t}",$H${r}))`).join('+'),count=`COUNTIF(${range.replaceAll('{r}',r)},1)`;
-    const formula=`TEXT(4*(${tokens}),"0")&IF(${count}=4*(${tokens}),"",IF(${count}>4*(${tokens}),"+","")&TEXT(${count}-4*(${tokens}),"0"))`;
+    // correct and stays correct when a planned cell is changed by hand. The 4-week base (weekly slots ×
+    // 4) is written as a number: reading it back out of the 수업요일 text would miscount "화1.2.3".
+    const base=s.count.base,count=`COUNTIF(${range.replaceAll('{r}',r)},1)`;
+    const formula=`TEXT(${base},"0")&IF(${count}=${base},"",IF(${count}>${base},"+","")&TEXT(${count}-${base},"0"))`;
     const cells=[cell(1,r,s.no,text(1)),cell(2,r,s.name,text(2)),cell(3,r,s.school,text(3)),cell(4,r,s.grade,text(4)),
       cell(5,r,s.studentPhone,text(5)),cell(6,r,s.parentPhone,text(6)),
       reg?.serial?cell(7,r,reg.serial,styles.style({size:7,numFmt:176,shrink:true,border:b(7)})):cell(7,r,reg?.text||'',text(7)),
-      cell(8,r,s.schedule?.slots.join('')||s.scheduleText,text(8)),
+      cell(8,r,s.schedule?scheduleLabel(s.schedule):s.scheduleText,text(8)),
       cell(9,r,{formula,cached:s.count.label},styles.style({size:7,bold:true,color:COLORS.title,shrink:true,border:b(9)}),'formula')];
     columns.forEach((col,i)=>{
       const c=FIRST_DATE_COLUMN+i;
@@ -124,7 +125,14 @@ function sheetXml(sheet,plan,styles,sheetIndex){
   row(noteRow,11,span(noteRow,'파란색 = 예정 수업 · 일수 = 4주 기준 수업수 ± 이 달 실제 예정 수업 차이 · A4 가로 1페이지 폭, 학생이 많으면 세로 다음 장',noteStyle));merges.push(`A${noteRow}:${last}${noteRow}`);
   if(plan.holidayNote){noteRow++;row(noteRow,11,span(noteRow,`공휴일·휴무: ${plan.holidayNote}`,noteStyle));merges.push(`A${noteRow}:${last}${noteRow}`);}
   if(plan.classDayNote){noteRow++;row(noteRow,11,span(noteRow,`공휴일 수업(정상 수업): ${plan.classDayNote}`,noteStyle));merges.push(`A${noteRow}:${last}${noteRow}`);}
-  const cols=[...INFO_WIDTHS.map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`),columns.length?`<col min="${FIRST_DATE_COLUMN}" max="${lastColumn}" width="${DATE_WIDTH}" customWidth="1"/>`:''].join('');
+  // 수업요일 grows with the longest schedule in the class ("화1.2.3 수1.2.3 … 일1.2.3") so it stays
+  // readable instead of shrinking to a few points; 7pt Hangul ≈ 1.3 and digits/dots ≈ 0.6 width units.
+  const scheduleWidth=Math.min(28,Math.max(INFO_WIDTHS[7],...students.map(s=>{
+    const label=s.schedule?scheduleLabel(s.schedule):String(s.scheduleText||'');
+    return [...label].reduce((w,ch)=>w+(/[가-힣]/.test(ch)?1.3:0.6),1);
+  })));
+  const widths=INFO_WIDTHS.map((w,i)=>i===7?Math.round(scheduleWidth*10)/10:w);
+  const cols=[...widths.map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`),columns.length?`<col min="${FIRST_DATE_COLUMN}" max="${lastColumn}" width="${DATE_WIDTH}" customWidth="1"/>`:''].join('');
   const plannedRef=`${columnName(FIRST_DATE_COLUMN)}${FIRST_STUDENT_ROW}:${last}${lastRow}`;
   const m=PRINT.margins;
   return {lastColumn,lastRow:noteRow,xml:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><dimension ref="A1:${last}${noteRow}"/><sheetViews><sheetView showGridLines="0"${sheetIndex===0?' tabSelected="1"':''} workbookViewId="0"><pane xSplit="9" ySplit="4" topLeftCell="${columnName(FIRST_DATE_COLUMN)}${FIRST_STUDENT_ROW}" activePane="bottomRight" state="frozen"/><selection pane="bottomRight" activeCell="${columnName(FIRST_DATE_COLUMN)}${FIRST_STUDENT_ROW}" sqref="${columnName(FIRST_DATE_COLUMN)}${FIRST_STUDENT_ROW}"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="11"/><cols>${cols}</cols><sheetData>${rows.join('')}</sheetData><mergeCells count="${merges.length}">${merges.map(ref=>`<mergeCell ref="${ref}"/>`).join('')}</mergeCells>${columns.length?`<conditionalFormatting sqref="${plannedRef}"><cfRule type="cellIs" dxfId="0" priority="1" operator="equal"><formula>1</formula></cfRule></conditionalFormatting>`:''}<printOptions horizontalCentered="1"/><pageMargins left="${m.left}" right="${m.right}" top="${m.top}" bottom="${m.bottom}" header="${m.header}" footer="${m.footer}"/><pageSetup paperSize="${PRINT.paperSize}" orientation="${PRINT.orientation}" fitToWidth="${PRINT.fitToWidth}" fitToHeight="${PRINT.fitToHeight}"/></worksheet>`};

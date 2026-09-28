@@ -2,10 +2,11 @@
 // Supports the compact A:U form and the three-time-slot-per-weekday A:AE form. Both use class bars
 // followed by their students; there is no class or enrollment-status column.
 import {openTemplate,all,attr,range,textOf,indexSheet,cellRef} from './attendance-template.js?v=20260919-sparse-import';
-import {parseSchedule} from './attendance-roster-schedule.js?v=20260928-multi-slots';
+import {parseSchedule,scheduleLabel} from './attendance-roster-schedule.js?v=20260928-output-format';
 
 export const ROSTER_HEADERS=['No','이름','학교','학년','학생 전화번호','학부모 전화번호','등록일','수업요일','월','화','수','목','금','토(1)','토(2)','토(3)','일(1)','일(2)','일(3)','총횟수','비고'];
-const CHECK_SLOTS=['월','화','수','목','금','토1','토2','토3','일1','일2','일3'];
+// The compact A:U form's I:S check marks: one column per weekday (its 1st time) and 토/일 1~3.
+const CHECK_SLOTS=['월1','화1','수1','목1','금1','토1','토2','토3','일1','일2','일3'];
 const EXPANDED_DAYS=['월','화','수','목','금','토','일'];
 const EXPANDED_CHECK_SLOTS=EXPANDED_DAYS.flatMap(day=>[1,2,3].map(time=>day+time));
 const COMPACT_LAST_COLUMN=21; // U
@@ -128,7 +129,7 @@ export function parseRoster(bytes,env=globalThis){
       scheduleText,schedule,note:at(layout.noteColumn,r).text};
     if(schedule){
       const marked=layout.checkSlots.filter((_,i)=>isMarked(at(9+i,r)));
-      if(marked.length&&marked.join()!==schedule.slots.join())warnings.push(`${r}행 ${b.text}: 체크칸(${marked.join('')})과 수업요일(${schedule.slots.join('')})이 다릅니다. 수업요일 기준으로 만듭니다.`);
+      if(marked.length&&marked.join()!==schedule.slots.join())warnings.push(`${r}행 ${b.text}: 체크칸(${scheduleLabel({slots:marked})})과 수업요일(${scheduleLabel(schedule)})이 다릅니다. 수업요일 기준으로 만듭니다.`);
     }
     current.students.push(student);
   }
