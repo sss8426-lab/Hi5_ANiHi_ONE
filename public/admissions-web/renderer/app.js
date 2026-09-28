@@ -19,6 +19,8 @@ function clearComputedCaches(){
 }
 function setStateData(data){
   closeArtworkViewer?.();
+  verifiedGradeDraft = null;
+  gradeMountToken += 1;
   admissionsDataRevision += 1;
   state.data = data || { students: [], universities: [], awardFolders: [] };
   if(!Array.isArray(state.data.awardFolders)) state.data.awardFolders = [];
@@ -194,7 +196,7 @@ function bindDashboardSubjectAverage(){
 function scheduleDashboardAnalyze(){
   clearTimeout(dashboardAnalyzeTimer);
   dashboardAnalyzeTimer = setTimeout(() => {
-    if(activePageId() === 'dashboard') analyze();
+    if(activePageId() === 'dashboard') $('dashboard').querySelector('[data-calculate]')?.click();
   }, 500);
 }
 const subjectFields = [
@@ -1514,124 +1516,36 @@ function renderAppError(error, page='dashboard'){
 }
 function activePageId(){ return document.querySelector('.page:not(.hidden)')?.id || 'dashboard'; }
 
-function renderDashboard(){
-  const d=$('dashboard');
-  const name = consultantName();
-  const defaultTrack = state.lastAnalysis?.track || '웹툰';
-  const baseAnalysis=state.lastAnalysis || {gpa:'',skill:'',track:defaultTrack,subjectScores:{},results:[]};
-  const analysisGpa = Number.isFinite(Number(baseAnalysis.gpa)) ? Number(baseAnalysis.gpa) : 3.2;
-  const analysisSkill = Number.isFinite(Number(baseAnalysis.skill)) ? Number(baseAnalysis.skill) : 82;
-  const analysisTrack = baseAnalysis.track || defaultTrack;
-  const analysisPracticalType = baseAnalysis.practicalType || '';
-  const checkedUniversityCount = checkedUniversities().length;
-  const checkedDashboardUniversities = dashboardUniversitiesForTrack(analysisTrack, analysisPracticalType);
-  const hasDashboardAnalysis = !!state.lastAnalysis;
-  const analysis={...baseAnalysis,gpa:analysisGpa,skill:analysisSkill,track:analysisTrack,practicalType:analysisPracticalType,results:hasDashboardAnalysis ? window.AdmissionsCounselingUx.sortByDistance(checkedDashboardUniversities.map(u=>({u,p:scoreUniversity(u,analysisGpa,analysisSkill)}))) : []};
-  if(state.lastAnalysis) state.lastAnalysis = analysis;
-  const dashboardSubjects = analysis.subjectScores || {};
-  const dashboardTrack = analysis.track || defaultTrack;
-  const dashboardPracticalType = analysis.practicalType || '';
-  const practicalTypeOptionsHtml = practicalTypeOptionsMarkup(dashboardPracticalType, true);
-  const trackOptions = dashboardTrackOptions().map(track=>`<option value="${h(track)}" ${dashboardTrack===track?'selected':''}>${h(track)}</option>`).join('');
-  const selected=analysis.results.find(x=>x.u.id===state.selectedUniversityId)?.u || analysis.results[0]?.u || {id:null,name:'체크완료 대학 없음',major:'대학 데이터 관리에서 체크완료 후 저장하세요.',gradeRatio:'-',skillRatio:'-',subjects:'-',ratePrev:'-',rateCurrent:'-'};
-  const selectedScore=(analysis.results.find(x=>x.u.id===selected.id)||{p:scoreUniversity(selected,analysis.gpa,analysis.skill)}).p;
-  const cs=casesFor(selected.id); const pass=cs.find(c=>c.result==='합격'); const fail=cs.find(c=>c.result==='불합격');
-  const passAvg=pass?pass.gpa:'-'; const failAvg=fail?fail.gpa:'-';
-  d.innerHTML=`<div class="home-shell">
-    <header class="home-top">
-      <div><h1>안녕하세요, ${h(name)}!</h1><p>학생의 성적을 입력하고, 최적의 합격 전략을 찾아보세요.</p></div>
-      <div class="home-actions"><button class="icon-btn" id="noticeBtn">알림</button><button class="btn" id="homeAdminBtn">데이터 관리</button><button class="btn" id="homeSettingsBtn">설정</button><span class="user-chip">${h(name)}</span></div>
-    </header>
-
-    <section class="score-hero">
-      <div><h2>학생 성적 입력</h2><p>학생의 내신/수능 성적과 실기 평가를 입력하면 지원 가능 대학을 추천해드립니다.</p></div>
-      <div class="checked-count-banner"><b>체크완료 대학 ${checkedUniversityCount}개</b><span>현재 전공 계열 추천 대상 ${checkedDashboardUniversities.length}개</span></div>
-      <div class="score-controls compact-scores">
-        <div class="field"><label for="studentName">학생명</label><input id="studentName" value="${h(analysis.studentName || '')}" placeholder="예: 김학생"></div>
-        <div class="field"><label for="gradeYear">학년</label><select id="gradeYear">${['고3','고2','고1','N수'].map(year=>`<option ${year===(analysis.gradeYear||'고3')?'selected':''}>${year}</option>`).join('')}</select></div>
-        <div class="field dashboard-track-field"><label>전공 계열</label><select id="track">${trackOptions}</select></div>
-        <div class="field dashboard-practical-type-field"><label>실기 유형</label><select id="dashPracticalType">${practicalTypeOptionsHtml}</select></div>
-        <span class="score-row-break" aria-hidden="true"></span>
-        <div class="field dashboard-score-field"><label>내신 평균</label><input id="gpa" type="number" step="0.1" value="${hasDashboardAnalysis ? formatGrade(analysis.gpa) : ''}"></div>
-        <div class="field dashboard-score-field"><label>실기 점수</label><input id="skill" type="number" value="${hasDashboardAnalysis ? h(analysis.skill) : ''}"></div>
-        <button class="btn primary score-submit" id="analyzeBtn">성적 입력하기 →</button>
-        <div class="field"><label>국어</label><input id="koreanScore" type="number" step="0.1" value="${h(dashboardSubjects.korean || '')}" placeholder="예: 2.1"></div>
-        <div class="field"><label>영어</label><input id="englishScore" type="number" step="0.1" value="${h(dashboardSubjects.english || '')}" placeholder="예: 1.8"></div>
-        <div class="field"><label>수학</label><input id="mathScore" type="number" step="0.1" value="${h(dashboardSubjects.math || '')}" placeholder="예: 2.0"></div>
-        <div class="field"><label>사탐</label><input id="socialScore" type="number" step="0.1" value="${h(dashboardSubjects.social || '')}" placeholder="예: 2.0"></div>
-        <div class="field"><label>과탐</label><input id="scienceScore" type="number" step="0.1" value="${h(dashboardSubjects.science || '')}" placeholder="예: 2.2"></div>
-      </div>
-    </section>
-
-    <section class="dashboard-grid">
-      <article class="dash-card top-list">
-        <div class="card-head"><h3>지원 가능 대학 TOP 30</h3><small>서울시청 가까운 순</small></div>
-        <div class="top-list-scroll"><table><thead><tr><th>순위</th><th>대학명</th><th>지원 가능 학과</th><th>예상 합격 가능성</th></tr></thead><tbody>${analysis.results.slice(0,30).map(({u,p,distanceKm},idx)=>{const l=level(p);return `<tr class="clickable" data-uni="${u.id}"><td>${idx+1}</td><td><b>${universityNameMarkup(u)}</b> ${collegeTypeBadge(u)}<small class="campus-distance">${distanceKm===null?'캠퍼스 위치 확인 필요':`서울시청 ${distanceKm.toFixed(1)} km`}</small></td><td>${h(u.major)}</td><td><span class="badge ${l[1]}">${l[0]}</span> <b>${p}%</b></td></tr>`}).join('') || `<tr><td colspan="4" class="muted">${hasDashboardAnalysis ? '선택한 계열에 맞는 체크완료 대학이 없습니다.' : '학생 성적을 입력하면 체크완료된 대학 중에서 추천 목록이 표시됩니다.'}</td></tr>`}</tbody></table></div>
-        <button class="btn more-btn" id="goSearchBtn">입시요강 확인 →</button>
-      </article>
-
-      <article class="dash-card summary-card">
-        <div class="card-head"><h3>관심 대학 분석 요약</h3><select id="summaryUni">${analysis.results.length ? analysis.results.map(({u})=>`<option value="${u.id}" ${u.id===selected.id?'selected':''}>[${h(universityCollegeType(u))}] ${h(universityNameText(u))} ${h(u.major)}</option>`).join('') : '<option value="">체크완료 대학 없음</option>'}</select></div>
-        <div class="summary-metrics">
-          <div><span class="metric-icon">성</span><b>성적 반영비</b><p>학생부 ${selected.gradeRatio}%<br>실기 ${selected.skillRatio}%</p></div>
-          <div><span class="metric-icon">실</span><b>실기 반영비</b><p>${selected.skillRatio}%<br>${selected.sampleSkill ? `기준 ${selected.sampleSkill}점` : ''}</p></div>
-          <div><span class="metric-icon">과</span><b>반영 성적 과목</b><p>${h(selected.subjects)}</p></div>
-          <div><span class="metric-icon">률</span><b>최근 2년 경쟁률</b><p>전년도 ${h(selected.ratePrev)}<br>올해 ${h(selected.rateCurrent)}</p></div>
-        </div>
-      </article>
-
-      <article class="dash-card case-insight">
-        <div class="card-head"><h3>합격 사례 <small>(최근 2년)</small></h3><button class="link-btn" data-go="cases">더보기 →</button></div>
-        <div class="case-body"><div><p>평균 성적</p><dl><dt>내신</dt><dd>${pass?pass.gpa:'-'}</dd><dt>실기</dt><dd>${pass?pass.skill:'-'}</dd><dt>경쟁률</dt><dd>${pass?h(pass.competition):'-'}</dd></dl></div><div class="donut pass-donut"><b>${passAvg}</b><span>평균 내신</span></div></div>
-        ${subjectScoreGrid(pass, '합격')}
-      </article>
-
-      <article class="dash-card case-insight">
-        <div class="card-head"><h3>불합격 사례 <small>(최근 2년)</small></h3><button class="link-btn" data-go="cases">더보기 →</button></div>
-        <div class="case-body"><div><p>평균 성적</p><dl><dt>내신</dt><dd>${fail?fail.gpa:'-'}</dd><dt>실기</dt><dd>${fail?fail.skill:'-'}</dd><dt>경쟁률</dt><dd>${fail?h(fail.competition):'-'}</dd></dl></div><div class="donut fail-donut"><b>${failAvg}</b><span>평균 내신</span></div></div>
-        <div class="reason-tags"><span>실기 점수</span><span>세특 부족</span><span>면접/서류</span></div>
-      </article>
-    </section>
-
-    <section class="bottom-grid">
-      <div class="feature-strip">
-        <button data-go="strategy"><b>AI 합격 예측</b><span>빅데이터 기반 합격 가능성을 예측해드립니다.</span><i>AI</i></button>
-        <button data-go="strategy"><b>지원 전략 추천</b><span>학생 성적과 목표에 맞는 최적의 지원 전략을 추천합니다.</span><i>Target</i></button>
-        <button data-go="strategy"><b>합격 로드맵</b><span>지금부터 합격까지 단계별 로드맵을 제시합니다.</span><i>Map</i></button>
-        <button data-go="students"><b>내신 관리 분석</b><span>과목별 성취도와 향상 가능성을 분석합니다.</span><i>Chart</i></button>
-        <button data-go="strategy"><b>모의지원 시뮬레이션</b><span>실제 지원과 유사한 시뮬레이션으로 전략을 검증합니다.</span><i>Sim</i></button>
-      </div>
-      <aside class="alert-card"><div class="card-head"><h3>알림</h3><button class="link-btn" id="allNoticeBtn">전체보기 →</button></div><ul><li>2025학년도 수시 모집요강이 업데이트 되었습니다.</li><li>${analysis.results.length ? `${h(universityNameText(selected))} ${h(selected.major)} 분석 데이터가 준비되었습니다.` : '체크완료된 대학만 대시보드와 지원전략에 표시됩니다.'}</li><li>합격/불합격 사례 데이터가 추가되었습니다.</li></ul></aside>
-    </section>
-  </div>`;
-  $('analyzeBtn').onclick=analyze;
-  $('homeAdminBtn').onclick=()=>showPage('admin');
-  $('homeSettingsBtn').onclick=()=>showPage('settings');
-  $('noticeBtn').onclick=()=>$('allNoticeBtn').click();
-  $('allNoticeBtn').onclick=()=>alert('새 알림은 대시보드 오른쪽 하단에서 확인할 수 있습니다.');
-  $('goSearchBtn').onclick=()=>showPage('admin');
-  $('summaryUni').onchange=()=>{if($('summaryUni').value){state.selectedUniversityId=Number($('summaryUni').value);renderDashboard();}};
-  $('track').onchange=()=>analyze();
-  if ($('dashPracticalType')) $('dashPracticalType').onchange=()=>analyze();
-  d.querySelectorAll('[data-uni]').forEach(r=>r.onclick=()=>{state.selectedUniversityId=Number(r.dataset.uni);renderDashboard();});
-  d.querySelectorAll('[data-go]').forEach(btn=>btn.onclick=()=>showPage(btn.dataset.go));
-  bindDashboardSubjectAverage();
+let verifiedGradeDraft = null;
+let gradeMountToken = 0;
+function renderVerifiedGradePage(page) {
+  const root = $(page);
+  const token = ++gradeMountToken;
+  const revision = admissionsDataRevision;
+  const current = () => token === gradeMountToken && revision === admissionsDataRevision && activePageId() === page;
+  root.innerHTML = '<p role="status">성적 환산 화면을 불러오는 중입니다.</p>';
+  import('./verified-grades.js?v=20260929-1').then(module => {
+    if(!current()) return;
+    verifiedGradeDraft ||= module.newGradeDraft();
+    module.mountVerifiedGrades(root, {
+      students: state.data.students || [],
+      draft: verifiedGradeDraft,
+      current,
+      onNavigate: showPage,
+      onSave: async (studentId, detailedTranscript) => {
+        if(!current()) throw new Error('캠퍼스 또는 화면이 변경되었습니다. 다시 열어주세요.');
+        const student = state.data.students.find(item => String(item.id) === String(studentId));
+        if(!student) throw new Error('현재 캠퍼스의 학생을 찾을 수 없습니다.');
+        const updated = await window.desktopAPI.updateStudent({id:student.id,detailedTranscript});
+        if(current()) {
+          const index = state.data.students.findIndex(item => String(item.id) === String(studentId));
+          if(index >= 0) state.data.students[index] = updated;
+        }
+      },
+    });
+  }).catch(error => { if(current()) renderAppError(error,page); });
 }
-
-async function analyze(){
-  clearTimeout(dashboardAnalyzeTimer);
-  syncDashboardGpaFromSubjects();
-  const subjectAverage = dashboardSubjectAverage();
-  const gpa=Number.isFinite(subjectAverage) ? subjectAverage : parseFloat($('gpa').value||'3.2');
-  const skill=parseFloat($('skill').value||'80');
-  const track=$('track')?.value || '웹툰';
-  const practicalType=$('dashPracticalType')?.value || '';
-  const subjectScores = subjectInputsFromDashboard();
-  const results=window.AdmissionsCounselingUx.sortByDistance(dashboardUniversitiesForTrack(track, practicalType).map(u=>({u,p:scoreUniversity(u,gpa,skill)})));
-  state.lastAnalysis={gpa,skill,track,practicalType,subjectScores,results,studentName:$('studentName')?.value || '',gradeYear:$('gradeYear')?.value || '고3'};
-  if(results[0]) state.selectedUniversityId=results[0].u.id;
-  renderDashboard();
-}
+function renderDashboard(){ renderVerifiedGradePage('dashboard'); }
 
 function renderStudents(){
   const query = state.studentSearch.trim().toLowerCase();
@@ -1875,71 +1789,7 @@ function renderCases(){
   document.querySelectorAll('[data-case-artwork]').forEach(btn=>btn.onclick=()=>{const id=btn.dataset.caseArtwork; state.caseDetail=state.caseDetail?.caseId===id&&state.caseDetail?.type==='artwork'?null:{caseId:id,type:'artwork'}; renderCases();});
   bindArtworkViewer();
 }
-function renderStrategy(){
-  const students = state.data.students || [];
-  const strategySearch = String(state.strategyInput.search || '').trim();
-  const searchQuery = strategySearch.toLowerCase();
-  const selectedStudentId = state.strategyInput.studentId || '';
-  const selectedStudent = selectedStudentId ? students.find(s => String(s.id) === String(selectedStudentId)) : null;
-  const gpa = Number(studentOverallGrade(selectedStudent));
-  const fallbackGpa = Number.isFinite(gpa) ? gpa : (Number.isFinite(Number(selectedStudent?.gpa)) ? Number(selectedStudent.gpa) : 3.2);
-  const skillLevelRaw = studentSkillLevel(selectedStudent);
-  const skillLevel = ['상','중','하'].includes(skillLevelRaw) ? skillLevelRaw : '중';
-  const skill = skillScoreFromLevel(skillLevel);
-  const track = dashboardTrackOptions().includes(selectedStudent?.track) ? selectedStudent.track : '';
-  const practicalType = selectedStudent?.practicalType || selectedStudent?.practiceType || '';
-  const analysisStudent = selectedStudent || conversionStudentFromAverage(fallbackGpa);
-  const results = selectedStudent ? dashboardUniversitiesForTrack(track, practicalType).map(u=>{
-    const conversion = calculateUniversityConversion(analysisStudent, u);
-    const basisGpa = conversion?.ok && Number.isFinite(conversion.convertedGrade) ? conversion.convertedGrade : fallbackGpa;
-    return {u,conversion,p:scoreUniversity(u,basisGpa,skill)};
-  }).sort((a,b)=>b.p-a.p) : [];
-  const safe = results.filter(x=>x.p>=65);
-  const fit = results.filter(x=>x.p>=42&&x.p<65);
-  const reach = results.filter(x=>x.p<42);
-  const filteredStudents = searchQuery
-    ? students.filter(s => [s.name, s.track, s.skillLevel, s.practiceExperience, s.gpa, s.skill].some(value => String(value || '').toLowerCase().includes(searchQuery))).slice(0, 12)
-    : [];
-  const studentSearchResults = strategySearch
-    ? `<div class="strategy-student-results">${filteredStudents.length ? filteredStudents.map(s=>`<button class="${selectedStudent?.id===s.id?'selected':''}" type="button" data-strategy-student="${s.id}"><b>${h(s.name)}</b><span>내신 ${h(studentOverallGrade(s))} · 실기 능력 ${h(studentSkillLevel(s))} · ${h(s.track || '-')}</span></button>`).join('') : '<div class="empty-box compact">검색된 학생이 없습니다.</div>'}</div>`
-    : '';
-  const strategyList = [
-    {title:'안정 지원', items:safe.slice(0,20), text:'합격 가능성이 높은 대학을 중심으로 기본 지원축을 잡습니다.'},
-    {title:'적정 지원', items:fit.slice(0,20), text:'현재 성적과 실기 능력으로 현실적인 승부가 가능한 대학입니다.'},
-    {title:'소신 지원', items:reach.slice(0,20), text:'실기 완성도 보완을 전제로 도전할 수 있는 대학입니다.'}
-  ];
-  const previewGroups = [
-    {title:'안정', items:safe.slice(0,5)},
-    {title:'적정', items:fit.slice(0,5)},
-    {title:'소신', items:reach.slice(0,5)}
-  ];
-  const basisText = selectedStudent
-    ? `${h(selectedStudent.name)} / 내신 ${h(formatGrade(fallbackGpa))} / 실기 능력 ${h(skillLevel)} / ${h(track || '-')}`
-    : '학생을 선택하세요';
-  const emptyReason = selectedStudent ? '체크완료 대학 또는 전공 계열 조건을 확인하세요.' : '학생을 먼저 선택하세요.';
-  const strategyBoardMarkup = strategyList.map(group => {
-    const itemsMarkup = group.items.length
-      ? group.items.map(({u,p,conversion}, index) => `<li><b>${index+1}. ${universityNameMarkup(u)} ${collegeTypeBadge(u)}</b><span>${h(u.major)} · ${p}% · 환산 ${formatGrade(conversion?.finalScore)} / ${h(conversion?.maxScore || '-')}</span></li>`).join('')
-      : `<li><b>추천 후보 없음</b><span>${emptyReason}</span></li>`;
-    return `<section><h2>${group.title}<small>최대 20개</small></h2><p>${group.text}</p><ul>${itemsMarkup}</ul></section>`;
-  }).join('');
-  const strategyPreviewMarkup = selectedStudent ? `<section class="strategy-a4-preview">
-    <div class="strategy-preview-head"><div><h2>지원 전략 상담지 미리보기</h2><p>${basisText}</p></div><span>${new Date().toLocaleDateString('ko-KR')}</span></div>
-    <div class="strategy-preview-groups">${previewGroups.map(group=>`<div><h3>${group.title}</h3><ol>${group.items.length?group.items.map(({u,p})=>`<li><b>${h(universityNameText(u))}</b><span>${h(u.major)} · ${p}%</span></li>`).join(''):'<li><b>추천 후보 없음</b><span>조건을 확인하세요.</span></li>'}</ol></div>`).join('')}</div>
-    <p class="strategy-preview-note">저장 버튼을 누르면 이 상담지 형태의 PNG 이미지가 만들어집니다.</p>
-  </section>` : '';
-  const strategyResultMarkup = selectedStudent
-    ? `<div class="card"><div class="metrics"><div class="metric">안정<b>${safe.length}개</b></div><div class="metric">적정<b>${fit.length}개</b></div><div class="metric">소신<b>${reach.length}개</b></div><div class="metric">분석 기준<b style="font-size:14px">${basisText}</b></div></div>${strategyPreviewMarkup}<div class="strategy-board">${strategyBoardMarkup}</div><div class="notice">학생관리에 입력된 내신, 학년·학기별 성적, 실기 능력, 전공 계열을 기준으로 계산합니다.</div></div>`
-    : '';
-  $('strategy').innerHTML=`<div class="top"><div><h1>지원 전략</h1><p>학생관리의 학생 데이터를 기준으로 안정·적정·소신 지원 구성을 계산합니다.</p></div><button class="btn primary" id="saveStrategyImageBtn" ${selectedStudent?'':'disabled'}>지원 대학 이미지 저장</button></div>
-  <div class="card strategy-input-card"><div class="student-toolbar"><div class="search-box"><input id="strategyStudentSearchInput" placeholder="학생명, 전공 계열, 실기 능력으로 검색" value="${h(strategySearch)}"><button class="btn" id="strategyStudentSearchBtn">학생 검색</button></div>${selectedStudent?`<button class="btn" id="strategyStudentClearBtn">선택 해제</button>`:''}</div>${studentSearchResults}</div>
-  ${strategyResultMarkup}`;
-  $('strategyStudentSearchBtn').onclick=()=>{state.strategyInput={...state.strategyInput, search:$('strategyStudentSearchInput').value.trim(), studentId:''}; state.conversionDetailId=null; renderStrategy();};
-  $('strategyStudentSearchInput').onkeydown=(event)=>{if(event.key==='Enter') $('strategyStudentSearchBtn').click();};
-  document.querySelectorAll('[data-strategy-student]').forEach(btn=>btn.onclick=()=>{const student=students.find(s=>String(s.id)===String(btn.dataset.strategyStudent)); state.strategyInput={...state.strategyInput, studentId:btn.dataset.strategyStudent, search:student?.name || strategySearch}; state.conversionDetailId=null; renderStrategy();});
-  if($('strategyStudentClearBtn')) $('strategyStudentClearBtn').onclick=()=>{state.strategyInput={...state.strategyInput, studentId:'', search:''}; state.conversionDetailId=null; renderStrategy();};
-  $('saveStrategyImageBtn').onclick=()=>{if(selectedStudent) saveStrategyAsImage(selectedStudent, fallbackGpa, skillLevel, track, results);};
-}
+function renderStrategy(){ renderVerifiedGradePage('strategy'); }
 
 function defaultQualificationExamConversionTable(){
   return [

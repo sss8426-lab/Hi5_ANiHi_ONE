@@ -1,0 +1,594 @@
+[
+  {
+    "id": 1,
+    "name": "가천대학교",
+    "url": "https://addon.jinhakapply.com/nesin/1019/2026/Susi.html",
+    "provider": "진학어플라이",
+    "suppliedNote": "",
+    "sourceYear": "2026"
+  },
+  {
+    "id": 2,
+    "name": "강남대학교",
+    "url": "https://consult.mncapro.co.kr/solution/kangnamipsi/mobile/pageJ01.php",
+    "provider": "mncapro",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 3,
+    "name": "강동대학교",
+    "url": "",
+    "provider": "-",
+    "suppliedNote": "공식 산출 경로 확인 필요",
+    "sourceYear": null
+  },
+  {
+    "id": 4,
+    "name": "강원대학교",
+    "url": "https://ipsi1.uwayapply.com/calcsvc/2026/ns/kangwon/1/",
+    "provider": "유웨이어플라이",
+    "suppliedNote": "",
+    "sourceYear": "2026"
+  },
+  {
+    "id": 5,
+    "name": "건국대학교",
+    "url": "https://addon.jinhakapply.com/nesin/1009/2026/SusiV.html",
+    "provider": "진학어플라이 (⚠️글로컬/충주캠퍼스 전용. 서울캠퍼스는 미확인)",
+    "suppliedNote": "",
+    "sourceYear": "2026"
+  },
+  {
+    "id": 6,
+    "name": "경기과학기술대학교",
+    "url": "https://www.gtec.ac.kr/ipsi/cms/FrCon/index.do?MENU_ID=560",
+    "provider": "대학 자체",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 7,
+    "name": "경기대학교",
+    "url": "https://enter.kyonggi.ac.kr/cms/FR_CON/index.do?MENU_ID=240&CONTENTS_NO=2",
+    "provider": "대학 자체",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 8,
+    "name": "경남대학교",
+    "url": "https://sugang.kyungnam.ac.kr/AllUsers/SE/2027/SEW041S_2027.aspx?invit_yy=2027&entrn=1",
+    "provider": "대학 자체",
+    "suppliedNote": "",
+    "sourceYear": "2027"
+  },
+  {
+    "id": 9,
+    "name": "경민대학교",
+    "url": "https://www.kyungmin.ac.kr/homepage/page.do?menu=183",
+    "provider": "대학 자체",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 10,
+    "name": "경희대학교",
+    "url": "",
+    "provider": "-",
+    "suppliedNote": "공식 산출 경로 확인 필요",
+    "sourceYear": null
+  },
+  {
+    "id": 11,
+    "name": "계원예술대학교",
+    "url": "",
+    "provider": "-",
+    "suppliedNote": "공식 산출 경로 확인 필요",
+    "sourceYear": null
+  },
+  {
+    "id": 12,
+    "name": "공주대학교",
+    "url": "https://addon.jinhakapply.com/nesin/1028/calscore2027.aspx",
+    "provider": "진학어플라이",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 13,
+    "name": "국민대학교",
+    "url": "https://cs.u-is.co.kr/kmu/index.htm?ipsiGBCD=수시",
+    "provider": "u-is.co.kr",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 14,
+    "name": "극동대학교",
+    "url": "",
+    "provider": "대학 자체(엑셀)",
+    "suppliedNote": "공식 산출 경로 확인 필요",
+    "sourceYear": null
+  },
+  {
+    "id": 15,
+    "name": "남서울대학교",
+    "url": "https://consult.mncapro.co.kr/solution/nsuipsi/mobile/page01.php?period=susi",
+    "provider": "mncapro",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 16,
+    "name": "단국대학교",
+    "url": "https://cs.u-is.co.kr/dankook/intro.htm",
+    "provider": "u-is.co.kr",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 17,
+    "name": "대전대학교",
+    "url": "https://addon.jinhakapply.com/nesin/1050/2026/Susi.html",
+    "provider": "진학어플라이",
+    "suppliedNote": "",
+    "sourceYear": "2026"
+  },
+  {
+    "id": 18,
+    "name": "대진대학교",
+    "url": "https://ipsi1.uwayapply.com/aWk4JkxKXko3XmZUSm8mZW9MZUo3ZlRm?p=Y2hhPTE=",
+    "provider": "유웨이어플라이",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 19,
+    "name": "덕성여자대학교",
+    "url": "https://cs.u-is.co.kr/duksung/index.htm?ipsiGBCD=수시",
+    "provider": "u-is.co.kr",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 20,
+    "name": "동국대학교",
+    "url": "https://addon.jinhakapply.com/nesin/1055/2027/Susi.aspx",
+    "provider": "진학어플라이",
+    "suppliedNote": "",
+    "sourceYear": "2027"
+  },
+  {
+    "id": 21,
+    "name": "동덕여자대학교",
+    "url": "https://ipsi1.uwayapply.com/aWk4JkxKXkpwcFRUSm8mZW9MZUotZlRm?p=Y2hhPTE=",
+    "provider": "유웨이어플라이",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 22,
+    "name": "동아대학교",
+    "url": "",
+    "provider": "-",
+    "suppliedNote": "공식 산출 경로 확인 필요",
+    "sourceYear": null
+  },
+  {
+    "id": 23,
+    "name": "동양대학교",
+    "url": "https://ta.uwayapply.com/susi2/dyu/1/naeshin/",
+    "provider": "유웨이어플라이",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 24,
+    "name": "동원대학교",
+    "url": "https://ipsi.tw.ac.kr/extra/ipsi/ipsiSearch05/layOut.do",
+    "provider": "대학 자체",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 25,
+    "name": "명지대학교",
+    "url": "https://cs.u-is.co.kr/mju/score/",
+    "provider": "u-is.co.kr",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 26,
+    "name": "명지전문대학",
+    "url": "https://cs.u-is.co.kr/mjc/intro.htm",
+    "provider": "u-is.co.kr",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 27,
+    "name": "목원대학교",
+    "url": "https://addon.jinhakapply.com/nesin/1067/2027/susi.aspx",
+    "provider": "진학어플라이",
+    "suppliedNote": "",
+    "sourceYear": "2027"
+  },
+  {
+    "id": 28,
+    "name": "배재대학교",
+    "url": "https://portal.pcu.ac.kr/patis/common/OutLinkController.do",
+    "provider": "대학 자체(학생성장포털)",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 29,
+    "name": "백석대학교",
+    "url": "https://ipsi.bu.ac.kr/10000021",
+    "provider": "대학 자체",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 30,
+    "name": "백석문화대학교",
+    "url": "https://www.bscu.ac.kr/ipsi/3005/subview.do",
+    "provider": "대학 자체",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 31,
+    "name": "백석예술대학교",
+    "url": "https://www.bau.ac.kr/admission/813/subview.do",
+    "provider": "대학 자체",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 32,
+    "name": "부천대학교",
+    "url": "https://consult.mncapro.co.kr/solution/bcipsi/calculate.php",
+    "provider": "mncapro",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 33,
+    "name": "상명대학교",
+    "url": "https://cs.u-is.co.kr/smu/index.htm?campus=천안&ipsiGBCD=수시&ipsiYear=2027",
+    "provider": "u-is.co.kr",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 34,
+    "name": "상지대학교",
+    "url": "https://www.sangji.ac.kr/go/sub02_07.do",
+    "provider": "대학 자체",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 35,
+    "name": "서경대학교",
+    "url": "https://go.skuniv.ac.kr/index.php?mid=grade_calculator",
+    "provider": "대학 자체(진학어플라이 엔진 연동)",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 36,
+    "name": "서울과학기술대학교",
+    "url": "https://cs.u-is.co.kr/seoultech/index.htm?ipsiYear=2027&ipsiGBCD=수시",
+    "provider": "u-is.co.kr",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 37,
+    "name": "서울여자대학교",
+    "url": "https://cs.u-is.co.kr/swu/",
+    "provider": "u-is.co.kr",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 38,
+    "name": "서울예술대학교",
+    "url": "",
+    "provider": "-",
+    "suppliedNote": "공식 산출 경로 확인 필요",
+    "sourceYear": null
+  },
+  {
+    "id": 39,
+    "name": "서원대학교",
+    "url": "https://addon.jinhakapply.com/Nesin/1088/2027/Susi.html",
+    "provider": "진학어플라이",
+    "suppliedNote": "",
+    "sourceYear": "2027"
+  },
+  {
+    "id": 40,
+    "name": "서일대학교",
+    "url": "https://cs.u-is.co.kr/seoil/intro.htm",
+    "provider": "u-is.co.kr",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 41,
+    "name": "성균관대학교",
+    "url": "",
+    "provider": "-",
+    "suppliedNote": "공식 산출 경로 확인 필요",
+    "sourceYear": null
+  },
+  {
+    "id": 42,
+    "name": "성신여자대학교",
+    "url": "",
+    "provider": "-",
+    "suppliedNote": "공식 산출 경로 확인 필요",
+    "sourceYear": null
+  },
+  {
+    "id": 43,
+    "name": "세명대학교",
+    "url": "http://www.semyung.ac.kr/ipsi/sub05_03_03.do",
+    "provider": "대학 자체",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 44,
+    "name": "세종대학교",
+    "url": "https://addon.jinhakapply.com/nesin/1095/2026/susi.html",
+    "provider": "진학어플라이",
+    "suppliedNote": "",
+    "sourceYear": "2026"
+  },
+  {
+    "id": 45,
+    "name": "세한대학교",
+    "url": "https://apply.sehan.ac.kr/apply/websquare/websquare.jsp?w2xPath=/apply/2019/AD/AS/SADASEAM09.xml&MENU_NO=A400000001&DEPT2=A400000014&DEPT3=A400000015",
+    "provider": "대학 자체",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 46,
+    "name": "수원대학교",
+    "url": "https://ipsi.suwon.ac.kr/supporters/nesin_grade",
+    "provider": "대학 자체",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 47,
+    "name": "순천향대학교",
+    "url": "https://ipsi1.uwayapply.com/aWk4JkxKZkpecHpUSm8mZW9MZUojZlRm",
+    "provider": "유웨이어플라이",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 48,
+    "name": "숭의여자대학교",
+    "url": "https://www.sewu.ac.kr/admission/info/grade-calculator01.do",
+    "provider": "대학 자체",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 49,
+    "name": "신한대학교",
+    "url": "https://ipsi.shinhan.ac.kr/ihp/sub/grade1_1.do",
+    "provider": "대학 자체",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 50,
+    "name": "안양대학교",
+    "url": "https://cs.u-is.co.kr/anyang/index.htm?ipsiGBCD=수시&ipsiYear=2027",
+    "provider": "u-is.co.kr",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 51,
+    "name": "연성대학교",
+    "url": "http://grade.xteb.co.kr/Gate/yeonsung/",
+    "provider": "기타(xteb.co.kr)",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 52,
+    "name": "예원예술대학교",
+    "url": "",
+    "provider": "-",
+    "suppliedNote": "공식 산출 경로 확인 필요",
+    "sourceYear": null
+  },
+  {
+    "id": 53,
+    "name": "우송대학교",
+    "url": "https://ent2.wsu.ac.kr/pass/susi02.php",
+    "provider": "대학 자체",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 54,
+    "name": "유한대학교",
+    "url": "https://sky.yuhan.ac.kr/scoreCalc.do?per_menu_idx=4116&menu_idx=4151&MainType=4",
+    "provider": "대학 자체",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 55,
+    "name": "인덕대학교",
+    "url": "https://ipsi.induk.ac.kr/IPSI/cms/IP_NE01_CON/IP_NE01_V01.do?MENU_SN=178",
+    "provider": "대학 자체",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 56,
+    "name": "인천가톨릭대학교",
+    "url": "https://admission.iccu.ac.kr/cal/cal_a.html",
+    "provider": "대학 자체",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 57,
+    "name": "인하대학교",
+    "url": "",
+    "provider": "-",
+    "suppliedNote": "공식 산출 경로 확인 필요",
+    "sourceYear": null
+  },
+  {
+    "id": 58,
+    "name": "재능대학교",
+    "url": "https://sncs.jeiu.ac.kr/jncs/gradeSum.jsp",
+    "provider": "대학 자체",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 59,
+    "name": "중부대학교",
+    "url": "https://addon.jinhakapply.com/nesin/1131/2027/Susi.html",
+    "provider": "진학어플라이",
+    "suppliedNote": "",
+    "sourceYear": "2027"
+  },
+  {
+    "id": 60,
+    "name": "중원대학교",
+    "url": "https://ipsi.jwu.ac.kr/grade-calculation",
+    "provider": "대학 자체",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 61,
+    "name": "청강문화산업대학교",
+    "url": "https://ipsi.ck.ac.kr/popup/calculator/program.php",
+    "provider": "대학 자체",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 62,
+    "name": "청주대학교",
+    "url": "https://ipsi2.uwayapply.com/aWk4JkxKZko3cHpUSm8mZW9MZUo3ZlRm",
+    "provider": "유웨이어플라이",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 63,
+    "name": "평택대학교",
+    "url": "https://cs.u-is.co.kr/ptu/intro.htm",
+    "provider": "u-is.co.kr",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 64,
+    "name": "한국영상대학교",
+    "url": "https://ipsi.pro.ac.kr/ipsi/grade/gradeCalculatePage.do?mi=1227",
+    "provider": "대학 자체",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 65,
+    "name": "한국예술종합학교",
+    "url": "",
+    "provider": "-",
+    "suppliedNote": "공식 산출 경로 확인 필요",
+    "sourceYear": null
+  },
+  {
+    "id": 66,
+    "name": "한남대학교",
+    "url": "https://vapplytest.jinhakapply.com/nesin/1156/2027/Susi.html",
+    "provider": "진학어플라이",
+    "suppliedNote": "",
+    "sourceYear": "2027"
+  },
+  {
+    "id": 67,
+    "name": "한서대학교",
+    "url": "https://addon.jinhakapply.com/nesin/1160/2027/susi.html",
+    "provider": "진학어플라이",
+    "suppliedNote": "",
+    "sourceYear": "2027"
+  },
+  {
+    "id": 68,
+    "name": "한성대학교",
+    "url": "https://www.adiga.kr/sco/agu/univScoScaAnlsView.do?menuId=PCSCOAGU2000",
+    "provider": "기타(어디가 adiga.kr)",
+    "suppliedNote": "로그인 필요",
+    "sourceYear": null
+  },
+  {
+    "id": 69,
+    "name": "한세대학교",
+    "url": "https://ipsihelp.hansei.ac.kr/susi",
+    "provider": "대학 자체",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 70,
+    "name": "한양대학교",
+    "url": "",
+    "provider": "-",
+    "suppliedNote": "공식 산출 경로 확인 필요",
+    "sourceYear": null
+  },
+  {
+    "id": 71,
+    "name": "한양여자대학교",
+    "url": "https://consult.mncapro.co.kr/solution/hywoman/",
+    "provider": "mncapro",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 72,
+    "name": "협성대학교",
+    "url": "https://cs.u-is.co.kr/uhs/intro.htm",
+    "provider": "u-is.co.kr",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 73,
+    "name": "호서대학교",
+    "url": "https://consult.mncapro.co.kr/solution/hoseo/counselInfoSet.htm?term=A",
+    "provider": "mncapro",
+    "suppliedNote": "",
+    "sourceYear": null
+  },
+  {
+    "id": 74,
+    "name": "홍익대학교",
+    "url": "https://addon.jinhakapply.com/nesin/1172/2026/susi.html",
+    "provider": "진학어플라이",
+    "suppliedNote": "",
+    "sourceYear": "2026"
+  }
+]
