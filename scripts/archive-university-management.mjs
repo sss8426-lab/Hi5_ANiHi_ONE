@@ -9,13 +9,13 @@ const apply = process.argv.includes('--apply-approved-74');
 const output = resolve('outputs/university-management-74');
 await mkdir(output, { recursive: true });
 const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
-function wrangler(args) {
+function wrangler(args, parse = true) {
   const r = spawnSync(process.execPath, ['node_modules/wrangler/bin/wrangler.js', ...args], {
     encoding:'utf8', maxBuffer:64*1024*1024, timeout:120000,
     env:{...process.env,WRANGLER_LOG:'log',WRANGLER_WRITE_LOGS:'false',WRANGLER_LOG_SANITIZE:'true'},
   });
   if(r.status!==0) throw new Error(`Wrangler ${args[0]} failed (${r.status}); raw output suppressed`);
-  return JSON.parse(r.stdout);
+  return parse ? JSON.parse(r.stdout) : undefined;
 }
 const d1 = sql => wrangler(['d1','execute','DB','--config','dist/server/wrangler.json','--remote','--json','--command',sql]).flatMap(r=>r.results || []);
 const read = () => wrangler(['r2','object','get','anihi-admissions-images/state/admissions-data.json','--remote','--pipe']);
@@ -40,7 +40,10 @@ if (report.missingSchools.length || actualSchools.length !== 74) throw new Error
 if (previous) {
   const archived=JSON.parse(previous.metadata_json).archived;
   if (JSON.stringify(archived?.map(r=>[r.id,r.name]))!==JSON.stringify(removed.map(u=>[String(u.id),u.name]))) throw new Error('Existing archive differs; manual review required');
-  console.log(JSON.stringify({...report,alreadyApplied:true}));process.exit(0);
+  const originalHash=JSON.parse(previous.metadata_json).sourceHash;
+  const result={...report,alreadyApplied:true,sourceUnchanged:originalHash===report.sourceHash};
+  await writeFile(resolve(output,'verified-existing.json'),JSON.stringify(result,null,2));
+  console.log(JSON.stringify(result));process.exit(0);
 }
 // Backup only university data; student/case/account payloads never leave process memory.
 const now=new Date().toISOString();
@@ -55,7 +58,8 @@ const sql=`INSERT INTO data_records(id,organization_id,campus_id,record_type,sou
 VALUES(${q(managementArchiveId)},'org-hi5-anihi',NULL,${q(managementArchiveType)},'admissions','대학 데이터 관리 74개교 범위 정리','organization','active',${q(JSON.stringify(metadata))},${q(now)},${q(now)}) ON CONFLICT(id) DO NOTHING;`;
 if(Buffer.byteLength(sql,'utf8')>100000)throw new Error('Archive exceeds D1 statement limit; no write attempted');
 const sqlFile=resolve(output,'apply-approved-74.sql');await writeFile(sqlFile,sql);
-wrangler(['d1','execute','DB','--config','dist/server/wrangler.json','--remote','--json','--file',sqlFile]);
+// File import prints progress before its JSON, unlike --command. Verify with a fresh SELECT.
+wrangler(['d1','execute','DB','--config','dist/server/wrangler.json','--remote','--json','--file',sqlFile],false);
 const saved=d1(`SELECT metadata_json FROM data_records WHERE id='${managementArchiveId}'`)[0];
 if(saved?.metadata_json!==JSON.stringify(metadata)) throw new Error('Archive write not verified');
 const after=read(), afterCatalog=d1(catalogSql);
