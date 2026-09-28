@@ -66,3 +66,12 @@ body.campus-accounts table th { background:var(--core-surface-soft); }
 #signupError:empty { display: none; }
 .campus-accounts .danger-btn { color: var(--core-danger, #b42318); border-color: currentColor; }
 .campus-accounts .danger-btn:hover { background: var(--core-danger, #b42318); color: #fff; }
+.account-tabs { display: flex; gap: 8px; border-bottom: 1px solid var(--core-line, #dce1dd); margin: 20px 0; }
+.account-tabs button { background: transparent; border: 0; border-bottom: 3px solid transparent; padding: 12px 16px; color: inherit; font: inherit; cursor: pointer; }
+.account-tabs button[aria-selected="true"] { color: var(--core-brand-deep, #174d43); border-bottom-color: currentColor; font-weight: 700; }
+.account-tabs button:focus-visible { outline: 2px solid currentColor; outline-offset: -2px; }
+#accountsPanel[hidden], #rolesPanel[hidden] { display: none; }
+#rolesPanel .admin-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+#rolesPanel .membership-item > div { min-width: 0; overflow-wrap: anywhere; }
+#rolesPanel .membership-item button { flex-shrink: 0; }
+@media (max-width: 700px) { #rolesPanel .admin-grid { grid-template-columns: minmax(0, 1fr); } }

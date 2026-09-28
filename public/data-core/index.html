@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="/data-core/work/attendance.css?v=20260928-template">
   <link rel="stylesheet" href="/data-core/award-workspace.css?v=20260920-shared">
   <link rel="stylesheet" href="/data-core/design-tokens.css?v=20260913-soft-premium">
-  <link rel="stylesheet" href="/data-core/design-system.css?v=20260928-approved-logo">
+  <link rel="stylesheet" href="/data-core/design-system.css?v=20260928-approved-logo&amp;nav=20260929">
   <link rel="stylesheet" href="/data-core/image-gallery.css?v=20260913-fast-images">
   <link rel="stylesheet" href="/data-core/calendar.css?v=20260921-calendar-details">
 </head>
@@ -38,7 +38,7 @@
         <div class="nav-group hidden" data-nav-scope="counseling">
           <button class="nav-item active" data-view="counseling-home">
             <span class="nav-icon">⌂</span>
-            <span>홈</span>
+            <span>상담용 홈</span>
           </button>
           <button class="nav-item" data-view="competitions">
             <span class="nav-icon">☆</span>
@@ -62,7 +62,7 @@
         <div class="nav-group hidden" data-nav-scope="work" data-work-navigation="work"></div>
         <div class="nav-group nav-admin hidden" data-nav-scope="admin" data-work-navigation="admin"></div>
       </nav>
-      <script src="/data-core/work-navigation.js?v=20260928-signup"></script>
+      <script src="/data-core/work-navigation.js?v=20260929-admin-navigation"></script>
 
       <div class="sidebar-bottom">
         <div class="connection-card" id="connectionCard">
@@ -72,7 +72,6 @@
             <small>DATA CORE</small>
           </div>
         </div>
-        <a class="back-link" href="/">처음으로</a>
       </div>
     </aside>
 
@@ -364,37 +363,6 @@
         </div>
       </section>
 
-      <section class="view" id="view-admin">
-        <div class="hero-row">
-          <div>
-            <h2>사용자·캠퍼스 권한 관리</h2>
-            <p>마스터 관리자만 접근할 수 있습니다. 사용자가 한 번 로그인한 뒤 권한을 부여할 수 있습니다.</p>
-          </div>
-        </div>
-
-        <div class="admin-grid">
-          <div class="panel">
-            <div class="panel-head"><h3>권한 부여</h3></div>
-            <form id="membershipForm" class="form-stack">
-              <label><span>사용자 이메일</span><input id="memberEmail" type="email" required placeholder="teacher@example.com"></label>
-              <label><span>캠퍼스</span><select id="memberCampus"></select></label>
-              <label><span>역할</span>
-                <select id="memberRole">
-                  <option value="TEACHER">교사</option>
-                  <option value="STAFF">직원</option>
-                  <option value="CAMPUS_DIRECTOR">캠퍼스 원장</option>
-                  <option value="SUPER_ADMIN">마스터 관리자</option>
-                </select>
-              </label>
-              <button class="primary-btn" type="submit">권한 부여</button>
-            </form>
-          </div>
-          <div class="panel">
-            <div class="panel-head"><h3>현재 권한</h3><button class="ghost-btn" id="refreshMembershipsBtn">새로고침</button></div>
-            <div class="membership-list" id="membershipList"></div>
-          </div>
-        </div>
-      </section>
     </main>
   </div>
 
@@ -515,7 +483,7 @@
   <script src="/data-core/curriculum.js?v=20260913-work-v1"></script>
   <script src="/data-core/brand-home.js?v=20260913-brand-home"></script>
   <script src="/data-core/calendar.js?v=20260921-performance"></script>
-  <script src="/data-core/app.js?v=20260928-dist"></script>
+  <script src="/data-core/app.js?v=20260929-admin-navigation"></script>
   <script src="/data-core/mode-home-artwork.js?v=20260921-calendar-details"></script>
   <script type="module" src="/data-core/design-shell.js?v=20260912-campus"></script>
 </body>

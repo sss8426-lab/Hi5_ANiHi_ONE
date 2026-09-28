@@ -726,6 +726,12 @@ const worker = {
           return new Response('마스터 관리자만 접근할 수 있습니다.', { status: 403, headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' } });
         }
       }
+      if (/^\/data-core\/readiness(?:\/|\.html)?$/.test(url.pathname)) {
+        return new Response(null, { status: 302, headers: { location: '/data-core/operations#diagnosticPanel', 'cache-control': 'private, no-store' } });
+      }
+      if (/^\/data-core\/work\/?$/.test(url.pathname) && url.searchParams.get('view') === 'admin') {
+        return new Response(null, { status: 302, headers: { location: '/data-core/accounts?tab=roles', 'cache-control': 'private, no-store' } });
+      }
       if (url.pathname === "/data-core/kkumeum" || url.pathname === "/data-core/kkumeum/") {
         url.pathname = "/data-core/work/kkumeum.html";
         return baseWorker.fetch(new Request(url.toString(), { headers: request.headers }), env);

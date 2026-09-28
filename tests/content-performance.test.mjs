@@ -17,7 +17,7 @@ test('shared navigation executes the same role-filtered menu for work, blog and 
       vm.runInNewContext(source,{document,window,location:{pathname:path}});
       window.DataCoreWorkNavigation.setContext({authenticated:true,isSuperAdmin:['MASTER','SUPER_ADMIN'].includes(role)});
       const visible=mounts.filter(m=>!m.classList.hidden).flatMap(m=>m.children.map(n=>n.dataset.workMenu));
-      assert.deepEqual(visible.slice(0,7),expected);assert.equal(visible.length,['MASTER','SUPER_ADMIN'].includes(role)?11:7);
+      assert.deepEqual(visible, ['MASTER','SUPER_ADMIN'].includes(role) ? [...expected,'operations','accounts'] : expected);
       if(previous)assert.deepEqual(visible,previous);previous=visible;
       assert.equal(nodes().filter(n=>n.attrs['aria-current']==='page').length,1);
       assert.equal(nodes().filter(n=>n.dataset.kkumeumNav).length,1);

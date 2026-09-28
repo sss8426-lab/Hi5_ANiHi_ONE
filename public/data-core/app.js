@@ -181,8 +181,10 @@ function updateSidebar() {
 }
 
 function switchView(view, options = {}) {
+  if (view === 'admin') { location.replace('/data-core/accounts?tab=roles'); return; }
   state.currentView = view;
   state.currentMode = modeForView(view);
+  document.body.classList.toggle('mode-home-artwork-active', view === 'mode-home');
   document.body.classList.toggle('counseling-header', state.currentMode === 'counseling');
   document.body.classList.toggle('brand-home', view === 'counseling-home');
   const eyebrow = $('pageEyebrow');
@@ -226,7 +228,6 @@ function switchView(view, options = {}) {
     loadAwardFolders();
   }
   if (view === 'counseling-home' || view === 'work-home') loadCalendar();
-  if (view === 'admin' && isSuperAdmin()) loadMemberships();
 }
 
 function initialViewFromPath() {
@@ -304,7 +305,6 @@ function renderUser() {
     showNotice('');
   }
 
-  $('adminNav').classList.toggle('hidden', !context.isSuperAdmin);
   $('openUploadBtn').classList.toggle('hidden', !context.canWrite);
   $('logoutBtn').classList.toggle('hidden', !context.user?.internalUserId?.startsWith('local:'));
   updateSidebar();
@@ -416,7 +416,6 @@ function renderCampusSelectors() {
   fillCampusSelect($('uploadCampus'), { allowOrganization: true });
   fillCampusSelect($('competitionCampus'), { allowOrganization: true });
   fillCampusSelect($('calendarCampus'), { allowOrganization: true });
-  fillCampusSelect($('memberCampus'), { all: false });
   $('campusCount').textContent = state.campuses.length;
   renderLibraryFolders();
 }
@@ -1415,59 +1414,6 @@ async function createCompetitionFromForm(event) {
   }
 }
 
-async function loadMemberships() {
-  if (!isSuperAdmin()) return;
-  try {
-    const response = await api('/api/data-core/admin/memberships');
-    const rows = response.memberships || [];
-    $('membershipList').innerHTML = rows.length ? rows.map((item) => `<div class="membership-item">
-      <div>
-        <strong>${h(item.display_name || item.email || item.user_id)}</strong>
-        <small>${h(item.email || '')} · ${h(item.campus_name || '전체 조직')} · ${h(roleLabel(item.role))}</small>
-      </div>
-      <button class="danger-btn" data-delete-membership="${h(item.id)}">해제</button>
-    </div>`).join('') : '<div class="empty-state">등록된 권한이 없습니다.</div>';
-    document.querySelectorAll('[data-delete-membership]').forEach((button) => {
-      button.onclick = () => revokeMembership(button.dataset.deleteMembership);
-    });
-  } catch (error) {
-    $('membershipList').innerHTML = `<div class="empty-state">${h(error.message)}</div>`;
-  }
-}
-
-async function grantMembership(event) {
-  event.preventDefault();
-  const role = $('memberRole').value;
-  const payload = {
-    email: $('memberEmail').value.trim(),
-    role,
-    campusId: role === 'SUPER_ADMIN' ? null : $('memberCampus').value,
-  };
-  try {
-    await api('/api/data-core/admin/memberships', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    toast('사용자 권한을 부여했습니다.');
-    event.target.reset();
-    await loadMemberships();
-  } catch (error) {
-    toast(error.message, 'error');
-  }
-}
-
-async function revokeMembership(id) {
-  if (!confirm('이 사용자의 DATA CORE 권한을 해제할까요?')) return;
-  try {
-    await api(`/api/data-core/admin/memberships/${encodeURIComponent(id)}`, { method: 'DELETE' });
-    toast('권한을 해제했습니다.');
-    await loadMemberships();
-  } catch (error) {
-    toast(error.message, 'error');
-  }
-}
-
 function calendarRange() { return window.AcademyCalendar.range(); }
 function renderCalendar() { return window.AcademyCalendar.render(); }
 function loadCalendar() { return window.AcademyCalendar.load(); }
@@ -1537,12 +1483,7 @@ function bindEvents() {
     if (document.visibilityState === 'hidden') clearAwardImages();
     else if (state.currentView === 'competitions') loadAwardFiles();
   });
-  $('membershipForm').onsubmit = grantMembership;
-  $('refreshMembershipsBtn').onclick = loadMemberships;
   $('calendarForm').onsubmit = saveCalendarEvent;
-  $('memberRole').onchange = () => {
-    $('memberCampus').disabled = $('memberRole').value === 'SUPER_ADMIN';
-  };
   $('logoutBtn').onclick = async () => {
     window.AcademyCalendar.reset();
     clearAwardImages();

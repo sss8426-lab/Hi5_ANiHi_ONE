@@ -3,20 +3,25 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>DATA CORE 계정 관리</title>
+  <title>DATA CORE 계정·권한 관리</title>
   <link rel="stylesheet" href="/data-core/styles.css">
   <link rel="stylesheet" href="/data-core/layout-theme.css?v=20260909-bright-layout">
   <link rel="stylesheet" href="/data-core/design-tokens.css?v=20260913-soft-premium">
   <link rel="stylesheet" href="/data-core/design-system.css?v=20260913-soft-premium">
-  <link rel="stylesheet" href="/data-core/accounts.css?v=20260928-delete">
+  <link rel="stylesheet" href="/data-core/accounts.css?v=20260929-admin-navigation">
 </head>
 <body class="data-core-layout campus-accounts">
   <main class="accounts-shell">
     <header class="accounts-header">
-      <div><p class="eyebrow">HI5·ANiHi DATA CORE</p><h1>캠퍼스 계정 관리</h1></div>
-      <a class="ghost-btn link-btn" href="/data-core/operations">운영관리로 돌아가기</a>
+      <div><p class="eyebrow">HI5·ANiHi DATA CORE</p><h1>계정·권한 관리</h1></div>
+      <a class="ghost-btn link-btn" href="/data-core/work"><svg class="core-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#House"></use></svg>업무용 홈</a>
     </header>
     <section class="notice hidden" id="notice"></section>
+    <div class="account-tabs" role="tablist" aria-label="계정·권한 관리">
+      <button type="button" id="accountsTab" role="tab" aria-selected="true" aria-controls="accountsPanel">계정 목록</button>
+      <button type="button" id="rolesTab" role="tab" aria-selected="false" aria-controls="rolesPanel" tabindex="-1">역할·권한</button>
+    </div>
+    <div id="accountsPanel" role="tabpanel" aria-labelledby="accountsTab">
     <section class="campus-presence" aria-labelledby="presenceTitle">
       <div class="panel-head"><h2 id="presenceTitle">캠퍼스 접속 현황</h2><button id="presenceRefresh" class="ghost-btn" aria-label="접속 현황 새로고침" title="새로고침"><svg class="core-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#RotateCcw"></use></svg></button></div>
       <dl class="presence-summary"><div><dt>전체 캠퍼스</dt><dd id="campusTotal">-</dd></div><div><dt>현재 접속</dt><dd id="campusOnline">-</dd></div><div><dt>오늘 로그인</dt><dd id="campusToday">-</dd></div></dl>
@@ -44,6 +49,26 @@
       <div class="table-wrap"><table><thead><tr><th>이름</th><th>로그인 ID</th><th>권한</th><th>상태</th><th>마지막 로그인</th><th></th></tr></thead><tbody id="accountsBody"></tbody></table><div class="empty-state hidden" id="empty">표시할 계정이 없습니다.</div></div>
     </section>
     <section class="recent-logins"><h2>최근 로그인</h2><ul id="recentLogins"></ul></section>
+    </div>
+    <section id="rolesPanel" role="tabpanel" aria-labelledby="rolesTab" hidden>
+      <h2>역할·권한</h2>
+      <div class="admin-grid">
+        <section class="panel">
+          <div class="panel-head"><h3>권한 부여</h3></div>
+          <form id="membershipForm" class="form-stack">
+            <label>사용자<select id="memberUser" required><option value="">사용자 선택</option></select></label>
+            <label>캠퍼스<select id="memberCampus" required></select></label>
+            <label>역할<select id="memberRole"><option value="TEACHER">교사</option><option value="STAFF">직원</option><option value="CAMPUS_DIRECTOR">캠퍼스 원장</option><option value="CAMPUS_ADMIN">캠퍼스 관리자</option><option value="SUPER_ADMIN">마스터 관리자</option></select></label>
+            <button class="primary-btn" type="submit" id="grantMembershipBtn">권한 부여</button>
+          </form>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><h3>현재 권한</h3><button class="ghost-btn" id="refreshMembershipsBtn" type="button">새로고침</button></div>
+          <p id="membershipMessage" role="status"></p>
+          <div class="membership-list" id="membershipList"></div>
+        </section>
+      </div>
+    </section>
   </main>
   <dialog id="passwordDialog" aria-labelledby="passwordDialogTitle">
     <form id="managePasswordForm" class="password-dialog-form">
@@ -59,7 +84,7 @@
       <div class="account-actions"><button id="cancelPasswordChange" type="button" class="ghost-btn">취소</button><button id="savePasswordChange" type="submit" class="primary-btn">변경</button></div>
     </form>
   </dialog>
-  <script type="module" src="/data-core/accounts.js?v=20260928-delete"></script>
+  <script type="module" src="/data-core/accounts.js?v=20260929-admin-navigation"></script>
   <script type="module" src="/data-core/design-shell.js?v=20260912-campus"></script>
 </body>
 </html>

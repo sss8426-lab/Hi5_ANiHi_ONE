@@ -1,3 +1,4 @@
+import { initAccountRoles } from './account-roles.js?v=20260929-admin-navigation';
 const $ = (id) => document.getElementById(id);
 const notice = (message = '') => { $('notice').textContent = message; $('notice').classList.toggle('hidden', !message); };
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[char]));
@@ -17,6 +18,7 @@ function password() {
 
 let campuses = [];
 let accountRows = [];
+let rolesInitialized = false;
 function passwordStatus(account) {
   if (account.locked_until && Date.parse(account.locked_until) > Date.now()) return '로그인 잠금 · ' + kst(account.locked_until) + ' 이후 재시도';
   return account.must_change_password ? '비밀번호 변경 대기' : '비밀번호 설정 완료';
@@ -35,6 +37,10 @@ async function load() {
     accountRows = accountData.accounts || [];
     $('retiredAccountsFilter').hidden = !accountRows.some(account => account.retiredCampus);
     render(accountRows);
+    if (!rolesInitialized) {
+      rolesInitialized = true;
+      initAccountRoles({ api, escapeHtml, onChanged: load });
+    }
     await loadPresence(false);
   } catch (error) {
     notice(error.message);
