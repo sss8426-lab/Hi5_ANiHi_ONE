@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import test from 'node:test';
 
-const content = fs.readFileSync('public/data-core/content.js', 'utf8');
+const content = fs.readFileSync('public/data-core/content.js', 'utf8').replace(/\r\n/g, '\n');
 const html = fs.readFileSync('public/data-core/content.html', 'utf8');
 
 test('글 방향 선택(균형형 기본)은 블로그에서만 보이고, 인스타에서는 숨는다. 생성 버튼은 "블로그 글 만들기" 하나로 통일되어 있다', () => {

@@ -57,15 +57,15 @@ test('anonymous session keeps login form and password-change controls hidden', a
   assert.equal(h.nodes.get('passwordFormWrap').classList.contains('hidden'), true);
 });
 
-test('active session resumes the requested internal route', async () => {
+test('active session opens mode selection even with an internal next route', async () => {
   const h = await harness({session: {authenticated: true}, search: '?next=/data-core/work/library'});
-  assert.deepEqual(h.redirects, ['/data-core/work/library']);
+  assert.deepEqual(h.redirects, ['/data-core']);
 });
 
 test('external next is not used for session redirection', async () => {
   for (const next of ['https://example.invalid', '//example.invalid', '/other']) {
     const h = await harness({session: {authenticated: true}, search: '?next=' + encodeURIComponent(next)});
-    assert.deepEqual(h.redirects, ['/data-core/work']);
+    assert.deepEqual(h.redirects, ['/data-core']);
   }
 });
 
@@ -79,7 +79,7 @@ test('successful login sends existing same-origin contract and redirects', async
   assert.equal(call.options.credentials, 'include');
   assert.equal(call.options.method, 'POST');
   assert.deepEqual(Object.keys(JSON.parse(call.options.body)), ['loginId', 'password']);
-  assert.deepEqual(h.redirects, ['/data-core/work']);
+  assert.deepEqual(h.redirects, ['/data-core']);
   assert.equal(h.nodes.get('loginForm').button.disabled, false);
 });
 
@@ -178,5 +178,5 @@ test('password change keeps PUT contract, handles failure and successful retry',
   assert.equal(h.calls.at(-1).path, '/api/auth/password');
   assert.equal(h.calls.at(-1).options.method, 'PUT');
   assert.equal(h.calls.at(-1).options.credentials, 'include');
-  assert.deepEqual(h.redirects, ['/data-core/work']);
+  assert.deepEqual(h.redirects, ['/data-core']);
 });

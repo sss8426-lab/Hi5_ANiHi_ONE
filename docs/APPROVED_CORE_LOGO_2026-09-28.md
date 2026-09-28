@@ -16,3 +16,4 @@ The user approved the green lowercase-i Hi5 orbital logo for production.
 - Isolated Chromium layout checks at 320, 390 and 1440px: all four visible headers loaded the full image without logo/label overlap. The existing hidden legacy Kkumeum header stayed hidden.
 - The layout check used local HTML/CSS with application scripts disabled; it does not represent authenticated production verification.
 - Production deployment and live verification are reported separately after CI and release.
+- Full regression exposed stale login redirect expectations from the already-deployed mode-home change and a Windows-only newline-sensitive source assertion. Only those test expectations were corrected; login and blog application code were not changed in this release.
