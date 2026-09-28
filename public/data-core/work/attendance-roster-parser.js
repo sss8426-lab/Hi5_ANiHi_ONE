@@ -88,13 +88,22 @@ export function parseRoster(bytes,env=globalThis){
   let layout;
   try{layout=rosterLayout(at,headerRow);}
   catch(error){if(error instanceof RosterError)throw error;throw new RosterError('종합입력 헤더를 확인해주세요.');}
-  // 캠퍼스: "캠퍼스: 부천애니하이 입시본원" anywhere above the header.
-  let campus='';
+  // 캠퍼스 above the header: either one cell "캠퍼스: 부천 원종 캠퍼스", or a "캠퍼스" label cell with the
+  // campus picked from the dropdown in the next filled cell of that row (배포용 양식).
+  let campus='',labelled=false;
   for(let r=1;r<headerRow&&!campus;r++)for(let c=1;c<=layout.lastColumn&&!campus;c++){
-    const m=/캠퍼스\s*[:：]\s*(.+)$/.exec(at(c,r).text);if(m)campus=m[1].trim();
+    const text=at(c,r).text,m=/캠퍼스\s*[:：]\s*(.+)$/.exec(text);
+    if(m){campus=m[1].trim();continue;}
+    if(/^캠퍼스\s*[:：]?$/.test(text.trim())){
+      labelled=true;
+      for(let next=c+1;next<=layout.lastColumn&&!campus;next++)campus=at(next,r).text.trim();
+      if(!campus)throw new RosterError('캠퍼스가 선택되지 않았습니다. 2행 캠퍼스 칸의 ▼를 눌러 캠퍼스를 골라주세요.');
+    }
   }
   if(!campus)throw new RosterError('캠퍼스명을 찾을 수 없습니다. 헤더 위에 "캠퍼스: 캠퍼스명" 형식으로 입력해주세요.');
-  if(/여기에|입력하세요/.test(campus))throw new RosterError('캠퍼스명이 입력되지 않았습니다. 2행 "캠퍼스:" 뒤의 안내 문구를 지우고 실제 캠퍼스명을 입력해주세요.');
+  if(/여기에|입력하세요|선택하세요/.test(campus))throw new RosterError(labelled
+    ?'캠퍼스명이 입력되지 않았습니다. 2행 캠퍼스 칸의 ▼를 눌러 캠퍼스를 골라주세요.'
+    :'캠퍼스명이 입력되지 않았습니다. 2행 "캠퍼스:" 뒤의 안내 문구를 지우고 실제 캠퍼스명을 입력해주세요.');
   const merges=all(doc,'mergeCell').map(n=>range(attr(n,'ref'),true));
   const mergedBar=r=>merges.some(m=>m.r===r&&m.end.r===r&&m.c===1&&m.end.c>=layout.lastColumn);
   const lastRow=Math.max(headerRow,...[...grid.rows.keys()]);
