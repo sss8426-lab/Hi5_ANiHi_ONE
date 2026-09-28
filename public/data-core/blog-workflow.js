@@ -1,6 +1,7 @@
 import {BLOG_SCHEMA,BLOG_TEMPLATES,PHOTO_KINDS,templateDefaults,synchronizePhotos,assembleBlocks,placeManaged,publishingImages,postText,inspectPost} from './blog-post-model.js?v=20260924-order';
 import {buildDownload,startDownload,resolveFiles} from './blog-download.js';
 import {normalizeTags} from './content-preset-catalog.js';
+import {postHashtags,hashtagText} from './campus-seo-keywords.js?v=20260929-seo';
 import {mountBlogCover} from './blog-cover.js';
 
 const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -195,7 +196,8 @@ export function mountBlogWorkflow({state,$,toast,renderSelection,managed=()=>({g
   // 문구·태그·연락처만 바뀌면 그 블록만 다시 조립합니다 — 본문·사진은 그대로, 다시 생성하지 않습니다.
   function applyManaged(values){
     if(!blocks.length)return false;
-    const tags=normalizeTags(values.hashtags).map(t=>'#'+t).join(' ');
+    // The post's own AI content tags stay after the fixed keywords/tags when settings are re-applied.
+    const tags=hashtagText(postHashtags(values.hashtags,[],state.blogAiTags||[]));
     checkpoint();$('resultFooter').value=values.closing;$('draftTags').value=tags;$('resultContact').value=values.contactText;
     blocks=placeManaged(blocks,{greeting:values.greeting,contact:values.contactText,closing:values.closing,hashtags:tags});
     changed();renderBlocks();return true;

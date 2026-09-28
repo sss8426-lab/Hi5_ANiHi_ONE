@@ -1,4 +1,6 @@
 import {contactLines,assertResolvedText,hashtagLine} from './content-caption.js?v=20260924-order';
+import {defaultCampusKeywords,postHashtags,hashtagText,cleanCampusKeywords,KEYWORD_BRANDS} from './campus-seo-keywords.js?v=20260929-seo';
+import {normalizeTags} from './content-preset-catalog.js';
 
 // Main-screen 문구 설정 (blog and Instagram alike): 인사말 · 고정 해시태그 · 고정 마지막 문구, each with
 // its own [Hi5] [ANiHi] choice, its brand's own text and saved sets, then 상담전화·주소 and three links.
@@ -44,7 +46,8 @@ export function mountTextPresets({api,state,$,mount,extraSettings=()=>({}),onSav
     for(const [brand,name] of BRAND_KEYS){const chip=button(name,()=>pickBrand(kind,brand),'brand-chip');chip.dataset.brand=brand;toggle.append(chip);}
     head.append(label,toggle);
     const input=element('textarea','',{id,rows:3,maxLength:max});
-    input.addEventListener('input',()=>{settings.values[kind][settings.brands[kind]]=input.value;touched.add(`values.${kind}.${settings.brands[kind]}`);edited();selection(kind);});
+    // 고정 해시태그 box shows 자동 고정 키워드 + the typed tags; only the typed part is kept as this area's text.
+    input.addEventListener('input',()=>{settings.values[kind][settings.brands[kind]]=kind==='hashtags'?typedTags(input.value):input.value;touched.add(`values.${kind}.${settings.brands[kind]}`);edited();selection(kind);});
     const list=element('div','',{className:'preset-buttons'}),actions=element('div','',{className:'preset-actions'});
     const add=button('+ 새 저장',()=>edit(kind)),all=button('전체 보기',()=>browse(kind)),trash=button('삭제한 세트',()=>browse(kind,true));
     actions.append(add,all,trash);
@@ -58,6 +61,15 @@ export function mountTextPresets({api,state,$,mount,extraSettings=()=>({}),onSav
     if(group==='link')input.placeholder='https://';
     input.addEventListener('input',()=>{settings.contact[key]=input.value.trim();touched.add('contact.'+key);edited();linkNote();});
     label.append(span,input);(group==='link'?linkRow:contactRow).append(label);contactInputs[key]=input;
+  }
+  // 자동 고정 키워드 (per campus + brand) are shown at the start of the 고정 해시태그 box and always added to the post;
+  // they are changed from the red [자동 고정 키워드] row at the top of 해시태그 전체 보기.
+  let keywordData=null,keywordEpoch=0,keywordController;
+  // Its own fetch: a refused keyword edit (403) must only show a message, never sign the page out like api() does.
+  async function keywordApi(url,options={}){
+    const response=await fetch(url,{cache:'no-store',credentials:'include',...options}),body=await response.json().catch(()=>({}));
+    if(!response.ok)throw Object.assign(Error(body?.error||'고정 키워드를 처리하지 못했습니다.'),{status:response.status});
+    return body;
   }
   const actions=element('div','',{className:'settings-actions'}),status=element('span','',{id:'defaultsStatus'});status.setAttribute('role','status');
   const saveButton=button('설정 저장',()=>void save(),'secondary-btn');saveButton.id='saveDefaults';
@@ -74,7 +86,7 @@ export function mountTextPresets({api,state,$,mount,extraSettings=()=>({}),onSav
   }
   function show(kind){
     const c=columns[kind],brand=settings.brands[kind],name=BRAND_KEYS.find(([key])=>key===brand)[1];
-    c.input.value=settings.values[kind][brand];c.input.setAttribute('aria-label',`${KINDS.find(([k])=>k===kind)[1]} (${name})`);
+    c.input.value=boxText(kind);c.input.setAttribute('aria-label',`${KINDS.find(([k])=>k===kind)[1]} (${name})`);
     c.toggle.querySelectorAll('[data-brand]').forEach(chip=>chip.setAttribute('aria-pressed',String(chip.dataset.brand===brand)));
     renderSets(kind);
   }
@@ -93,12 +105,12 @@ export function mountTextPresets({api,state,$,mount,extraSettings=()=>({}),onSav
   }
   function selection(kind){
     const c=columns[kind],item=data?.presets.find(i=>i.id===chosen[kind]);
-    c.list.querySelectorAll('[data-preset]').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.preset===chosen[kind]&&item&&c.input.value===item.content)));
+    c.list.querySelectorAll('[data-preset]').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.preset===chosen[kind]&&item&&settings.values[kind][settings.brands[kind]]===item.content)));
   }
   function use(item){
     // Loading a set changes only its own box — never the other two, the body, photos or logos.
     if(item.notice&&!confirm(item.notice+'\n이 게시물에 해당하는 내용인가요?'))return;
-    const kind=item.kind,c=columns[kind];c.input.value=item.content;settings.values[kind][settings.brands[kind]]=item.content;touched.add(`values.${kind}.${settings.brands[kind]}`);chosen[kind]=item.id;
+    const kind=item.kind,c=columns[kind];settings.values[kind][settings.brands[kind]]=item.content;c.input.value=boxText(kind);touched.add(`values.${kind}.${settings.brands[kind]}`);chosen[kind]=item.id;
     const used=counts();used[item.id]=(used[item.id]||0)+1;try{localStorage.setItem(usageKey(),JSON.stringify(used));}catch{/* optional local ordering */}
     close();edited();renderSets(kind);
   }
@@ -134,7 +146,7 @@ export function mountTextPresets({api,state,$,mount,extraSettings=()=>({}),onSav
   function edit(kind,item=null,duplicate=false){
     const brand=item&&!duplicate?item.brandScope:settings.brands[kind],brandName=BRAND_KEYS.find(([key])=>key===brand)?.[1];
     const box=modal((item&&!duplicate?'세트 수정':'새 '+SET_TITLES[kind]+' 세트')+(brandName?` · ${brandName}`:'')),form=element('form','');box.append(form);
-    const name=field(form,'이름',item?.name),content=field(form,'내용',item?.content??columns[kind].input.value,true),category=field(form,'분류',item?.category);
+    const name=field(form,'이름',item?.name),content=field(form,'내용',item?.content??settings.values[kind][settings.brands[kind]],true),category=field(form,'분류',item?.category);
     name.maxLength=60;name.required=true;content.required=true;content.maxLength=kind==='hashtags'?2000:3000;
     const fav=element('input','',{type:'checkbox',checked:Boolean(item?.favorite)}),favLabel=element('label','즐겨찾기');favLabel.prepend(fav);form.append(favLabel);
     const shared=element('input','',{type:'checkbox',checked:!duplicate&&Boolean(item&&!item.ownerUserId)}),sharedLabel=element('label','캠퍼스 공유');sharedLabel.prepend(shared);sharedLabel.hidden=!data.canManageShared;shared.disabled=Boolean(item&&!duplicate);form.append(sharedLabel);
@@ -151,14 +163,66 @@ export function mountTextPresets({api,state,$,mount,extraSettings=()=>({}),onSav
     const box=modal((deleted?'삭제한 '+SET_TITLES[kind]+' 세트':SET_TITLES[kind]+' 전체 보기')+` · ${brandName}`),search=element('input','',{type:'search',placeholder:'이름 검색'});search.setAttribute('aria-label','세트 이름 검색');
     const category=element('select','');category.setAttribute('aria-label','세트 분류');for(const v of ['',...new Set(options(kind,deleted).map(i=>i.category).filter(Boolean))])category.append(element('option',v||'전체 분류',{value:v}));
     const list=element('div','',{className:'preset-all'});box.append(search,category,list);
-    const refresh=()=>{list.replaceChildren(...options(kind,deleted).filter(i=>i.name.includes(search.value)&&(!category.value||category.value===i.category)).map(i=>row(i,deleted)));if(!list.childElementCount)list.textContent='세트가 없습니다.';};search.oninput=refresh;category.onchange=refresh;refresh();
+    const refresh=()=>{
+      const rows=options(kind,deleted).filter(i=>i.name.includes(search.value)&&(!category.value||category.value===i.category)).map(i=>row(i,deleted));
+      if(kind==='hashtags'&&!deleted&&$('draftCampus').value&&'자동 고정 키워드'.includes(search.value)&&!category.value)rows.unshift(keywordRow());
+      list.replaceChildren(...rows);if(!list.childElementCount)list.textContent='세트가 없습니다.';};search.oninput=refresh;category.onchange=refresh;refresh();
   }
   async function load(force=false){
     const next=JSON.stringify(scopeInput());if(next===scope&&!force)return;
-    scope=next;const token=++epoch;controller?.abort();controller=new AbortController();close();data=null;busy=false;for(const [kind] of KINDS){chosen[kind]=null;columns[kind].note.textContent='';renderSets(kind);}
+    scope=next;void loadKeywords();const token=++epoch;controller?.abort();controller=new AbortController();close();data=null;busy=false;for(const [kind] of KINDS){chosen[kind]=null;columns[kind].note.textContent='';renderSets(kind);}
     if(!$('draftCampus').value){for(const [kind] of KINDS)columns[kind].note.textContent='캠퍼스를 고르면 저장한 세트를 쓸 수 있습니다. 직접 입력은 지금도 됩니다.';return;}
     try{const value=await api('/api/data-core/content/text-presets?'+new URLSearchParams(scopeInput()),{signal:controller.signal});if(token!==epoch)return;receive(value);}
     catch(error){if(token===epoch&&error.name!=='AbortError')for(const [kind] of KINDS){columns[kind].note.replaceChildren(error.message+' 직접 입력은 가능합니다. ');columns[kind].note.append(button('세트 다시 불러오기',()=>void load(true)));}}
+  }
+  // ── 자동 고정 키워드 (per campus, shared by blog and Instagram) ──
+  // Until the campus's saved list arrives the default list is used, so a post never goes out without them.
+  function keywordsFor(brand=settings.brands.hashtags){
+    const campusId=$('draftCampus').value;if(!campusId)return [];
+    return keywordData?.campusId===campusId?keywordData.keywords[brand]||[]:defaultCampusKeywords(campusId,brand);
+  }
+  const typedTags=text=>{const fixed=new Set(keywordsFor());return hashtagText(normalizeTags(text).filter(tag=>!fixed.has(tag)));};
+  function boxText(kind){
+    const text=settings.values[kind][settings.brands[kind]];
+    return kind==='hashtags'?[hashtagText(keywordsFor()),String(text||'').trim()].filter(Boolean).join(' '):text;
+  }
+  // Refreshes the box when the campus's saved keywords arrive — never while someone is typing in it.
+  function renderKeywords(){if(document.activeElement!==columns.hashtags.input)columns.hashtags.input.value=boxText('hashtags');}
+  // The red row at the top of 해시태그 전체 보기: it is always applied, so clicking it opens its editor.
+  function keywordRow(){
+    const group=element('div','',{className:'preset-item campus-keywords-item'}),open=button('자동 고정 키워드',()=>editKeywords());
+    open.title=hashtagText(keywordsFor());open.disabled=!keywordData;open.setAttribute('aria-label','자동 고정 키워드 수정');
+    group.append(open,icon('Menu','자동 고정 키워드 수정',()=>editKeywords()));return group;
+  }
+  async function loadKeywords(){
+    const campusId=$('draftCampus').value,token=++keywordEpoch;keywordController?.abort();keywordData=null;renderKeywords();
+    if(!campusId)return;
+    keywordController=new AbortController();
+    try{const value=await keywordApi('/api/data-core/content/campus-keywords?'+new URLSearchParams({campusId}),{signal:keywordController.signal});if(token!==keywordEpoch)return;keywordData=value;}
+    catch(error){if(token!==keywordEpoch||error.name==='AbortError')return;columns.hashtags.note.textContent='저장한 자동 고정 키워드를 불러오지 못해 기본 키워드를 사용합니다.';return;}
+    renderKeywords();window.dispatchEvent(new CustomEvent('text-presets-changed'));
+  }
+  function editKeywords(){
+    if(!keywordData)return;
+    const brand=settings.brands.hashtags,name=KEYWORD_BRANDS[brand].label,campusId=keywordData.campusId;
+    const box=modal(`고정키워드 수정 · ${$('draftCampus').selectedOptions?.[0]?.textContent||''} · ${name}`),form=element('form','');box.append(form);
+    form.append(element('p',`이 캠퍼스의 ${name} 블로그·인스타 글에 항상 붙는 키워드입니다. 캠퍼스 소속 직원과 관리자만 수정할 수 있습니다. 띄어쓰기나 쉼표로 구분하세요.`,{className:'campus-keywords-note'}));
+    const wrap=element('label','키워드'),input=element('textarea','',{rows:6,value:hashtagText(keywordData.keywords[brand])});wrap.append(input);form.append(wrap);
+    const message=element('p','');message.setAttribute('role','status');
+    const save=element('button','저장',{type:'submit'}),reset=button('기본값으로 되돌리기',()=>void send({reset:true}));reset.hidden=!keywordData.customized[brand];
+    form.append(message,save,reset);
+    async function send(change){
+      if(!change.reset){try{change.tags=cleanCampusKeywords(input.value);}catch(error){message.textContent=error.message;return;}}
+      else if(!confirm(`${name} 고정 키워드를 기본값으로 되돌릴까요?`))return;
+      save.disabled=reset.disabled=true;message.textContent='저장 중…';
+      try{
+        const value=await keywordApi('/api/data-core/content/campus-keywords',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({campusId,brand,revision:keywordData.revision,...change})});
+        if(campusId!==$('draftCampus').value)return;
+        keywordData=value;close();renderKeywords();status.textContent='고정 키워드를 저장했습니다.';window.dispatchEvent(new CustomEvent('text-presets-changed'));onSaved(values());
+      }catch(error){message.textContent=error.message;if(error.status===409){const again=button('최신 키워드 다시 불러오기',()=>{close();void loadKeywords();});message.append(again);}}
+      finally{save.disabled=reset.disabled=false;}
+    }
+    form.onsubmit=event=>{event.preventDefault();void send({});};
   }
   // ── settings (per organization + campus + channel) ──
   let loadToken=0;
@@ -182,8 +246,10 @@ export function mountTextPresets({api,state,$,mount,extraSettings=()=>({}),onSav
     settings=loaded;savedSnapshot=snapshot;status.textContent=dirty()?'설정 변경사항 미저장':'';showAll();window.dispatchEvent(new CustomEvent('text-presets-changed'));
   }
   function values(){
-    const pick=kind=>settings.values[kind][settings.brands[kind]];
-    return {greeting:pick('greeting'),hashtags:pick('hashtags'),closing:pick('closing'),contact:{...settings.contact},contactText:contactLines(settings.contact),brand:settings.brands.greeting,brands:{...settings.brands}};
+    const pick=kind=>settings.values[kind][settings.brands[kind]],keywords=keywordsFor();
+    // hashtags = 자동 고정 키워드 + the typed fixed tags; AI content tags are added per post (postHashtags).
+    return {greeting:pick('greeting'),hashtags:hashtagText(postHashtags(keywords,pick('hashtags'))),userHashtags:pick('hashtags'),keywords,keywordBrand:settings.brands.hashtags,
+      closing:pick('closing'),contact:{...settings.contact},contactText:contactLines(settings.contact),brand:settings.brands.greeting,brands:{...settings.brands}};
   }
   async function save(){
     if(saving)return false;
@@ -193,14 +259,14 @@ export function mountTextPresets({api,state,$,mount,extraSettings=()=>({}),onSav
     const submitted=JSON.stringify(settings),token=epoch;saving=true;saveButton.disabled=true;status.textContent='저장 중…';
     try{
       await api('/api/data-core/content/defaults',{method:'PUT',headers:{'content-type':'application/json'},
-        body:JSON.stringify({sourceApp:state.sourceApp,campusId:$('draftCampus').value||null,hashtags:current.hashtags,footer:current.closing,textSettings:JSON.parse(submitted),...extraSettings()})});
+        body:JSON.stringify({sourceApp:state.sourceApp,campusId:$('draftCampus').value||null,hashtags:current.userHashtags,footer:current.closing,textSettings:JSON.parse(submitted),...extraSettings()})});
       if(token!==epoch)return false;
       savedSnapshot=submitted;storedSettings=true;status.textContent=dirty()?'저장했습니다 · 이후 변경사항 미저장':'설정을 저장했습니다.';
       onSaved(values());return true;
     }catch(error){if(token===epoch)status.textContent='저장하지 못했습니다 · '+error.message+' 입력한 내용은 그대로 있습니다.';return false;}
     finally{saving=false;saveButton.disabled=false;}
   }
-  function clear(){epoch++;controller?.abort();data=null;scope='';busy=false;close();settings=emptySettings(defaultBrand($('draftCampus').value));savedSnapshot=JSON.stringify(settings);touched.clear();loadToken++;for(const [kind] of KINDS)chosen[kind]=null;status.textContent='';showAll();}
+  function clear(){epoch++;keywordEpoch++;keywordController?.abort();keywordData=null;controller?.abort();data=null;scope='';busy=false;close();settings=emptySettings(defaultBrand($('draftCampus').value));savedSnapshot=JSON.stringify(settings);touched.clear();loadToken++;for(const [kind] of KINDS)chosen[kind]=null;status.textContent='';showAll();}
   showAll();
   return {load,clear,beginDefaults,applyDefaults,values,save,dirty,
     contact:()=>contactLines(settings.contact)};

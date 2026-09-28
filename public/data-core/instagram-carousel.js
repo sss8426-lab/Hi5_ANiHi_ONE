@@ -1,6 +1,7 @@
 import {LOGOS,CUSTOM_LOGO_PATTERN,normalizeDesign} from './instagram-brand-policy.js?v=20260923-logoup';
 import {composeInstagram,composeBase,drawLayers,loadLayerAssets,defaultLayerBox,drawLogo,MASTER,USER_LAYER_LIMIT} from './instagram-layout.js?v=20260924-layers';
 import {assemblePost,managedTail as tailOf,managedHead as headOf,replaceManaged,assertResolvedText} from './content-caption.js?v=20260924-order';
+import {postHashtags,hashtagText} from './campus-seo-keywords.js?v=20260929-seo';
 import {optimizeImageForAi} from './image-ai-optimize.js?v=20260923-imgfix';
 import {Zip,ZipPassThrough} from './vendor/fflate-0.8.3.js';
 
@@ -612,7 +613,7 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,text=()=>({
       const brief=[['핵심 메시지',$('blogMessage')?.value],['독자',$('blogReader')?.value]].map(([k,v])=>[k,String(v||'').trim()]).filter(([,v])=>v).map(([k,v])=>`${k}: ${v}`).join('\n');
       const brandGuide=({hi5:'Hi5(디자인·미술 교육)',anihi:'ANiHi(만화·웹툰·애니메이션 교육)'})[fixed.brand]||'확인 필요';
       const direction=[batchInfo?.id&&target.id.endsWith(':'+batchInfo.id)?batchInfo.command:'',...setItems.map(item=>item.direction)].map(v=>String(v||'').trim()).find(v=>v&&v!==DEFAULT_DIRECTION)||'';
-      let body='',title='';
+      let body='',title='',aiTags=[];
       // Any number of photos can be made; the caption looks at (up to) the first 10, five per AI call.
       const batches=textOnly?[ids]:[ids.slice(0,5),ids.slice(5,10)].filter(ids=>ids.length);
       for(const ids of batches){
@@ -630,12 +631,14 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,text=()=>({
           const part=String(generated?.body||generated?.content||'').trim();
           if(!part)throw Error('AI가 빈 글을 돌려주었습니다.');
           title ||= String(generated.title||'').trim();body += (body?'\n':'')+part;
+          if(!aiTags.length&&Array.isArray(generated.hashtags))aiTags=generated.hashtags.filter(tag=>typeof tag==='string');
       }
       if(!valid())return;
       // The AI writes only the main text; 인사말 → 메인글 → 링크 → 상담전화 → 주소 → 마지막 문구 → 해시태그 is the app's.
-      // Hashtags are only the user's fixed tags — no AI-suggested tags are added.
-      generatedTags=[];managedHead=headOf(fixed.greeting);managedTail=tailOf({contact:fixed.contactText,closing:fixed.closing,hashtags:fixed.hashtags});
-      captionText=assemblePost({greeting:fixed.greeting,body:[title,body].filter(Boolean).join('\n\n'),contact:fixed.contactText,closing:fixed.closing,hashtags:fixed.hashtags});
+      // Hashtags: 자동 고정 키워드 + the user's fixed tags, then up to 5 AI content tags (generatedTags).
+      const all=postHashtags(fixed.hashtags,[],aiTags),fixedCount=postHashtags(fixed.hashtags).length,hashtags=hashtagText(all);
+      generatedTags=all.slice(fixedCount);managedHead=headOf(fixed.greeting);managedTail=tailOf({contact:fixed.contactText,closing:fixed.closing,hashtags});
+      captionText=assemblePost({greeting:fixed.greeting,body:[title,body].filter(Boolean).join('\n\n'),contact:fixed.contactText,closing:fixed.closing,hashtags});
     }catch(error){
       clearTimeout(timer);
       if(valid()){captionController=null;captionLock(false);setCaptionState('failed',`홍보글을 작성하지 못했습니다 · ${abort.signal.aborted?'응답이 너무 오래 걸려 중단했습니다.':error.message} 이미지 저장·다운로드에는 영향이 없습니다.`);}
@@ -715,10 +718,11 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,text=()=>({
   function applyText(values){
     if($('igCaptionSection').hidden||!currentSet)return false;
     if(captionBusy||busy)throw Error('진행 중 작업이 끝난 후 적용하세요.');
-    const head=headOf(values.greeting),tail=tailOf({contact:values.contactText,closing:values.closing,hashtags:values.hashtags});
+    // The caption's own AI content tags (generatedTags) stay after the new fixed keywords/tags.
+    const head=headOf(values.greeting),tail=tailOf({contact:values.contactText,closing:values.closing,hashtags:hashtagText(postHashtags(values.hashtags,[],generatedTags))});
     if(managedTail===null&&managedHead===null&&$('igCaptionText').value.trim()&&!confirm('기존 글의 문구 경계를 확인할 수 없습니다. 현재 본문을 유지하고 앞뒤에 새 인사말·문구·태그를 붙일까요?'))throw Error('현재 결과를 유지했습니다.');
     $('igCaptionText').value=replaceManaged($('igCaptionText').value,{previousHead:managedHead,previousTail:managedTail,head,tail});
-    managedHead=head;managedTail=tail;generatedTags=[];setCaptionState('dirty','문구 변경사항 미저장 · [문구 저장]을 눌러주세요.');
+    managedHead=head;managedTail=tail;setCaptionState('dirty','문구 변경사항 미저장 · [문구 저장]을 눌러주세요.');
     return true;
   }
   // 로고 선택·제작 방식 apply live and are saved as the campus default with [설정 저장] (content.js).

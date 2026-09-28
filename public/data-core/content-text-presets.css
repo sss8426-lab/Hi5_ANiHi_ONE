@@ -43,3 +43,8 @@
 /* Small screens: the same controls, only wrapped. */
 @media(max-width:900px){.text-columns{grid-template-columns:1fr;}.settings-links{grid-template-columns:1fr;}}
 @media(max-width:600px){.brief-grid,.settings-contact{grid-template-columns:1fr;}.preset-item{grid-template-columns:minmax(0,1fr) 32px;}.preset-item button{padding:5px;font-size:12px;}.preset-actions button{font-size:12px;padding:4px 6px;}.preset-dialog{padding:12px;}}
+/* 자동 고정 키워드: the red row at the top of 해시태그 전체 보기 (always applied; opens its editor). */
+.preset-item.campus-keywords-item > button:first-child { background:#fdecec;border-color:#e5484d;color:#a4161a;font-weight:700; }
+.preset-item.campus-keywords-item > button:first-child:hover:not(:disabled) { background:#fbdada; }
+.preset-item.campus-keywords-item .preset-icon { border-color:#e5484d;color:#a4161a; }
+.campus-keywords-note { margin:0 0 8px;font-size:13px;color:#4c5a53;line-height:1.6; }
