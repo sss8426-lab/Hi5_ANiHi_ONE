@@ -31,7 +31,7 @@ test('제목 선택은 기존 수동 본문을 보존하고 새 생성 결과에
   assert.match(content, /if\(blogWorkflow&&!state.pendingBlogGeneration&&\$\('draftContent'\).value.trim\(\)\)/u);
   assert.match(content, /if \(kind === state\.blogFittedKind\) \{ applyBlogTitleAndBody\(kind\);assembleBlogResult\(\);return; \}/u);
   // A fresh result takes 인사말·연락처·마지막 문구·해시태그 from the current 문구 설정, placed by role.
-  assert.match(content, /function assembleBlogResult\(\) \{\n  blogWorkflow\?\.assemble\(false\);\n  if \(textPresets\) blogWorkflow\?\.applyManaged\(textPresets\.values\(\)\);\n\}/u);
+  assert.match(content, /function assembleBlogResult\(\) \{\n {2}blogWorkflow\?\.assemble\(false\);\n {2}if \(textPresets\) blogWorkflow\?\.applyManaged\(textPresets\.values\(\)\);\n\}/u);
   assert.match(content, /mode: 'retitle', campusId: \$\('draftCampus'\)\.value \|\| null, strategy: state\.blogStrategy,/u);
   assert.match(content, /priorLead: state\.currentLead, priorBody: state\.currentBody,/u);
   // retitle never touches selected photos or FormData — it is a plain JSON call.
