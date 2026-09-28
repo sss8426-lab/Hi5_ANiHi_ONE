@@ -48,11 +48,12 @@ const backupFile=resolve(output,`university-backup-${now.replace(/[:.]/g,'-')}.j
 await writeFile(backupFile,JSON.stringify({universities:state.universities,sourceHash:report.sourceHash,createdAt:now},null,2),{flag:'wx'});
 if(hash(read())!==report.sourceHash || hash(d1(catalogSql))!==report.guidelineHash) throw new Error('Source changed; no archive written');
 const metadata={version:1,scope:'university-management-only',approvedSchools:managementUniversities,sourceHash:report.sourceHash,
-  archived:removed.map(u=>({id:String(u.id),name:u.name,deletedAt:now})),createdAt:now,
+  archived:removed.map(u=>({id:String(u.id),name:u.name})),deletedAt:now,createdAt:now,
   reason:'User approved domestic 74 school scope; keep original records for counseling and guideline references'};
 const q=v=>`'${String(v).replaceAll("'","''")}'`;
 const sql=`INSERT INTO data_records(id,organization_id,campus_id,record_type,source_app,title,visibility,status,metadata_json,created_at,updated_at)
 VALUES(${q(managementArchiveId)},'org-hi5-anihi',NULL,${q(managementArchiveType)},'admissions','대학 데이터 관리 74개교 범위 정리','organization','active',${q(JSON.stringify(metadata))},${q(now)},${q(now)}) ON CONFLICT(id) DO NOTHING;`;
+if(Buffer.byteLength(sql,'utf8')>100000)throw new Error('Archive exceeds D1 statement limit; no write attempted');
 const sqlFile=resolve(output,'apply-approved-74.sql');await writeFile(sqlFile,sql);
 wrangler(['d1','execute','DB','--config','dist/server/wrangler.json','--remote','--json','--file',sqlFile]);
 const saved=d1(`SELECT metadata_json FROM data_records WHERE id='${managementArchiveId}'`)[0];

@@ -11,7 +11,7 @@
 ## 저장 및 API 계약
 
 - 레코드: `admissions-management:approved-74-20260929`, 유형 `admissions-management-archive`, sourceApp `admissions`, 조직 `org-hi5-anihi`, campus 없음.
-- metadata version=1, 승인 학교 목록, 원본 hash, 제외 항목의 id/name/deletedAt, 생성일, 정리 사유를 기록한다.
+- metadata version=1, 승인 학교 목록, 원본 hash, 제외 항목의 id/name, 전체 제외 항목에 공통 적용되는 deletedAt, 생성일, 정리 사유를 기록한다. 중복 시각을 반복 저장하지 않으며 SQL 100KB 제한을 적용 전 확인한다.
 - 인증된 GET `/api/data`에 `_universityManagementDeletedIds`를 응답한다. 기존 universities는 그대로다.
 - ID와 이름이 모두 일치할 때만 삭제 표시를 적용한다. 예전 숫자 ID가 다른 학교에 재사용되면 숨기지 않는다.
 - PUT에서는 클라이언트가 전송한 위 파생 필드를 버린다. 원본 JSON에 섞여 저장되거나 위조되지 않는다.
