@@ -3,25 +3,22 @@
 // guessed from repetition ("토토"): a weekend day without its number is an error.
 export const WEEKDAYS=['월','화','수','목','금'];
 export const WEEKEND_SLOTS=['토1','토2','토3','일1','일2','일3'];
-export const SLOT_ORDER=[...WEEKDAYS,...WEEKEND_SLOTS];
+export const SLOT_ORDER=[...WEEKDAYS.flatMap(day=>[day,`${day}1`,`${day}2`,`${day}3`]),...WEEKEND_SLOTS];
 const DAY_NAMES='일월화수목금토';
 export const WEEKS_PER_MONTH=4;
 
 export class ScheduleError extends Error {}
-/** "화목토2일1" → {slots:['화','목','토2','일1'], weekly:4} */
+/** Supports legacy weekdays (월수금) and numbered slots (월1·월2·토1·토2). */
 export function parseSchedule(text){
   const value=String(text??'').replace(/[\s,·/|+]/g,'');
   if(!value)throw new ScheduleError('수업요일이 비어 있습니다. 예: 화목토2일1');
   const slots=[];let rest=value;
   while(rest){
-    const m=/^(?:(월|화|수|목|금)(?![1-9])|(토|일)([1-9])?)/.exec(rest);
-    if(!m)throw new ScheduleError(`수업요일 형식 오류: "${value}" — 월·화·수·목·금, 토1·토2·토3, 일1·일2·일3만 쓸 수 있습니다.`);
-    if(m[1])slots.push(m[1]);
-    else{
-      if(!m[3])throw new ScheduleError(`토/일 타임 번호 오류: "${value}" — ${m[2]}요일은 ${m[2]}1·${m[2]}2·${m[2]}3처럼 타임 번호를 붙여주세요.`);
-      if(!['1','2','3'].includes(m[3]))throw new ScheduleError(`토/일 타임 번호 오류: "${value}" — ${m[2]}${m[3]}는 없습니다. 1~3타임만 쓸 수 있습니다.`);
-      slots.push(m[2]+m[3]);
-    }
+    const m=/^([월화수목금토일])([1-3](?:\.[1-3])*)?/.exec(rest);
+    if(!m)throw new ScheduleError(`수업요일 형식 오류: "${value}" — 월~금 또는 요일별 1~3타임, 토1·토2·토3, 일1·일2·일3만 쓸 수 있습니다.`);
+    const day=m[1],times=m[2]?.split('.')||[];
+    if((day==='토'||day==='일')&&!times.length)throw new ScheduleError(`토/일 타임 번호 오류: "${value}" — ${day}요일은 ${day}1·${day}2·${day}3처럼 타임 번호를 붙여주세요.`);
+    if(times.length)slots.push(...times.map(time=>day+time));else slots.push(day);
     rest=rest.slice(m[0].length);
   }
   const duplicate=slots.find((s,i)=>slots.indexOf(s)!==i);
@@ -43,7 +40,10 @@ export function monthColumns(year,month,usedSlots,holidays=new Map()){
   for(let day=1;day<=days;day++){
     const date=iso(year,month,day),weekday=DAY_NAMES[new Date(Date.UTC(year,month-1,day)).getUTCDay()];
     const holiday=off.has(date)?off.get(date)||'휴무':null;
-    if(WEEKDAYS.includes(weekday))columns.push({date,day,weekday,slot:weekday,label:weekday,weekend:false,holiday});
+    if(WEEKDAYS.includes(weekday)){
+      if(used.has(weekday))columns.push({date,day,weekday,slot:weekday,label:weekday,weekend:false,holiday});
+      else for(const n of ['1','2','3'])if(used.has(weekday+n))columns.push({date,day,weekday,slot:weekday+n,label:weekday+n,weekend:false,holiday});
+    }
     else for(const n of ['1','2','3'])if(used.has(weekday+n))columns.push({date,day,weekday,slot:weekday+n,label:weekday+n,weekend:true,holiday});
   }
   return columns;

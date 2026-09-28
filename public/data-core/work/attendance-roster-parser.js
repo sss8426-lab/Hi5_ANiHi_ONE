@@ -1,18 +1,19 @@
 // 출석부 종합입력(.xlsx) → 캠퍼스 · 반 · 학생. The official input: a campus line ("캠퍼스: …") above a
-// header row (A No … U 비고), then big class bars (A:U merged, class name in A) each followed by that
-// class's students. There is no class column and no status column: every student row belongs to the
-// bar above it and is an enrolled student.
+// Supports the compact A:U form and the three-time-slot-per-weekday A:AE form. Both use class bars
+// followed by their students; there is no class or enrollment-status column.
 import {openTemplate,all,attr,range,textOf,indexSheet,cellRef} from './attendance-template.js?v=20260919-sparse-import';
-import {parseSchedule} from './attendance-roster-schedule.js?v=20260924-roster';
+import {parseSchedule} from './attendance-roster-schedule.js?v=20260928-multi-slots';
 
 export const ROSTER_HEADERS=['No','이름','학교','학년','학생 전화번호','학부모 전화번호','등록일','수업요일','월','화','수','목','금','토(1)','토(2)','토(3)','일(1)','일(2)','일(3)','총횟수','비고'];
-// I:S — the sheet's own check marks, used only to cross-check the 수업요일 text (H is the source).
 const CHECK_SLOTS=['월','화','수','목','금','토1','토2','토3','일1','일2','일3'];
-const LAST_COLUMN=21; // U
-const INPUT_COLUMNS=[2,3,4,5,6,7,8,21]; // B~H, U: what a person types (I:T are the form's own formulas)
+const EXPANDED_DAYS=['월','화','수','목','금','토','일'];
+const EXPANDED_CHECK_SLOTS=EXPANDED_DAYS.flatMap(day=>[1,2,3].map(time=>day+time));
+const COMPACT_LAST_COLUMN=21; // U
+const EXPANDED_LAST_COLUMN=31; // AE
 
 export class RosterError extends Error {constructor(message,issues=[]){super(message);this.issues=issues;}}
 const norm=v=>String(v??'').replace(/\s+/g,'').trim();
+const COMMON_HEADERS=ROSTER_HEADERS.slice(0,8).map(norm);
 
 function cellInfo(grid,template,c,r){
   const cell=grid.cells.get(cellRef(c,r));
@@ -55,6 +56,22 @@ function pickSheet(template,grids){
   return any;
 }
 
+function rosterLayout(at,headerRow){
+  const compact=Array.from({length:COMPACT_LAST_COLUMN},(_,i)=>norm(at(i+1,headerRow).text));
+  if(ROSTER_HEADERS.every((value,i)=>compact[i]===norm(value))){
+    return {lastColumn:COMPACT_LAST_COLUMN,noteColumn:COMPACT_LAST_COLUMN,headerRows:1,checkSlots:CHECK_SLOTS};
+  }
+  const common=COMMON_HEADERS.every((value,i)=>norm(at(i+1,headerRow).text)===value);
+  const groups=EXPANDED_DAYS.every((day,i)=>norm(at(9+i*3,headerRow).text)===day
+    &&[1,2,3].every((time,j)=>norm(at(9+i*3+j,headerRow+1).text)===String(time)));
+  if(common&&groups&&norm(at(30,headerRow).text)==='총횟수'&&norm(at(31,headerRow).text)==='비고'){
+    return {lastColumn:EXPANDED_LAST_COLUMN,noteColumn:EXPANDED_LAST_COLUMN,headerRows:2,checkSlots:EXPANDED_CHECK_SLOTS};
+  }
+  throw new RosterError('종합입력 헤더가 공식 규격과 다릅니다. A:H 기본 정보와 요일별 1~3타임 열을 확인해주세요.');
+}
+
+const isMarked=info=>info.text!==''&&info.text!=='0'&&info.text.toLowerCase()!=='false';
+
 /** @returns {{campus:string,sheetName:string,classes:{name:string,row:number,students:object[]}[],warnings:string[],issues:object[]}} */
 export function parseRoster(bytes,env=globalThis){
   let template;
@@ -67,23 +84,22 @@ export function parseRoster(bytes,env=globalThis){
   const at=(c,r)=>cellInfo(grid,template,c,r);
   let headerRow=0;
   for(let r=1;r<=30&&!headerRow;r++)if(norm(at(1,r).text)==='No'&&norm(at(2,r).text)==='이름')headerRow=r;
-  const header=Array.from({length:LAST_COLUMN},(_,i)=>norm(at(i+1,headerRow).text));
-  const expected=ROSTER_HEADERS.map(norm);
-  const wrong=expected.map((name,i)=>header[i]===name?null:`${String.fromCharCode(65+i)}열 "${ROSTER_HEADERS[i]}"`).filter(Boolean);
-  if(wrong.length)throw new RosterError(`종합입력 헤더가 공식 규격과 다릅니다: ${wrong.join(', ')} 위치를 확인해주세요.`);
+  let layout;
+  try{layout=rosterLayout(at,headerRow);}
+  catch(error){if(error instanceof RosterError)throw error;throw new RosterError('종합입력 헤더를 확인해주세요.');}
   // 캠퍼스: "캠퍼스: 부천애니하이 입시본원" anywhere above the header.
   let campus='';
-  for(let r=1;r<headerRow&&!campus;r++)for(let c=1;c<=LAST_COLUMN&&!campus;c++){
+  for(let r=1;r<headerRow&&!campus;r++)for(let c=1;c<=layout.lastColumn&&!campus;c++){
     const m=/캠퍼스\s*[:：]\s*(.+)$/.exec(at(c,r).text);if(m)campus=m[1].trim();
   }
   if(!campus)throw new RosterError('캠퍼스명을 찾을 수 없습니다. 헤더 위에 "캠퍼스: 캠퍼스명" 형식으로 입력해주세요.');
   if(/여기에|입력하세요/.test(campus))throw new RosterError('캠퍼스명이 입력되지 않았습니다. 2행 "캠퍼스:" 뒤의 안내 문구를 지우고 실제 캠퍼스명을 입력해주세요.');
   const merges=all(doc,'mergeCell').map(n=>range(attr(n,'ref'),true));
-  const mergedBar=r=>merges.some(m=>m.r===r&&m.end.r===r&&m.c===1&&m.end.c>=2);
+  const mergedBar=r=>merges.some(m=>m.r===r&&m.end.r===r&&m.c===1&&m.end.c>=layout.lastColumn);
   const lastRow=Math.max(headerRow,...[...grid.rows.keys()]);
   const classes=[],issues=[],warnings=[];let current=null;
-  for(let r=headerRow+1;r<=lastRow;r++){
-    const a=at(1,r),b=at(2,r),restEmpty=Array.from({length:LAST_COLUMN-1},(_,i)=>at(i+2,r).text).every(v=>!v);
+  for(let r=headerRow+layout.headerRows;r<=lastRow;r++){
+    const a=at(1,r),b=at(2,r),restEmpty=Array.from({length:layout.lastColumn-1},(_,i)=>at(i+2,r).text).every(v=>!v);
     const aNumber=a.text!==''&&Number.isFinite(Number(a.text));
     if(!a.text&&restEmpty){
       // An empty merged bar is an unused class slot of the official form (남는 반은 비워두기). It still
@@ -92,11 +108,11 @@ export function parseRoster(bytes,env=globalThis){
       continue;
     }
     // An unused student row of the form: No (and formulas) but nothing typed in 이름~수업요일·비고.
-    if(aNumber&&INPUT_COLUMNS.every(c=>!at(c,r).text))continue;
+    if(aNumber&&[2,3,4,5,6,7,8,layout.noteColumn].every(c=>!at(c,r).text))continue;
     if(a.text&&!aNumber&&restEmpty){
       // A text-only row is a class bar. The official bar is A:U merged; an unmerged one is still read
       // (the text is unambiguous) but reported so the file can be fixed.
-      if(!mergedBar(r))warnings.push(`${r}행 "${a.text}"은 병합되지 않은 반 구분 바입니다. 반으로 인식했습니다.`);
+      if(!merges.some(m=>m.r===r&&m.end.r===r&&m.c===1&&m.end.c>=layout.lastColumn))warnings.push(`${r}행 "${a.text}"은 병합되지 않은 반 구분 바입니다. 반으로 인식했습니다.`);
       current={name:a.text.replace(/\s+/g,' ').trim(),row:r,students:[]};classes.push(current);continue;
     }
     if(!current){issues.push({row:r,message:'첫 반 구분 바보다 위에 있는 행입니다. 반 구분 바 아래에 학생을 넣어주세요.'});continue;}
@@ -109,10 +125,9 @@ export function parseRoster(bytes,env=globalThis){
     catch(error){issues.push({row:r,name:b.text,message:error.message});}
     const student={row:r,no:Number(a.text),name:b.text,school:at(3,r).text,grade:at(4,r).text,
       studentPhone:phone(at(5,r)),parentPhone:phone(at(6,r)),registered:registered(at(7,r),template.epoch1904),
-      scheduleText,schedule,note:at(21,r).text};
+      scheduleText,schedule,note:at(layout.noteColumn,r).text};
     if(schedule){
-      // I:S marks disagreeing with the 수업요일 text are only a warning: the text is the source.
-      const marked=CHECK_SLOTS.filter((_,i)=>at(9+i,r).text!=='');
+      const marked=layout.checkSlots.filter((_,i)=>isMarked(at(9+i,r)));
       if(marked.length&&marked.join()!==schedule.slots.join())warnings.push(`${r}행 ${b.text}: 체크칸(${marked.join('')})과 수업요일(${schedule.slots.join('')})이 다릅니다. 수업요일 기준으로 만듭니다.`);
     }
     current.students.push(student);

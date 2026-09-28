@@ -3,7 +3,7 @@
 // and print setting is exact; nothing is copied from the uploaded file except the data.
 import {zipSync,strToU8} from '../vendor/fflate-0.8.3.js';
 import {columnName} from './attendance-template.js?v=20260919-sparse-import';
-import {monthColumns,plannedColumns,lessonCount,SLOT_ORDER} from './attendance-roster-schedule.js?v=20260924-roster';
+import {monthColumns,plannedColumns,lessonCount,SLOT_ORDER} from './attendance-roster-schedule.js?v=20260928-multi-slots';
 import {holidaySummary} from './attendance-holidays.js?v=20260924-class-days';
 
 export const OUTPUT_HEADERS=['No','이름','학교','학년','학생연락처','학부모연락처','등록일','수업요일','일수'];

@@ -1,6 +1,6 @@
 // 종합 출석부 업로드 → 반별 출석부 Excel. One official 종합입력 file becomes one workbook with a sheet
 // per class (input order), in the official blue A4-landscape design. 공휴일·휴무 come from CORE's calendar.
-import {parseRoster,RosterError} from './attendance-roster-parser.js?v=20260928-template';
+import {parseRoster,RosterError} from './attendance-roster-parser.js?v=20260928-expanded-roster';
 import {buildRosterWorkbook} from './attendance-roster-export.js?v=20260924-class-days';
 import {fetchMonthHolidays,addHolidayClass,removeHolidayClass,holidaySummary} from './attendance-holidays.js?v=20260924-class-days';
 import {escapeHtml as h} from './attendance-template.js?v=20260919-sparse-import';
