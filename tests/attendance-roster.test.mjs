@@ -207,6 +207,53 @@ test('공휴일 수업: a campus can teach on a holiday; that date stays a norma
   assert.match(text,/공휴일 수업\(정상 수업\): 10\/9 한글날/);
 });
 
+// ---------- the official blank form offered by the "출석부 기본 양식" button ----------
+const TEMPLATE=new URL('../public/data-core/work/templates/attendance-roster-template.xlsx',import.meta.url);
+async function filledTemplate(cells){
+  const {readFile}=await import('node:fs/promises');
+  const files=unzipSync(new Uint8Array(await readFile(TEMPLATE)));
+  let xml=strFromU8(files['xl/worksheets/sheet1.xml']);
+  for(const [ref,value] of Object.entries(cells)){
+    const esc=String(value).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+    const filled=`<c r="${ref}" t="inlineStr"><is><t>${esc}</t></is></c>`;
+    const empty=new RegExp(`<c r="${ref}"[^>]*?/>`),withValue=new RegExp(`<c r="${ref}"[^>]*?>.*?</c>`);
+    if(empty.test(xml))xml=xml.replace(empty,filled);else if(withValue.test(xml))xml=xml.replace(withValue,filled);else throw Error('no cell '+ref);
+  }
+  files['xl/worksheets/sheet1.xml']=strToU8(xml);
+  return zipSync(files);
+}
+test('the downloadable 기본 양식 is the file the upload reads: blank rows and unused class slots are ignored', async()=>{
+  const {TEMPLATE_URL,TEMPLATE_NAME}=await import('../public/data-core/work/attendance-page.js');
+  assert.equal(new URL(TEMPLATE_URL,'http://x').pathname,'/data-core/work/templates/attendance-roster-template.xlsx');
+  assert.match(TEMPLATE_NAME,/\.xlsx$/);
+  const {readFile}=await import('node:fs/promises');
+  // The untouched form: the campus line still holds its placeholder.
+  const blank=new Uint8Array(await readFile(TEMPLATE)),campusOnly=await filledTemplate({A2:'캠퍼스: SYNTHETIC 캠퍼스'});
+  assert.throws(()=>parseRoster(blank,env),/캠퍼스명이 입력되지 않았습니다/);
+  // Campus typed but no class named yet.
+  assert.throws(()=>parseRoster(campusOnly,env),/반 구분 바를 하나도 찾지 못했습니다/);
+  // A normally filled form: one class of two, one class of one, everything else left blank.
+  const bytes=await filledTemplate({A2:'캠퍼스: SYNTHETIC 캠퍼스',
+    A5:'SYNTHETIC 1반',B6:'가상학생1',C6:'가상고',D6:'1',E6:'010-0000-0001',F6:'부:010-0000-1001',G6:'26-03-02',H6:'화목토2일1',
+    B7:'가상학생2',H7:'월수금',
+    A47:'SYNTHETIC 3반',B48:'가상학생3',H48:'토1토3'});
+  const roster=parseRoster(bytes,env);
+  assert.deepEqual(roster.issues,[]);assert.deepEqual(roster.warnings,[]);
+  assert.equal(roster.campus,'SYNTHETIC 캠퍼스');
+  assert.deepEqual(roster.classes.map(c=>[c.name,c.students.map(s=>s.name)]),[['SYNTHETIC 1반',['가상학생1','가상학생2']],['SYNTHETIC 3반',['가상학생3']]]);
+  const first=roster.classes[0].students[0];
+  assert.deepEqual([first.no,first.school,first.grade,first.studentPhone,first.parentPhone,first.registered.iso,first.schedule.slots.join('')],
+    [1,'가상고','1','010-0000-0001','부:010-0000-1001','2026-03-02','화목토2일1']);
+  const out=openOutput(buildRosterWorkbook(roster,{year:2026,month:10}).bytes);
+  assert.deepEqual(out.sheets.map(s=>s.name),['SYNTHETIC 1반','SYNTHETIC 3반']);
+  // Mistakes a person can make in the form are reported, not guessed.
+  const broken=parseRoster(await filledTemplate({A2:'캠퍼스: SYNTHETIC 캠퍼스',A5:'SYNTHETIC 1반',B6:'가상학생1',H6:'월',C7:'이름없는학교',B27:'바 없는 학생',H27:'화'}),env);
+  const messages=broken.issues.map(i=>`${i.row}:${i.message}`);
+  assert.ok(messages.some(m=>/^7:학생 이름\(B열\)이 비어/.test(m)),messages.join('\n'));
+  assert.ok(messages.some(m=>/^26:26행 반 구분 바에 반 이름이 없습니다/.test(m)),messages.join('\n'));
+  assert.equal(broken.issues.length,2,messages.join('\n'));
+});
+
 // ---------- workbook structure ----------
 test('one sheet per class, in input order, with the official headers', ()=>{
   const classes=defaultClasses(10,10),roster=parse({classes});

@@ -1,7 +1,9 @@
 import { mountAttendance } from './attendance.js?v=20260921-weekend-selection';
-import { mountRosterAttendance } from './attendance-roster.js?v=20260924-class-days';
+import { mountRosterAttendance } from './attendance-roster.js?v=20260928-template';
 
 const LEGACY_OPEN_KEY = 'core.attendance.legacyOpen';
+export const TEMPLATE_URL = '/data-core/work/templates/attendance-roster-template.xlsx?v=20260928';
+export const TEMPLATE_NAME = '출석부_종합입력_기본양식.xlsx';
 
 export function mountAttendancePage(host, { context, campuses }) {
   host.replaceChildren();
@@ -24,6 +26,18 @@ export function mountAttendancePage(host, { context, campuses }) {
   allowed.forEach(campus => select.add(new Option(campus.name, campus.id)));
   select.disabled = allowed.length === 1;
   label.append(select);
+  // The official blank 종합입력 form (sheet-protected, with 작성예시 and 사용안내 sheets) that the upload
+  // below reads. Staff start every new term from this file.
+  const template = document.createElement('a');
+  template.className = 'at-template';
+  template.id = 'atTemplate';
+  template.href = TEMPLATE_URL;
+  template.download = TEMPLATE_NAME;
+  template.innerHTML = '<svg class="at-icon" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Download"/></svg>출석부 기본 양식';
+  template.title = '종합입력 기본 양식(.xlsx) 다운로드';
+  const head = document.createElement('div');
+  head.className = 'at-head';
+  head.append(label, template);
   // 종합입력 → 반별 출석부 is the standard flow; the older "last month's sheet → next month" tool stays
   // available below for campuses that still keep per-class files.
   const roster = document.createElement('div');
@@ -35,7 +49,7 @@ export function mountAttendancePage(host, { context, campuses }) {
   legacy.append(summary, tool);
   try { legacy.open = localStorage.getItem(LEGACY_OPEN_KEY) === '1'; } catch { /* storage unavailable */ }
   legacy.ontoggle = () => { try { localStorage.setItem(LEGACY_OPEN_KEY, legacy.open ? '1' : '0'); } catch { /* storage unavailable */ } };
-  host.append(label, roster, legacy);
+  host.append(head, roster, legacy);
   let cleanups = [];
   const render = () => {
     cleanups.forEach(cleanup => cleanup?.());
