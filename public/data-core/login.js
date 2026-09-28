@@ -1,9 +1,6 @@
 const $ = (id) => document.getElementById(id);
 let authAttempt = 0;
-const nextPath = (() => {
-  const value = new URLSearchParams(location.search).get('next') || '/data-core/work';
-  return value.startsWith('/data-core/') || /^\/admissions-web\/renderer\/(?:index\.html)?(?:[?#]|$)/.test(value) ? value : '/data-core/work';
-})();
+const nextPath = '/data-core';
 
 async function request(path, options = {}) {
   const response = await fetch(path, { credentials: 'include', cache: 'no-store', ...options });
