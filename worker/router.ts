@@ -64,6 +64,7 @@ import {
   submitSignupRequest,
   listSignupRequests,
   decideSignupRequest,
+  deleteStandaloneAccount,
 } from "./data-core-auth";
 import { campusPresence } from './campus-presence';
 import { handleKkumeumApi } from "./kkumeum-router";
@@ -200,6 +201,9 @@ async function handleStandaloneAuthApi(request: Request, env: Env) {
     return jsonResponse(await decideSignupRequest(env.DB, request, context, decodeURIComponent(signupMatch[1]), signupMatch[2] as "approve" | "reject", await readJson(request)));
   }
   const accountMatch = url.pathname.match(/^\/api\/auth\/accounts\/([^/]+)$/);
+  if (accountMatch && request.method === "DELETE") {
+    return jsonResponse(await deleteStandaloneAccount(env.DB, request, context, decodeURIComponent(accountMatch[1])));
+  }
   if (accountMatch && request.method === "PATCH") {
     return jsonResponse(await updateStandaloneAccount(env.DB, request, context, decodeURIComponent(accountMatch[1]), await readJson(request)));
   }

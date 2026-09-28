@@ -367,6 +367,41 @@ export async function updateStandaloneAccount(
   return { id: accountId, status: status || account.status, passwordReset: Boolean(replacementPassword) };
 }
 
+/**
+ * 회원삭제: the account can never sign in again and its login ID becomes free. Files, records and audit
+ * history the person created stay (the users row is kept as 'deleted' so authorship still resolves);
+ * only the login, sessions and campus memberships are removed.
+ */
+export async function deleteStandaloneAccount(db: D1Database, request: Request, context: DataCoreAccessContext, accountId: string) {
+  if (request.headers.get("origin") !== new URL(request.url).origin) throw new DataCoreAccessError(403, "허용되지 않은 요청 출처입니다.");
+  requireAuthenticatedAccess(context);
+  const actor = context.user!;
+  if (!context.isSuperAdmin) throw new DataCoreAccessError(403, "계정 관리는 마스터 관리자만 사용할 수 있습니다.");
+  const account = await db.prepare("SELECT * FROM auth_accounts WHERE id = ?").bind(accountId).first<AccountRow>();
+  if (!account) throw new DataCoreAccessError(404, "계정을 찾을 수 없습니다.");
+  if (account.user_id === actor.internalUserId) throw new DataCoreAccessError(400, "본인 계정은 삭제할 수 없습니다. 다른 마스터 관리자가 처리해야 합니다.");
+  const targetIsMaster = Boolean(await db.prepare(
+    "SELECT 1 FROM memberships WHERE user_id = ? AND organization_id = ? AND role IN ('SUPER_ADMIN', 'MASTER') LIMIT 1",
+  ).bind(account.user_id, DEFAULT_ORGANIZATION_ID).first());
+  if (targetIsMaster && account.status === "active") {
+    const masters = await db.prepare(
+      `SELECT count(DISTINCT a.id) AS count FROM auth_accounts a INNER JOIN memberships m ON m.user_id = a.user_id
+        WHERE a.status = 'active' AND m.organization_id = ? AND m.role IN ('SUPER_ADMIN', 'MASTER')`,
+    ).bind(DEFAULT_ORGANIZATION_ID).first<{ count: number }>();
+    if (Number(masters?.count || 0) <= 1) throw new DataCoreAccessError(409, "마지막 마스터 계정은 삭제할 수 없습니다.");
+  }
+  const now = new Date().toISOString();
+  await db.batch([
+    db.prepare("DELETE FROM auth_sessions WHERE user_id = ?").bind(account.user_id),
+    db.prepare("DELETE FROM memberships WHERE user_id = ? AND organization_id = ?").bind(account.user_id, DEFAULT_ORGANIZATION_ID),
+    db.prepare("DELETE FROM auth_accounts WHERE id = ?").bind(accountId),
+    db.prepare("UPDATE users SET status = 'deleted', updated_at = ? WHERE id = ?").bind(now, account.user_id),
+    db.prepare("UPDATE auth_signup_requests SET status = 'withdrawn', updated_at = ? WHERE account_id = ?").bind(now, accountId),
+    auditStatement(db, actor.internalUserId, "account_deleted", accountId, { loginId: account.login_id }),
+  ]);
+  return { id: accountId, deleted: true };
+}
+
 // ---------- 직원인증 (staff sign-up → MASTER approval) ----------
 const SIGNUP_PASSWORD_MIN = 12;
 const LOGIN_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{3,29}$/;

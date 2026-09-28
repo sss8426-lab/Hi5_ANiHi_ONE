@@ -95,6 +95,54 @@ test('직원인증: rejection blocks sign-in and frees the ID for a new request;
   } finally { await h.mf.dispose(); }
 });
 
+test('회원삭제: the account stops signing in at once, its ID is freed, and what the person made is kept', async () => {
+  const h = await libraryHarness();
+  try {
+    const created = await apply(h, { loginId: 'synthetic-leaver' });
+    await h.request('POST', `/api/auth/signup-requests/${created.body.id}/approve`, users.master, { role: 'TEACHER' });
+    const signedIn = await login(h, 'synthetic-leaver');
+    assert.equal(signedIn.status, 200);
+    const account = (await h.request('GET', '/api/auth/accounts', users.master)).body.accounts.find(a => a.login_id === 'synthetic-leaver');
+    const userId = (await h.env.DB.prepare('SELECT user_id FROM auth_accounts WHERE id = ?').bind(account.id).first()).user_id;
+    // Something the person made before leaving.
+    await h.env.DB.prepare(`INSERT INTO data_records (id, organization_id, campus_id, created_by_user_id, record_type, source_app, title, visibility, status, metadata_json, created_at, updated_at)
+      VALUES ('synthetic-leaver-record', 'org-hi5-anihi', 'campus-wonjong', ?, 'note', 'synthetic', '남는 자료', 'campus', 'active', '{}', ?, ?)`).bind(userId, new Date().toISOString(), new Date().toISOString()).run();
+
+    const path = `/api/auth/accounts/${account.id}`;
+    for (const user of [users.campusAdmin, users.teacher, users.staff]) assert.equal((await h.request('DELETE', path, user)).status, 403);
+    assert.equal((await h.request('DELETE', path, null)).status, 401);
+    assert.equal((await h.request('DELETE', path, users.master, undefined, 'https://evil.invalid')).status, 403);
+
+    const deleted = await h.request('DELETE', path, users.master);
+    assert.equal(deleted.status, 200, JSON.stringify(deleted.body)); assert.equal(deleted.body.deleted, true);
+    // The open session and the password stop working immediately.
+    const session = await h.request('GET', '/api/auth/session', null, undefined, 'http://localhost', { cookie: cookie(signedIn) });
+    assert.equal(session.body.authenticated, false);
+    assert.equal((await login(h, 'synthetic-leaver')).status, 401);
+    assert.ok(!(await h.request('GET', '/api/auth/accounts', users.master)).body.accounts.some(a => a.login_id === 'synthetic-leaver'));
+    assert.equal((await h.request('DELETE', path, users.master)).status, 404);
+    // Files/records keep their author; the person row is only marked deleted, with no campus access left.
+    assert.equal((await h.env.DB.prepare("SELECT created_by_user_id FROM data_records WHERE id = 'synthetic-leaver-record'").first()).created_by_user_id, userId);
+    assert.equal((await h.env.DB.prepare('SELECT status FROM users WHERE id = ?').bind(userId).first()).status, 'deleted');
+    assert.equal((await h.env.DB.prepare('SELECT count(*) AS n FROM memberships WHERE user_id = ?').bind(userId).first()).n, 0);
+    const audit = await h.env.DB.prepare("SELECT metadata_json FROM audit_logs WHERE action = 'account_deleted' AND resource_id = ?").bind(account.id).first();
+    assert.match(audit.metadata_json, /synthetic-leaver/);
+    // The ID is free again: the person can apply anew (and must be approved again).
+    assert.equal((await apply(h, { loginId: 'synthetic-leaver' })).status, 201);
+    assert.equal((await login(h, 'synthetic-leaver')).status, 403);
+
+    // A master cannot delete their own account, and the last master account cannot be deleted.
+    const masterLogin = await h.request('POST', '/api/auth/accounts', users.admin, { loginId: 'synthetic-only-master', role: 'MASTER', temporaryPassword: PASSWORD });
+    const onlyMaster = masterLogin.body.account.id;
+    await h.env.DB.prepare('UPDATE auth_accounts SET must_change_password = 0 WHERE id = ?').bind(onlyMaster).run();
+    const masterSession = await login(h, 'synthetic-only-master');
+    const self = await h.request('DELETE', `/api/auth/accounts/${onlyMaster}`, null, undefined, 'http://localhost', { cookie: cookie(masterSession) });
+    assert.equal(self.status, 400); assert.match(self.body.error, /본인 계정/);
+    const last = await h.request('DELETE', `/api/auth/accounts/${onlyMaster}`, users.master);
+    assert.equal(last.status, 409); assert.match(last.body.error, /마지막 마스터/);
+  } finally { await h.mf.dispose(); }
+});
+
 test('직원인증: repeated requests from one place are limited', async () => {
   const h = await libraryHarness();
   try {

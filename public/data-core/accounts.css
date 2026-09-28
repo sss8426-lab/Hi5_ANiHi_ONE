@@ -64,3 +64,5 @@ body.campus-accounts table th { background:var(--core-surface-soft); }
 .signup-requests select { min-height: 36px; border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; background: #fff; color: var(--text); font: inherit; font-size: 13px; }
 .signup-requests td p, #accountsBody td p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
 #signupError:empty { display: none; }
+.campus-accounts .danger-btn { color: var(--core-danger, #b42318); border-color: currentColor; }
+.campus-accounts .danger-btn:hover { background: var(--core-danger, #b42318); color: #fff; }
