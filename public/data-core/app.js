@@ -431,6 +431,7 @@ async function loadHealthAndContext() {
   const previousCalendarAccess = JSON.stringify(state.context);
   state.context = contextResult.status === 'fulfilled' ? contextResult.value : null;
   if (previousCalendarAccess !== JSON.stringify(state.context)) window.AcademyCalendar.reset();
+  if (state.context?.authenticated && state.context.isSuperAdmin) void window.DataCoreWorkNavigation?.signupCount?.();
   renderConnection();
   renderUser();
 

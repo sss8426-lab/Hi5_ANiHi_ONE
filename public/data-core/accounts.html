@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="/data-core/layout-theme.css?v=20260909-bright-layout">
   <link rel="stylesheet" href="/data-core/design-tokens.css?v=20260913-soft-premium">
   <link rel="stylesheet" href="/data-core/design-system.css?v=20260913-soft-premium">
-  <link rel="stylesheet" href="/data-core/accounts.css?v=20260921-password">
+  <link rel="stylesheet" href="/data-core/accounts.css?v=20260928-signup">
 </head>
 <body class="data-core-layout campus-accounts">
   <main class="accounts-shell">
@@ -22,8 +22,13 @@
       <dl class="presence-summary"><div><dt>전체 캠퍼스</dt><dd id="campusTotal">-</dd></div><div><dt>현재 접속</dt><dd id="campusOnline">-</dd></div><div><dt>오늘 로그인</dt><dd id="campusToday">-</dd></div></dl>
       <p id="presenceError" role="status"></p><div id="campusPresence" class="presence-grid"></div>
     </section>
+    <section class="panel signup-requests" id="signupPanel" aria-labelledby="signupTitle">
+      <div class="panel-head"><div><h2 id="signupTitle">직원인증 신청 <span class="signup-count" id="signupCount"></span></h2><p>로그인 화면의 "직원인증"으로 들어온 신청입니다. 수락하면 신청자가 정한 아이디·비밀번호로 바로 로그인할 수 있습니다.</p></div><button class="ghost-btn" id="signupRefresh" type="button">새로고침</button></div>
+      <p id="signupError" role="status"></p>
+      <div class="table-wrap"><table><thead><tr><th>신청일</th><th>이름</th><th>캠퍼스</th><th>직책</th><th>아이디</th><th>연락처</th><th>권한</th><th></th></tr></thead><tbody id="signupBody"></tbody></table><div class="empty-state hidden" id="signupEmpty">대기 중인 직원인증 신청이 없습니다.</div></div>
+    </section>
     <section class="panel account-create" id="createPanel">
-      <div class="panel-head"><div><h2>계정 만들기</h2><p>임시 비밀번호는 생성 직후 한 번만 표시됩니다.</p></div></div>
+      <div class="panel-head"><div><h2>계정 직접 만들기</h2><p>직원인증 신청 없이 계정이 필요할 때만 사용합니다. 임시 비밀번호는 생성 직후 한 번만 표시됩니다.</p></div></div>
       <form id="createForm" class="account-form">
         <label>이름<input id="displayName" required></label>
         <label>로그인 ID<input id="loginId" required autocomplete="off"></label>
@@ -54,7 +59,7 @@
       <div class="account-actions"><button id="cancelPasswordChange" type="button" class="ghost-btn">취소</button><button id="savePasswordChange" type="submit" class="primary-btn">변경</button></div>
     </form>
   </dialog>
-  <script type="module" src="/data-core/accounts.js?v=20260921-password"></script>
+  <script type="module" src="/data-core/accounts.js?v=20260928-signup"></script>
   <script type="module" src="/data-core/design-shell.js?v=20260912-campus"></script>
 </body>
 </html>

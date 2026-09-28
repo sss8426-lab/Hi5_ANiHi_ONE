@@ -6,7 +6,7 @@
   <title>DATA CORE 로그인</title>
   <meta name="theme-color" content="#f8faf9">
   <link rel="preload" as="image" href="/data-core/assets/login-highfive-v1.webp">
-  <link rel="stylesheet" href="/data-core/login.css?v=20260910-editorial-v1">
+  <link rel="stylesheet" href="/data-core/login.css?v=20260928-signup">
 </head>
 <body class="login-page">
   <main class="login-shell">
@@ -24,6 +24,31 @@
           <p class="message" id="message" role="alert"></p>
           <button type="submit">로그인</button>
         </form>
+        <div class="signup-entry"><button id="openSignup" class="text-btn" type="button">직원인증</button></div>
+      </div>
+      <div id="signupFormWrap" class="hidden">
+        <p class="eyebrow">처음 사용하는 직원</p>
+        <h2>직원인증 신청</h2>
+        <p class="lead">신청 후 마스터 관리자가 수락하면 입력한 아이디와 비밀번호로 로그인할 수 있습니다.</p>
+        <form id="signupForm" novalidate>
+          <label>이름<input id="signupName" name="name" autocomplete="name" maxlength="40" required></label>
+          <label>캠퍼스명<select id="signupCampus" name="campus" required><option value="">캠퍼스를 선택하세요</option></select></label>
+          <label>직책<input id="signupPosition" name="position" list="signupPositions" maxlength="40" placeholder="예: 원장, 실장, 강사" required></label>
+          <datalist id="signupPositions"><option value="원장"><option value="부원장"><option value="실장"><option value="강사"><option value="직원"></datalist>
+          <label>아이디<input id="signupLoginId" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="30" placeholder="영문 소문자·숫자 4~30자" required></label>
+          <label>비밀번호<input id="signupPassword" type="password" autocomplete="new-password" minlength="12" placeholder="12자 이상" required></label>
+          <label>비밀번호 확인<input id="signupPasswordConfirm" type="password" autocomplete="new-password" minlength="12" required></label>
+          <label>연락처<input id="signupPhone" name="tel" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" placeholder="010-0000-0000" required></label>
+          <p class="message" id="signupMessage" role="alert"></p>
+          <button type="submit">직원인증 신청</button>
+        </form>
+        <button id="closeSignup" class="text-btn back-btn" type="button">로그인으로 돌아가기</button>
+      </div>
+      <div id="signupDoneWrap" class="hidden">
+        <p class="eyebrow">직원인증</p>
+        <h2>신청이 접수되었습니다</h2>
+        <p class="lead" id="signupDoneText">마스터 관리자가 수락하면 입력한 아이디와 비밀번호로 로그인할 수 있습니다.</p>
+        <button id="signupDoneBack" type="button">로그인 화면으로</button>
       </div>
       <div id="passwordFormWrap" class="hidden">
         <p class="eyebrow">첫 로그인</p>
@@ -41,6 +66,6 @@
       <a class="back" href="/data-core/counseling">공개 상담 화면으로 돌아가기</a>
     </section>
   </main>
-  <script type="module" src="/data-core/login.js?v=20260921-password"></script>
+  <script type="module" src="/data-core/login.js?v=20260928-signup"></script>
 </body>
 </html>

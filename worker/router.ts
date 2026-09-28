@@ -60,6 +60,10 @@ import {
   logoutStandalone,
   updateStandaloneAccount,
   recordStandaloneActivity,
+  signupOptions,
+  submitSignupRequest,
+  listSignupRequests,
+  decideSignupRequest,
 } from "./data-core-auth";
 import { campusPresence } from './campus-presence';
 import { handleKkumeumApi } from "./kkumeum-router";
@@ -182,6 +186,18 @@ async function handleStandaloneAuthApi(request: Request, env: Env) {
   }
   if (url.pathname === "/api/auth/accounts" && request.method === "POST") {
     return jsonResponse({ account: await createStandaloneAccount(env.DB, request, context, await readJson(request)) }, { status: 201 });
+  }
+  // 직원인증: public form options + request, MASTER review.
+  if (url.pathname === "/api/auth/signup/options" && request.method === "GET") return jsonResponse(await signupOptions(env.DB));
+  if (url.pathname === "/api/auth/signup" && request.method === "POST") {
+    return jsonResponse(await submitSignupRequest(env.DB, request, await readJson<Record<string, unknown>>(request)), { status: 201 });
+  }
+  if (url.pathname === "/api/auth/signup-requests" && request.method === "GET") {
+    return jsonResponse({ requests: await listSignupRequests(env.DB, context, url.searchParams.get("status") || "pending") });
+  }
+  const signupMatch = url.pathname.match(/^\/api\/auth\/signup-requests\/([^/]+)\/(approve|reject)$/);
+  if (signupMatch && request.method === "POST") {
+    return jsonResponse(await decideSignupRequest(env.DB, request, context, decodeURIComponent(signupMatch[1]), signupMatch[2] as "approve" | "reject", await readJson(request)));
   }
   const accountMatch = url.pathname.match(/^\/api\/auth\/accounts\/([^/]+)$/);
   if (accountMatch && request.method === "PATCH") {

@@ -84,6 +84,63 @@ $('passwordForm').addEventListener('submit', async (event) => {
 
 void resumeActiveSession();
 
+// 직원인증: apply with name/campus/position/ID/password/phone; a MASTER approves before first login.
+const escapeHtml = (value) => String(value ?? '').replace(/[&<>"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[char]));
+let signupCampusesLoaded = false;
+function showPanel(id) {
+  for (const panel of ['loginFormWrap', 'signupFormWrap', 'signupDoneWrap']) $(panel).classList[panel === id ? 'remove' : 'add']('hidden');
+}
+async function loadSignupCampuses() {
+  if (signupCampusesLoaded) return;
+  try {
+    const options = await request('/api/auth/signup/options');
+    $('signupCampus').innerHTML = '<option value="">캠퍼스를 선택하세요</option>' + (options.campuses || [])
+      .map((campus) => `<option value="${escapeHtml(campus.id)}">${escapeHtml(campus.name)}</option>`).join('');
+    signupCampusesLoaded = true;
+  } catch (error) { $('signupMessage').textContent = `캠퍼스 목록을 불러오지 못했습니다. ${error.message}`; }
+}
+function signupProblem(values) {
+  if (!values.displayName) return ['signupName', '이름을 입력하세요.'];
+  if (!values.campusId) return ['signupCampus', '캠퍼스를 선택하세요.'];
+  if (!values.position) return ['signupPosition', '직책을 입력하세요.'];
+  if (!/^[a-z0-9][a-z0-9._-]{3,29}$/.test(values.loginId)) return ['signupLoginId', '아이디는 영문 소문자·숫자로 시작하는 4~30자(영문·숫자·. _ -)로 입력하세요.'];
+  if (values.password.length < 12) return ['signupPassword', '비밀번호는 12자 이상으로 입력하세요.'];
+  if (values.password !== $('signupPasswordConfirm').value) return ['signupPasswordConfirm', '비밀번호 확인이 일치하지 않습니다.'];
+  const digits = values.phone.replace(/\D/g, '');
+  if (digits.length < 9 || digits.length > 12) return ['signupPhone', '연락처를 숫자로 입력하세요. 예: 010-1234-5678'];
+  return null;
+}
+$('openSignup').addEventListener('click', () => {
+  $('signupMessage').textContent = '';
+  showPanel('signupFormWrap');
+  $('signupName').focus();
+  void loadSignupCampuses();
+});
+for (const id of ['closeSignup', 'signupDoneBack']) $(id).addEventListener('click', () => { showPanel('loginFormWrap'); $('loginId').focus(); });
+$('signupForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const button = event.currentTarget.querySelector('button');
+  const values = {
+    displayName: $('signupName').value.trim(), campusId: $('signupCampus').value, position: $('signupPosition').value.trim(),
+    loginId: $('signupLoginId').value.trim().toLowerCase(), password: $('signupPassword').value, phone: $('signupPhone').value.trim(),
+  };
+  const problem = signupProblem(values);
+  if (problem) { $('signupMessage').textContent = problem[1]; $(problem[0]).focus(); return; }
+  $('signupMessage').textContent = '';
+  button.disabled = true;
+  try {
+    await request('/api/auth/signup', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(values) });
+    for (const id of ['signupName', 'signupPosition', 'signupLoginId', 'signupPassword', 'signupPasswordConfirm', 'signupPhone']) $(id).value = '';
+    $('signupDoneText').textContent = `아이디 ${values.loginId}로 신청했습니다. 마스터 관리자가 수락하면 이 아이디와 비밀번호로 로그인할 수 있습니다.`;
+    $('loginId').value = values.loginId;
+    showPanel('signupDoneWrap');
+  } catch (error) {
+    $('signupMessage').textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+});
+
 $('switchAccount').addEventListener('click', async () => {
   authAttempt++;
   $('switchAccount').disabled = true;
