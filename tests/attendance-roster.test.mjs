@@ -280,7 +280,17 @@ test('the downloadable 기본 양식 is the file the upload reads: blank rows an
   const messages=broken.issues.map(i=>`${i.row}:${i.message}`);
   assert.ok(messages.some(m=>/^8:학생 이름\(B열\)이 비어/.test(m)),messages.join('\n'));
   assert.ok(messages.some(m=>/^57:57행 반 구분 바에 반 이름이 없습니다/.test(m)),messages.join('\n'));
-  assert.equal(broken.issues.length,3,messages.join('\n'));
+  // The campus is picked from the dropdown next to the "캠퍼스" label (C2).
+  const picked=parseRoster(await filledTemplate({C2:'부천 원종 캠퍼스',A6:'SYNTHETIC 1반',B7:'가상학생1',H7:'화1'}),env);
+  assert.equal(picked.campus,'부천 원종 캠퍼스');assert.deepEqual(picked.issues,[]);
+  assert.throws(()=>parseRoster(blank,env),/▼를 눌러 캠퍼스를 골라주세요/);
+  // The form numbers every row (No is pre-filled), so only these two real mistakes remain.
+  assert.equal(broken.issues.length,2,messages.join('\n'));
+  // The distribution form is protected: input cells are unlocked, No/check/total columns are not.
+  const {readFile:read}=await import('node:fs/promises');
+  const sheet=strFromU8(unzipSync(new Uint8Array(await read(TEMPLATE)))['xl/worksheets/sheet1.xml']);
+  assert.match(sheet,/<sheetProtection[^>]*sheet="1"/);
+  assert.match(sheet,/<c r="I7"[^>]*><f>IF\(ISNUMBER\(SEARCH\("월1",SUBSTITUTE\(\$H7," ",""\)\)\),1,""\)<\/f>/);
 });
 
 // ---------- workbook structure ----------
