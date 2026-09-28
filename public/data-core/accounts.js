@@ -44,7 +44,7 @@ async function load() {
 
 function render(accounts) {
   accounts = accounts.filter(account => !account.retiredCampus || $('showRetiredAccounts').checked);
-  $('accountsBody').innerHTML = accounts.map((account) => `<tr><td>${escapeHtml(account.display_name)}${account.position || account.phone ? `<p>${escapeHtml([account.position, account.phone].filter(Boolean).join(' · '))}</p>` : ''}</td><td>${escapeHtml(account.login_id)}</td><td>${escapeHtml(account.campus_name || '조직 공통')} · ${escapeHtml(account.role)}</td><td><span class="status-${escapeHtml(account.status)}">${account.status === 'active' ? '사용 중' : '비활성'}</span><p>${escapeHtml(passwordStatus(account))}</p></td><td>${account.last_login_at ? new Date(account.last_login_at).toLocaleString('ko-KR', {timeZone:'Asia/Seoul'}) : '-'}</td><td><div class="account-actions">${passwordActions(account)}<button class="ghost-btn" data-action="sessions" data-id="${escapeHtml(account.id)}">세션 해제</button><button class="ghost-btn" data-action="status" data-status="${escapeHtml(account.status)}" data-id="${escapeHtml(account.id)}">${account.status === 'active' ? '비활성화' : '다시 사용'}</button></div></td></tr>`).join('');
+  $('accountsBody').innerHTML = accounts.map((account) => `<tr><td>${escapeHtml(account.display_name)}${account.position || account.phone ? `<p>${escapeHtml([account.position, account.phone].filter(Boolean).join(' · '))}</p>` : ''}</td><td>${escapeHtml(account.login_id)}</td><td>${escapeHtml(account.campus_name || '조직 공통')} · ${escapeHtml(account.role)}</td><td><span class="status-${escapeHtml(account.status)}">${account.status === 'active' ? '사용 중' : '비활성'}</span><p>${escapeHtml(passwordStatus(account))}</p></td><td>${account.last_login_at ? new Date(account.last_login_at).toLocaleString('ko-KR', {timeZone:'Asia/Seoul'}) : '-'}</td><td><div class="account-actions">${passwordActions(account)}<button class="ghost-btn danger-btn" data-action="delete" data-id="${escapeHtml(account.id)}">회원삭제</button></div></td></tr>`).join('');
   $('empty').classList.toggle('hidden', accounts.length > 0);
 }
 
@@ -62,9 +62,23 @@ $('createForm').addEventListener('submit', async (event) => {
     form.reset(); $('temporaryPassword').value = password(); await load();
   } catch (error) { notice(error.message); }
 });
+// 회원삭제: the login ID stops working at once and becomes free; the person's files and records stay.
+async function deleteAccount(button) {
+  const account = accountRows.find(row => row.id === button.dataset.id);
+  if (!account) return;
+  const who = `${account.display_name}(${account.login_id})`;
+  if (!confirm(`${who} 회원을 삭제할까요?\n\n삭제하면 이 아이디로 다시 로그인할 수 없고, 되돌릴 수 없습니다.\n다시 사용하려면 직원인증을 새로 신청해야 합니다.\n(올린 자료와 기록은 그대로 남습니다)`)) return;
+  button.disabled = true;
+  try {
+    await api(`/api/auth/accounts/${encodeURIComponent(account.id)}`, { method: 'DELETE' });
+    notice(`${who} 회원을 삭제했습니다.`);
+    await load();
+  } catch (error) { notice(error.message); button.disabled = false; }
+}
 async function manageAccount(event) {
   const button = event.target.closest('button[data-action]'); if (!button) return;
   if (['password', 'reset'].includes(button.dataset.action)) { openPasswordDialog(button.dataset.id, button.dataset.action); return; }
+  if (button.dataset.action === 'delete') { await deleteAccount(button); return; }
   const input = { revokeSessions: button.dataset.action === 'sessions' };
   if (button.dataset.action === 'status') input.status = button.dataset.status === 'active' ? 'disabled' : 'active';
   try { await api(`/api/auth/accounts/${encodeURIComponent(button.dataset.id)}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) }); if (input.temporaryPassword) { $('temporaryResult').textContent = `새 임시 비밀번호: ${input.temporaryPassword}`; $('temporaryResult').classList.remove('hidden'); } await load(); } catch (error) { notice(error.message); }
