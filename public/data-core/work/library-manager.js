@@ -1,9 +1,9 @@
-import { setupUploads } from './library-upload-panel.js';
+import { setupUploads } from './library-upload-panel.js?v=20260928-library-names';
 import { open as openPreview } from './library-preview.js';
 const el=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
 const cardSelector='[data-library-file],[data-recent-file],[data-library-folder]';
 export function setup(ctx){
-  const css=el('link');css.rel='stylesheet';css.href='/data-core/work/library-manager.css';document.head.append(css);
+  const css=el('link');css.rel='stylesheet';css.href='/data-core/work/library-manager.css?v=20260928-library-names';document.head.append(css);
   const {host,state,api,navigate,load,locationState}=ctx,selected=new Map();let anchor=null,drag=null,selectionOrigin='',moveItems=[],requestId;
   const key=card=>card.dataset.libraryFolder?'folder:'+card.dataset.libraryFolder:'file:'+(card.dataset.libraryFile||card.dataset.recentFile);
   const lookup=k=>{const [kind,...id]=k.split(':');const item=(kind==='folder'?state.folders:[...state.files,...state.recent]).find(i=>i.id===id.join(':'));return item?{...item,kind}:null;};
@@ -37,7 +37,7 @@ export function setup(ctx){
   async function browse(id){
     const g=++moveGeneration;target=null;dialog.querySelector('[data-submit]').disabled=true;
     try{const view=await api('/api/data-core/library/folders?counts=0&parentId='+encodeURIComponent(id));if(g!==moveGeneration)return;target=view.folder;dialog.querySelector('[data-path]').textContent=view.breadcrumbs.map(b=>b.title).join(' > ');const list=dialog.querySelector('[data-folders]');list.replaceChildren();
-      for(const f of [...(target.parentId?[{id:target.parentId,title:'상위 폴더',canWrite:true}]:[]),...view.folders.filter(f=>f.canWrite&&!moveItems.some(i=>i.kind==='folder'&&i.id===f.id))]){const b=el('button',f.title);b.onclick=()=>void browse(f.id);list.append(b);}
+      for(const f of [...(target.parentId?[{id:target.parentId,title:'상위 폴더',canWrite:true}]:[]),...view.folders.filter(f=>f.canWrite&&!moveItems.some(i=>i.kind==='folder'&&i.id===f.id))]){const b=el('button');b.innerHTML=window.DataCoreLibraryClient.nameMarkup(f.title);b.onclick=()=>void browse(f.id);list.append(b);}
       dialog.querySelector('[data-submit]').disabled=!target.canWrite||!target.category;
     }catch(e){dialog.querySelector('[data-error]').textContent=e.message;}
   }
@@ -97,6 +97,7 @@ export function setup(ctx){
       const item=lookup(key(card));if(!item)continue;
       if((item.kind==='file'||item.canMove)&&!card.querySelector('.lb-select')){const box=el('input');box.type='checkbox';box.className='lb-select';box.setAttribute('aria-label',`${item.title||item.fileName} 선택`);card.prepend(box);card.draggable=!!item.canMove;}
       if(item.kind==='file'){
+        const title=card.querySelector('.lb-file-main strong');if(title&&!title.querySelector('.library-item-name'))title.innerHTML=window.DataCoreLibraryClient.nameMarkup(item.fileName);
         const main=card.querySelector('.lb-file-main'),symbol=main?.querySelector(':scope > svg');if(symbol){const visual=el('div');visual.className='lb-document-visual';symbol.replaceWith(visual);visual.append(symbol,el('span',item.fileName.split('.').pop().toUpperCase()));}
         const path=(item.path||state.breadcrumbs).map(p=>p.title).join(' > ');let line=card.querySelector('.lb-full-path');
         if(!line){line=el('button');line.type='button';line.className='lb-full-path';line.dataset.lbLocate=item.id;card.querySelector('.lb-file-main')?.append(line);}line.textContent=path;line.title=path;

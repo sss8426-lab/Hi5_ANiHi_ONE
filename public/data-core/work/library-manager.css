@@ -7,15 +7,15 @@
 #libraryBrowser .lb-selected{outline:2px solid #18584b;outline-offset:-2px;background:#edf7f2}
 #libraryBrowser .lb-drop-target{outline:3px dashed #287ab1}
 #libraryBrowser .lb-located{outline:3px solid #a66200;outline-offset:2px}
-#libraryBrowser .lb-folder-count{padding:0 12px 10px 36px;display:block;white-space:normal}
+#libraryBrowser .lb-folder-count{padding:0;display:block;white-space:normal}
 #libraryBrowser .lb-full-path{display:block;width:100%;font-size:12px;line-height:1.5;text-align:left;white-space:normal;overflow-wrap:anywhere;border:0;background:transparent;color:#56675e;padding:4px 0;min-height:0}
-#libraryBrowser .lb-file-main{flex-wrap:wrap;min-width:0}
+#libraryBrowser .lb-file-main{flex-wrap:wrap;min-width:0;width:100%}
 #libraryBrowser .lb-file-main>div{min-width:0;overflow-wrap:anywhere}
 #libraryBrowser .lb-file-actions{display:flex;flex-wrap:wrap;gap:6px}
 #libraryBrowser .lb-file-actions a,#libraryBrowser .lb-file-actions button{font-size:12px;padding:6px 8px;min-height:34px}
 #libraryBrowser .lb-file-list,#libraryBrowser .lb-recent-list{padding:0;list-style:none}
 #libraryBrowser .lb-recent-list{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
-#libraryBrowser .lb-recent-item{display:flex;flex-direction:column;align-items:stretch;padding:12px;border:1px solid #d9dfdc;border-radius:6px;gap:8px}
+#libraryBrowser .lb-recent-item{display:flex;flex-direction:column;align-items:stretch;padding:36px 12px 12px;border:1px solid #d9dfdc;border-radius:6px;gap:8px}
 #libraryBrowser .lb-recent-item .lb-file-main{display:grid;grid-template-columns:80px minmax(0,1fr);align-items:start;gap:8px}
 #libraryBrowser .lb-recent-item .lb-thumbnail{width:80px;height:64px;aspect-ratio:5/4}
 #libraryBrowser .lb-recent-item .lb-full-path{grid-column:1/-1}
@@ -24,7 +24,7 @@
 #libraryBrowser .lb-recent-item .lb-full-path{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:3em}
 #libraryBrowser .lb-recent-item .lb-full-path:focus,#libraryBrowser .lb-recent-item .lb-full-path:active{-webkit-line-clamp:unset}
 #libraryBrowser[data-view=grid] .lb-file-list{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
-#libraryBrowser[data-view=grid] .lb-file{display:flex;flex-direction:column;align-items:stretch;border:1px solid #d9dfdc;border-radius:6px;padding:12px;gap:8px}
+#libraryBrowser[data-view=grid] .lb-file{display:flex;flex-direction:column;align-items:stretch;border:1px solid #d9dfdc;border-radius:6px;padding:36px 12px 12px;gap:8px}
 #libraryBrowser[data-view=grid] .lb-file .lb-file-main{display:flex;flex-direction:column;align-items:stretch;gap:8px}
 #libraryBrowser[data-view=grid] .lb-file .lb-thumbnail{width:100%;height:auto;aspect-ratio:4/3}
 #libraryBrowser[data-view=grid] .lb-file .lb-thumbnail img{width:100%;height:100%;object-fit:contain}
@@ -33,6 +33,14 @@
 #libraryBrowser .lb-recent-item .lb-document-visual{width:80px;height:64px;flex-direction:column;font-size:11px;gap:4px}
 #libraryBrowser .lb-file strong{display:block;overflow-wrap:anywhere;line-height:1.5}
 #libraryBrowser[data-view=list] .lb-file{padding-left:38px}
+#libraryBrowser[data-view=list] .lb-file-main{flex:1;display:grid;grid-template-columns:auto minmax(0,1fr);align-items:start}
+#libraryBrowser[data-view=list] .lb-file-main>.lb-full-path{grid-column:1/-1}
+#libraryBrowser[data-view=list] .lb-file-actions{max-width:45%}
+#libraryBrowser .lb-recent-text>a{display:block;min-width:0}
+.lb-bulk-move [data-folders]>button{min-width:0;max-width:100%;text-align:left}
+.lb-upload-panel header>strong,.lb-upload-batch>strong{min-width:0;max-width:100%}.lb-upload-panel header>button{flex:none}
+@media(max-width:1100px){#libraryBrowser[data-view=list] .lb-file-actions{max-width:100%}}
+@media(max-width:480px){#libraryBrowser[data-view=list] .lb-file-main{grid-template-columns:minmax(0,1fr)}}
 .lb-selection-rectangle{position:fixed;pointer-events:none;border:1px solid #287ab1;background:#287ab120;z-index:1000}
 .lb-preview{width:min(1100px,96vw);max-width:96vw;height:90dvh;max-height:90dvh;padding:20px;box-sizing:border-box;border:1px solid #c8d2cd;border-radius:8px;color:#202823;background:#fff}
 .lb-preview::backdrop,.lb-bulk-move::backdrop,.lb-upload-choice::backdrop{background:#17282066}

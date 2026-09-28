@@ -21,7 +21,7 @@
 .photo-folder-group { min-width: 0; }
 .photo-folder-group h3 { font-size: 14px; font-weight: 600; color: var(--core-ink-secondary); margin: 0 0 10px; }
 .photo-folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 170px), 1fr)); gap: 10px; }
-.photo-folders strong { font-size: inherit; font-weight: 600; }
+.photo-folders strong { font-size: inherit; font-weight: 600; min-width: 0; }
 .photo-folders button { display: flex; gap: 10px; align-items: center; text-align: left; padding: 14px; border: 1px solid var(--core-line); border-radius: 6px; background: var(--core-surface); color: var(--core-ink); cursor: pointer; min-width: 0; overflow-wrap: anywhere; }
 .photo-folders svg { flex: 0 0 20px; color: var(--core-brand); }
 #photoPages { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }

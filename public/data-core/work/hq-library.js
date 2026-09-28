@@ -8,7 +8,7 @@
   const href = id => `/data-core/work/library${id === 'root' ? '' : `?folder=${encodeURIComponent(id)}`}`;
   const state = { folder: null, folders: [], files: [], recent: [], recentCount: 0, breadcrumbs: [], controller: null, generation: 0, queue: null, pending: null };
   let enhancements;
-  const sheet = document.createElement('link'); sheet.rel = 'stylesheet'; sheet.href = '/data-core/work/library-browser.css?v=20260922-usage'; document.head.append(sheet);
+  const sheet = document.createElement('link'); sheet.rel = 'stylesheet'; sheet.href = '/data-core/work/library-browser.css?v=20260928-library-names'; document.head.append(sheet);
   let imageCache=null, observer=null, recentObserver=null, imageGeneration=0;
   function clearImages() {
     window.DataCoreImageGallery.close('library');
@@ -107,7 +107,7 @@
   function renderFolders(folders, q) {
     const groups = window.DataCoreLibraryClient.folderGroups({ folder: state.folder, folders }, q);
     $('libraryFolders').innerHTML = groups.map(([group, rows]) => `<section class="lb-folder-group"><h3>${h(group)}</h3><div class="lb-folder-grid">${rows.map(f =>
-      `<div class="lb-folder-item${f.canDelete ? ' lb-folder-editable' : ''}" data-library-folder="${h(f.id)}"><a class="lb-folder" href="${h(href(f.id))}" data-lb-folder="${h(f.id)}">${icon('Folder')}<strong>${h(f.title)}</strong></a><small class="lb-folder-count">폴더 ${f.folderCount==null?'확인 중':h(f.folderCount)+'개'} / 파일 ${f.fileCount==null?'확인 중':h(f.fileCount)+'개'}</small>
+      `<div class="lb-folder-item${f.canDelete ? ' lb-folder-editable' : ''}" data-library-folder="${h(f.id)}"><a class="lb-folder" href="${h(href(f.id))}" data-lb-folder="${h(f.id)}">${icon('Folder')}<div class="lb-folder-text"><strong>${window.DataCoreLibraryClient.nameMarkup(f.title)}</strong><small class="lb-folder-count">폴더 ${f.folderCount==null?'확인 중':h(f.folderCount)+'개'} / 파일 ${f.fileCount==null?'확인 중':h(f.fileCount)+'개'}</small></div></a>
       ${f.canDelete ? `<details class="lb-folder-menu"><summary aria-label="${h(f.title)} 폴더 메뉴" title="폴더 메뉴">${icon('Menu')}</summary><div>${f.canRename ? `<button type="button" data-lb-rename="${h(f.id)}">이름 변경</button>` : ''}<button type="button" data-lb-delete-folder="${h(f.id)}">폴더 삭제</button></div></details>` : ''}</div>`).join('')}</div></section>`).join('');
   }
   function size(bytes) { return bytes < 1024 ? `${bytes} B` : bytes < 1048576 ? `${(bytes/1024).toFixed(1)} KB` : bytes < 1073741824 ? `${(bytes/1048576).toFixed(1)} MB` : `${(bytes/1073741824).toFixed(2)} GB`; }
@@ -120,7 +120,7 @@
       const image = imageFile(f);
       const visual = image ? `<a class="lb-thumbnail" data-lb-image="${h(f.id)}" href="${h(f.previewUrl)}" target="_blank" rel="noopener" aria-label="${h(f.fileName)} 미리보기">${icon('Image')}<img hidden data-original="${h(f.previewUrl)}" data-thumbnail="${h(f.thumbnailUrl||'')}" alt="" width="112" height="84" loading="lazy" decoding="async"></a>` : icon('BookOpen');
       return `<li class="lb-file" data-library-file="${h(f.id)}"><div class="lb-file-main">${visual}
-        <div><strong>${h(f.fileName)}</strong><small>${h(f.mimeType)} · ${h(size(f.sizeBytes))} · ${h(new Date(f.createdAt).toLocaleDateString('ko-KR'))}</small>
+        <div><strong>${window.DataCoreLibraryClient.nameMarkup(f.fileName)}</strong><small>${h(f.mimeType)} · ${h(size(f.sizeBytes))} · ${h(new Date(f.createdAt).toLocaleDateString('ko-KR'))}</small>
         <small>${h(state.breadcrumbs.find(b=>b.id.startsWith('campus:'))?.title || '본원·조직 공통')} · ${h(f.ownerName || '')}</small></div></div>
         <div class="lb-file-actions">${preview ? `<a class="lb-button" data-lb-preview="${h(f.id)}" href="${h(f.previewUrl)}" target="_blank" rel="noopener">미리보기</a>` : ''}
         <a class="lb-button" href="${h(f.downloadUrl)}" download>다운로드</a>${f.canMove ? `<button class="lb-button" data-lb-move="${h(f.id)}">이동</button>` : ''}${f.canDelete ? `<button class="lb-button lb-danger" data-lb-delete="${h(f.id)}">삭제</button>` : ''}</div></li>`;
@@ -284,7 +284,7 @@
     const generation=++moveGeneration;$('libraryMoveConfirm').disabled=true;$('libraryMoveError').textContent='';
     try { const view=await api(`/api/data-core/library/folders?parentId=${encodeURIComponent(id)}`);if(generation!==moveGeneration)return;
       moveTarget=view.folder;$('libraryMovePath').textContent=view.breadcrumbs.map(b=>b.title).join(' > ');
-      $('libraryMoveFolders').innerHTML=(view.folder.parentId?`<button data-lb-move-folder="${h(view.folder.parentId)}">${icon('ArrowLeft')}상위 폴더</button>`:'')+view.folders.filter(f=>f.canWrite).map(f=>`<button data-lb-move-folder="${h(f.id)}">${icon('Folder')}${h(f.title)}</button>`).join('');
+      $('libraryMoveFolders').innerHTML=(view.folder.parentId?`<button data-lb-move-folder="${h(view.folder.parentId)}">${icon('ArrowLeft')}상위 폴더</button>`:'')+view.folders.filter(f=>f.canWrite).map(f=>`<button data-lb-move-folder="${h(f.id)}">${icon('Folder')}${window.DataCoreLibraryClient.nameMarkup(f.title)}</button>`).join('');
       $('libraryMoveConfirm').disabled=!view.folder.canWrite||!view.folder.category||view.folder.campusId!==moving.campusId;
     } catch(e){$('libraryMoveError').textContent=e.message;}
   }
@@ -313,5 +313,5 @@
   $('libraryProgressDialog').addEventListener('cancel',e=>{if(state.queue?.running)e.preventDefault();});
   for(const dialog of host.querySelectorAll('dialog'))dialog.addEventListener('click',e=>{if(e.target===dialog&&dialog.id!=='libraryProgressDialog')dialog.close();});
   window.DataCoreLibrary={refresh:load};
-  import('/data-core/work/library-manager.js').then(module=>{enhancements=module.setup({host,state,api,navigate,load,locationState,cachedOriginal:file=>imageCache?.peek(file.previewUrl)});enhancements.render();}).catch(()=>{$('libraryStatus').textContent='추가 파일 관리 기능을 불러오지 못했습니다. 새로고침해 주세요.';});
+  import('/data-core/work/library-manager.js?v=20260928-library-names').then(module=>{enhancements=module.setup({host,state,api,navigate,load,locationState,cachedOriginal:file=>imageCache?.peek(file.previewUrl)});enhancements.render();}).catch(()=>{$('libraryStatus').textContent='추가 파일 관리 기능을 불러오지 못했습니다. 새로고침해 주세요.';});
 })();
