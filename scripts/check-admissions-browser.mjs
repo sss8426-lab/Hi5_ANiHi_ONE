@@ -2,9 +2,19 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
+import {createServer} from 'node:http';
 import {selectGuidelines} from '../public/data-core/admissions-model.js';
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE?pathToFileURL(process.env.PLAYWRIGHT_MODULE).href:'playwright');
-const base=process.env.ROADMAP_TEST_ORIGIN || 'http://localhost:3107';
+const root=path.resolve('public');
+const types={'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.svg':'image/svg+xml','.png':'image/png','.webp':'image/webp'};
+const server=process.env.ROADMAP_TEST_ORIGIN?null:createServer(async(req,res)=>{
+  const file=path.resolve(root,'.'+new URL(req.url,'http://localhost').pathname);
+  if(!file.startsWith(root+path.sep))return res.writeHead(403).end();
+  try{const body=await fs.readFile(file);res.writeHead(200,{'content-type':types[path.extname(file)]||'application/octet-stream'}).end(body);}
+  catch{res.writeHead(404).end();}
+});
+if(server)await new Promise(done=>server.listen(0,'127.0.0.1',done));
+const base=process.env.ROADMAP_TEST_ORIGIN || `http://127.0.0.1:${server.address().port}`;
 if(!/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(base))throw new Error('Synthetic fixtures require localhost');
 const output=path.resolve('outputs/admissions-browser');await fs.mkdir(output,{recursive:true});
 const browser=await chromium.launch({headless:true,channel:process.env.ROADMAP_BROWSER_CHANNEL || 'chrome'});
@@ -12,17 +22,20 @@ let checks=0;const errors=[];
 try{
   const ctx=await browser.newContext();let admin=true, gatewayError=false;
   const university={id:1,name:'합성대학교',major:'웹툰콘텐츠학과',admission:'실기우수',year:2027,gradeRatio:30,skillRatio:70,requiredScores:{},acceptedStats:{},checkedComplete:true};
-  await ctx.route('**/api/data',r=>r.fulfill({json:{students:[],universities:[university],cases:[],awardFolders:[],settings:{consultantName:'합성 상담교사'}}}));
+  await ctx.route('**/api/data',r=>r.fulfill({json:{students:[],universities:[university,{...university,id:2,name:'제외대학교'}],_universityManagementDeletedIds:['2'],cases:[],awardFolders:[],settings:{consultantName:'합성 상담교사'}}}));
   const fact={id:'synthetic-fact',academicYear:'2027',universityName:'합성대학교',department:'웹툰콘텐츠학과',admissionType:'실기우수',region:'테스트지역',quota:12,gradeRatio:30,practicalRatio:70,competitionRate:12.5,sourceName:'그리날다',sourceUrl:'https://grinalda.net/univ-info-susi/',sourceUpdatedAt:'2026-08-25T12:24:01Z',fetchedAt:'2026-09-09T00:00:00Z',universityId:'1'};
   let applied=0;
   Object.assign(fact,{mappingStatus:'matched',mappingReason:'matched-label'});
+  fact.publicDetails={universityWebsite:'https://admissions.example.test/university'};
+  await ctx.route('https://admissions.example.test/**',r=>r.fulfill({contentType:'text/html',body:'<h1>Synthetic admissions homepage</h1>'}));
   await ctx.route('**/api/data-core/admin/admissions/guidelines/sync',async r=>{const body=r.request().postDataJSON();if(body.mode==='preview')return r.fulfill({json:{token:'synthetic',total:1,counts:{susi:{new:1,changed:0,unchanged:0,review:0,mappingReview:0},jungsi:{new:0,changed:0,unchanged:0,review:0,mappingReview:0}}}});applied++;return r.fulfill({json:{applied:1,nextOffset:1,total:1,done:true}});});
   await ctx.route('**/api/data-core/admissions/guidelines?*',async r=>{const p=new URL(r.request().url()).searchParams;const rows=selectGuidelines([{...fact,admissionSeason:p.get('season')}],Object.fromEntries(p));await r.fulfill({json:{rows,total:rows.length,page:1,canSync:admin,facets:{year:['2027'],region:['테스트지역'],university:['합성대학교'],group:[],category:[],practical:[],csatSubjects:[]}}});});
   const page=await ctx.newPage();page.on('pageerror',e=>errors.push(e.message));
   const navigate=async section=>{const button=page.locator(`#nav [data-page=${section}]`);if(!await button.isVisible())await page.locator('.core-menu-toggle').click();await button.click();};
-  for(const [name,width,height]of [['desktop',1440,1000],['tablet',820,1180],['mobile',390,844],['small-mobile',320,740]]){
-    await page.setViewportSize({width,height});await page.goto(`${base}/admissions-web/renderer/index.html#page=admin&university=1`);
+  for(const [name,width,height]of [['desktop',1440,1000],['wide',1920,1080],['laptop',1024,900],['tablet',768,1180],['mobile',390,844],['small-mobile',320,740]]){
+    await page.setViewportSize({width,height});await page.goto(`${base}/admissions-web/renderer/index.html#page=admin&university=2`);
     await page.locator('#aName').waitFor();assert.equal(await page.locator('#aName').inputValue(),'합성대학교');assert.equal(await page.locator('#admin').isVisible(),true);
+    assert.doesNotMatch(await page.locator('#admin').innerText(),/제외대학교/);checks++;
     await page.screenshot({path:path.join(output,`${name}-universities.png`),fullPage:true});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,JSON.stringify(await page.locator('body *').evaluateAll(els=>els.filter(e=>e.getClientRects().length && e.getBoundingClientRect().right>innerWidth+1).slice(0,12).map(e=>({tag:e.tagName,cls:e.className,width:e.getBoundingClientRect().width,right:e.getBoundingClientRect().right})))));checks+=3;
     await navigate('susi');await page.locator('#susi [data-detail]').waitFor();assert.match(page.url(),/#page=susi$/);
@@ -33,12 +46,19 @@ try{
     await page.locator('#susi [name=mappingReason]').selectOption('matched-label');await page.locator('#susi [data-detail]').waitFor();checks+=4;
     await page.locator('#susi [data-detail]').click();await page.locator('dialog[open]').waitFor();assert.match(await page.locator('.guideline-dialog').textContent(),/실제 지원 전.*공식 모집요강을 반드시 확인/);
     assert.match(await page.locator('[data-mapping-review]').textContent(),/전형명 표기 일치/);assert.match(await page.locator('[data-mapping-review]').textContent(),/공식 모집요강 검수와 별개/);checks+=2;
+    const homepage=page.getByRole('link',{name:'대학 홈페이지 새 창 열기: 합성대학교'});
+    assert.equal(await homepage.getAttribute('target'),'_blank');assert.equal(await homepage.getAttribute('rel'),'noopener noreferrer');
+    const opened=page.waitForEvent('popup');await homepage.click();const popup=await opened;await popup.waitForLoadState();
+    assert.equal(popup.url(),'https://admissions.example.test/university');await popup.close();checks+=3;
     await page.screenshot({path:path.join(output,`${name}-detail.png`)});await page.getByRole('button',{name:'상세 닫기'}).click();
     await page.locator('#susi [name=query]').fill('없는대학');await page.locator('#susi form button[type=submit]').click();await page.locator('.guideline-empty').waitFor();
     await page.locator('#susi form button[type=reset]').click();await page.locator('#susi [data-detail]').waitFor();
     await page.screenshot({path:path.join(output,`${name}-guidelines.png`),fullPage:true});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
     await navigate('jungsi');await page.locator('#jungsi [data-detail]').waitFor();await page.reload();await page.locator('#jungsi [data-detail]').waitFor();
+    await page.locator('#jungsi [data-detail]').click();await page.locator('dialog[open]').waitFor();
+    assert.equal(await page.getByRole('link',{name:/대학 홈페이지 새 창/}).count(),0);checks++;
+    await page.getByRole('button',{name:'상세 닫기'}).click();
     await page.goBack();await page.locator('#susi [data-detail]').waitFor();checks+=8;
     for(const section of ['dashboard','students','cases','strategy','settings']){
       await navigate(section);await page.locator(`#${section}:visible`).waitFor();
@@ -56,4 +76,4 @@ try{
   assert.doesNotMatch(await page.locator('#susi [data-status]').textContent(),/PRIVATE_GATEWAY_PAYLOAD|DOCTYPE|Unexpected token/);checks++;
   admin=false;await page.reload();await page.locator('#susi [data-detail]').waitFor();assert.equal(await page.locator('#susi [data-sync]').isVisible(),false);checks++;
   assert.deepEqual(errors,[]);console.log(JSON.stringify({passed:checks,pageErrors:0,screenshots:output}));
-}finally{await browser.close();}
+}finally{await browser.close();if(server)await new Promise(done=>server.close(done));}

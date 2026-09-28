@@ -12,6 +12,7 @@ export const DERIVATIVE_CATEGORY = 'instagram-derived';
 export const THUMBNAIL_RECORD_TYPE = 'image-thumbnail';
 export const THUMBNAIL_CATEGORY = 'image-thumbnail';
 export function assertMutableRecordType(type: unknown) {
+  if (String(type).trim() === 'admissions-management-archive') throw new DataCoreAccessError(403, '대학 관리 삭제 기록은 일반 자료 API로 변경할 수 없습니다.');
   if(type==='blog-derived-file')throw new DataCoreAccessError(403,'블로그 이미지 전용 기능을 사용하세요.');
   if (['library-upload-session','library-write-lease','library-upload-request'].includes(String(type).trim())) throw new DataCoreAccessError(403, '업로드 전용 기능을 사용하세요.');
   if (String(type).trim() === 'content-text-presets') throw new DataCoreAccessError(403, '문구 세트 전용 기능을 사용하세요.');
