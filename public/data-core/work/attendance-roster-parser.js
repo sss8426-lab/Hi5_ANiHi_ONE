@@ -9,6 +9,7 @@ export const ROSTER_HEADERS=['No','이름','학교','학년','학생 전화번�
 // I:S — the sheet's own check marks, used only to cross-check the 수업요일 text (H is the source).
 const CHECK_SLOTS=['월','화','수','목','금','토1','토2','토3','일1','일2','일3'];
 const LAST_COLUMN=21; // U
+const INPUT_COLUMNS=[2,3,4,5,6,7,8,21]; // B~H, U: what a person types (I:T are the form's own formulas)
 
 export class RosterError extends Error {constructor(message,issues=[]){super(message);this.issues=issues;}}
 const norm=v=>String(v??'').replace(/\s+/g,'').trim();
@@ -76,6 +77,7 @@ export function parseRoster(bytes,env=globalThis){
     const m=/캠퍼스\s*[:：]\s*(.+)$/.exec(at(c,r).text);if(m)campus=m[1].trim();
   }
   if(!campus)throw new RosterError('캠퍼스명을 찾을 수 없습니다. 헤더 위에 "캠퍼스: 캠퍼스명" 형식으로 입력해주세요.');
+  if(/여기에|입력하세요/.test(campus))throw new RosterError('캠퍼스명이 입력되지 않았습니다. 2행 "캠퍼스:" 뒤의 안내 문구를 지우고 실제 캠퍼스명을 입력해주세요.');
   const merges=all(doc,'mergeCell').map(n=>range(attr(n,'ref'),true));
   const mergedBar=r=>merges.some(m=>m.r===r&&m.end.r===r&&m.c===1&&m.end.c>=2);
   const lastRow=Math.max(headerRow,...[...grid.rows.keys()]);
@@ -83,7 +85,14 @@ export function parseRoster(bytes,env=globalThis){
   for(let r=headerRow+1;r<=lastRow;r++){
     const a=at(1,r),b=at(2,r),restEmpty=Array.from({length:LAST_COLUMN-1},(_,i)=>at(i+2,r).text).every(v=>!v);
     const aNumber=a.text!==''&&Number.isFinite(Number(a.text));
-    if(!a.text&&restEmpty)continue;
+    if(!a.text&&restEmpty){
+      // An empty merged bar is an unused class slot of the official form (남는 반은 비워두기). It still
+      // ends the class above, so rows below it never slip into the previous class.
+      if(mergedBar(r)){current={name:'',row:r,students:[],unnamed:true};classes.push(current);}
+      continue;
+    }
+    // An unused student row of the form: No (and formulas) but nothing typed in 이름~수업요일·비고.
+    if(aNumber&&INPUT_COLUMNS.every(c=>!at(c,r).text))continue;
     if(a.text&&!aNumber&&restEmpty){
       // A text-only row is a class bar. The official bar is A:U merged; an unmerged one is still read
       // (the text is unambiguous) but reported so the file can be fixed.
@@ -92,6 +101,7 @@ export function parseRoster(bytes,env=globalThis){
     }
     if(!current){issues.push({row:r,message:'첫 반 구분 바보다 위에 있는 행입니다. 반 구분 바 아래에 학생을 넣어주세요.'});continue;}
     if(!b.text){issues.push({row:r,message:'학생 이름(B열)이 비어 있습니다.'});continue;}
+    if(current.unnamed&&!current.flagged){current.flagged=true;issues.push({row:current.row,message:`${current.row}행 반 구분 바에 반 이름이 없습니다. 이 반에 학생이 있으면 반 이름을 입력해주세요.`});}
     if(!aNumber){issues.push({row:r,name:b.text,message:'No(A열)가 숫자가 아닙니다.'});continue;}
     const scheduleText=at(8,r).text;
     let schedule=null;
@@ -107,6 +117,9 @@ export function parseRoster(bytes,env=globalThis){
     }
     current.students.push(student);
   }
+  // Unused (unnamed, empty) class slots are dropped; an unnamed bar with students was reported above.
+  const used=classes.filter(group=>!group.unnamed||group.students.length);
+  classes.length=0;classes.push(...used);
   if(!classes.length)throw new RosterError('반 구분 바를 하나도 찾지 못했습니다. A:U를 병합한 행의 A열에 반 이름을 넣어주세요.');
   for(const group of classes)if(!group.students.length)issues.push({row:group.row,message:`"${group.name}" 반 아래에 학생이 없습니다.`});
   return {campus,sheetName,classes,warnings,issues,studentCount:classes.reduce((n,g)=>n+g.students.length,0)};
