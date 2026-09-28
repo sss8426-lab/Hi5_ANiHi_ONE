@@ -1,9 +1,10 @@
 import {instagramImageMime} from './instagram-image-formats.js';
 import {mountAiUsage} from './ai-usage.js?v=20260921-performance';
-import {mountTextPresets} from './content-text-presets.js?v=20260924-order';
+import {mountTextPresets} from './content-text-presets.js?v=20260929-seo';
+import {postHashtags,hashtagText,titlePrefix,withTitlePrefix,stripTitlePrefix} from './campus-seo-keywords.js?v=20260929-seo';
 import {normalizeTags} from './content-preset-catalog.js';
 import {captionTail,assemblePost} from './content-caption.js?v=20260924-order';
-import {mountBlogWorkflow} from './blog-workflow.js?v=20260924-order2';
+import {mountBlogWorkflow} from './blog-workflow.js?v=20260929-seo';
 import {optimizeImageForAi} from './image-ai-optimize.js?v=20260923-imgfix';
 
 const state = {
@@ -479,6 +480,9 @@ function loadDraftIntoForm(draft) {
   $('draftSummary').value = draft.summary || '';
   $('draftContent').value = draft.content || '';
   $('draftTags').value = (draft.tags || []).join(', ');
+  // Tags beyond today's fixed ones were the post's own content tags; [설정 저장] keeps them.
+  { const fixed = new Set(normalizeTags(textPresets?.values().hashtags || '')); state.blogAiTags = normalizeTags(draft.tags || []).filter((tag) => !fixed.has(tag)); }
+  state.blogTitlePrefix = '';
   $('publishStatus').value = metadata.publishStatus || 'draft';
   $('resultFooter').value = metadata.footer || metadata.callToAction || '';notifyTextFields();
   $('resultContact').value = metadata.contactBlock || '';
@@ -723,9 +727,9 @@ async function recentBlogTitles() {
     if ($('draftCampus').value) params.set('campusId', $('draftCampus').value);
     const response = await api(`/api/data-core/content?${params}`);
     const titles = (response.drafts || []).map((draft) => draft.title).filter(Boolean);
-    state.blogRecentTitlesCache = titles;
-    return titles;
-  } catch { state.blogRecentTitlesCache=[];state.blogWarnings=['최근 제목 비교 미실행: 목록을 불러오지 못했습니다.'];return []; }
+    state.blogRecentTitlesCache = titles.map(stripTitlePrefix);state.blogRecentRawTitles = titles;
+    return state.blogRecentTitlesCache;
+  } catch { state.blogRecentTitlesCache=[];state.blogRecentRawTitles=[];state.blogWarnings=['최근 제목 비교 미실행: 목록을 불러오지 못했습니다.'];return []; }
 }
 
 function normalizedTitleWords(title) {
@@ -775,15 +779,19 @@ async function copyPublishPackage() {
   return blogWorkflow?.downloadPackage();
 }
 
+// Blog output = [지역 키워드_브랜드] + chosen title; hashtags = 자동 고정 키워드 + 직접 입력 + the AI's 5 content tags.
+function blogTitle(kind) { return withTitlePrefix(state.blogTitles[kind], state.blogTitlePrefix || ''); }
+function blogHashtags() { return hashtagText(postHashtags(textPresets?.values().hashtags || '', [], state.blogAiTags || [])); }
+
 // Applies a title candidate (whose lead/body already fits it — either the initial generation's
 // selectedTitleKind, or the result of a completed retitleTo() call) to the visible draft form.
 function applyBlogTitleAndBody(kind) {
   state.pendingBlogGeneration=false;
   state.blogSelectedTitleKind = kind;
-  $('draftTitle').value = state.blogTitles[kind];
+  $('draftTitle').value = blogTitle(kind);
   $('draftContent').value = [state.currentLead, state.currentBody].filter(Boolean).join('\n\n');
-  // Only the user's fixed tags and closing — never AI-suggested tags or an AI call-to-action.
-  $('draftTags').value = normalizedHashtags($('defaultHashtags').value).map((tag) => '#' + tag).join(' ');
+  // Fixed keywords + the user's fixed tags + the AI's 5 content tags; never an AI call-to-action.
+  $('draftTags').value = blogHashtags();
   $('resultFooter').value = $('defaultFooter').value;notifyTextFields();
   $('resultContact').value = textPresets?.contact() || '';
   $('titlePicker').hidden = true;
@@ -801,7 +809,7 @@ function applyBlogTitleAndBody(kind) {
 // because the user picked a different title).
 async function retitleTo(kind) {
   if(blogWorkflow&&!state.pendingBlogGeneration&&$('draftContent').value.trim()){
-    state.blogSelectedTitleKind=kind;$('draftTitle').value=state.blogTitles[kind];$('titlePicker').hidden=true;$('aiResult').hidden=false;blogWorkflow.review();return;
+    state.blogSelectedTitleKind=kind;$('draftTitle').value=blogTitle(kind);$('titlePicker').hidden=true;$('aiResult').hidden=false;blogWorkflow.review();return;
   }
   if (kind === state.blogFittedKind) { applyBlogTitleAndBody(kind);assembleBlogResult();return; }
   $('titlePickerStatus').textContent = '선택한 제목에 맞게 본문을 조정하고 있습니다…';
@@ -832,7 +840,7 @@ function renderTitlePicker() {
     <label class="title-option">
       <input type="radio" name="titleKind" value="${h(kind)}" ${state.blogSelectedTitleKind === kind ? 'checked' : ''}>
       <span class="title-option-label">${label}</span>
-      <span class="title-option-text">${h(state.blogTitles[kind] || '')}</span>
+      <span class="title-option-text">${h(blogTitle(kind))}</span>
     </label>`).join('');
   // 'click' (not 'change') so re-clicking the already-recommended, pre-checked option still
   // proceeds — a radio's 'change' event never fires when its checked state doesn't actually flip.
@@ -890,7 +898,7 @@ async function runAi(captionOnly = false, quick = false) {
       $('aiOriginalFigure').hidden = true; $('compareImage').setAttribute('aria-pressed','false');
       $('aiImageSaved').textContent = '저장 완료 · 2160 × 2700px · 4:5';
       $('draftTitle').value = '인스타 홍보 이미지';
-      $('draftContent').value = ''; $('draftTags').value = normalizedHashtags($('defaultHashtags').value).map(tag => '#' + tag).join(' ');
+      $('draftContent').value = ''; $('draftTags').value = hashtagText(normalizeTags(textPresets?.values().hashtags || ''));
       $('resultFooter').value = $('defaultFooter').value;notifyTextFields();
       renderSelectedFiles();
       $('aiStatus').textContent = '이미지가 저장되었습니다. 홍보 문구를 작성하고 있습니다…';
@@ -906,7 +914,9 @@ async function runAi(captionOnly = false, quick = false) {
       const recentTitles = await recentBlogTitles();
       $('aiStatus').textContent = '사진을 살펴보고 글을 작성하고 있습니다…';
       const form = new FormData();
-      form.set('input', JSON.stringify({ selectedFileIds: ids, notes: direction + mainTextGuide(), sourceApp, campusId, strategyMode: $('strategyMode').value, recentTitles, photoInstructions:blogWorkflow?.instructions(),requestId: crypto.randomUUID() }));
+      const keywordSettings = textPresets?.values();
+      state.blogTitlePrefix = titlePrefix(keywordSettings?.keywords || [], keywordSettings?.keywordBrand, state.blogRecentRawTitles || []);
+      form.set('input', JSON.stringify({ selectedFileIds: ids, notes: direction + mainTextGuide(), sourceApp, campusId, strategyMode: $('strategyMode').value, recentTitles, keywordBrand: keywordSettings?.keywordBrand, photoInstructions:blogWorkflow?.instructions(),requestId: crypto.randomUUID() }));
       for (const [id, blob] of photos) form.set(`photo:${id}`, blob, `${id}.jpg`);
       result = await api('/api/data-core/content/generate', { method: 'POST', signal, body: form });
     }
@@ -915,7 +925,7 @@ async function runAi(captionOnly = false, quick = false) {
     if (instagram) {
       $('draftTitle').value = generated.title;
       $('draftContent').value = generated.body || generated.content;
-      $('draftTags').value = normalizedHashtags($('defaultHashtags').value).map(tag => '#' + tag).join(' ');
+      $('draftTags').value = hashtagText(postHashtags(textPresets?.values().hashtags || '', [], generated.hashtags || []));
       $('resultFooter').value = $('defaultFooter').value;$('resultContact').value = textPresets?.contact() || '';notifyTextFields();
       $('aiResult').hidden = false;
       $('resultHeading').textContent = '인스타 결과';
@@ -927,7 +937,7 @@ async function runAi(captionOnly = false, quick = false) {
       state.pendingBlogGeneration=true;
       state.blogSelectedTitleKind = generated.selectedTitleKind; state.blogFittedKind = generated.selectedTitleKind;
       state.currentLead = generated.lead; state.currentBody = generated.body;
-      state.lastHashtags = generated.hashtags || []; state.lastCta = generated.cta || '';
+      state.lastHashtags = generated.hashtags || []; state.lastCta = generated.cta || '';state.blogAiTags = generated.hashtags || [];
       state.blogNextTopics = generated.nextTopics || []; state.blogWarnings = generated.warnings || [];
       if (quick) {
         applyBlogTitleAndBody(state.blogSelectedTitleKind);
@@ -996,7 +1006,7 @@ async function init() {
     void loadDefaults();void loadAiStatus();
     const listing=loadFiles();
     if(state.sourceApp==='instagram'){
-      const {mountInstagramProduction}=await import('/data-core/instagram-carousel.js?v=20260924-order2');
+      const {mountInstagramProduction}=await import('/data-core/instagram-carousel.js?v=20260929-seo');
       instagramProduction=mountInstagramProduction({state,api,$,toast,canWrite,text:()=>textPresets.values(),renderSelection:()=>{renderSelectedFiles();renderFilePicker();}});
       instagramProduction.applyDefaults(lastInstagramSettings);
       instagramProduction.refresh();

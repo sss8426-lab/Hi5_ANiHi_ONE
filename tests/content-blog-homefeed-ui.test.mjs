@@ -19,8 +19,8 @@ test('runAi는 quick 파라미터로 바로 글 만들기와 단계별(제목 �
   assert.match(content, /async function runAi\(captionOnly = false, quick = false\) \{/u);
   // Instagram remains JSON-based, with additive material/consent policy.
   assert.match(content, /if \(instagram\) \{\s*\n\s*result = await post\('generate', \{ selectedFileIds: ids, notes: direction, material \}\);/u);
-  // Blog sends strategyMode/recentTitles alongside the existing fields; multipart shape otherwise unchanged.
-  assert.match(content, /strategyMode: \$\('strategyMode'\)\.value, recentTitles, photoInstructions:blogWorkflow\?\.instructions\(\),requestId: crypto\.randomUUID\(\)/u);
+  // Blog sends strategyMode/recentTitles (and the 고정 키워드 brand) alongside the existing fields; multipart shape otherwise unchanged.
+  assert.match(content, /strategyMode: \$\('strategyMode'\)\.value, recentTitles, keywordBrand: keywordSettings\?\.keywordBrand, photoInstructions:blogWorkflow\?\.instructions\(\),requestId: crypto\.randomUUID\(\)/u);
   assert.match(content, /const recentTitles = await recentBlogTitles\(\);/u);
   assert.match(content, /if \(quick\) \{\s*\n\s*applyBlogTitleAndBody\(state\.blogSelectedTitleKind\);/u);
   assert.match(content, /renderTitlePicker\(\);/u);
