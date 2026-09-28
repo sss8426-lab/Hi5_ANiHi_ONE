@@ -300,7 +300,7 @@ async function loadFiles() {
     }
     $('photoBreadcrumb').innerHTML = (view.breadcrumbs || []).map(item => `<button type="button" data-folder="${h(item.id)}">${h(item.title)}</button>`).join('<span aria-hidden="true">/</span>');
     $('photoFolders').innerHTML = window.DataCoreLibraryClient.folderGroups(view, $('fileSearchInput').value).map(([group, folders]) =>
-      `<section class="photo-folder-group"><h3>${h(group)}</h3><div class="photo-folder-grid">${folders.map(folder => `<button type="button" data-folder="${h(folder.id)}"><svg aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Folder"></use></svg><strong>${h(folder.title)}</strong></button>`).join('')}</div></section>`).join('');
+      `<section class="photo-folder-group"><h3>${h(group)}</h3><div class="photo-folder-grid">${folders.map(folder => `<button type="button" data-folder="${h(folder.id)}"><svg aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Folder"></use></svg><strong>${window.DataCoreLibraryClient.nameMarkup(folder.title)}</strong></button>`).join('')}</div></section>`).join('');
     document.querySelectorAll('[data-folder]').forEach(button => { button.onclick = () => { if (state.busy) return; renderedFolder='';state.folderId = button.dataset.folder; state.page = 1; $('fileSearchInput').value = ''; const crumb=document.createElement('span');crumb.textContent=button.textContent.trim();$('photoBreadcrumb').replaceChildren(crumb);void loadFiles(); }; });
     },onListing:listing=>{
     if (token !== state.browseGeneration) return;

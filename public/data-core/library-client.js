@@ -30,6 +30,10 @@
     });
   }
   window.DataCoreLibraryClient = {
+    nameMarkup(value) {
+      const name = String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+      return `<span class="library-item-name" title="${name}">${name}</span>`;
+    },
     navigationHidden: hidden,
     folderGroups(view, query = '') {
       const groups = new Map();

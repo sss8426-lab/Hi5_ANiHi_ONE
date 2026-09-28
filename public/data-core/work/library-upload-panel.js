@@ -26,7 +26,7 @@ export function setupUploads({host,state,api,load}){
     const items=batches.flatMap(b=>b.queue.items),done=items.filter(i=>i.status==='done').length,failed=items.filter(i=>i.status==='failed').length,total=items.reduce((s,i)=>s+i.total,0),bytes=items.reduce((s,i)=>s+Math.min(i.loaded,i.total),0);
     const pct=items.length&&done===items.length?100:Math.min(99,Math.floor(total?bytes/total*100:0));panel.querySelector('[data-summary]').textContent=`${pct}% · ${done}/${items.length}개 완료${failed?' · '+failed+'개 실패':''}`;
     const container=panel.querySelector('[data-batches]');container.replaceChildren();
-    for(const batch of batches){const row=el('div');row.className='lb-upload-batch';const p=batch.queue.snapshot();row.append(el('strong',batch.title),el('p',`${p.success}/${p.count}개 · ${p.percent}%`));const progress=el('progress');progress.max=100;progress.value=p.percent;row.append(progress);
+    for(const batch of batches){const row=el('div');row.className='lb-upload-batch';const p=batch.queue.snapshot(),name=el('strong');name.innerHTML=window.DataCoreLibraryClient.nameMarkup(batch.title);row.append(name,el('p',`${p.success}/${p.count}개 · ${p.percent}%`));const progress=el('progress');progress.max=100;progress.value=p.percent;row.append(progress);
       const current=batch.queue.items.find(i=>i.status==='uploading');if(current)row.append(el('small',current.file.name+' · '+(current.phase==='thumbnail'?'원본 저장 완료 · 미리보기 준비 중':'원본 전송 중')));
       for(const i of batch.queue.items.filter(i=>i.status==='failed'))row.append(el('p',i.file.name+': '+i.error));
       const cancelled=batch.queue.items.filter(i=>i.status==='cancelled').length;if(cancelled)row.append(el('small',`${cancelled}개 취소됨`));
@@ -36,11 +36,11 @@ export function setupUploads({host,state,api,load}){
   }
   async function drain(){if(active)return;active=true;expand();
     try{for(const batch of batches){if(batch.started&&!batch.retry)continue;batch.started=true;const retry=batch.retry;batch.retry=false;await batch.queue.run(retry);}}
-    finally{active=false;render();scheduleCollapse();if(batches.some(b=>b.target===state.folder?.id))await load();}
+    finally{active=false;render();scheduleCollapse();await load();}
   }
   panel.querySelector('[data-cancel]').onclick=()=>{for(const batch of batches){batch.queue.cancel();batch.started=true;}render();};
   const chooser=el('dialog');chooser.className='lb-upload-choice';chooser.innerHTML='<h3>폴더 업로드</h3><p data-destination></p><label>같은 이름의 폴더 <select data-folders><option value="merge">기존 폴더와 합치기</option><option value="rename">새 이름으로 만들기</option></select></label><label>같은 이름의 파일 <select data-files><option value="rename">새 이름으로 저장</option><option value="skip">건너뛰기</option></select></label><div class="lb-toolbar"><button data-cancel>취소</button><button data-start>업로드</button></div>';host.append(chooser);
-  function choose(title){return new Promise(resolve=>{chooser.querySelector('[data-destination]').textContent=title;let result=null;chooser.querySelector('[data-start]').onclick=()=>{result={folders:chooser.querySelector('[data-folders]').value,files:chooser.querySelector('[data-files]').value};chooser.close();};chooser.querySelector('[data-cancel]').onclick=()=>chooser.close();chooser.addEventListener('close',()=>resolve(result),{once:true});chooser.showModal();});}
+  function choose(title){return new Promise(resolve=>{chooser.querySelector('[data-destination]').innerHTML=window.DataCoreLibraryClient.nameMarkup(title);let result=null;chooser.querySelector('[data-start]').onclick=()=>{result={folders:chooser.querySelector('[data-folders]').value,files:chooser.querySelector('[data-files]').value};chooser.close();};chooser.querySelector('[data-cancel]').onclick=()=>chooser.close();chooser.addEventListener('close',()=>resolve(result),{once:true});chooser.showModal();});}
   chooser.querySelector('[data-destination]').after(el('p','폴더 선택창은 빈 폴더를 전달하지 않을 수 있습니다. 빈 폴더는 지원 브라우저에서 폴더째 끌어 넣어 주세요.'));
   let preparing=false;
   async function enqueue(input,target){
@@ -67,7 +67,7 @@ export function setupUploads({host,state,api,load}){
         if(set.has(name)){if(!choices){choices=await choose(target.title+' · 같은 이름의 파일이 있습니다.');if(!choices)return;}if(choices.files==='skip'){skipped++;continue;}const dot=name.lastIndexOf('.'),base=dot>0?name.slice(0,dot):name,ext=dot>0?name.slice(dot):'';let n=2;while(set.has(name))name=`${base} (${n++})${ext}`;file=new File([file],name,{type:file.type,lastModified:file.lastModified});}set.add(name);
         entries.push({file,target:{recordId:folderId,libraryScoped:true,uploadRequestId:crypto.randomUUID()}});
       }
-      if(!entries.length){panel.querySelector('[data-summary]').textContent=`폴더 준비 완료 · ${skipped}개 건너뜀`;if(state.folder?.id===target.id)await load();scheduleCollapse();return;}
+      if(!entries.length){panel.querySelector('[data-summary]').textContent=`폴더 준비 완료 · ${skipped}개 건너뜀`;await load();scheduleCollapse();return;}
       const batch={title:`${target.title} · ${entries.length}개${skipped?' / '+skipped+'개 건너뜀':''}`,target:target.id,started:false,queue:new window.DataCoreUploadQueue(entries,{recordId:target.id,libraryScoped:true},render,window.DataCoreLibraryThumbnail.send)};batches.push(batch);void drain();
     }catch(e){error(e.message);}finally{preparing=false;}
   }
