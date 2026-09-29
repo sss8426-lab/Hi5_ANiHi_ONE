@@ -39,12 +39,13 @@ test('brand home retains original routes and calendar while removing introductor
   assert.match(home, /href="\/data-core\/roadmap"/);
   assert.match(home, /href="\/"/);
   for (const action of ['prev', 'next', 'today', 'add']) assert.match(home, new RegExp(`data-calendar-${action}`));
-  // Four cards in a 2×2 grid (B): 공모전 and 커리큘럼 show real academy works, each card has one line of description.
+  // Four cards in a 2×2 grid (B): 공모전 keeps its workbench picture, 커리큘럼 shows a real academy work, each card has one line of description.
   assert.match(home, /counseling-image-cards counseling-four/);
   assert.equal((home.match(/class="feature-card"/g) || []).length, 4);
   assert.match(home, /data-view="curriculum"/);
   assert.equal((home.match(/class="counseling-card-desc"/g) || []).length, 4);
-  for (const work of ['story-situation', 'design-admission', 'story-advanced', 'design-advanced']) assert.match(home, new RegExp(`roadmap/academy/${work}\\.webp`));
+  assert.match(home, /data-view="competitions">[\s\S]*?work-visuals\/competition-v1\.webp/);
+  assert.match(home, /data-view="curriculum">[\s\S]*?counseling\/curriculum-academy-work-v1\.webp/);
   assert.match(html, /counseling-home\.css\?v=/);
   const app = readFileSync('public/data-core/app.js', 'utf8');
   assert.match(app, /'counseling-home': '너와 나의 합격의 순간'/);
