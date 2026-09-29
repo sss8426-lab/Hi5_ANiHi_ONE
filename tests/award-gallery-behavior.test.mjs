@@ -9,7 +9,7 @@ function harness() {
   const element = (id) => {
     if (!elements.has(id)) elements.set(id, {
       value: '', disabled: false, innerHTML: '', textContent: '',
-      appendChild(child) { child.parentElement = this; },
+      appendChild(child) { child.parentElement = this; }, cloneNode() { return {querySelectorAll:()=>[]}; },
       classList: {add() {}, remove() {}, toggle() {}}, setAttribute() {},
       querySelectorAll: () => [], close() {}, showModal() {}, insertAdjacentHTML(_position,html) { this.innerHTML+=html; },
     });
@@ -24,23 +24,32 @@ function harness() {
     AwardSlideshow: class {clear() {} render() {}},
   });
   vm.runInContext(source.slice(0, source.lastIndexOf('init().catch')), context);
-  vm.runInContext("state.context = {authenticated:true,canWrite:true,isSuperAdmin:true}; toast = () => {};", context);
+  vm.runInContext("state.context = {authenticated:true,canWrite:true,isSuperAdmin:true}; toast = () => {}; const awards = awardCollections.enrolled; const publicAwards = awardCollections.public;", context);
   const run = (code) => vm.runInContext(code, context);
   return {context, element, run};
 }
 
-test('selected folder detail moves between collections without duplicating the view', () => {
+test('both collection details stay in their own sections with independent folder selections', () => {
   const h = harness();
-  const detail = h.element('awardFolderDetail');
-  h.run("state.awardFolders=[{id:'a',collectionType:'enrolled'},{id:'b',metadata:{collectionType:'public'}},{id:'legacy'}]");
-  for (const [id, parent] of [['a','awardEnrolledCollection'],['b','awardPublicCollection'],['legacy','awardEnrolledCollection'],['a','awardEnrolledCollection']]) {
-    h.run(`state.selectedAwardFolderId='${id}';renderAwardFolders()`);
-    assert.equal(detail.parentElement, h.element(parent));
-    assert.equal(detail.hidden, false);
-    assert.equal(h.element('awardFolderDetail'), detail);
-  }
-  h.run('state.selectedAwardFolderId=null;renderAwardFolders()');
-  assert.equal(detail.hidden, true);
+  h.run("state.awardFolders=[{id:'a'}];state.selectedAwardFolderId='a';publicAwards.state.awardFolders=[{id:'b',collectionType:'public'}];publicAwards.state.selectedAwardFolderId='b';awards.renderAwardFolders();publicAwards.renderAwardFolders()");
+  assert.equal(h.element('awardFolderDetail').hidden,false);
+  assert.equal(h.element('public-awardFolderDetail').hidden,false);
+  assert.equal(h.run('publicAwards.state.selectedAwardFolderId'),'b');
+  h.run("state.selectedAwardFolderId=null;awards.renderAwardFolders()");
+  assert.equal(h.element('awardFolderDetail').hidden,true);
+  assert.equal(h.element('public-awardFolderDetail').hidden,false);
+});
+
+test('loading or clearing one collection does not overwrite the other selection or files', async () => {
+  const h = harness();
+  h.run("state.awardFolders=[{id:'a'}];state.selectedAwardFolderId='a';publicAwards.state.awardFolders=[{id:'b',collectionType:'public'}];publicAwards.state.selectedAwardFolderId='b';publicAwards.state.awardFiles=[{id:'b1',recordId:'b'}]");
+  h.context.api = async()=>({files:[{id:'a1',recordId:'a'},{id:'b2',recordId:'b'}]});
+  await h.run('awards.loadAwardFiles()');
+  assert.equal(h.run('JSON.stringify(state.awardFiles.map(f=>f.id))'),'["a1"]');
+  assert.equal(h.run('JSON.stringify(publicAwards.state.awardFiles.map(f=>f.id))'),'["b1"]');
+  h.run("awards.clearAwardImages()");
+  assert.equal(h.run('publicAwards.state.selectedAwardFolderId'),'b');
+  assert.equal(h.run('publicAwards.view.filesRequest'),0);
 });
 
 test('award gallery ignores stale successes, failures, and foreign record rows', async () => {
@@ -48,9 +57,9 @@ test('award gallery ignores stale successes, failures, and foreign record rows',
   h.run("state.awardFolders = [{id:'a'},{id:'b'}]; state.selectedAwardFolderId = 'a';");
   const requests = [];
   h.context.api = () => new Promise((resolve, reject) => requests.push({resolve,reject}));
-  const first = h.run('loadAwardFiles()');
+  const first = h.run('awards.loadAwardFiles()');
   h.run("state.selectedAwardFolderId = 'b'");
-  const second = h.run('loadAwardFiles()');
+  const second = h.run('awards.loadAwardFiles()');
   assert.equal(h.run('state.awardFiles.length'), 0);
   requests[1].resolve({files:[{id:'b1',recordId:'b',fileName:'B'}, {id:'a1',recordId:'a',fileName:'A'}]});
   await second;
@@ -58,15 +67,15 @@ test('award gallery ignores stale successes, failures, and foreign record rows',
   await first;
   assert.equal(h.run('JSON.stringify(state.awardFiles.map(f=>f.id))'), '["b1"]');
   h.run("state.selectedAwardFolderId = 'a'");
-  const third = h.run('loadAwardFiles()');
+  const third = h.run('awards.loadAwardFiles()');
   h.run("state.selectedAwardFolderId = 'b'");
-  const fourth = h.run('loadAwardFiles()');
+  const fourth = h.run('awards.loadAwardFiles()');
   requests[3].resolve({files:[{id:'b2',recordId:'b'}]});
   await fourth;
   requests[2].reject(new Error('old folder failure'));
   await third;
   assert.equal(h.run('state.awardFiles[0].id'), 'b2');
-  assert.equal(h.run('awardFilesLoading'), false);
+  assert.equal(h.run('awards.view.loading'), false);
 });
 
 test('clearing the award view invalidates a pending file response', async () => {
@@ -74,7 +83,7 @@ test('clearing the award view invalidates a pending file response', async () => 
   h.run("state.awardFolders=[{id:'a'}];state.selectedAwardFolderId='a'");
   let resolve;
   h.context.api = () => new Promise(done => { resolve = done; });
-  const pending = h.run('loadAwardFiles()');
+  const pending = h.run('awards.loadAwardFiles()');
   h.run('clearAwardImages()');
   resolve({files:[{id:'a1',recordId:'a'}]});
   await pending;
@@ -92,7 +101,7 @@ test('award roots escape names and disable writes for readers', async () => {
   assert.equal(h.run('state.awardFolders.length'), 2);
   assert.match(h.element('awardFolderList').innerHTML, /&lt;img/);
   assert.doesNotMatch(h.element('awardFolderList').innerHTML, /<img/);
-  h.run('state.context.canWrite = false; renderAwardFolders()');
+  h.run('state.context.canWrite = false; awards.renderAwardFolders()');
   for (const id of ['openAwardFolderBtn','openAwardUploadBtn','deleteAwardFolderBtn']) assert.equal(h.element(id).disabled,true);
 });
 
@@ -100,7 +109,7 @@ test('award upload locks folder/category/campus and cancel removes stale folder 
   const h = harness();
   h.run("state.awardFolders=[{id:'org',campusId:null,title:'조직 폴더'}]; state.selectedAwardFolderId='org'");
   h.element('uploadCampus').value = 'previous-campus';
-  h.run('openAwardUpload()');
+  h.run('awards.openAwardUpload()');
   assert.equal(h.element('uploadRecordId').value, 'org');
   assert.equal(h.element('uploadCampus').value, '');
   assert.equal(h.element('uploadCampus').disabled, true);
@@ -118,40 +127,40 @@ test('folder deletion calls only the record endpoint, never the file or R2 delet
   h.context.confirm=()=>true;
   h.context.api=async (url,options) => {calls.push([url,options?.method]); return {records:[]};};
   h.run("state.awardFolders=[{id:'synthetic',title:'합성 폴더'}];state.selectedAwardFolderId='synthetic'");
-  await h.run('deleteAwardFolder()');
+  await h.run('awards.deleteAwardFolder()');
   assert.deepEqual(calls.filter(([,method])=>method==='DELETE'), [['/api/data-core/awards/folders/synthetic','DELETE']]);
 });
 
 test('select all toggles only current-folder files without writes and clears stale selection', async () => {
   const h = harness(), calls = [];
   h.context.api = async (...args) => { calls.push(args); return {files:[]}; };
-  h.run("state.awardFolders=[{id:'a'},{id:'b'}];state.selectedAwardFolderId='a';state.awardFiles=[{id:'a1',recordId:'a'},{id:'a2',recordId:'a'},{id:'b1',recordId:'b'}];awardSelected.add('stale');updateAwardSelection()");
-  assert.equal(h.run('awardSelected.size'),0);
+  h.run("state.awardFolders=[{id:'a'},{id:'b'}];state.selectedAwardFolderId='a';state.awardFiles=[{id:'a1',recordId:'a'},{id:'a2',recordId:'a'},{id:'b1',recordId:'b'}];awards.selected.add('stale');awards.updateAwardSelection()");
+  assert.equal(h.run('awards.selected.size'),0);
   assert.equal(h.element('selectAllAwardsBtn').disabled,false);
   assert.equal(h.element('deleteSelectedAwardsBtn').disabled,true);
-  h.run('toggleAllAwards()');
-  assert.equal(h.run('JSON.stringify([...awardSelected])'),'["a1","a2"]');
+  h.run('awards.toggleAllAwards()');
+  assert.equal(h.run('JSON.stringify([...awards.selected])'),'["a1","a2"]');
   assert.equal(h.element('selectAllAwardsBtn').textContent,'전체해제');
   assert.equal(h.element('awardSelectionCount').textContent,'선택 2개');
-  h.run("awardSelected.delete('a1');updateAwardSelection()");
+  h.run("awards.selected.delete('a1');awards.updateAwardSelection()");
   assert.equal(h.element('selectAllAwardsBtn').textContent,'전체선택');
-  h.run('toggleAllAwards();toggleAllAwards()');
-  assert.equal(h.run('awardSelected.size'),0);
+  h.run('awards.toggleAllAwards();awards.toggleAllAwards()');
+  assert.equal(h.run('awards.selected.size'),0);
   assert.equal(h.element('deleteSelectedAwardsBtn').disabled,true);
   assert.deepEqual(calls,[]);
-  h.run("toggleAllAwards();state.selectedAwardFolderId='b'");
-  await h.run('loadAwardFiles()');
-  assert.equal(h.run('awardSelected.size'),0);
+  h.run("awards.toggleAllAwards();state.selectedAwardFolderId='b'");
+  await h.run('awards.loadAwardFiles()');
+  assert.equal(h.run('awards.selected.size'),0);
   assert.equal(h.element('selectAllAwardsBtn').disabled,true);
   assert.ok(calls.every(([,options])=>!options?.method || options.method==='GET'));
 });
 
 test('select all respects read-only, non-master, missing folder, loading and deletion states', () => {
-  for (const condition of ['state.context.canWrite=false','state.context.isSuperAdmin=false',"state.selectedAwardFolderId=null",'awardFilesLoading=true','awardDeleteBusy=true']) {
+  for (const condition of ['state.context.canWrite=false','state.context.isSuperAdmin=false',"state.selectedAwardFolderId=null",'awards.view.loading=true','awards.view.deleteBusy=true']) {
     const h=harness();
     h.run("state.awardFolders=[{id:'a'}];state.selectedAwardFolderId='a';state.awardFiles=[{id:'a1',recordId:'a'}]");
-    h.run(condition+';updateAwardSelection();toggleAllAwards()');
-    assert.equal(h.run('awardSelected.size'),0,condition);
+    h.run(condition+';awards.updateAwardSelection();awards.toggleAllAwards()');
+    assert.equal(h.run('awards.selected.size'),0,condition);
     assert.equal(h.element('selectAllAwardsBtn').disabled,true,condition);
     assert.equal(h.element('deleteSelectedAwardsBtn').disabled,true,condition);
   }
@@ -164,14 +173,14 @@ test('selection deletion snapshots folder, checks ownership, preserves unselecte
     if (url.includes('/b?')) throw new Error('synthetic failure');
     return {files: [{id:'b',recordId:'folder'}, {id:'c',recordId:'folder'}]};
   };
-  h.run("state.awardFolders=[{id:'folder',title:'합성'}]; state.selectedAwardFolderId='folder'; state.awardFiles=['a','b','c'].map(id=>({id,recordId:'folder'})); awardSelected.add('a');awardSelected.add('b');requestAwardDelete()");
+  h.run("state.awardFolders=[{id:'folder',title:'합성'}]; state.selectedAwardFolderId='folder'; state.awardFiles=['a','b','c'].map(id=>({id,recordId:'folder'})); awards.selected.add('a');awards.selected.add('b');awards.requestAwardDelete()");
   assert.equal(h.element('awardDeleteSummary').textContent, '합성 · 선택 2개');
-  await h.run('deleteSelectedAwards()');
+  await h.run('awards.deleteSelectedAwards()');
   assert.deepEqual(calls.filter(([,method])=>method==='DELETE').map(([url])=>url), [
     '/api/data-core/files/a?awardFolderId=folder', '/api/data-core/files/b?awardFolderId=folder',
   ]);
   assert.equal(h.run('JSON.stringify(state.awardFiles.map(f=>f.id))'), '["b","c"]');
-  h.run("awardSelected.add('b');requestAwardDelete();state.selectedAwardFolderId='other'");
-  await h.run('deleteSelectedAwards()');
+  h.run("awards.selected.add('b');awards.requestAwardDelete();state.selectedAwardFolderId='other'");
+  await h.run('awards.deleteSelectedAwards()');
   assert.equal(calls.filter(([,method])=>method==='DELETE').length, 2);
 });
