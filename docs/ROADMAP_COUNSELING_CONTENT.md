@@ -134,3 +134,36 @@ bounded by the same navigation cancellation and stale-response guard. Production
 cold requests can each take several seconds even after removing repeated DDL.
 A synthetic browser case holds a successful response beyond the old 15-second
 limit and checks that loading continues and the eventual result renders.
+
+## Work-matched portfolio visuals
+
+The representative-work viewer now has one educational image for each of the
+35 careers' three portfolio tasks (105 images). `career-work-visuals.js` maps
+career ID and task index to a title-checked local WebP. These images illustrate
+the task above them; they are not photographs of the reference artist or a museum.
+The existing artist biographies, notable works, links, uses and portfolio lists
+remain in the separate footer. Every artist attached to the task is retained.
+An explicit AI-generated educational-example caption prevents attribution of the
+generated image to those artists. Reel/video tasks use still-frame examples.
+
+The full-screen dialog renders the artwork almost edge-to-edge, preserving its
+complete aspect ratio. The dialog scrolls as one document so tall content and the
+entire artist footer remain reachable. It supports previous/next buttons, arrow
+keys, horizontal image swipes, Escape and focus restoration. Vertical scrolling
+does not advance a slide. Missing images show a recoverable state without losing
+the artist information or substituting an unrelated artist photo.
+
+`docs/career-work-visual-provenance.json` records the generation prompt, source
+hash and deployed derivative metadata. `scripts/prepare-career-work-visuals.mjs`
+registers generated originals, optimizes them without cropping, rebuilds the
+catalog and verifies all 105 assets with `--check`. Originals remain outside the
+repository; only optimized educational WebPs are shipped. No student media,
+credentials or machine-local paths are included in the public catalog.
+
+`tests/career-work-visuals.test.mjs` checks coverage, integrity, title matching,
+preservation of all artist/reference content, safe links and missing-image behavior.
+`scripts/check-career-work-viewer-browser.mjs` exercises the actual local renderer
+at 2560/1920/1440/1024/768/390/320 widths, all 105 tasks on desktop/mobile,
+navigation, focus, swipe and a synthetic failed-image response. Its API responses
+are synthetic unauthenticated responses; this is not authenticated production
+verification. No API, authorization, D1/R2, upload or admissions behavior changed.
