@@ -122,7 +122,7 @@ try {
   await page.locator('#awardFolderTitle').fill('자유 이름 <합성> & 2027');
   await page.locator('#awardFolderForm button[type=submit]').click();
   await page.locator('[data-award-folder-id="c"]').waitFor();
-  assert.equal(await page.locator('#selectedAwardFolderTitle').textContent(),'자유 이름 <합성> & 2027');
+  assert.equal(await page.locator('#awardBreadcrumb [aria-current=page]').textContent(),'자유 이름 <합성> & 2027');
   assert.equal(await page.locator('[data-award-folder-id="c"]').getAttribute('aria-pressed'),'true');checks+=2;
   await page.locator('#openAwardUploadBtn').click();
   assert.equal(await page.locator('#uploadRecordId').inputValue(),'c');

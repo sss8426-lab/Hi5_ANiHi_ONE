@@ -40,6 +40,40 @@ test('both collection details stay in their own sections with independent folder
   assert.equal(h.element('public-awardFolderDetail').hidden,false);
 });
 
+test('approved navigation removes classification controls without rewriting legacy folder metadata', async () => {
+  const html = await readFile('public/data-core/index.html', 'utf8');
+  assert.doesNotMatch(html, /id="(?:awardClassify|awardCollectionType|saveAwardCollectionBtn|selectedAwardFolderTitle|selectedAwardFolderMeta)"/);
+  assert.doesNotMatch(source, /saveAwardCollectionBtn|awardClassify|분류 확인 필요/);
+  assert.match(html, /class="award-folder-toolbar">\s*<div class="award-child-list"/);
+  const h = harness(), calls = [];
+  h.context.api = async (...args) => {calls.push(args);return {};};
+  h.run("state.awardFolders=[{id:'legacy',title:'기존 폴더',metadata:{}},{id:'child',parentFolderId:'legacy',title:'하위 폴더'}];state.awardBreadcrumbs=[state.awardFolders[0]];state.selectedAwardFolderId='legacy';awards.renderAwardFolders()");
+  assert.match(h.element('awardBreadcrumb').innerHTML, /aria-current="page"[^>]*>기존 폴더/);
+  assert.match(h.element('awardChildFolders').innerHTML, /core-icons\.svg#Folder/);
+  assert.equal(h.run('JSON.stringify(state.awardFolders[0].metadata)'), '{}');
+  assert.deepEqual(calls, []);
+});
+
+test('folder strip arrows use independent scroll positions for both collections', () => {
+  const h = harness();
+  Object.assign(h.element('awardFolderTrack'),{scrollLeft:0,clientWidth:200,scrollWidth:600});
+  Object.assign(h.element('publicAwardFolderTrack'),{scrollLeft:400,clientWidth:200,scrollWidth:600});
+  h.run('updateAwardFolderArrows()');
+  assert.equal(h.element('awardFolderPrev').disabled,true);
+  assert.equal(h.element('awardFolderNext').disabled,false);
+  assert.equal(h.element('publicAwardFolderPrev').disabled,false);
+  assert.equal(h.element('publicAwardFolderNext').disabled,true);
+  const moves = [];
+  Object.assign(h.element('publicAwardFolderTrack'),{
+    getBoundingClientRect:()=>({left:0,right:200}),
+    querySelectorAll:()=>[{getBoundingClientRect:()=>({left:-160,right:10})}],
+    scrollBy:options=>moves.push(options),
+  });
+  h.run("moveAwardFolder(-1,'publicAward')");
+  assert.deepEqual(JSON.parse(JSON.stringify(moves)),[{left:-160,behavior:'smooth'}]);
+  assert.equal(h.element('awardFolderTrack').scrollLeft,0);
+});
+
 test('loading or clearing one collection does not overwrite the other selection or files', async () => {
   const h = harness();
   h.run("state.awardFolders=[{id:'a'}];state.selectedAwardFolderId='a';publicAwards.state.awardFolders=[{id:'b',collectionType:'public'}];publicAwards.state.selectedAwardFolderId='b';publicAwards.state.awardFiles=[{id:'b1',recordId:'b'}]");
