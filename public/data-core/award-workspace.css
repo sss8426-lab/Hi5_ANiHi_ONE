@@ -1,4 +1,6 @@
 .award-collection { display:block; min-width:0; padding:12px 0; border-bottom:1px solid var(--core-border, #dedcd5); }
+.award-folder-detail { min-width:0; padding-top:4px; }
+.award-folder-detail[hidden] { display:none !important; }
 .award-collection-head { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
 .award-collection-head h4 { font-size:14px; margin:0; }
 .award-collection-head select { max-width:160px; min-height:36px; }

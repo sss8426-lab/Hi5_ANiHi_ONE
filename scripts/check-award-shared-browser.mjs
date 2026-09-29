@@ -60,6 +60,19 @@ try {
     return new URL(page.url()).searchParams.get('awardFolder');
   };
   await visit();
+  assert.equal(await page.locator('#awardFolderDetail').isHidden(),true);
+  const checkCollectionLayout=async(type)=>{
+    assert.equal(await page.locator('#awardFolderDetail').count(),1);
+    assert.equal(await page.locator('#awardFolderDetail').evaluate(el=>el.parentElement.dataset.awardCollection),type);
+    const collection=page.locator(`[data-award-collection="${type}"]`);
+    const track=await collection.locator(type==='public'?'.award-public-track':'.award-folder-navigation').boundingBox();
+    const detail=await page.locator('#awardFolderDetail').boundingBox();
+    assert.ok(detail.y>=track.y+track.height-1,'detail follows its own folder selector');
+    if(type==='enrolled') {
+      const pub=await page.locator('#awardPublicCollection').boundingBox();
+      assert.ok(pub.y>=detail.y+detail.height-1,'public collection follows enrolled gallery');
+    }
+  };
   const root=await create('#openAwardFolderBtn','SYNTHETIC 청강 2026');
   const child=await create('#openAwardChildBtn','SYNTHETIC 2026');
   const leaf=await create('#openAwardChildBtn','SYNTHETIC 고3 긴 한글 폴더 이름');
@@ -127,6 +140,7 @@ try {
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'overflow '+width);
     const enrolled=await page.locator('.award-collection').nth(0).boundingBox(),pub=await page.locator('.award-collection').nth(1).boundingBox();
     assert.ok(pub.y>=enrolled.y+enrolled.height-1,'groups stacked');
+    await checkCollectionLayout('enrolled');
     await page.screenshot({path:resolve(out,`awards-${width}.png`),fullPage:true});result.widths.push(width);
   }
   result.flows.push('two groups, independent numeric sorting/persistence, depth3, blue current breadcrumb, 22px collection headings, back/forward/reload, duplicate Korean filenames, inline first image, thumbnails, arrows/keyboard/swipe, synchronized lightbox, download bytes/name, preview not audited');
@@ -136,6 +150,7 @@ try {
     await page.locator('#openAwardUploadBtn').click();await page.locator('#uploadFile').setInputFiles({name:'역할 검증.png',mimeType:'image/png',buffer:png});await page.locator('#uploadSubmitBtn').click();await page.locator('#uploadModal').waitFor({state:'hidden'});
     await page.locator('#awardSlideshow img:not([hidden])').waitFor();assert.equal(await page.locator('#awardSlideshow output').textContent(),'1 / 1');
     assert.equal(await page.locator('[data-slide-prev]').isDisabled(),true);assert.equal(await page.locator('[data-slide-next]').isDisabled(),true);
+    await checkCollectionLayout('public');
     await page.locator('#deleteAwardFolderBtn').click();await page.waitForFunction(()=>document.querySelector('#selectedAwardFolderTitle')?.textContent==='SYNTHETIC 공개 2');
     assert.ok((await h.env.DB.prepare('SELECT deleted_at FROM data_records WHERE id=?').bind(id).first()).deleted_at);
   }

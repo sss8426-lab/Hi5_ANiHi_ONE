@@ -9,6 +9,7 @@ function harness() {
   const element = (id) => {
     if (!elements.has(id)) elements.set(id, {
       value: '', disabled: false, innerHTML: '', textContent: '',
+      appendChild(child) { child.parentElement = this; },
       classList: {add() {}, remove() {}, toggle() {}}, setAttribute() {},
       querySelectorAll: () => [], close() {}, showModal() {}, insertAdjacentHTML(_position,html) { this.innerHTML+=html; },
     });
@@ -27,6 +28,20 @@ function harness() {
   const run = (code) => vm.runInContext(code, context);
   return {context, element, run};
 }
+
+test('selected folder detail moves between collections without duplicating the view', () => {
+  const h = harness();
+  const detail = h.element('awardFolderDetail');
+  h.run("state.awardFolders=[{id:'a',collectionType:'enrolled'},{id:'b',metadata:{collectionType:'public'}},{id:'legacy'}]");
+  for (const [id, parent] of [['a','awardEnrolledCollection'],['b','awardPublicCollection'],['legacy','awardEnrolledCollection'],['a','awardEnrolledCollection']]) {
+    h.run(`state.selectedAwardFolderId='${id}';renderAwardFolders()`);
+    assert.equal(detail.parentElement, h.element(parent));
+    assert.equal(detail.hidden, false);
+    assert.equal(h.element('awardFolderDetail'), detail);
+  }
+  h.run('state.selectedAwardFolderId=null;renderAwardFolders()');
+  assert.equal(detail.hidden, true);
+});
 
 test('award gallery ignores stale successes, failures, and foreign record rows', async () => {
   const h = harness();

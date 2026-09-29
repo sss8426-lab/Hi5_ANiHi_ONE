@@ -832,6 +832,11 @@ function renderAwardFolders() {
   if (!list) return;
   const folder = selectedAwardFolder();
   const typeOf = item => item.collectionType || item.metadata?.collectionType;
+  const detail = $('awardFolderDetail');
+  const collection = $(folder && typeOf(folder) === 'public' ? 'awardPublicCollection' : 'awardEnrolledCollection');
+  // Move the existing view so gallery state and management listeners stay shared.
+  if (detail.parentElement !== collection) collection.appendChild(detail);
+  detail.hidden = !folder;
   const parentOf = item => item.parentFolderId || item.metadata?.parentFolderId;
   const sort = (items,type) => [...items].sort((a,b)=>(a.title || '').localeCompare(b.title || '', 'ko-KR',{numeric:true}) * (awardSort[type]==='desc'?-1:1));
   const buttons = items => items.map(item=>`<button type="button" title="${h(item.title)}" class="award-folder-tab ${item.id===state.selectedAwardFolderId?'active':''}" aria-pressed="${item.id===state.selectedAwardFolderId}" data-award-folder-id="${h(item.id)}"><strong>${h(item.title)}</strong>${!typeOf(item)?'<small>분류 확인 필요</small>':''}</button>`).join('') || '<span class="empty-state compact">폴더가 없습니다.</span>';
