@@ -1,4 +1,4 @@
-import {LOGOS,CUSTOM_LOGO_PATTERN,normalizeDesign} from './instagram-brand-policy.js?v=20260923-logoup';
+import {LOGOS,normalizeDesign} from './instagram-brand-policy.js?v=20260923-logoup';
 import {composeInstagram,composeBase,drawLayers,loadLayerAssets,defaultLayerBox,drawLogo,MASTER,USER_LAYER_LIMIT} from './instagram-layout.js?v=20260924-layers';
 import {assemblePost,managedTail as tailOf,managedHead as headOf,replaceManaged,assertResolvedText} from './content-caption.js?v=20260924-order';
 import {postHashtags,hashtagText} from './campus-seo-keywords.js?v=20260929-seo';
@@ -10,13 +10,12 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,text=()=>({
   const command=$('aiCommand').closest('.workflow-section'),section=document.createElement('section');
   section.className='workflow-section ig-carousel';section.id='instagramProduction';
   section.innerHTML=`<div id="igDesign" class="ig-design">
-      <h3>로고 선택</h3><div id="igLogos" class="ig-logo-options" role="group" aria-label="공식 로고"></div>
-      <div class="ig-custom-head"><h3>나만의 로고 선택</h3>
+      <div class="ig-logo-head"><h3>로고 선택</h3>
         <input type="file" id="igLogoFile" accept="image/png,image/jpeg,image/webp,image/svg+xml,.svg" hidden>
         <button type="button" class="ghost-btn" id="igUploadLogo">로고 올리기</button></div>
-      <input type="search" id="igCustomSearch" class="ig-custom-search" placeholder="이미지 이름 검색" maxlength="60" aria-label="나만의 로고 이름 검색" hidden>
-      <div id="igCustomLogos" class="ig-logo-options ig-custom-options" role="group" aria-label="나만의 로고"></div>
-      <p id="igCustomEmpty" class="ig-custom-empty" hidden>등록된 이미지가 없습니다.</p>
+      <div id="igLogoGrid" class="ig-logo-options"><div id="igLogos" class="ig-logo-set" role="group" aria-label="기본 로고 (수정·삭제 불가)"></div><div id="igCustomLogos" class="ig-logo-set" role="group" aria-label="올린 로고"></div></div>
+      <input type="search" id="igCustomSearch" class="ig-custom-search" placeholder="올린 로고 이름 검색" maxlength="60" aria-label="올린 로고 이름 검색" hidden>
+      <p id="igCustomEmpty" class="ig-custom-empty" hidden></p>
       <button type="button" class="ghost-btn hidden" id="igMoreLogos">더 보기</button>
       <p id="igCustomLogoStatus" role="status"></p>
       <div class="ig-options"><label>제작 방식<select id="igMode"><option value="original">작품 전체 보존</option><option value="photo-layout">공간·학원 사진 크게 배치</option><option value="photo">사진 보정 · AI</option></select></label><span id="igCampusLabel" role="status"></span></div>
@@ -34,7 +33,7 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,text=()=>({
     <div id="igLayerEditor" class="ig-layer-editor" hidden>
       <p class="ig-layer-hint">아래에서 이미지를 눌러 현재 사진에 넣고, 사진 위에서 끌어 옮기거나 오른쪽 아래 모서리 점을 끌어 크기를 바꿉니다(비율 유지).</p>
       <div id="igLayerAssets" class="ig-layer-assets" role="group" aria-label="넣을 수 있는 나만의 이미지"></div>
-      <p id="igLayerAssetsEmpty" class="ig-custom-empty" hidden>등록된 이미지가 없습니다. <button type="button" id="igLayerManage" class="ghost-btn">양식 수정에서 이미지 올리기</button></p>
+      <p id="igLayerAssetsEmpty" class="ig-custom-empty" hidden>등록된 이미지가 없습니다. <button type="button" id="igLayerManage" class="ghost-btn">로고 선택에서 로고 올리기</button></p>
       <div id="igLayerSelected" class="ig-layer-selected" hidden><span id="igLayerSelectedName"></span><button type="button" id="igLayerForward" class="ghost-btn">앞으로</button><button type="button" id="igLayerBackward" class="ghost-btn">뒤로</button><button type="button" id="igLayerRemove" class="ghost-btn">이 이미지 빼기</button></div>
       <fieldset class="ig-layer-scope"><legend>적용 범위</legend><label><input type="radio" name="igLayerScope" value="current" checked> 현재 사진만</label><label><input type="radio" name="igLayerScope" value="all"> 완성된 모든 사진</label></fieldset>
       <div class="form-actions"><button type="button" id="igLayerApply" class="primary-btn">적용</button><button type="button" id="igLayerCancel" class="ghost-btn">취소</button></div>
@@ -60,7 +59,8 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,text=()=>({
   let generatedTags=[];
   // One automatic caption attempt per saved set; after that only the button writes (no repeat billing).
   const autoCaptioned=new Set();
-  // 나만의 로고 chosen in 양식 수정 ({id,name}): placed on every photo of the next batch as user layers.
+  // Batch overlays saved by the older custom-logo overlay picker ({id,name}); kept only so an old batch resumes as it was.
+  // Logos uploaded with [로고 올리기] are chosen in 로고 선택 itself (logoType "custom:<id>").
   let overlayChoices=[];
   function captionLock(value){captionBusy=value;for(const id of ['igCaptionText','igCaptionSave','igCaptionRetry'])$(id).disabled=value;}
   const CAPTION_LABELS={none:'작성 전',writing:'작성 중',done:'작성 완료',failed:'작성 실패',dirty:'변경사항 미저장'};
@@ -108,7 +108,7 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,text=()=>({
     $('igSourceNotice').textContent=`선택 ${preserved}장은 학생작품·문서 등 원본 보존 대상으로, 외부 AI 전송 없이 제작합니다.`;
     $('igGenerate').textContent=originalMode()||preserved===state.selectedFileIds.length?'이미지 만들기':'AI로 이미지 만들기';$('igCancel').hidden=!busy||!controller;
     $('igRetryFailed').hidden=!failures.length;$('igRetryFailed').disabled=busy; }
-  function lock(value){busy=value;state.busy=value;$('photoHeading').closest('.workflow-section').inert=value;command.inert=value;$('igLogos').inert=value;$('igMode').disabled=value;history.inert=value;result.querySelectorAll('button,textarea').forEach(el=>el.disabled=value);if(!value)captionLock(captionBusy);buttons();}
+  function lock(value){busy=value;state.busy=value;$('photoHeading').closest('.workflow-section').inert=value;command.inert=value;$('igLogoGrid').inert=value;$('igUploadLogo').disabled=value;$('igMode').disabled=value;history.inert=value;result.querySelectorAll('button,textarea').forEach(el=>el.disabled=value);if(!value)captionLock(captionBusy);buttons();}
   function clear(keepBackgrounds=false){managedTail=null;managedHead=null;generatedTags=[];captionEpoch++;captionController?.abort();captionLock(false);closeLayerEditor();if(keepBackgrounds!==true)backgrounds.clear();releasePreview();generation++;items=[];currentSet=null;signature='';requestId='';imageState='new';ids=[];failures=[];itemStatus=new Map();batchInfo=null;restoredBatch=false;result.hidden=true;$('igProgressWrap').hidden=true;$('igProgress').value=0;$('igPercent').textContent='0%';$('igItemStatuses').hidden=true;$('igItemStatuses').replaceChildren();$('igPreview').removeAttribute('src');$('igSlides').replaceChildren();$('igDownloads').replaceChildren();$('igCaptionSection').hidden=true;$('igCaptionText').value='';setCaptionState('none');$('igStatus').textContent=hasSaved?'변경사항 미저장':'';$('igSaved').textContent=hasSaved?'변경사항 미저장':'저장 전';$('igLayerSummary').textContent='';buttons();}
   async function logos(){
     const campusId=$('draftCampus').value;
@@ -119,34 +119,39 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,text=()=>({
     try{
       const value=await api('/api/data-core/content/instagram-policy?campusId='+encodeURIComponent(campusId));if(epoch!==policyEpoch)return;policy=value;$('igCampusLabel').textContent=value.campusLogoLabel;
       for(const [id,spec]of Object.entries(LOGOS)){
-        const button=document.createElement('button');button.type='button';button.className='ig-logo-choice';button.dataset.logo=id;button.setAttribute('aria-pressed',String(id===logoType));
+        // The 6 기본 로고 are locked: they can be chosen, never renamed, replaced or deleted.
+        const button=document.createElement('button');button.type='button';button.className='ig-logo-choice';button.dataset.logo=id;button.dataset.locked='true';button.setAttribute('aria-pressed',String(id===logoType));
         const canvas=document.createElement('canvas'),label=document.createElement('span');label.textContent=spec.label;button.append(canvas,label);$('igLogos').append(button);
-        button.onclick=()=>{if(busy||logoType===id)return;logoType=id;clear(true);$('igLogos').querySelectorAll('button').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.logo===id)));};
-        if(id==='none'){canvas.replaceWith(Object.assign(document.createElement('span'),{className:'ig-no-logo',innerHTML:'<svg aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Image"></use></svg>'}));button.title='로고 없이 이미지만 제작';continue;}
+        button.onclick=()=>chooseLogo(id);
+        button.title=id==='none'?'로고 없이 이미지만 제작':'기본 로고 · 수정·삭제할 수 없습니다';
+        if(id==='none'){canvas.replaceWith(Object.assign(document.createElement('span'),{className:'ig-no-logo',innerHTML:'<svg aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Image"></use></svg>'}));continue;}
         void drawLogo(canvas,id,value.campusLogoLabel).catch(()=>{if(epoch===policyEpoch){canvas.replaceWith(Object.assign(document.createElement('img'),{src:spec.src,alt:spec.label}));button.title='로고 미리보기를 다시 불러오려면 캠퍼스를 다시 선택하세요.';}});
       }
       void loadCustomLogos(true);
     }catch(error){if(epoch===policyEpoch)$('igCampusLabel').textContent=error.message;}
     buttons();
   }
-  // 나만의 로고: images uploaded once per campus (로고·문구·말풍선). They are never a replacement for the
-  // official logo above — each chosen one becomes a separate layer over the photo. Deleting one only
-  // hides this row; an already-composited image is a separate, independent file and keeps it.
+  // 로고 올리기: logos uploaded per campus appear after the 기본 로고 in 로고 선택 and are chosen the same way
+  // (logoType "custom:<id>", drawn in the logo area). Only these can be renamed or deleted; deleting one
+  // only hides it from the list — images already made with it keep it.
+  function chooseLogo(id){
+    if(busy||logoType===id)return;logoType=id;clear(true);syncLogoChoice();
+  }
+  function syncLogoChoice(){
+    $('igLogos').querySelectorAll('.ig-logo-choice').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.logo===logoType)));
+    $('igCustomLogos').querySelectorAll('.ig-logo-choice').forEach(el=>el.setAttribute('aria-pressed',String('custom:'+el.dataset.asset===logoType)));
+  }
   let customLogos=[],customLogosCursor=null,customLogosCampus='',customLogosQuery='',customLogosEpoch=0;
   const iconHtml=name=>`<svg aria-hidden="true"><use href="/data-core/assets/core-icons.svg#${name}"></use></svg>`;
-  function syncOverlayChoices(){$('igCustomLogos').querySelectorAll('.ig-logo-choice').forEach(el=>el.setAttribute('aria-pressed',String(overlayChoices.some(v=>v.id===el.dataset.asset))));}
+  const syncOverlayChoices=syncLogoChoice;
   function renderCustomLogo(item){
     const card=document.createElement('div');card.className='ig-custom-card';
     const button=document.createElement('button');button.type='button';button.className='ig-logo-choice';button.dataset.asset=item.id;
-    button.setAttribute('aria-pressed',String(overlayChoices.some(v=>v.id===item.id)));button.title='누르면 이번에 만드는 모든 사진에 넣기/빼기';
+    button.setAttribute('aria-pressed',String(logoType==='custom:'+item.id));button.title='올린 로고 · 누르면 이 로고로 만듭니다';
     const img=document.createElement('img');img.src='/api/data-core/files/'+encodeURIComponent(item.id);img.alt='';img.loading='lazy';img.decoding='async';
     const label=document.createElement('span');label.textContent=item.name;
     button.append(img,label);
-    button.onclick=()=>{
-      if(busy)return;
-      overlayChoices=overlayChoices.some(v=>v.id===item.id)?overlayChoices.filter(v=>v.id!==item.id):[...overlayChoices,{id:item.id,name:item.name}].slice(0,USER_LAYER_LIMIT);
-      syncOverlayChoices();
-    };
+    button.onclick=()=>chooseLogo('custom:'+item.id);
     const actions=document.createElement('div');actions.className='ig-custom-actions';
     const rename=document.createElement('button');rename.type='button';rename.className='ig-logo-action';rename.innerHTML=iconHtml('PenLine');rename.setAttribute('aria-label',item.name+' 이름 바꾸기');
     rename.onclick=async()=>{
@@ -163,7 +168,8 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,text=()=>({
       try{
         await api('/api/data-core/content/instagram-logos/'+encodeURIComponent(item.id),{method:'DELETE'});
         customLogos=customLogos.filter(v=>v.id!==item.id);overlayChoices=overlayChoices.filter(v=>v.id!==item.id);
-        renderCustomLogos();renderLayerAssets();$('igCustomLogoStatus').textContent='목록에서 삭제했습니다.';
+        if(logoType==='custom:'+item.id){logoType='none';clear(true);}
+        renderCustomLogos();syncLogoChoice();renderLayerAssets();$('igCustomLogoStatus').textContent=logoType==='none'?'목록에서 삭제했습니다 · 로고 없음으로 바뀌었습니다.':'목록에서 삭제했습니다.';
       }catch(error){$('igCustomLogoStatus').textContent=error.message;}
     };
     actions.append(rename,remove);card.append(button,actions);
@@ -171,8 +177,9 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,text=()=>({
   }
   function renderCustomLogos(){
     $('igCustomLogos').replaceChildren(...customLogos.map(renderCustomLogo));
-    $('igCustomEmpty').hidden=customLogos.length>0;
-    $('igCustomEmpty').textContent=customLogosQuery?`'${customLogosQuery}' 이름의 이미지가 없습니다.`:'등록된 이미지가 없습니다.';
+    // Only a name search with no match needs a message; an empty list simply shows the 기본 로고.
+    $('igCustomEmpty').hidden=customLogos.length>0||!customLogosQuery;
+    $('igCustomEmpty').textContent=`'${customLogosQuery}' 이름의 올린 로고가 없습니다.`;
     $('igCustomSearch').hidden=!customLogosCursor&&!customLogosQuery;
   }
   async function loadCustomLogos(reset=false){
@@ -230,7 +237,8 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,text=()=>({
       const form=new FormData();form.set('campusId',campusId);form.set('file',file);form.set('name',name);
       const value=await api('/api/data-core/content/instagram-logos',{method:'POST',body:form});
       customLogos=[value.logo,...customLogos.filter(v=>v.id!==value.logo.id)];renderCustomLogos();renderLayerAssets();
-      $('igCustomLogoStatus').textContent='업로드 완료 · 이미지를 눌러 선택하면 이번에 만드는 사진에 들어갑니다.';
+      chooseLogo('custom:'+value.logo.id);syncLogoChoice();
+      $('igCustomLogoStatus').textContent='업로드 완료 · 올린 로고로 선택했습니다.';
     }catch(error){$('igCustomLogoStatus').textContent=error.message;}
     finally{$('igUploadLogo').disabled=false;}
   };
@@ -504,7 +512,7 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,text=()=>({
       if(typeof b.logoType==='string')logoType=normalizeDesign({workflow:'carousel-v2',logoType:b.logoType}).logoType;
       if(['original','photo-layout','photo'].includes(b.mode))$('igMode').value=b.mode;
       if(typeof b.command==='string')$('aiCommand').value=b.command;
-      $('igLogos').querySelectorAll('button').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.logo===logoType)));
+      syncLogoChoice();
       const overlays=(Array.isArray(b.overlays)?b.overlays:[]).filter(v=>v&&typeof v.id==='string'&&/^[0-9a-f-]{36}$/i.test(v.id)).slice(0,USER_LAYER_LIMIT).map(v=>({id:v.id,name:String(v.name||'')}));
       overlayChoices=overlays;syncOverlayChoices();
       state.selectedFileIds=candidate.sources.map(s=>s.id);selected=JSON.stringify(state.selectedFileIds);renderSelection();
@@ -903,11 +911,8 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,text=()=>({
   return {read,refresh,applyText,templateSettings,hasUnsaved:()=>Boolean(busy||editor.dirty||(!currentSet&&(items.length||$('aiCommand').value.trim()))||(currentSet&&$('igCaptionText').value!==(currentSet.caption||''))),invalidated:clear,load:()=>{if(!busy)clear();},selectionChanged(){const key=JSON.stringify(state.selectedFileIds);if(key!==selected){selected=key;clear();}buttons();},restore:async()=>{toast('이전 단일 초안입니다. 사진을 선택해 새 이미지 세트로 제작하세요.');},
     applyDefaults(settings){
       if(!settings)return;
-      // A campus default saved while 나만의 로고 replaced the official logo becomes what it is now: no
-      // official logo, plus that image as a user layer.
-      const custom=CUSTOM_LOGO_PATTERN.test(settings.logoType)?settings.logoType.slice('custom:'.length):null;
-      logoType=custom?'none':settings.logoType;$('igMode').value=settings.mode;
-      if(custom&&!overlayChoices.some(v=>v.id===custom))overlayChoices=[...overlayChoices,{id:custom,name:'나만의 로고'}];
-      $('igLogos').querySelectorAll('button').forEach(el=>el.setAttribute('aria-pressed',String(el.dataset.logo===logoType)));syncOverlayChoices();
+      // A saved default may be an uploaded logo ("custom:<id>"); the server re-checks it when saving.
+      logoType=normalizeDesign({workflow:'carousel-v2',logoType:settings.logoType}).logoType;$('igMode').value=settings.mode;
+      syncLogoChoice();
     }};
 }
