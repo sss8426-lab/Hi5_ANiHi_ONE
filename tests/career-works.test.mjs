@@ -36,6 +36,10 @@ test('artists carry a short biography, notable works, safe links and only https 
     }
   }
   for (const id of Object.keys(artistImages)) assert.ok(artists[id], `pictures for unknown artist ${id}`);
+  // Every artist shown in a detail has at least one picture.
+  for (const id of new Set(Object.values(careerWorks).flat().flatMap((work) => work.artists))) {
+    assert.ok((artists[id].images?.length || artistImages[id]?.length) > 0, `${id} has no picture`);
+  }
 });
 
 test('work cards open their detail; academy stage images exist', () => {
