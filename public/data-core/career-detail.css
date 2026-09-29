@@ -1,0 +1,122 @@
+/* 직업 상세 — 배움의 순서 · 핵심역량 · 포트폴리오 · 준비의 균형 · 실기향상 로드맵 · 이렇게 준비해요.
+   A consultation-grade layout: numbered chapters, ruled lists, one accent colour, no decoration. */
+.roadmap-page .career-visual-number{display:flex;align-items:center;gap:10px;font-size:12px;font-weight:700;letter-spacing:.04em;color:#4f7a6f;margin-bottom:12px}
+.roadmap-page .career-visual-number b{display:inline-grid;place-items:center;min-width:30px;height:22px;padding:0 8px;border-radius:999px;background:#e3efe9;color:#24594f;font-size:11px}
+.roadmap-page .career-visual-copy h2{font-size:28px;line-height:1.4;color:#1f3531;margin-bottom:10px}
+.roadmap-page .career-visual-intro{font-size:15.5px;line-height:1.75;color:#4f625e;max-width:540px}
+
+/* 01 배움의 순서: steps on one connecting line */
+.career-steps{list-style:none;margin:26px 0 0;padding:0}
+.career-steps>li{position:relative;display:grid;grid-template-columns:38px minmax(0,1fr);gap:16px;padding-bottom:16px}
+.career-steps>li:not(:last-child)::after{content:"";position:absolute;left:18.5px;top:40px;bottom:2px;width:1px;background:#cfdfd8}
+.career-step-index{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;border:1px solid #bcd4cb;background:#fff;color:#2c6c60;font-size:12px;font-weight:700}
+.career-steps h3{font-size:15.5px;line-height:1.5;margin:8px 0 2px;color:#1f3531}
+.career-steps p{font-size:13.5px;line-height:1.7;color:#5f716d}
+.roadmap-page .career-related{margin-top:22px;padding-top:18px;border-top:1px solid #dfe7e3}
+.roadmap-page .career-related>h3{font-size:12px;font-weight:700;letter-spacing:.04em;color:#6a7d78;margin-bottom:10px}
+.roadmap-page .career-related .major-grid{gap:8px}
+.roadmap-page .career-related .major-item{padding:6px 13px;border:1px solid #cfe0d9;border-radius:999px;background:#fff;color:#2f6a5e;font-size:13px;line-height:1.5}
+
+/* 02 핵심역량: a ruled list + what the admission 실기 looks for */
+.career-competencies{list-style:none;margin:24px 0 0;padding:0;border-top:1.5px solid #1f3531}
+.career-competencies>li{display:grid;grid-template-columns:34px minmax(0,9em) minmax(0,1fr);gap:12px;align-items:baseline;padding:14px 0;border-bottom:1px solid #dfe7e3}
+.career-competencies span{font-size:12px;font-weight:700;color:#8aa39b}
+.career-competencies h3{font-size:15.5px;line-height:1.5;margin:0;color:#1f3531;word-break:keep-all}
+.career-competencies p{font-size:13.5px;line-height:1.7;color:#5f716d}
+.career-focus{margin-top:22px;padding:18px 20px;border-radius:10px;background:#eef5f1}
+.career-focus span{display:block;font-size:12px;font-weight:700;letter-spacing:.04em;color:#2f7d6d;margin-bottom:4px}
+.career-focus p{font-size:15px;line-height:1.7;color:#1f3531;word-break:keep-all}
+
+/* 03 포트폴리오: one card per work, then the outcome */
+.roadmap-page .career-visual-portfolio .career-visual-copy{grid-template-columns:minmax(0,1fr) minmax(0,1.8fr);column-gap:40px}
+.career-works{grid-column:2;grid-row:1/5;list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-content:start}
+.career-works>li{min-width:0;padding:18px 18px 20px;border:1px solid #dfe7e3;border-radius:12px;background:#fff}
+.career-work-label{font-size:11px;font-weight:700;letter-spacing:.08em;color:#8aa39b}
+.career-works h3{font-size:16px;line-height:1.45;margin:10px 0 6px;color:#1f3531;word-break:keep-all}
+.career-works p{font-size:13.5px;line-height:1.7;color:#5f716d}
+.roadmap-page .career-output-summary{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:18px;font-size:14px;color:#1f3531}
+.roadmap-page .career-output-summary span{padding:3px 10px;border-radius:999px;background:#1f3531;color:#fff;font-size:12px;font-weight:700}
+
+/* 03 준비의 균형 (no verified ratios yet): one calm panel instead of loose lines */
+.trend-empty{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:28px;align-items:start;padding:24px 26px;border:1px solid #dfe7e3;border-radius:12px;background:#fff}
+.trend-empty strong{display:block;font-size:16px;color:#1f3531;margin-bottom:6px}
+.trend-empty .empty-state{margin:0;padding:0;background:none;border:0;text-align:left;font-size:14px;color:#5f716d}
+.trend-empty .trend-note{margin:0;font-size:14px;line-height:1.8;color:#4f625e}
+
+/* 04 실기향상 로드맵: five stages on one line, admission stages in the dark accent */
+.roadmap-page .timeline{gap:0;padding-top:6px}
+.roadmap-page .timeline>li{position:relative;border-top:0;padding:0 20px 0 0}
+.roadmap-page .timeline li::before{content:none}
+.roadmap-page .timeline>li:not(:last-child)::after{content:"";position:absolute;top:19px;left:46px;right:8px;height:1px;background:#cfdfd8}
+.stage-dot{position:relative;z-index:1;display:grid;place-items:center;width:38px;height:38px;border-radius:50%;border:1px solid #bcd4cb;background:#fff;color:#2c6c60;font-size:12px;font-weight:700}
+.roadmap-page .timeline>li:nth-child(n+4) .stage-dot{background:#1f3531;border-color:#1f3531;color:#fff}
+.roadmap-page .timeline h3{margin:16px 0 10px;font-size:17px;color:#1f3531}
+.stage-image{position:relative;margin:18px 0 0;aspect-ratio:4/3;overflow:hidden;border-radius:10px;background:#edf1f0}
+.stage-image figcaption{position:absolute;left:8px;bottom:8px;max-width:calc(100% - 16px);padding:3px 9px;border-radius:999px;background:#14201ebb;color:#fff;font-size:11px;line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stage-image img{display:block;width:100%;height:100%;object-fit:cover}
+.roadmap-page .timeline .stage-image+h3{margin-top:14px}
+.stage-tags{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
+.roadmap-page .timeline .stage-tags li{border:0;padding:4px 10px;border-radius:6px;background:#eef3f1;color:#35544d;font-size:12.5px;line-height:1.5}
+.roadmap-page .timeline>li>p{margin-top:10px;font-size:13px;line-height:1.7;color:#6a7d78;word-break:keep-all}
+
+/* 05 이렇게 준비해요: a consultation table */
+.roadmap-page .preparation-grid{display:block}
+.prep-table{width:100%;border-collapse:separate;border-spacing:0;background:#fff;border:1px solid #dfe7e3;border-radius:12px;overflow:hidden}
+.prep-table thead th{padding:13px 22px;background:#f3f7f5;border-bottom:1px solid #dfe7e3;text-align:left;font-size:12px;font-weight:700;letter-spacing:.04em;color:#6a7d78}
+.prep-table tbody th{width:22%;padding:18px 22px;text-align:left;font-size:15.5px;color:#1f3531;box-shadow:inset 3px 0 0 var(--prep-color,#87aaa1)}
+.prep-table tbody th span{display:block;font-size:11px;font-weight:700;color:#8aa39b;margin-bottom:2px}
+.prep-table td{padding:18px 22px;font-size:14px;line-height:1.7;color:#35544d}
+.prep-table td:last-child{width:32%;font-size:13.5px;color:#6a7d78}
+.prep-table tbody tr+tr>*{border-top:1px solid #edf1ef}
+.prep-row-2{--prep-color:#8ca9c0}.prep-row-3{--prep-color:#c5a2b5}.prep-row-4{--prep-color:#c9b279}
+
+@media(max-width:1000px){.roadmap-page .timeline{grid-template-columns:repeat(3,minmax(0,1fr));row-gap:30px}.roadmap-page .timeline>li:nth-child(3)::after{content:none}}
+@media(max-width:1100px){.career-works{grid-template-columns:minmax(0,1fr)}.roadmap-page .career-visual-portfolio .career-visual-copy{grid-template-columns:minmax(0,1fr) minmax(0,1.2fr)}}
+@media(max-width:860px){.career-works{grid-template-columns:repeat(3,minmax(0,1fr));margin-top:22px}.trend-empty{grid-template-columns:minmax(0,1fr);gap:12px}}
+@media(max-width:680px){
+  .roadmap-page .career-visual-copy h2{font-size:23px}
+  .career-competencies>li{grid-template-columns:28px minmax(0,1fr);row-gap:2px}.career-competencies p{grid-column:2}
+  .career-works{grid-template-columns:minmax(0,1fr)}
+  .roadmap-page .timeline{grid-template-columns:minmax(0,1fr);row-gap:0}
+  .roadmap-page .timeline>li{display:grid;grid-template-columns:38px minmax(0,1fr);column-gap:16px;padding:0 0 22px}
+  .roadmap-page .timeline>li>*:not(.stage-dot){grid-column:2}.stage-image{margin:6px 0 12px}.roadmap-page .timeline h3{margin:8px 0 8px;grid-row:1}
+  .roadmap-page .timeline>li:not(:last-child)::after{content:"";top:40px;bottom:2px;left:18.5px;right:auto;width:1px;height:auto}
+  .prep-table thead{display:none}.prep-table,.prep-table tbody,.prep-table tr,.prep-table th,.prep-table td{display:block;width:auto}
+  .prep-table tbody th{width:auto;padding:16px 18px 6px}.prep-table td{padding:0 18px 6px;box-shadow:inset 3px 0 0 var(--prep-color,#87aaa1)}.prep-table td:last-child{width:auto;padding-bottom:16px}
+  .prep-table tbody tr+tr>*{border-top:0}.prep-table tbody tr+tr>th{border-top:1px solid #edf1ef}
+}
+@media print{.career-works>li,.prep-table{break-inside:avoid}}
+/* 대표 작품 card → its detail (what it is, where it is used, portfolio, representative artists) */
+.career-work-open{display:flex;flex-direction:column;align-items:flex-start;gap:0;width:100%;height:100%;min-height:100%;padding:18px 18px 16px;border:1px solid #dfe7e3;border-radius:12px;background:#fff;text-align:left;font:inherit;color:inherit;cursor:pointer;transition:border-color .2s,box-shadow .2s,transform .2s}
+.career-works>li:has(.career-work-open){padding:0;border:0;background:none}
+.career-work-open:hover{border-color:#8fc1b5;box-shadow:0 8px 22px #1f35311a;transform:translateY(-2px)}
+.career-work-open strong{font-size:16px;line-height:1.45;margin:10px 0 6px;color:#1f3531;word-break:keep-all}
+.career-work-desc{font-size:13.5px;line-height:1.7;color:#5f716d}
+.career-work-more{margin-top:auto;padding-top:14px;font-size:12.5px;font-weight:700;color:#2f7d6d}
+.career-work-more b{font-weight:700}
+.work-detail{width:min(760px,calc(100vw - 32px));max-height:calc(100vh - 48px);padding:32px 34px;border:0;border-radius:16px;background:#fff;color:#263b41;box-shadow:0 24px 60px #0f1f1c40;overflow:auto}
+.work-detail::backdrop{background:#0f1f1c80}
+.work-detail-close{position:absolute;top:14px;right:16px;width:38px;height:38px;border:1px solid #dfe7e3;border-radius:50%;background:#fff;color:#1f3531;font-size:22px;line-height:1}
+.work-detail-head h3{margin:8px 0 10px;font-size:26px;color:#1f3531}
+.work-detail-head p{font-size:15px;line-height:1.8;color:#4f625e}
+.work-detail h4{margin:0 0 10px;font-size:13px;font-weight:700;letter-spacing:.04em;color:#2f7d6d}
+.work-detail ul{margin:0;padding-left:18px;font-size:14px;line-height:1.8;color:#35544d}
+.work-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:22px 0;padding:20px 0;border-top:1px solid #dfe7e3;border-bottom:1px solid #dfe7e3}
+.work-artist{margin-top:12px;padding:20px 22px;border-radius:12px;background:#f3f7f5}
+.work-artist header{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;margin-bottom:8px}
+.work-artist header h4{margin:0;font-size:19px;letter-spacing:0;color:#1f3531}
+.work-artist header span{font-size:12.5px;color:#6a7d78}
+.work-artist>p{font-size:14px;line-height:1.8;color:#35544d;margin-bottom:12px}
+.work-artist h5{margin:0 0 6px;font-size:12px;color:#6a7d78}
+.work-artist-links{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.work-artist-links a{padding:7px 13px;border:1px solid #bcd4cb;border-radius:999px;background:#fff;color:#24594f;font-size:13px;font-weight:700;text-decoration:none}
+.work-note{margin-top:14px;font-size:12px;color:#77857f}
+@media(max-width:680px){.work-detail{padding:26px 18px}.work-detail-grid{grid-template-columns:1fr}.work-detail-head h3{font-size:22px}}
+.work-artist-images{display:flex;gap:12px;margin:4px 0 16px;overflow-x:auto}
+.work-artist-images figure{flex:0 0 auto;margin:0;width:200px}
+.work-artist-images a{display:block;overflow:hidden;border-radius:8px;background:#e6ecea}
+.work-artist-images img{display:block;width:100%;height:230px;object-fit:contain;background:#fff;transition:transform .3s}
+.work-artist-images a:hover img{transform:scale(1.03)}
+.work-artist-images figcaption{margin-top:6px;font-size:12px;line-height:1.5;color:#35544d}
+.work-artist-images figcaption span{display:block;font-size:11px;color:#77857f}
+@media(max-width:680px){.work-artist-images figure{width:150px}.work-artist-images img{height:190px}}
