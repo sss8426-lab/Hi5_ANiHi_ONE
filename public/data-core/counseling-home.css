@@ -1,0 +1,16 @@
+/* 상담용 홈: four cards in a 2×2 grid — picture on top (academy works for 공모전·커리큘럼), a small
+   category tag, the title and one line of description. Stacks to one column on phones. */
+body.data-core-layout.brand-home .counseling-image-cards.counseling-four{grid-template-columns:repeat(2,minmax(0,1fr));gap:22px}
+.counseling-four .feature-card{position:relative;text-align:left}
+body.data-core-layout.brand-home .counseling-four .feature-card>img,.counseling-four .counseling-card-pair{display:block;width:100%;aspect-ratio:2/1;object-fit:cover;object-position:50% 45%}
+.counseling-card-pair{display:grid!important;grid-template-columns:1fr 1fr;overflow:hidden}
+.counseling-card-pair img{display:block;width:100%;height:100%;min-width:0;object-fit:cover;object-position:50% 45%;transition:transform .3s ease}
+.counseling-card-tag{position:absolute;top:14px;left:14px;z-index:1;padding:4px 10px;border-radius:999px;background:#ffffffe6;color:var(--core-brand,#1f4d45);font-size:12px;font-weight:700;line-height:1.4}
+body.data-core-layout.brand-home .counseling-four .counseling-card-copy{padding:18px 22px}
+.counseling-four .counseling-card-copy>span:first-child{display:flex;flex-direction:column;gap:3px;min-width:0}
+.counseling-card-desc{font-size:13px;line-height:1.5;color:var(--core-ink-secondary,#66756f);word-break:keep-all}
+@media(hover:hover){body.data-core-layout.brand-home .counseling-four .feature-card:hover .counseling-card-pair img{transform:scale(1.02)}}
+@media(max-width:760px){
+  body.data-core-layout.brand-home .counseling-image-cards.counseling-four{grid-template-columns:minmax(0,1fr);gap:16px}
+  body.data-core-layout.brand-home .counseling-four .counseling-card-copy{padding:16px 18px}
+}
