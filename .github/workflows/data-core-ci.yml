@@ -47,6 +47,7 @@ jobs:
           node --check public/data-core/image-gallery.js
           node --check public/data-core/brand-home.js
           node --check public/data-core/award-image-cache.js
+          node --check public/data-core/award-slideshow.js
           node --check public/data-core/curriculum.js
           node --check public/data-core/curriculum-library.js
           node --check public/admissions-web/renderer/counseling-ux.js

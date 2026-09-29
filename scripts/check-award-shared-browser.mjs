@@ -83,29 +83,65 @@ try {
   assert.equal(stored.length,2);assert.notEqual(stored[0].r2_key,stored[1].r2_key);
   const count=async()=>Number((await h.env.DB.prepare("SELECT count(*) AS n FROM audit_logs WHERE resource_type='competition_award' AND action='file.download'").first()).n);
   assert.equal(await count(),0);
-  await page.locator('#awardLibraryFiles [data-award-image]').first().click();await page.keyboard.press('ArrowRight');await page.keyboard.press('Escape');assert.equal(await count(),0);
+  await page.locator('#awardSlideshow img:not([hidden])').waitFor();
+  assert.equal(await page.locator('#awardSlideshow output').textContent(),'1 / 2');
+  assert.equal(await page.locator('[data-slide-prev]').isDisabled(),true);
+  await page.locator('#awardLibraryFiles [data-award-image]').nth(1).click();
+  assert.equal(await page.locator('#awardSlideshow output').textContent(),'2 / 2');
+  assert.equal(await page.locator('#awardLibraryFiles [aria-current=true]').getAttribute('data-award-image'),await page.locator('#awardLibraryFiles [data-award-image]').nth(1).getAttribute('data-award-image'));
+  await page.locator('[data-slide-prev]').click();assert.equal(await page.locator('#awardSlideshow output').textContent(),'1 / 2');
+  await page.locator('.award-slide-stage').focus();await page.keyboard.press('ArrowRight');assert.equal(await page.locator('#awardSlideshow output').textContent(),'2 / 2');
+  await page.keyboard.press('Home');assert.equal(await page.locator('#awardSlideshow output').textContent(),'1 / 2');
+  const stage=await page.locator('.award-slide-stage').boundingBox();
+  await page.mouse.move(stage.x+stage.width*.7,stage.y+stage.height*.5);await page.mouse.down();await page.mouse.move(stage.x+stage.width*.3,stage.y+stage.height*.5,{steps:8});await page.mouse.up();
+  assert.equal(await page.locator('#awardSlideshow output').textContent(),'2 / 2');
+  await page.locator('[data-slide-open]:not(:disabled)').click();await page.locator('.core-image-gallery').waitFor();await page.keyboard.press('ArrowLeft');await page.keyboard.press('Escape');
+  assert.equal(await page.locator('#awardSlideshow output').textContent(),'1 / 2');assert.equal(await count(),0);
+  assert.equal(await page.locator('#awardBreadcrumb [aria-current=page]').textContent(),'SYNTHETIC 고3 긴 한글 폴더 이름');
+  assert.equal(await page.locator('#awardBreadcrumb [aria-current=page]').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(33, 90, 183)');
+  for(const heading of await page.locator('.award-collection h4').all())assert.ok(await heading.evaluate(el=>parseFloat(getComputedStyle(el).fontSize)>=22));
   const pending=page.waitForEvent('download');await page.locator('[data-award-download]').first().click();const download=await pending;
   assert.equal(download.suggestedFilename(),name);await download.saveAs(resolve(out,'synthetic-download.png'));assert.deepEqual(await readFile(resolve(out,'synthetic-download.png')),png);assert.equal(await count(),1);
+  const originals=new RegExp('/api/data-core/files/('+stored.map(file=>file.id).join('|')+')$');
+  await page.route(originals,route=>route.fulfill({status:503,body:'Synthetic outage'}));
+  await visit(leaf);await page.locator('[data-slide-retry]:not([hidden])').waitFor();
+  assert.equal(await page.locator('#awardSlideshow img').isHidden(),true);
+  await page.unroute(originals);await page.locator('[data-slide-retry]').click();
+  await page.locator('#awardSlideshow img:not([hidden])').waitFor();
+  await page.route(originals,route=>route.fulfill({status:403,body:'Synthetic permission denial'}));
+  await visit(leaf);await page.getByText('이미지 접근 권한을 다시 확인해 주세요.',{exact:true}).waitFor();
+  assert.equal(await page.locator('#awardSlideshow').isHidden(),true);
+  assert.equal(await page.locator('#awardLibraryFiles img[src]').count(),0);
+  await page.unroute(originals);
+  result.flows.push('real DOM 503 failure/retry and 403 image/cache removal; no permission bypass');
   for(const width of [1920,1440,1024,820,768,430,390,320]) {
     await page.setViewportSize({width,height:1000});await visit(leaf);
     await page.locator('#awardLibraryFiles [data-award-image]').first().scrollIntoViewIfNeeded();
     await page.locator('#awardLibraryFiles img').first().waitFor();
     await page.waitForFunction(()=>[...document.querySelectorAll('#awardLibraryFiles img')].every(img=>img.complete&&img.naturalWidth>0));
+    await page.locator('#awardSlideshow img:not([hidden])').waitFor();
+    assert.equal(await page.locator('#awardSlideshow img').evaluate(el=>getComputedStyle(el).objectFit),'contain');
+    const gallery=await page.locator('#awardSlideshow').boundingBox(),strip=await page.locator('#awardLibraryFiles').boundingBox();
+    assert.ok(strip.y>=gallery.y+gallery.height,'thumbnails below large image');
+    assert.ok(await page.locator('.award-slide-stage').evaluate(el=>el.clientHeight>100));
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'overflow '+width);
     const enrolled=await page.locator('.award-collection').nth(0).boundingBox(),pub=await page.locator('.award-collection').nth(1).boundingBox();
     assert.ok(pub.y>=enrolled.y+enrolled.height-1,'groups stacked');
     await page.screenshot({path:resolve(out,`awards-${width}.png`),fullPage:true});result.widths.push(width);
   }
-  result.flows.push('two groups, independent numeric sorting/persistence, depth3, back/forward/reload, duplicate Korean filenames, lightbox, download bytes/name, preview not audited');
+  result.flows.push('two groups, independent numeric sorting/persistence, depth3, blue current breadcrumb, 22px collection headings, back/forward/reload, duplicate Korean filenames, inline first image, thumbnails, arrows/keyboard/swipe, synchronized lightbox, download bytes/name, preview not audited');
   await page.setViewportSize({width:1024,height:1000});
   for(const user of [users.master,users.campusAdmin,users.teacher,users.staff]) {
     role=user;await visit(publicRoot);const id=await create('#openAwardChildBtn','SYNTHETIC role '+user.id);
     await page.locator('#openAwardUploadBtn').click();await page.locator('#uploadFile').setInputFiles({name:'역할 검증.png',mimeType:'image/png',buffer:png});await page.locator('#uploadSubmitBtn').click();await page.locator('#uploadModal').waitFor({state:'hidden'});
+    await page.locator('#awardSlideshow img:not([hidden])').waitFor();assert.equal(await page.locator('#awardSlideshow output').textContent(),'1 / 1');
+    assert.equal(await page.locator('[data-slide-prev]').isDisabled(),true);assert.equal(await page.locator('[data-slide-next]').isDisabled(),true);
     await page.locator('#deleteAwardFolderBtn').click();await page.waitForFunction(()=>document.querySelector('#selectedAwardFolderTitle')?.textContent==='SYNTHETIC 공개 2');
     assert.ok((await h.env.DB.prepare('SELECT deleted_at FROM data_records WHERE id=?').bind(id).first()).deleted_at);
   }
   role=users.master;await visit(leaf);await page.locator('#selectAllAwardsBtn').click();await page.locator('#deleteSelectedAwardsBtn').click();await page.locator('#confirmAwardDeleteBtn').click();
   await page.waitForFunction(()=>document.querySelectorAll('#awardLibraryFiles [data-award-image]').length===0);
+  assert.equal(await page.locator('#awardSlideshow').isHidden(),true);
   for(const file of stored){assert.deepEqual(Buffer.from(await (await h.env.FILES.get(file.r2_key)).arrayBuffer()),png);assert.ok((await h.file(file.id)).deleted_at);await h.request('POST',`/api/data-core/trash/files/${file.id}/restore`,users.master);}
   await visit(root);await page.locator('#deleteAwardFolderBtn').click();await page.waitForFunction(()=>document.querySelector('#selectedAwardFolderTitle')?.textContent==='수상작 폴더를 선택하세요');
   await page.goto(base+'/data-core/operations');await page.locator(`[data-award-restore="${root}"]`).click();await page.locator(`[data-award-restore="${root}"]`).waitFor({state:'detached'});

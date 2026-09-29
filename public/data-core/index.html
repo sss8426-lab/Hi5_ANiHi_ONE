@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="/data-core/curriculum.css?v=20260913-soft-premium">
   <link rel="stylesheet" href="/data-core/curriculum-library.css?v=20260913-soft-premium">
   <link rel="stylesheet" href="/data-core/work/attendance.css?v=20260928-template">
-  <link rel="stylesheet" href="/data-core/award-workspace.css?v=20260920-shared">
+  <link rel="stylesheet" href="/data-core/award-workspace.css?v=20260929-slideshow">
   <link rel="stylesheet" href="/data-core/design-tokens.css?v=20260913-soft-premium">
   <link rel="stylesheet" href="/data-core/design-system.css?v=20260928-approved-logo&amp;nav=20260929">
   <link rel="stylesheet" href="/data-core/image-gallery.css?v=20260913-fast-images">
@@ -342,6 +342,7 @@
             </div>
             <div class="award-classify hidden" id="awardClassify"><label>모음 분류 <select id="awardCollectionType"><option value="enrolled">재원생 수상작 모음</option><option value="public">공개 수상작 모음</option></select></label><button class="ghost-btn" id="saveAwardCollectionBtn" type="button">분류 저장</button></div>
             <div class="award-child-list" id="awardChildFolders"></div>
+            <section class="award-slideshow" id="awardSlideshow" aria-label="선택한 폴더 수상작" hidden></section>
             <div class="award-selection-bar hidden" id="awardSelectionBar"><span id="awardSelectionCount">선택 0개</span><button class="ghost-btn" id="selectAllAwardsBtn" type="button">전체선택</button><button class="danger-btn" id="deleteSelectedAwardsBtn" type="button" disabled>선택 삭제</button></div>
             <div class="award-library-grid" id="awardLibraryFiles"></div>
           </aside>
@@ -473,6 +474,7 @@
   <div class="toast hidden" id="toast"></div>
   <script src="/data-core/image-gallery.js?v=20260913-fast-images"></script>
   <script src="/data-core/award-image-cache.js?v=20260913-fast-images"></script>
+  <script src="/data-core/award-slideshow.js?v=20260929-slideshow"></script>
   <script src="/data-core/upload-queue.js?v=20260921-upload-pipeline"></script>
   <script src="/data-core/private-image-cache.js?v=20260921-performance"></script>
   <script src="/data-core/library-thumbnail.js?v=20260921-performance"></script>
@@ -483,7 +485,7 @@
   <script src="/data-core/curriculum.js?v=20260913-work-v1"></script>
   <script src="/data-core/brand-home.js?v=20260913-brand-home"></script>
   <script src="/data-core/calendar.js?v=20260921-performance"></script>
-  <script src="/data-core/app.js?v=20260929-admin-navigation"></script>
+  <script src="/data-core/app.js?v=20260929-award-slideshow"></script>
   <script src="/data-core/mode-home-artwork.js?v=20260921-calendar-details"></script>
   <script type="module" src="/data-core/design-shell.js?v=20260912-campus"></script>
 </body>
