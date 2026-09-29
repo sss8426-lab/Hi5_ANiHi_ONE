@@ -1,22 +1,22 @@
 import { careerWorks, artists as artistBook } from './career-works.js?v=20260930-pictures';
 import { careerWorkVisuals } from './career-work-visuals.js?v=matched-works-v1';
 
-const keys = ['learning', 'competencies', 'portfolio'];
+const keys = ['portfolio', 'learning', 'competencies'];
 const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const pad = n => String(n).padStart(2, '0');
 // Section labels shown above each title (the consultation reads them as chapter markers).
 const LABELS = {learning: '배움의 순서', competencies: '핵심역량', portfolio: '포트폴리오'};
 
-// 01 배움: an ordered path — each step numbered on a connecting line.
+// Learning: an ordered path with numbered steps on a connecting line.
 function learningItems(items) {
   return `<ol class="career-steps">${items.map((item, i) => `<li><span class="career-step-index" aria-hidden="true">${pad(i + 1)}</span><div><h3>${escape(item.title)}</h3><p>${escape(item.description)}</p></div></li>`).join('')}</ol>`;
 }
-// 02 핵심역량: a ruled list, then what the admission 실기 looks for (completionFocus).
+// Competencies: a ruled list, then the admission completionFocus.
 function competencyItems(items, career) {
   const focus = career.completionFocus ? `<aside class="career-focus"><span>입시 실기에서 보는 완성도</span><p>${escape(career.completionFocus)}</p></aside>` : '';
   return `<ul class="career-competencies" id="skillGrid">${items.map((item, i) => `<li><span aria-hidden="true">${pad(i + 1)}</span><h3>${escape(item.title)}</h3><p>${escape(item.description)}</p></li>`).join('')}</ul>${focus}`;
 }
-// 03 대표 작품: one card per work (opens its detail when there is one), then the outcome the portfolio adds up to.
+// Portfolio: one card per work, then the outcome the portfolio adds up to.
 function portfolioItems(items, career) {
   const details = careerWorks[career.id] || [];
   return `<ul class="career-works">${items.map((item, i) => details[i]

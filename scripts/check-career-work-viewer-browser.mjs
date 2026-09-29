@@ -28,7 +28,7 @@ const server = http.createServer(async (req,res) => {
 await new Promise(resolve => server.listen(0,'127.0.0.1',resolve));
 const base = `http://127.0.0.1:${server.address().port}`;
 let browser;
-const report = [], errors = [], mutations = [], externalImages = [];
+const report = [], sectionChecks = [], errors = [], mutations = [], externalImages = [];
 try {
   browser = await chromium.launch({headless:true,channel:process.env.ROADMAP_BROWSER_CHANNEL || 'chrome'});
   const ctx = await browser.newContext({serviceWorkers:'block',hasTouch:true});
@@ -42,6 +42,22 @@ try {
   const dialog = page.locator('#workDetail');
   const open = async (career,index=0) => {
     await page.goto(`${base}/data-core/roadmap.html#family=${career.family}&career=${career.id}`);
+    await page.locator('#careerVisualSections > section').first().waitFor();
+    const layout = await page.locator('#careerVisualSections > section').evaluateAll(sections => ({
+      keys:sections.map(section => section.dataset.section),
+      numbers:sections.map(section => section.querySelector('.career-visual-number b').textContent),
+      bounds:sections.map(section => { const box=section.getBoundingClientRect(); return {top:box.top,bottom:box.bottom}; }),
+      introBottom:document.querySelector('#resultVisual').getBoundingClientRect().bottom,
+      width:window.innerWidth,
+      overflow:document.documentElement.scrollWidth>window.innerWidth
+    }));
+    assert.deepEqual(layout.keys,['portfolio','learning','competencies'],`${career.id} section order`);
+    assert.deepEqual(layout.numbers,['01','02','03']);
+    assert.ok(layout.bounds[0].top >= layout.introBottom-1,'Portfolio follows the career introduction');
+    assert.ok(layout.bounds[1].top >= layout.bounds[0].bottom-1,'Learning follows portfolio');
+    assert.ok(layout.bounds[2].top >= layout.bounds[1].bottom-1,'Competencies follow learning');
+    assert.equal(layout.overflow,false,`${career.id}:${layout.width} page overflow`);
+    sectionChecks.push({career:career.id,width:layout.width,order:layout.keys});
     await page.locator(`.career-work-open[data-work="${index}"]`).click();
     await dialog.locator('.work-viewer-picture img').evaluate(img=>img.decode());
   };
@@ -114,8 +130,8 @@ try {
   assert.deepEqual(errors,[]);
   assert.deepEqual(mutations,[]);
   assert.deepEqual(externalImages,[]);
-  await fs.writeFile(`${output}/report.json`,JSON.stringify({kind:'local static app with synthetic API responses',checks:report.length,report,errors,mutations,externalImages},null,2)+'\n');
-  console.log(JSON.stringify({passed:true,checks:report.length,output}));
+  await fs.writeFile(`${output}/report.json`,JSON.stringify({kind:'local static app with synthetic API responses',checks:report.length,sectionChecks,report,errors,mutations,externalImages},null,2)+'\n');
+  console.log(JSON.stringify({passed:true,checks:report.length,sectionChecks:sectionChecks.length,output}));
 } finally {
   await browser?.close();
   await new Promise(resolve=>server.close(resolve));

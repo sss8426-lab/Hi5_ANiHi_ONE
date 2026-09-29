@@ -94,6 +94,35 @@ test('each detail renders only its own three lazy images with semantic text and 
   }
 });
 
+test('all 35 career details show portfolio before learning and competencies without losing content', () => {
+  const order = ['portfolio','learning','competencies'];
+  const text = node => node.type === 'text' ? node.data : (node.children || []).map(text).join('');
+  for (const career of careers) {
+    const original = structuredClone(career);
+    const sections = parseDocument(visualSections(career)).children.filter(node => node.name === 'section');
+    assert.deepEqual(sections.map(node => node.attribs['data-section']),order,career.id);
+    for (const [index,section] of sections.entries()) {
+      const content = career.visualContent[order[index]];
+      const nodes = all(section);
+      const marker = nodes.find(node => node.attribs?.class === 'career-visual-number');
+      assert.equal(text(marker.children.find(node => node.name === 'b')),String(index+1).padStart(2,'0'));
+      assert.equal(section.attribs['aria-labelledby'],`career-${order[index]}-title`);
+      assert.equal(nodes.find(node => node.name === 'img').attribs.src,`${content.image}?v=${content.version}`);
+      for (const value of [content.title,content.intro,...content.items.flatMap(item => [item.title,item.description])]) {
+        assert.ok(text(section).includes(value),`${career.id}/${order[index]} retains ${value}`);
+      }
+    }
+    assert.deepEqual(career,original,'Rendering does not reorder or edit source career data');
+  }
+});
+
+test('the portfolio-first release refreshes both the entry script and its renderer import', async () => {
+  const html = await fs.readFile('public/data-core/roadmap.html','utf8');
+  const entry = await fs.readFile('public/data-core/roadmap.js','utf8');
+  assert.ok(html.includes('/data-core/roadmap.js?v=portfolio-first-v1'));
+  assert.ok(entry.includes('./career-visuals.js?v=portfolio-first-v1'));
+});
+
 test('missing assets show an honest text state and text is escaped', () => {
   const career = structuredClone(careers[0]);
   career.visualContent.learning.available = false;
