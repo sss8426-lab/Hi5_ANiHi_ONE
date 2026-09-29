@@ -167,3 +167,18 @@ at 2560/1920/1440/1024/768/390/320 widths, all 105 tasks on desktop/mobile,
 navigation, focus, swipe and a synthetic failed-image response. Its API responses
 are synthetic unauthenticated responses; this is not authenticated production
 verification. No API, authorization, D1/R2, upload or admissions behavior changed.
+
+## Portfolio-first counseling order
+
+All 35 career details now show the existing portfolio section immediately after
+the career introduction, followed by learning and competencies. The shared
+renderer emits this DOM order with sequential section markers 01, 02 and 03;
+the portfolio is the second main content area when counting the introduction.
+No career descriptions, images, source data, artist references, work-dialog
+behavior or subsequent university/curriculum sections are removed or rewritten.
+The entry script and renderer import use `portfolio-first-v1` to refresh caches.
+
+`tests/career-visual-content.test.mjs` checks order, markers, image mapping, all
+section text, source immutability and both cache-version references. The existing
+work-viewer browser check additionally verifies actual section order, vertical
+placement and page overflow on desktop/mobile before opening the work dialogs.
