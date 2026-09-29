@@ -151,8 +151,9 @@ test('main screens show exactly the attached layout: no 양식/마무리 summary
   assert.doesNotMatch(blog,/<summary>추가 요청<\/summary>/);
   assert.doesNotMatch(presets,/캠퍼스 추천 설정|현재 결과에 적용|게시물 브랜드|editProfile/);
   for(const label of ["'인사말'","'고정 해시태그'","'고정 마지막 문구'","'Hi5'","'ANiHi'","'+ 새 저장'","'전체 보기'","'삭제한 세트'","'상담전화'","'주소'","'체험수업 링크 (https)'","'홈페이지 링크 (https)'","'인스타 링크 (https)'","'설정 저장'"])assert.ok(presets.includes(label),label);
-  // Instagram: 로고 선택 → 나만의 로고 선택 [로고 올리기] → 제작 방식 → 이미지 만들기.
-  const igOrder=['<h3>로고 선택</h3>','<h3>나만의 로고 선택</h3>','>로고 올리기</button>','id="igMode"','id="igGenerate"'].map(key=>ig.indexOf(key));
+  // Instagram: 로고 선택 [로고 올리기] → one grid (기본 로고 6 + 올린 로고) → 제작 방식 → 이미지 만들기. No separate 나만의 로고 선택.
+  assert.doesNotMatch(ig,/나만의 로고 선택/);
+  const igOrder=['<h3>로고 선택</h3>','>로고 올리기</button>','id="igLogoGrid"','id="igMode"','id="igGenerate"'].map(key=>ig.indexOf(key));
   assert.ok(igOrder.every((at,i)=>at>0&&(i===0||at>igOrder[i-1])),String(igOrder));
   // Switching a brand or loading a set never calls the AI; only the per-area value changes.
   assert.doesNotMatch(presets,/\/generate|image-edit/);
