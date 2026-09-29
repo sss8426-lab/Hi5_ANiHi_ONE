@@ -855,13 +855,15 @@ async function downloadAward(file) {
 }
 
 function updateAwardFolderArrows() {
-  const track = $('awardFolderTrack');
-  if (!track) return;
-  $('awardFolderPrev').disabled = track.scrollLeft <= 1;
-  $('awardFolderNext').disabled = track.scrollLeft + track.clientWidth >= track.scrollWidth - 1;
+  for (const prefix of ['award', 'publicAward']) {
+    const track = $(prefix+'FolderTrack');
+    if (!track) continue;
+    $(prefix+'FolderPrev').disabled = track.scrollLeft <= 1;
+    $(prefix+'FolderNext').disabled = track.scrollLeft + track.clientWidth >= track.scrollWidth - 1;
+  }
 }
-function moveAwardFolder(direction) {
-  const track = $('awardFolderTrack');
+function moveAwardFolder(direction, prefix = 'award') {
+  const track = $(prefix+'FolderTrack');
   const bounds = track.getBoundingClientRect();
   const items = [...track.querySelectorAll('button')];
   const target = direction > 0 ? items.find(item=>item.getBoundingClientRect().right > bounds.right + 1)
@@ -873,7 +875,7 @@ function moveAwardFolder(direction) {
 }
 
 
-const awardDetailIds = new Set(["awardFolderDetail","awardBreadcrumb","selectedAwardFolderTitle","selectedAwardFolderMeta","openAwardChildBtn","openAwardUploadBtn","deleteAwardFolderBtn","awardClassify","awardCollectionType","saveAwardCollectionBtn","awardChildFolders","awardSlideshow","awardSelectionBar","awardSelectionCount","selectAllAwardsBtn","deleteSelectedAwardsBtn","awardLibraryFiles"]);
+const awardDetailIds = new Set(["awardFolderDetail","awardBreadcrumb","openAwardChildBtn","openAwardUploadBtn","deleteAwardFolderBtn","awardChildFolders","awardSlideshow","awardSelectionBar","awardSelectionCount","selectAllAwardsBtn","deleteSelectedAwardsBtn","awardLibraryFiles"]);
 function createAwardCollection(type, collectionState) {
   const state = collectionState;
   const host = document.getElementById(type === 'public' ? 'awardPublicCollection' : 'awardEnrolledCollection');
@@ -893,23 +895,19 @@ function createAwardCollection(type, collectionState) {
     detail.hidden = !folder;
     const parentOf = item => item.parentFolderId || item.metadata?.parentFolderId;
     const sort = (items,type) => [...items].sort((a,b)=>(a.title || '').localeCompare(b.title || '', 'ko-KR',{numeric:true}) * (awardSort[type]==='desc'?-1:1));
-    const buttons = items => items.map(item=>`<button type="button" title="${h(item.title)}" class="award-folder-tab ${item.id===state.selectedAwardFolderId?'active':''}" aria-pressed="${item.id===state.selectedAwardFolderId}" data-award-folder-id="${h(item.id)}"><strong>${h(item.title)}</strong>${!typeOf(item)?'<small>분류 확인 필요</small>':''}</button>`).join('') || '<span class="empty-state compact">폴더가 없습니다.</span>';
+    const buttons = (items, child = false) => items.map(item=>`<button type="button" title="${h(item.title)}" class="award-folder-tab ${item.id===state.selectedAwardFolderId?'active':''}" aria-pressed="${item.id===state.selectedAwardFolderId}" data-award-folder-id="${h(item.id)}">${child?'<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Folder"/></svg>':''}<strong>${h(item.title)}</strong></button>`).join('') || '<span class="empty-state compact">폴더가 없습니다.</span>';
     list.innerHTML = buttons(sort(state.awardFolders.filter(item=>!parentOf(item)),type));
     const children=state.awardFolders.filter(item=>parentOf(item)===folder?.id);
-    $('awardChildFolders').innerHTML = folder ? (children.length?buttons(sort(children,typeOf(folder)||'enrolled')):'<span class="empty-state compact">하위 폴더가 없습니다.</span>') : '';
+    $('awardChildFolders').innerHTML = folder ? (children.length?buttons(sort(children,typeOf(folder)||'enrolled'),true):'<span class="empty-state compact">하위 폴더가 없습니다.</span>') : '';
     host.querySelectorAll('[data-award-folder-id]').forEach((button) => {
       button.onclick = async () => {
         await navigateAwardFolder(button.dataset.awardFolderId);
       };
     });
-    $('selectedAwardFolderTitle').textContent = folder?.title || '수상작 폴더를 선택하세요';
-    $('selectedAwardFolderMeta').textContent = folder && !typeOf(folder) ? '분류 확인 필요 · 기존 자료는 보존됩니다.' : '';
     for (const id of ['openAwardUploadBtn','deleteAwardFolderBtn','openAwardChildBtn']) { $(id).disabled=!folder||!canManageAwards(); $(id).classList.toggle('hidden',!canManageAwards()); }
     const createButton = $(type === 'public' ? 'openPublicAwardFolderBtn' : 'openAwardFolderBtn');
     createButton.classList.toggle('hidden',!canManageAwards());
     createButton.disabled=!canManageAwards();
-    $('awardClassify').classList.toggle('hidden',!folder||!isSuperAdmin()||Boolean(parentOf(folder)));
-    if (folder) $('awardCollectionType').value=typeOf(folder)||'enrolled';
     const crumbs=state.awardBreadcrumbs||[];
     $('awardBreadcrumb').innerHTML=folder?`<button type="button" class="ghost-btn" data-award-crumb="">${typeOf(folder)==='public'?'공개':'재원생'} 수상작 모음</button>`+crumbs.map(item=>`<span aria-hidden="true">›</span><button type="button" class="ghost-btn" title="${h(item.title)}" ${item.id===folder.id?'aria-current="page"':''} data-award-crumb="${h(item.id)}">${h(item.title)}</button>`).join(''):'';
     host.querySelectorAll('[data-award-crumb]').forEach(button=>button.onclick=()=>navigateAwardFolder(button.dataset.awardCrumb||null));
@@ -1538,9 +1536,11 @@ function bindEvents() {
   $('openUploadBtn').onclick = () => openModal('uploadModal');
   $('uploadForm').onsubmit = uploadFile;
   $('retryUploadsBtn').onclick = () => runUploadQueue(true);
-  $('awardFolderPrev').onclick = () => moveAwardFolder(-1);
-  $('awardFolderNext').onclick = () => moveAwardFolder(1);
-  $('awardFolderTrack').addEventListener('scroll', updateAwardFolderArrows, {passive:true});
+  for (const prefix of ['award', 'publicAward']) {
+    $(prefix+'FolderPrev').onclick = () => moveAwardFolder(-1, prefix);
+    $(prefix+'FolderNext').onclick = () => moveAwardFolder(1, prefix);
+    $(prefix+'FolderTrack').addEventListener('scroll', updateAwardFolderArrows, {passive:true});
+  }
   window.addEventListener('resize', updateAwardFolderArrows);
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape' && !$('uploadModal').classList.contains('hidden')) closeModal('uploadModal');
@@ -1560,14 +1560,6 @@ function bindEvents() {
     const sort = $(type === 'public' ? 'awardSortPublic' : 'awardSortEnrolled');
     sort.value = awardSort[type];
     sort.onchange = () => {awardSort[type]=sort.value;try{localStorage.setItem('award-sort-'+type,sort.value);}catch{/* Optional preference. */}pane.renderAwardFolders();};
-    element('saveAwardCollectionBtn').onclick=async()=>{
-      const folder=pane.selectedAwardFolder();if(!folder)return;
-      const button=element('saveAwardCollectionBtn');button.disabled=true;
-      try {
-        await api('/api/data-core/awards/folders/'+encodeURIComponent(folder.id),{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({collectionType:element('awardCollectionType').value})});
-        await loadAwardFolders(true);
-      } catch(error){toast(error.message,'error');}finally{button.disabled=false;}
-    };
   }
   $('awardActivityFilter').onchange=()=>loadAwardActivity();
   $('awardActivityMore').onclick=()=>loadAwardActivity(true);
