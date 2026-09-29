@@ -1,8 +1,9 @@
 (() => {
   const root = '/data-core/curriculum';
   const families = {
-    content: { title: '웹툰 · 게임 · 애니메이션', description: '웹툰, 게임그래픽, 애니메이션 전공을 준비하는 성장 과정', image: 'story-v1.webp', alt: '웹툰 원고와 애니메이션 화면, 스토리보드가 놓인 작업대' },
-    design: { title: '디자이너', description: '디자인 계열 진학과 진로를 준비하는 성장 과정', image: 'design-v1.webp', alt: '패키지 시제품, 편집물과 색상표를 펼친 디자인 작업대' },
+    start: { title: '꿈 그림의 시작', description: '처음 연필과 물감을 잡는 초등학생을 위한 첫걸음 과정', image: 'start-v1.webp', alt: '크레파스, 색연필, 수채 물감과 집·해·고양이를 그린 스케치북이 놓인 책상', tag: '초등 · 첫걸음', width: 1440, height: 960 },
+    content: { title: '웹툰 · 게임 · 애니메이션', description: '웹툰, 게임그래픽, 애니메이션 전공을 준비하는 성장 과정', image: 'story-academy-work-v1.webp', alt: '애니하이 만화학원 작품 · 흑백 펜선 만화 원고', width: 1440, height: 1039 },
+    design: { title: '디자이너', description: '디자인 계열 진학과 진로를 준비하는 성장 과정', image: 'design-academy-work-v1.webp', alt: '하이파이브 미술학원 작품 · 유리 질감 발상과 표현', width: 1440, height: 1051 },
   };
   const stages = { basic: '기초과정', advanced: '심화과정', admission: '입시과정' };
   const stageImages = {
@@ -18,16 +19,16 @@
     },
   };
   // Separate catalog slots; do not invent lessons or write an empty seed to production.
-  const courses = { content: { basic: [], advanced: [], admission: [] }, design: { basic: [], advanced: [], admission: [] } };
+  const courses = { start: [], content: { basic: [], advanced: [], admission: [] }, design: { basic: [], advanced: [], admission: [] } };
   const icon = name => `<svg aria-hidden="true" width="24" height="24" ${name==='ArrowRight'?'class="curriculum-forward"':''}><use href="/data-core/assets/core-icons.svg#${name==='ArrowRight'?'ArrowLeft':name}"></use></svg>`;
   let countController;
   function render(path = location.pathname) {
     countController?.abort();
     window.DataCoreCurriculumLibrary?.dispose();
-    const match = path.replace(/\/+$/, '').match(/^\/data-core\/curriculum(?:\/(content|design)(?:\/(basic|advanced|admission))?)?$/);
+    const match = path.replace(/\/+$/, '').match(/^\/data-core\/curriculum(?:\/(start|content|design)(?:\/(basic|advanced|admission))?)?$/);
     const host = document.getElementById('view-curriculum');
     if (!host) return;
-    if (!match) { host.innerHTML = '<h2>과정을 찾을 수 없습니다.</h2>'; return; }
+    if (!match || (match[1] === 'start' && match[2])) { host.innerHTML = '<h2>과정을 찾을 수 없습니다.</h2>'; return; }
     const [, family, stage] = match, selected = families[family];
     host.classList.toggle('curriculum-library', family === 'content' && Object.hasOwn(stages, stage));
     if (family === 'content' && Object.hasOwn(stages, stage)) {
@@ -37,7 +38,8 @@
     const title = stage ? stages[stage] : selected ? `${selected.title} 커리큘럼` : '꿈을 향한 커리큘럼';
     const back = stage ? `${root}/${family}` : selected ? root : '/data-core/counseling';
     host.innerHTML = `<div class="curriculum-heading"><a class="curriculum-back" href="${back}" aria-label="${stage ? '과정 선택' : selected ? '커리큘럼 선택' : '상담용 홈'}으로 돌아가기">${icon('ArrowLeft')}</a><div>${stage ? `<p>${selected.title} 커리큘럼</p>` : ''}<h2>${title}</h2></div></div>` +
-      (!selected ? `<div class="curriculum-cards">${Object.entries(families).map(([key, item]) => `<a class="curriculum-card" href="${root}/${key}"><img src="/data-core/assets/work-visuals/${item.image}" alt="${item.alt}" width="1440" height="960" decoding="async"><div><h3>${item.title}</h3><p>${item.description}</p>${icon('ArrowRight')}</div></a>`).join('')}</div>`
+      (!selected ? `<div class="curriculum-cards">${Object.entries(families).map(([key, item]) => `<a class="curriculum-card${item.tag ? ' curriculum-start-card' : ''}" href="${root}/${key}">${item.tag ? `<span class="curriculum-card-tag">${item.tag}</span>` : ''}<img src="/data-core/assets/work-visuals/${item.image}" alt="${item.alt}" width="${item.width || 1440}" height="${item.height || 960}" decoding="async"><div><h3>${item.title}</h3><p>${item.description}</p>${icon('ArrowRight')}</div></a>`).join('')}</div>`
+        : family === 'start' ? `<section class="curriculum-empty" data-family="start" data-course-count="${courses.start.length}">${icon('BookOpen')}<p>등록된 커리큘럼이 없습니다.</p></section>`
         : !stage ? `<div class="curriculum-folders">${Object.entries(stages).map(([key, label]) => {
           const art = stageImages[family][key];
           return `<a class="curriculum-card curriculum-stage-card" href="${root}/${family}/${key}"><img src="/data-core/assets/curriculum/${art.image}" alt="${art.alt}" width="1200" height="800" decoding="async"><div><h3>${label}</h3><p>${art.description}</p>${family==='content'?`<p data-stage-count="${key}" aria-live="polite">수업 수 확인 중</p>`:''}${icon('ArrowRight')}</div></a>`;
