@@ -117,7 +117,7 @@ try{
   assert.equal(await page.evaluate(()=>window.__printCalls||0),printCalls);assert.equal(await page.locator('.curriculum-print-root').count(),0);
   failPrint=false;await page.getByRole('button',{name:'다시 시도',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.lesson-status')?.textContent==='인쇄 준비가 완료되었습니다.');
   auth=false;await page.reload();await page.getByText('로그인이 필요합니다.',{exact:true}).waitFor();assert.equal(await page.locator('.lesson-card,.lesson-reader').count(),0);
-  await page.goto(`${base}/data-core/curriculum/content`);await page.getByText('수업 수 확인 필요',{exact:true}).nth(2).waitFor();assert.equal(await page.getByText('0개 수업',{exact:true}).count(),0);
+  await page.goto(`${base}/data-core/curriculum/content`);await page.waitForFunction(()=>document.querySelectorAll('.curriculum-stage-card').length===3&&!document.querySelector('[data-stage-count]'));assert.equal(await page.getByText('수업 수 확인',{exact:false}).count(),0);assert.equal(await page.getByText('0개 수업',{exact:true}).count(),0);
   assert.deepEqual(errors,[]);assert.deepEqual(missing,[]);assert.equal(mutations,0);
   const result={origin:base,checks:reports,errors:0,missingAssets:0,mutations:0,printFailureBlocked:true,campusReadPrint:true,apiUpdatesWithoutRedeploy:true,sourceFilesystemAccess:false};await writeFile(out+'/results.json',JSON.stringify(result,null,2));console.log(JSON.stringify(result));
 }finally{await browser.close();}

@@ -31,12 +31,13 @@
 
 ## Verification Boundary
 
-Local build, TypeScript, targeted tests and asset verification passed. The local
+Local build, TypeScript, the complete 670-test suite, targeted tests and asset
+verification passed before integrating main's subsequent curriculum changes. The local
 browser runner checks 258 cases across seven viewport widths and produces
 `outputs/career-work-viewer/report.json` and screenshots. Browser API responses
 are synthetic; no live student records or production data are mutated.
 
-The complete test-suite result, PR checks, deployment status and any authenticated
-production verification are recorded in the PR/release report after they complete.
+The integrated-branch test-suite result, PR checks, deployment status and any
+authenticated production verification are recorded in the PR/release report after they complete.
 Local browser or asset HTTP checks alone are not proof of authenticated production
 behavior. Original generated PNGs remain available locally for future revisions.

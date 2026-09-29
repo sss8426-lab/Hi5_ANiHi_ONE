@@ -302,7 +302,6 @@ function route() {
   }));
   state.page = /^\d+$/.test(params.get('page') || '') ? Math.min(1000,Math.max(1,Number(params.get('page')))) : 1;
   if (sameCareer) { loadConnectedPrograms(career);return; }
-  $('hero').hidden = Boolean(state.family);
   $('explore').hidden = Boolean(state.family);
   $('catalogSection').hidden = !state.family || Boolean(career);
   $('roadmapResult').hidden = !career;
