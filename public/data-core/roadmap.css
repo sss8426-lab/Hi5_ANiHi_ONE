@@ -80,3 +80,14 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,su
 @media(max-width:860px){.career-visual-section{display:flex;flex-direction:column;align-items:stretch;gap:24px;padding:24px 0 36px}.career-visual-copy h2{font-size:24px}.career-visual-items{gap:20px}.career-visual-portfolio .career-visual-copy{display:block}.career-visual-portfolio .career-visual-items{margin-top:24px}}
 @media(max-width:480px){.career-visual-group{padding-top:16px}.career-visual-section+section{margin-top:12px}.career-visual-copy h2{font-size:22px}.career-visual-items{gap:20px 14px}.career-visual-portfolio .career-visual-items{grid-template-columns:minmax(0,1fr);gap:16px}.career-visual-media{border-radius:4px}}
 @media print{.career-visual-group{break-inside:auto}.career-visual-section{break-inside:avoid}.career-visual-media{max-height:145mm}.career-visual-media img{object-fit:contain}}
+/* 꿈·전공 로드맵 첫 화면: no hero banner — the two paths are the page, shown large like 꿈을 향한 커리큘럼. */
+.roadmap-page .family-section{padding:36px 0 48px}
+.roadmap-page .family-heading{justify-content:flex-start;gap:16px;margin-bottom:28px}
+.roadmap-page .family-heading .eyebrow{margin-bottom:6px}
+.roadmap-page .family-heading h1{margin:0;font-size:32px;line-height:1.35;color:var(--core-ink,#1d2a26)}
+.roadmap-page .family-back{flex:0 0 44px;height:44px;display:grid;place-items:center;border:1px solid var(--core-line-strong,#cfd8d4);border-radius:8px;color:var(--core-brand,#1f4d45);font-size:20px;text-decoration:none;background:#fff}
+.roadmap-page .family-section .family-art{height:auto;aspect-ratio:3/2}
+.roadmap-page .family-section .family-copy{padding:26px 76px 28px 28px}
+.roadmap-page .family-section .family-copy h3{font-size:26px}
+.roadmap-page .family-section .family-copy p{font-size:15px}
+@media(max-width:680px){.roadmap-page .family-heading h1{font-size:24px}.roadmap-page .family-back{flex-basis:40px;height:40px}.roadmap-page .family-section .family-copy h3{font-size:22px}}
