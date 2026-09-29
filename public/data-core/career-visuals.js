@@ -1,5 +1,5 @@
-import { careerWorks, artists as artistBook } from './career-works.js?v=20260929-all';
-import { artistImages as workImages } from './career-work-images.js?v=20260929-all';
+import { careerWorks, artists as artistBook } from './career-works.js?v=20260930-pictures';
+import { artistImages as workImages } from './career-work-images.js?v=20260930-pictures';
 
 const keys = ['learning', 'competencies', 'portfolio'];
 const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -36,7 +36,7 @@ function workDetail(career, index) {
   const artists = work.artists.filter((id) => artistBook[id]).map((id) => ({...artistBook[id], images: artistBook[id].images?.length ? artistBook[id].images : workImages[id] || []})).map((artist) => `<article class="work-artist"><header><h4>${escape(artist.name)}</h4><span>${escape(artist.nameEn)} · ${escape(artist.meta)}</span></header><p>${escape(artist.bio)}</p>${artistImages(artist)}<h5>대표 작품</h5>${list(artist.works)}${artist.links.length ? `<div class="work-artist-links">${artist.links.map((link) => `<a href="${escape(link.url)}" target="_blank" rel="noopener noreferrer">${escape(link.label)} ↗</a>`).join('')}</div>` : ''}</article>`).join('');
   return `<header class="work-detail-head"><span class="career-work-label">WORK ${pad(index + 1)} · ${escape(career.name)}</span><h3 id="workDetailTitle">${escape(item.title)}</h3><p>${escape(work.about)}</p></header>`
     + `<div class="work-detail-grid"><section><h4>이런 곳에 쓰여요</h4>${list(work.uses)}</section><section><h4>포트폴리오에 담을 것</h4>${list(work.portfolio)}</section></div>`
-    + `<section class="work-artists"><h4>이 분야의 대표 작가</h4>${artists}<p class="work-note">작품 이미지는 작가·출판사·스튜디오의 공식 페이지나 자유 이용 허락된 위키미디어 공용 사진을 그대로 불러오며, 누르면 원본 페이지로 이동해요. 저작권은 각 작가와 권리자에게 있어요.</p></section>`;
+    + `<section class="work-artists"><h4>이 분야의 대표 작가</h4>${artists}<p class="work-note">작품 이미지는 작가·출판사·스튜디오의 공식 페이지와 공식 유튜브, 자유 이용이 허락된 위키미디어 공용 사진을 그대로 불러오며, 누르면 원본 페이지로 이동해요. 저작권은 각 작가와 권리자에게 있어요.</p></section>`;
 }
 function openWork(career, index, opener) {
   let dialog = document.getElementById('workDetail');

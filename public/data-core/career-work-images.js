@@ -2,6 +2,482 @@
 // address: official artist/publisher/studio pages, Studio Ghibli's free-use stills, or freely licensed Wikimedia Commons
 // photos (license and author shown). Generated from a reviewed list; never copied to our server.
 export const artistImages = {
+ "kangfull": [
+  {
+   "src": "https://upload.wikimedia.org/wikipedia/commons/b/b7/Kang_Full_SBS_Radio.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+   "caption": "강풀 작가",
+   "source": "위키미디어 공용 · CC BY-SA 3.0 · SBS Radio",
+   "href": "https://commons.wikimedia.org/wiki/File:Kang_Full_SBS_Radio.jpg"
+  }
+ ],
+ "tezuka": [
+  {
+   "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b3/Tezuka_osamu01_2048.jpg/960px-Tezuka_osamu01_2048.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+   "caption": "데즈카 오사무 기념관 (다카라즈카)",
+   "source": "위키미디어 공용 · CC BY 2.5 · 663highland",
+   "href": "https://commons.wikimedia.org/wiki/File:Tezuka_osamu01_2048.jpg"
+  },
+  {
+   "src": "https://upload.wikimedia.org/wikipedia/commons/1/1d/Osamu_Tezuka_1951_Scan10008-2.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+   "caption": "작업 중인 데즈카 오사무 (1951)",
+   "source": "위키미디어 공용 · Public domain · Unknown authorUnknown author",
+   "href": "https://commons.wikimedia.org/wiki/File:Osamu_Tezuka_1951_Scan10008-2.JPG"
+  }
+ ],
+ "inoue": [
+  {
+   "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3e/%22Vagabond%22_mural_on_hostel_room_wall.jpg/960px-%22Vagabond%22_mural_on_hostel_room_wall.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+   "caption": "『배가본드』 벽화",
+   "source": "위키미디어 공용 · CC BY-SA 4.0 · RealZed",
+   "href": "https://commons.wikimedia.org/wiki/File:%22Vagabond%22_mural_on_hostel_room_wall.jpg"
+  },
+  {
+   "src": "https://upload.wikimedia.org/wikipedia/commons/c/c0/Takehiko_Inoue_20240312_%28cropped%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+   "caption": "이노우에 다케히코",
+   "source": "위키미디어 공용 · CC BY 4.0 · 文部科学省",
+   "href": "https://commons.wikimedia.org/wiki/File:Takehiko_Inoue_20240312_(cropped).jpg"
+  }
+ ],
+ "huhyoungman": [
+  {
+   "src": "https://upload.wikimedia.org/wikipedia/commons/7/76/Huh_Young-Man_from_acrofan.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+   "caption": "허영만 작가",
+   "source": "위키미디어 공용 · CC BY-SA 3.0 · acrofan.com",
+   "href": "https://commons.wikimedia.org/wiki/File:Huh_Young-Man_from_acrofan.jpg"
+  }
+ ],
+ "kimjunkoo": [
+  {
+   "src": "https://upload.wikimedia.org/wikipedia/commons/0/09/Naver_Line_Webtoon_logo.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+   "caption": "웹툰(WEBTOON) 로고",
+   "source": "위키미디어 공용 · Public domain",
+   "href": "https://commons.wikimedia.org/wiki/File:Naver_Line_Webtoon_logo.png"
+  }
+ ],
+ "torishima": [
+  {
+   "src": "https://upload.wikimedia.org/wikipedia/commons/0/03/Torishima_wiki.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+   "caption": "도리시마 가즈히코",
+   "source": "위키미디어 공용 · CC0 · BR2OKMA",
+   "href": "https://commons.wikimedia.org/wiki/File:Torishima_wiki.png"
+  }
+ ],
+ "yuntaeho": [
+  {
+   "src": "https://upload.wikimedia.org/wikipedia/commons/7/77/%EC%9C%A4%ED%83%9C%ED%98%B8_%EC%9E%91%EA%B0%80.jpg",
+   "caption": "윤태호 작가",
+   "source": "위키미디어 공용 · CC BY 3.0 · MaumMonthly",
+   "href": "https://commons.wikimedia.org/wiki/File:%EC%9C%A4%ED%83%9C%ED%98%B8_%EC%9E%91%EA%B0%80.jpg"
+  }
+ ],
+ "kimeunhee": [
+  {
+   "src": "https://upload.wikimedia.org/wikipedia/commons/7/70/Kim_Eun-hee_2019.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+   "caption": "김은희 작가",
+   "source": "위키미디어 공용 · CC BY 3.0 · NINE STARS",
+   "href": "https://commons.wikimedia.org/wiki/File:Kim_Eun-hee_2019.png"
+  }
+ ],
+ "richardwilliams": [
+  {
+   "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0b/Richard_Williams_at_Aardman_Animation_in_2015.jpg/960px-Richard_Williams_at_Aardman_Animation_in_2015.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+   "caption": "작업 중인 리처드 윌리엄스 (2015)",
+   "source": "위키미디어 공용 · CC BY-SA 4.0 · alexander williams",
+   "href": "https://commons.wikimedia.org/wiki/File:Richard_Williams_at_Aardman_Animation_in_2015.jpg"
+  }
+ ],
+ "glenkeane": [
+  {
+   "src": "https://upload.wikimedia.org/wikipedia/commons/7/77/Glen_Keane.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+   "caption": "글렌 킨",
+   "source": "위키미디어 공용 · CC BY-SA 4.0 · Boungawa",
+   "href": "https://commons.wikimedia.org/wiki/File:Glen_Keane.jpg"
+  }
+ ],
+ "lasseter": [
+  {
+   "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ed/Luxo_Jr_in_Pixar_Fest_Hong_Kong_2021.jpg/960px-Luxo_Jr_in_Pixar_Fest_Hong_Kong_2021.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+   "caption": "『룩소 주니어』 조형물",
+   "source": "위키미디어 공용 · CC BY-SA 4.0 · Achanhk",
+   "href": "https://commons.wikimedia.org/wiki/File:Luxo_Jr_in_Pixar_Fest_Hong_Kong_2021.jpg"
+  }
+ ],
+ "docter": [
+  {
+   "src": "https://upload.wikimedia.org/wikipedia/commons/f/fd/Pete_Docter_cropped_2009.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+   "caption": "피트 닥터",
+   "source": "위키미디어 공용 · CC BY-SA 2.0",
+   "href": "https://commons.wikimedia.org/wiki/File:Pete_Docter_cropped_2009.jpg"
+  }
+ ],
+ "catmull": [
+  {
+   "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2a/Ed_Catmull_at_Web_Summit_2015_%28cropped%29.jpg/960px-Ed_Catmull_at_Web_Summit_2015_%28cropped%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+   "caption": "에드윈 캣멀",
+   "source": "위키미디어 공용 · CC BY 2.0 · Web Summit",
+   "href": "https://commons.wikimedia.org/wiki/File:Ed_Catmull_at_Web_Summit_2015_(cropped).jpg"
+  }
+ ],
+ "yeonsangho": [
+  {
+   "src": "https://upload.wikimedia.org/wikipedia/commons/8/8e/%28%EC%82%AC%EC%9D%B4%EB%B9%84%29_%EA%B8%B0%EC%9E%90_%EA%B0%84%EB%8B%B4%ED%9A%8C_%EC%98%81%EC%83%81_%EC%97%B0%EC%83%81%ED%98%B8_39s.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+   "caption": "연상호 감독",
+   "source": "위키미디어 공용 · CC BY 3.0 · ItsNEWKorea",
+   "href": "https://commons.wikimedia.org/wiki/File:(%EC%82%AC%EC%9D%B4%EB%B9%84)_%EA%B8%B0%EC%9E%90_%EA%B0%84%EB%8B%B4%ED%9A%8C_%EC%98%81%EC%83%81_%EC%97%B0%EC%83%81%ED%98%B8_39s.jpg"
+  }
+ ],
+ "bongjoonho": [
+  {
+   "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/fb/Bong_Joon-ho_2017.jpg/960px-Bong_Joon-ho_2017.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+   "caption": "봉준호 감독",
+   "source": "위키미디어 공용 · CC BY 2.0",
+   "href": "https://commons.wikimedia.org/wiki/File:Bong_Joon-ho_2017.jpg"
+  }
+ ],
+ "amano": [
+  {
+   "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ad/Yoshitaka_Amano_Oct_2006.jpg/960px-Yoshitaka_Amano_Oct_2006.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+   "caption": "작품에 사인하는 아마노 요시타카",
+   "source": "위키미디어 공용 · CC BY-SA 3.0 · Luthwyhn at en.wikipedia",
+   "href": "https://commons.wikimedia.org/wiki/File:Yoshitaka_Amano_Oct_2006.jpg"
+  }
+ ],
+ "nomura": [
+  {
+   "src": "https://i.ytimg.com/vi/j151ek2rYs0/mqdefault.jpg",
+   "caption": "『킹덤 하츠 IV』 공식 예고편",
+   "source": "킹덤 하츠 공식 유튜브",
+   "href": "https://www.youtube.com/watch?v=j151ek2rYs0"
+  }
+ ],
+ "toriyama": [
+  {
+   "src": "https://i.ytimg.com/vi/CYcrmsdZuyw/mqdefault.jpg",
+   "caption": "『드래곤볼 다이마』 공식 예고편 (원작·캐릭터 디자인 도리야마 아키라)",
+   "source": "도에이 애니메이션 공식 유튜브",
+   "href": "https://www.youtube.com/watch?v=CYcrmsdZuyw"
+  }
+ ],
+ "mcquarrie": [
+  {
+   "src": "https://upload.wikimedia.org/wikipedia/commons/b/ba/Ralph_McQuarrie.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+   "caption": "랄프 맥쿼리",
+   "source": "위키미디어 공용 · CC BY 2.0",
+   "href": "https://commons.wikimedia.org/wiki/File:Ralph_McQuarrie.jpg"
+  }
+ ],
+ "sydmead": [
+  {
+   "src": "https://upload.wikimedia.org/wikipedia/commons/3/34/Syd_Mead_LF.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+   "caption": "시드 미드",
+   "source": "위키미디어 공용 · CC BY-SA 2.5 · lukeford.net",
+   "href": "https://commons.wikimedia.org/wiki/File:Syd_Mead_LF.JPG"
+  }
+ ],
+ "sakurai": [
+  {
+   "src": "https://upload.wikimedia.org/wikipedia/commons/d/da/Masahiro_Sakurai_2021.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+   "caption": "사쿠라이 마사히로",
+   "source": "위키미디어 공용 · CC BY 3.0 · Katsuhiro Harada",
+   "href": "https://commons.wikimedia.org/wiki/File:Masahiro_Sakurai_2021.jpg"
+  }
+ ],
+ "kurita": [
+  {
+   "src": "https://www.moma.org/media/W1siZiIsIjM4MTk4MiJdLFsicCIsImNvbnZlcnQiLCItcXVhbGl0eSA5MCAtcmVzaXplIDUxMng1MTJcdTAwM2UiXV0.jpg?sha=e4f3cef73cb87b08",
+   "caption": "최초의 이모지 (1998~1999)",
+   "source": "뉴욕 현대미술관(MoMA) 소장품 페이지",
+   "href": "https://www.moma.org/collection/works/196070"
+  }
+ ],
+ "baekheena": [
+  {
+   "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/09/Baek_Hee-na.jpg/960px-Baek_Hee-na.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+   "caption": "백희나 작가",
+   "source": "위키미디어 공용 · CC BY-SA 4.0 · KBBY2019",
+   "href": "https://commons.wikimedia.org/wiki/File:Baek_Hee-na.jpg"
+  }
+ ],
+ "sendak": [
+  {
+   "src": "https://i.harperapps.com/covers/9780063356191.jpg",
+   "caption": "『괴물들이 사는 나라』 표지",
+   "source": "하퍼콜린스 공식 페이지",
+   "href": "https://www.harpercollins.ca/9780063356191/where-the-wild-things-are/"
+  }
+ ],
+ "glaser": [
+  {
+   "src": "https://upload.wikimedia.org/wikipedia/commons/6/6e/Milton_glaser.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+   "caption": "밀턴 글레이저",
+   "source": "위키미디어 공용 · CC BY-SA 2.5",
+   "href": "https://commons.wikimedia.org/wiki/File:Milton_glaser.jpg"
+  }
+ ],
+ "vignelli": [
+  {
+   "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/26/American_Airlines_1967_%28Unused%29_logo.png/960px-American_Airlines_1967_%28Unused%29_logo.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+   "caption": "아메리칸 항공 로고 (1967)",
+   "source": "위키미디어 공용 · Public domain · American Airlines, Inc.",
+   "href": "https://commons.wikimedia.org/wiki/File:American_Airlines_1967_(Unused)_logo.png"
+  },
+  {
+   "src": "https://upload.wikimedia.org/wikipedia/commons/c/ce/Massimo_Vignelli_2.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+   "caption": "마시모 비넬리",
+   "source": "위키미디어 공용 · CC BY-SA 4.0 · Wikimassimovignelli",
+   "href": "https://commons.wikimedia.org/wiki/File:Massimo_Vignelli_2.jpg"
+  }
+ ],
+ "ahnsangsoo": [
+  {
+   "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7d/%EA%B8%80%EC%9E%90_%EA%B4%91_%EC%95%88%EC%83%81%EC%88%98%EC%B2%B4.png/960px-%EA%B8%80%EC%9E%90_%EA%B4%91_%EC%95%88%EC%83%81%EC%88%98%EC%B2%B4.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+   "caption": "안상수체로 쓴 글자 ‘광’",
+   "source": "위키미디어 공용 · CC0 · 최광모 (Choe Kwangmo)",
+   "href": "https://commons.wikimedia.org/wiki/File:%EA%B8%80%EC%9E%90_%EA%B4%91_%EC%95%88%EC%83%81%EC%88%98%EC%B2%B4.png"
+  }
+ ],
+ "scher": [
+  {
+   "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/31/Paula_Scher_interview_OnCreativity.jpg/960px-Paula_Scher_interview_OnCreativity.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+   "caption": "폴라 셰어",
+   "source": "위키미디어 공용 · CC BY 3.0 · OnCreativity",
+   "href": "https://commons.wikimedia.org/wiki/File:Paula_Scher_interview_OnCreativity.jpg"
+  }
+ ],
+ "carson": [
+  {
+   "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b4/20190513-BT-Dus-David_Carson-NP.jpg/960px-20190513-BT-Dus-David_Carson-NP.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+   "caption": "데이비드 카슨",
+   "source": "위키미디어 공용 · CC BY-SA 4.0 · Norman Posselt",
+   "href": "https://commons.wikimedia.org/wiki/File:20190513-BT-Dus-David_Carson-NP.jpg"
+  }
+ ],
+ "tschichold": [
+  {
+   "src": "https://upload.wikimedia.org/wikipedia/commons/4/4a/Tiposabon.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+   "caption": "서체 사봉(Sabon)",
+   "source": "위키미디어 공용 · CC BY-SA 3.0",
+   "href": "https://commons.wikimedia.org/wiki/File:Tiposabon.png"
+  },
+  {
+   "src": "https://upload.wikimedia.org/wikipedia/commons/a/ad/Jan_Tschichold_%281963%29_by_Erling_Mandelmann.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+   "caption": "얀 치홀트 (1963)",
+   "source": "위키미디어 공용 · CC BY-SA 3.0 · Erling Mandelmann",
+   "href": "https://commons.wikimedia.org/wiki/File:Jan_Tschichold_(1963)_by_Erling_Mandelmann.jpg"
+  }
+ ],
+ "chipkidd": [
+  {
+   "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e5/6.28.12ChipKiddByLuigiNovi1.jpg/960px-6.28.12ChipKiddByLuigiNovi1.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+   "caption": "칩 키드",
+   "source": "위키미디어 공용 · CC BY 3.0 · Nightscream",
+   "href": "https://commons.wikimedia.org/wiki/File:6.28.12ChipKiddByLuigiNovi1.jpg"
+  }
+ ],
+ "harakenya": [
+  {
+   "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6d/Cafe_Muji_Shinjuku_Store_Interior_2013.jpg/960px-Cafe_Muji_Shinjuku_Store_Interior_2013.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+   "caption": "무인양품 카페 매장 (신주쿠)",
+   "source": "위키미디어 공용 · CC BY-SA 4.0 · Wpcpey",
+   "href": "https://commons.wikimedia.org/wiki/File:Cafe_Muji_Shinjuku_Store_Interior_2013.jpg"
+  },
+  {
+   "src": "https://upload.wikimedia.org/wikipedia/commons/b/b5/Designing-design.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+   "caption": "책 『디자인의 디자인』",
+   "source": "위키미디어 공용 · CC BY-SA 4.0 · Teknad",
+   "href": "https://commons.wikimedia.org/wiki/File:Designing-design.jpg"
+  }
+ ],
+ "nendo": [
+  {
+   "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d6/Hanabi_di_Oki_Sato.jpg/960px-Hanabi_di_Oki_Sato.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+   "caption": "넨도의 조명 ‘하나비’",
+   "source": "위키미디어 공용 · CC BY-SA 4.0 · Geremia Anna",
+   "href": "https://commons.wikimedia.org/wiki/File:Hanabi_di_Oki_Sato.jpg"
+  },
+  {
+   "src": "https://upload.wikimedia.org/wikipedia/commons/5/5e/Sato_oki.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+   "caption": "사토 오키",
+   "source": "위키미디어 공용 · CC BY-SA 2.0 · Chinnian, Designmilk",
+   "href": "https://commons.wikimedia.org/wiki/File:Sato_oki.jpg"
+  }
+ ],
+ "leejesuk": [
+  {
+   "src": "https://upload.wikimedia.org/wikipedia/commons/7/78/What_goes_around_comes_around_-_antiwar_poster_2.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+   "caption": "반전 포스터 ‘뿌린 대로 거두리라’",
+   "source": "위키미디어 공용 · CC BY-SA 4.0 · 이제석 제작 광고",
+   "href": "https://commons.wikimedia.org/wiki/File:What_goes_around_comes_around_-_antiwar_poster_2.jpg"
+  }
+ ],
+ "ogilvy": [
+  {
+   "src": "https://upload.wikimedia.org/wikipedia/commons/f/fa/David_ogilvy.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+   "caption": "데이비드 오길비",
+   "source": "위키미디어 공용 · Copyrighted free use · Advertising Hall of fame",
+   "href": "https://commons.wikimedia.org/wiki/File:David_ogilvy.jpg"
+  }
+ ],
+ "parkwoonghyun": [
+  {
+   "src": "https://cdn.imweb.me/thumbnail/20200513/c2e8f0cb139ea.png",
+   "caption": "『책은 도끼다』 표지",
+   "source": "북하우스 공식 페이지",
+   "href": "https://bookhouse.co.kr/bookhouse/?idx=555"
+  }
+ ],
+ "norman": [
+  {
+   "src": "https://upload.wikimedia.org/wikipedia/commons/e/e6/Donald_Norman_at_AWF05.jpg",
+   "caption": "돈 노먼",
+   "source": "위키미디어 공용",
+   "href": "https://commons.wikimedia.org/wiki/File:Donald_Norman_at_AWF05.jpg"
+  }
+ ],
+ "nielsen": [
+  {
+   "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/09/Front_Book_Cover_for_Designing_Web_Usability_by_Jakob_Nielsen_%281999_edition%29.jpg/960px-Front_Book_Cover_for_Designing_Web_Usability_by_Jakob_Nielsen_%281999_edition%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+   "caption": "책 『Designing Web Usability』",
+   "source": "위키미디어 공용 · CC BY 4.0 · Wiki.cullin",
+   "href": "https://commons.wikimedia.org/wiki/File:Front_Book_Cover_for_Designing_Web_Usability_by_Jakob_Nielsen_(1999_edition).jpg"
+  },
+  {
+   "src": "https://upload.wikimedia.org/wikipedia/commons/f/f4/Jakob_Nielsen_1_%28cropped%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+   "caption": "제이콥 닐슨",
+   "source": "위키미디어 공용 · CC BY-SA 2.0 · docsearls",
+   "href": "https://commons.wikimedia.org/wiki/File:Jakob_Nielsen_1_(cropped).jpg"
+  }
+ ],
+ "ive": [
+  {
+   "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/db/IMac_G3_Bondi_Blue%2C_three-quarters_view.png/960px-IMac_G3_Bondi_Blue%2C_three-quarters_view.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+   "caption": "아이맥 G3",
+   "source": "위키미디어 공용 · CC BY-SA 4.0",
+   "href": "https://commons.wikimedia.org/wiki/File:IMac_G3_Bondi_Blue,_three-quarters_view.png"
+  },
+  {
+   "src": "https://upload.wikimedia.org/wikipedia/commons/c/c7/IPhone_First_Generation_%28cropped%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+   "caption": "아이폰 1세대",
+   "source": "위키미디어 공용 · CC BY-SA 2.0",
+   "href": "https://commons.wikimedia.org/wiki/File:IPhone_First_Generation_(cropped).jpg"
+  }
+ ],
+ "saulbass": [
+  {
+   "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d4/ATT_UNIX_System_V_License_Plate.jpeg/960px-ATT_UNIX_System_V_License_Plate.jpeg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+   "caption": "AT&T 로고 (솔 바스)",
+   "source": "위키미디어 공용 · Public domain · Takuya Oikawa",
+   "href": "https://commons.wikimedia.org/wiki/File:ATT_UNIX_System_V_License_Plate.jpeg"
+  },
+  {
+   "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/10/Saul_Bass_gesturing%2C_RIT_NandE_Vol11Num19_1979_May10_Complete.jpg/960px-Saul_Bass_gesturing%2C_RIT_NandE_Vol11Num19_1979_May10_Complete.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+   "caption": "솔 바스 (1979)",
+   "source": "위키미디어 공용 · Public domain",
+   "href": "https://commons.wikimedia.org/wiki/File:Saul_Bass_gesturing,_RIT_NandE_Vol11Num19_1979_May10_Complete.jpg"
+  }
+ ],
+ "kylecooper": [
+  {
+   "src": "https://www.prologuefilms.com/images/se7en-frame-01.jpg",
+   "caption": "『세븐』 오프닝 타이틀 장면",
+   "source": "프롤로그 필름 공식 사이트",
+   "href": "https://www.prologuefilms.com/se7en.html"
+  }
+ ],
+ "lumpens": [
+  {
+   "src": "https://i.ytimg.com/vi/xEeFrLSkMm8/mqdefault.jpg",
+   "caption": "BTS 『봄날』 뮤직비디오",
+   "source": "HYBE LABELS 공식 유튜브",
+   "href": "https://www.youtube.com/watch?v=xEeFrLSkMm8"
+  },
+  {
+   "src": "https://i.ytimg.com/vi/hmE9f-TEutc/mqdefault.jpg",
+   "caption": "BTS 『피 땀 눈물』 뮤직비디오",
+   "source": "HYBE LABELS 공식 유튜브",
+   "href": "https://www.youtube.com/watch?v=hmE9f-TEutc"
+  }
+ ],
+ "gondry": [
+  {
+   "src": "https://upload.wikimedia.org/wikipedia/commons/d/d1/Michel_Gondry_%283%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+   "caption": "미셸 공드리",
+   "source": "위키미디어 공용 · CC BY-SA 3.0 · Thierry Caro",
+   "href": "https://commons.wikimedia.org/wiki/File:Michel_Gondry_(3).jpg"
+  }
+ ],
+ "fukasawa": [
+  {
+   "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/20/Au_W55SA_INFOBAR2_20101109_b.jpg/960px-Au_W55SA_INFOBAR2_20101109_b.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+   "caption": "휴대전화 ‘INFOBAR 2’",
+   "source": "위키미디어 공용 · Public domain · Batholith (talk)",
+   "href": "https://commons.wikimedia.org/wiki/File:Au_W55SA_INFOBAR2_20101109_b.jpg"
+  },
+  {
+   "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/44/Naoto_Fukasawa.jpg/960px-Naoto_Fukasawa.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+   "caption": "후카사와 나오토",
+   "source": "위키미디어 공용 · CC BY-SA 3.0 · WJournalist",
+   "href": "https://commons.wikimedia.org/wiki/File:Naoto_Fukasawa.jpg"
+  }
+ ],
+ "devlin": [
+  {
+   "src": "https://upload.wikimedia.org/wikipedia/commons/9/96/Es_Devlin_at_FutureFest.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+   "caption": "에스 데블린",
+   "source": "위키미디어 공용 · CC BY 3.0 · Nesta and Es Devlin",
+   "href": "https://commons.wikimedia.org/wiki/File:Es_Devlin_at_FutureFest.png"
+  }
+ ],
+ "taymor": [
+  {
+   "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/ff/The_Lion_King_at_Minskoff_Theatre_in_Broadway.jpg/960px-The_Lion_King_at_Minskoff_Theatre_in_Broadway.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+   "caption": "뮤지컬 『라이온 킹』 (민스코프 극장)",
+   "source": "위키미디어 공용 · CC BY-SA 4.0 · BroadwaySpain",
+   "href": "https://commons.wikimedia.org/wiki/File:The_Lion_King_at_Minskoff_Theatre_in_Broadway.jpg"
+  },
+  {
+   "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/9d/Julie_Taymor_at_Opening_Ceremony_of_the_Tokyo_International_Film_Festival_2022_%2852461091576%29.jpg/960px-Julie_Taymor_at_Opening_Ceremony_of_the_Tokyo_International_Film_Festival_2022_%2852461091576%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+   "caption": "줄리 테이머",
+   "source": "위키미디어 공용 · CC BY 2.0",
+   "href": "https://commons.wikimedia.org/wiki/File:Julie_Taymor_at_Opening_Ceremony_of_the_Tokyo_International_Film_Festival_2022_(52461091576).jpg"
+  }
+ ],
+ "miyake": [
+  {
+   "src": "https://upload.wikimedia.org/wikipedia/commons/9/9f/Black_pleated_polyester_ensemble_by_Issey_Miyake%2C_2004.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+   "caption": "플리츠 의상 (2004)",
+   "source": "위키미디어 공용 · CC BY-SA 4.0",
+   "href": "https://commons.wikimedia.org/wiki/File:Black_pleated_polyester_ensemble_by_Issey_Miyake,_2004.jpg"
+  },
+  {
+   "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/84/HK_TST_%E5%B0%96%E6%B2%99%E5%92%80_Tsim_Sha_Tsui_%E5%BB%A3%E6%9D%B1%E9%81%93_Canton_Road_%E6%B5%B7%E6%B8%AF%E5%9F%8E_Harbuour_City_Ocean_Centre_mall_BaoBao_Issey_Miyake_Store_October_2022_Px3_01.jpg/960px-HK_TST_%E5%B0%96%E6%B2%99%E5%92%80_Tsim_Sha_Tsui_%E5%BB%A3%E6%9D%B1%E9%81%93_Canton_Road_%E6%B5%B7%E6%B8%AF%E5%9F%8E_Harbuour_City_Ocean_Centre_mall_BaoBao_Issey_Miyake_Store_October_2022_Px3_01.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+   "caption": "바오바오 이세이 미야케",
+   "source": "위키미디어 공용 · CC BY-SA 4.0 · Fadchwizo Rodawomt",
+   "href": "https://commons.wikimedia.org/wiki/File:HK_TST_%E5%B0%96%E6%B2%99%E5%92%80_Tsim_Sha_Tsui_%E5%BB%A3%E6%9D%B1%E9%81%93_Canton_Road_%E6%B5%B7%E6%B8%AF%E5%9F%8E_Harbuour_City_Ocean_Centre_mall_BaoBao_Issey_Miyake_Store_October_2022_Px3_01.jpg"
+  }
+ ],
+ "peretti": [
+  {
+   "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/31/Elsa_Peretti_sterling_bowl_with_gold_wash%2C_for_Tiffany_%26_Co.jpg/960px-Elsa_Peretti_sterling_bowl_with_gold_wash%2C_for_Tiffany_%26_Co.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+   "caption": "티파니를 위한 은 그릇",
+   "source": "위키미디어 공용 · CC BY-SA 2.0 · B McEwan",
+   "href": "https://commons.wikimedia.org/wiki/File:Elsa_Peretti_sterling_bowl_with_gold_wash,_for_Tiffany_%26_Co.jpg"
+  }
+ ],
+ "anadol": [
+  {
+   "src": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d9/Machine_Hallucinations-Artechouse_NYC_by_Refik_Anadol.jpg/960px-Machine_Hallucinations-Artechouse_NYC_by_Refik_Anadol.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+   "caption": "『머신 할루시네이션』",
+   "source": "위키미디어 공용 · CC BY-SA 4.0 · Refik Anadol",
+   "href": "https://commons.wikimedia.org/wiki/File:Machine_Hallucinations-Artechouse_NYC_by_Refik_Anadol.jpg"
+  },
+  {
+   "src": "https://upload.wikimedia.org/wikipedia/commons/2/2a/Refik_Anadol_in_2017.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+   "caption": "레픽 아나돌",
+   "source": "위키미디어 공용 · CC BY 3.0 · SHERPA Blog",
+   "href": "https://commons.wikimedia.org/wiki/File:Refik_Anadol_in_2017.png"
+  }
+ ],
  "joseok": [
   {
    "src": "https://shared-comic.pstatic.net/thumb/webtoon/20853/thumbnail/thumbnail_IMAG21_a715d0bd-fe55-4658-a573-669e0c0261f6.jpg",

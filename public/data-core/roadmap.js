@@ -4,7 +4,7 @@ import {resolveUniversityLogo} from './university-logos.js?v=20260910-1';
 import {foundationImages} from './foundation-images.js?v=20260910-1';
 import { occupationImageConcepts } from './occupation-image-concepts.js?v=20260919-work-v2';
 import { paginate } from './pagination.js?v=20260909-1';
-import { renderCareerVisuals } from './career-visuals.js?v=20260929-all';
+import { renderCareerVisuals } from './career-visuals.js?v=20260930-pictures';
 import { careerProfiles } from './career-profiles.js?v=20260929-all';
 
 const content = window.HI5_ROADMAP_CONTENT || { careers: [], tracks: [], lessonAreas: [], sources: [] };

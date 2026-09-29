@@ -2,8 +2,8 @@
 // representative artists of that field (short checked biography, notable works, official links). Artwork
 // images are shown straight from the artist's, publisher's or museum's https address — never copied here.
 // careerWorks is keyed by career id; its array follows visualContent.portfolio.items. artists are shared.
-import { moreArtists } from './career-artists-more.js?v=20260929-all';
-import { moreWorks } from './career-works-more.js?v=20260929-all';
+import { moreArtists } from './career-artists-more.js?v=20260930-pictures';
+import { moreWorks } from './career-works-more.js?v=20260930-pictures';
 
 const a = (name, nameEn, meta, bio, works, links, images = []) => ({name, nameEn, meta, bio, works, links, images});
 const link = (label, url) => ({label, url});
