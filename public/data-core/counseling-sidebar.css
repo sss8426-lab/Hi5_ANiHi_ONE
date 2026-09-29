@@ -1,0 +1,22 @@
+/* 상담용 화면: the dark menu is hidden so the page uses the full width. Moving the mouse to the very left
+   edge (or tabbing into the menu) opens it in its usual place and the page slides over to make room.
+   Phones/tablets keep the existing 메뉴 button + drawer. */
+.sidebar-peek { display: none; }
+@media (min-width: 1101px) {
+  body.data-core-layout.data-core-layout.counseling-header .app-shell,
+  body.admissions-counseling.admissions-counseling .app { grid-template-columns: 0px minmax(0, 1fr); transition: grid-template-columns .26s ease; }
+  body.data-core-layout.data-core-layout.counseling-header .sidebar,
+  body.admissions-counseling.admissions-counseling .sidebar { padding-inline: 0; overflow: hidden; border-right-width: 0; transition: padding .26s ease; }
+  body.data-core-layout.counseling-header .sidebar > *,
+  body.admissions-counseling .sidebar > * { min-width: 204px; }
+  body.data-core-layout.counseling-header .sidebar-peek,
+  body.admissions-counseling .sidebar-peek { display: block; position: fixed; left: 0; top: 0; bottom: 0; width: 14px; z-index: 60; }
+  body.data-core-layout.data-core-layout.counseling-header .app-shell:has(.sidebar-peek:hover, .sidebar:hover, .sidebar:focus-within),
+  body.admissions-counseling.admissions-counseling .app:has(.sidebar-peek:hover, .sidebar:hover, .sidebar:focus-within) { grid-template-columns: 232px minmax(0, 1fr); }
+  body.data-core-layout.data-core-layout.counseling-header .app-shell:has(.sidebar-peek:hover, .sidebar:hover, .sidebar:focus-within) .sidebar,
+  body.admissions-counseling.admissions-counseling .app:has(.sidebar-peek:hover, .sidebar:hover, .sidebar:focus-within) .sidebar { padding-inline: 14px; overflow-y: auto; }
+}
+@media (min-width: 1101px) and (prefers-reduced-motion: reduce) {
+  body.data-core-layout.counseling-header .app-shell, body.admissions-counseling .app,
+  body.data-core-layout.counseling-header .sidebar, body.admissions-counseling .sidebar { transition: none; }
+}
