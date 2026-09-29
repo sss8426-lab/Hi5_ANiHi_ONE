@@ -81,3 +81,9 @@
 .ig-caption-state[data-state=dirty]{color:#8a5a00;border-color:#d9a400;}
 @media(max-width:768px){.ig-logo-options{grid-template-columns:repeat(2,minmax(0,1fr));}}
 @media(max-width:390px){.ig-logo-options{grid-template-columns:minmax(0,1fr);}.ig-options select{max-width:100%;}.ig-options{display:block;}}
+/* 로고 선택 heading with [로고 올리기] on the right; the 기본 로고 and 올린 로고 share one grid. */
+.ig-logo-head{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.ig-logo-head h3{margin:0;}
+.ig-logo-set{display:contents;}
+.ig-logo-choice[data-locked=true]::after{content:'기본';position:absolute;top:6px;left:6px;padding:1px 7px;border-radius:999px;background:#eef1ef;color:#5b6b64;font-size:11px;font-weight:600;}
+.ig-logo-choice[data-logo=none]::after{content:none;}

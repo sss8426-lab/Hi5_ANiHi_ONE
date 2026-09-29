@@ -186,8 +186,10 @@ test('client: captions follow saved results (partial too), once, with visible st
   assert.doesNotMatch(captionBody,/\bapi\(|\bpost\(/u);
   assert.match(captionBody,/const ids=setSources\(target\)/u,'the text covers the finished photos of the set, not the raw selection');
 
-  // 나만의 로고 are layers: they never replace the official logo choice.
-  assert.doesNotMatch(carousel,/logoType=value;clear\(true\)/u);
+  // 로고 올리기: uploaded logos are chosen in 로고 선택 like the locked 기본 로고 (logoType "custom:<id>");
+  // only uploaded ones can be renamed or deleted. Old batches still resume with their saved overlays.
+  assert.match(carousel,/button\.onclick=\(\)=>chooseLogo\('custom:'\+item\.id\);/u);
+  assert.match(carousel,/button\.dataset\.locked='true'/u);
   assert.match(carousel,/overlays:overlayChoices\.map/u);
   assert.match(carousel,/composeInstagram\('\/api\/data-core\/files\/'\+encodeURIComponent\(backgroundId\),itemDesign,policyValue\.campusLogoLabel,signal,\{place:overlays\}\)/u);
   assert.match(carousel,/form\.set\('layers',JSON\.stringify\(layers\.map/u,'the saved render records its layers');
