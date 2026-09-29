@@ -26,6 +26,36 @@
     {
       "file": "design-admission-v1.webp",
       "prompt": "Use case: stylized-concept. NEW original landscape 1536x1024 Korean art university entrance-exam BASIC DESIGN (기초디자인) example artwork for a design curriculum admission card. Subject a polished dynamic still-life design composition of a reflective stainless-steel whisk, a transparent faceted glass tumbler, a vivid orange cut into one half and one curling peel, and a flowing blue paper ribbon. Precise observation of metal reflections, transparent glass refraction, orange pulp and matte paper texture; bold large/small contrast, overlapping depth, directional diagonal rhythm and excellent controlled brushwork. Medium high-quality watercolor/gouache entrance-exam observational design painting on clean white paper, actual full artwork, not a photograph of artists at work, not a poster or flat vector. Bright high-key white background with restrained cast shadows, vivid but elegant blue/orange color accents. All main objects well within crop-safe margins. No text, logos, labels, watermarks, university marks or UI. Entirely newly composed educational illustrative artwork, not a real award or student submission."
+    },
+    {
+      "file": "content-basic-v2.webp",
+      "tool": "Canva generate-image (style reference: content-admission-v1.webp)",
+      "generatedAt": "2026-09-29",
+      "prompt": "First-day beginner at a Korean art academy struggling with a mannequin figure drawing, kind teacher helping; webtoon watercolor style matching content-admission-v1."
+    },
+    {
+      "file": "content-advanced-v2.webp",
+      "tool": "Canva generate-image (style reference: content-admission-v1.webp)",
+      "generatedAt": "2026-09-29",
+      "prompt": "Three students confidently showing perspective background sketches to each other at a shared table; webtoon watercolor style matching content-admission-v1."
+    },
+    {
+      "file": "design-basic-v2.webp",
+      "tool": "Canva generate-image (style reference: content-admission-v1.webp)",
+      "generatedAt": "2026-09-29",
+      "prompt": "Beginner puzzled over a plaster cube/sphere/cone still life, teacher pointing out light direction; webtoon watercolor style matching content-admission-v1."
+    },
+    {
+      "file": "design-advanced-v2.webp",
+      "tool": "Canva generate-image (style reference: content-admission-v1.webp)",
+      "generatedAt": "2026-09-29",
+      "prompt": "Three students happily drawing products in 3-point perspective with color swatches; webtoon watercolor style matching content-admission-v1."
+    },
+    {
+      "file": "design-admission-v2.webp",
+      "tool": "Canva generate-image (style reference: content-admission-v1.webp)",
+      "generatedAt": "2026-09-29",
+      "prompt": "Students running on a university campus holding basic-design portfolios while artworks fly in the wind; webtoon watercolor style matching content-admission-v1."
     }
   ]
 }

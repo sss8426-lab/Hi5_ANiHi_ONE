@@ -8,14 +8,14 @@
   const stages = { basic: '기초과정', advanced: '심화과정', admission: '입시과정' };
   const stageImages = {
     content: {
-      basic: { image: 'content-basic-v1.webp', description: '기초 인체 · 비례와 움직임', alt: '인체의 비례와 관절, 동작을 연습하는 연필 드로잉' },
-      advanced: { image: 'content-advanced-v1.webp', description: '3점 투시 · 배경과 공간', alt: '높은 곳에서 내려다본 도시의 3점 투시 배경 드로잉' },
-      admission: { image: 'content-admission-v1.webp', description: '상황표현 · 인물과 이야기', alt: '바람에 날리는 그림을 잡는 인물들의 상황표현 작품' },
+      basic: { image: 'content-basic-v2.webp', description: '기초 인체 · 비례와 움직임', detail: '인체의 비례와 구조, 자연스러운 동작을 익힙니다.', alt: '미술학원에 처음 와서 인체 드로잉을 어려워하는 학생과 도와주는 선생님' },
+      advanced: { image: 'content-advanced-v2.webp', description: '3점 투시 · 배경과 공간', detail: '투시로 공간을 만들고 인물과 배경을 한 화면에 담습니다.', alt: '투시 배경 그림을 자신 있게 보여주며 함께 그리는 친구들' },
+      admission: { image: 'content-admission-v1.webp', description: '상황표현 · 인물과 이야기', detail: '주제를 한 장면의 이야기로 완성하는 입시 실기를 준비합니다.', alt: '바람에 날리는 그림을 잡는 인물들의 상황표현 작품' },
     },
     design: {
-      basic: { image: 'design-basic-v1.webp', description: '기초 도형 · 형태와 명암', alt: '정육면체, 구, 원기둥과 원뿔의 형태와 명암 소묘' },
-      advanced: { image: 'design-advanced-v1.webp', description: '3점 투시 · 사물과 구조', alt: '상자와 카메라, 스피커의 3점 투시 사물 드로잉' },
-      admission: { image: 'design-admission-v1.webp', description: '기초디자인 · 구성과 질감', alt: '금속 거품기, 유리컵과 오렌지를 구성한 기초디자인 작품' },
+      basic: { image: 'design-basic-v2.webp', description: '기초 도형 · 형태와 명암', detail: '기본 도형으로 형태와 빛, 명암을 익힙니다.', alt: '처음으로 도형 소묘를 배우며 고민하는 학생과 빛의 방향을 알려주는 선생님' },
+      advanced: { image: 'design-advanced-v2.webp', description: '3점 투시 · 사물과 구조', detail: '실제 사물을 투시로 관찰하고 재질과 색을 표현합니다.', alt: '카메라와 상자를 투시로 그리며 색을 고르는 친구들' },
+      admission: { image: 'design-admission-v2.webp', description: '기초디자인 · 구성과 질감', detail: '사물과 주제를 구성해 기초디자인 입시를 준비합니다.', alt: '대학 캠퍼스에서 기초디자인 작품을 들고 꿈을 향해 달리는 학생들' },
     },
   };
   // Separate catalog slots; do not invent lessons or write an empty seed to production.
@@ -42,7 +42,7 @@
         : family === 'start' ? `<section class="curriculum-empty" data-family="start" data-course-count="${courses.start.length}">${icon('BookOpen')}<p>등록된 커리큘럼이 없습니다.</p></section>`
         : !stage ? `<div class="curriculum-folders">${Object.entries(stages).map(([key, label]) => {
           const art = stageImages[family][key];
-          return `<a class="curriculum-card curriculum-stage-card" href="${root}/${family}/${key}"><img src="/data-core/assets/curriculum/${art.image}" alt="${art.alt}" width="1200" height="800" decoding="async"><div><h3>${label}</h3><p>${art.description}</p>${family==='content'?`<p data-stage-count="${key}" aria-live="polite">수업 수 확인 중</p>`:''}${icon('ArrowRight')}</div></a>`;
+          return `<a class="curriculum-card curriculum-stage-card" href="${root}/${family}/${key}"><img src="/data-core/assets/curriculum/${art.image}" alt="${art.alt}" width="1200" height="800" decoding="async"><div><h3>${label}</h3><p class="curriculum-stage-focus">${art.description}</p><p class="curriculum-stage-detail">${art.detail}</p>${family==='content'?`<p data-stage-count="${key}" aria-live="polite" hidden></p>`:''}${icon('ArrowRight')}</div></a>`;
         }).join('')}</div>`
           : `<section class="curriculum-empty" data-family="${family}" data-stage="${stage}" data-course-count="${courses[family][stage].length}">${icon('BookOpen')}<p>등록된 커리큘럼이 없습니다.</p></section>`);
     if (family === 'content' && !stage) {
@@ -54,9 +54,9 @@
           if (!response.ok) throw Error('count unavailable');
           const data = await response.json();
           if (!Number.isSafeInteger(data.totalFolders) || data.totalFolders < 0) throw Error('invalid count');
-          if (!signal.aborted && label.isConnected) label.textContent = `${data.totalFolders}개 수업`;
+          if (!signal.aborted && label.isConnected) { label.textContent = `${data.totalFolders}개 수업`; label.hidden = false; }
         } catch {
-          if (!signal.aborted && label.isConnected) label.textContent = '수업 수 확인 필요';
+          if (!signal.aborted && label.isConnected) label.remove();
         }
       });
     }
