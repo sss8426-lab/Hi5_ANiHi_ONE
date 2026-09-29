@@ -43,6 +43,9 @@ test('artists carry a short biography, notable works, safe links and only https 
 });
 
 test('work cards open their detail; academy stage images exist', () => {
+  // Cards open the full-screen viewer: the picture in the middle, the work above, the artist below, ← → slides.
+  const viewer = fs.readFileSync('public/data-core/career-visuals.js', 'utf8');
+  for (const part of ['work-viewer-top', 'work-viewer-stage', 'work-viewer-bottom', 'work-viewer-prev', 'work-viewer-next', "event.key === 'ArrowRight'"]) assert.ok(viewer.includes(part), part);
   for (const career of careers) {
     const html = visualSections(career);
     assert.equal((html.match(/class="career-work-open"/g) || []).length, career.visualContent.portfolio.items.length, career.id);

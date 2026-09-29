@@ -24,31 +24,56 @@ function portfolioItems(items, career) {
     : `<li><span class="career-work-label">WORK ${pad(i + 1)}</span><h3>${escape(item.title)}</h3><p>${escape(item.description)}</p></li>`).join('')}</ul>`;
 }
 
-// Artwork shown from the official https address, with its source; a picture that fails to load is hidden.
-function artistImages(artist) {
-  if (!artist.images?.length) return '';
-  return `<div class="work-artist-images">${artist.images.map((image) => `<figure><a href="${escape(image.href)}" target="_blank" rel="noopener noreferrer"><img src="${escape(image.src)}" alt="${escape(artist.name)} · ${escape(image.caption)}" loading="lazy" decoding="async" referrerpolicy="no-referrer"></a><figcaption>${escape(image.caption)}<span>출처: ${escape(image.source)}</span></figcaption></figure>`).join('')}</div>`;
+// 대표 작품 viewer: full screen, one slide per artist picture across this career's works (← → buttons,
+// arrow keys, swipe). The picture sits in the middle as large as possible; the work sits above it and the
+// artist and what goes in a portfolio below it.
+function workSlides(career) {
+  return (careerWorks[career.id] || []).flatMap((work, index) => {
+    const item = career.visualContent.portfolio.items[index];
+    const people = work.artists.filter((id) => artistBook[id]).map((id) => ({...artistBook[id], images: artistBook[id].images?.length ? artistBook[id].images : workImages[id] || []}));
+    const slides = people.flatMap((artist) => artist.images.map((image) => ({index, item, work, artist, image})));
+    return slides.length ? slides : [{index, item, work, artist: people[0], image: null}];
+  });
 }
-// The work's detail: what it is, where it is used, what to put in a portfolio, and representative artists.
-function workDetail(career, index) {
-  const item = career.visualContent.portfolio.items[index], work = careerWorks[career.id][index];
+function slideHtml(career, slide, at, total) {
+  const {index, item, work, artist, image} = slide;
   const list = (values) => `<ul>${values.map((value) => `<li>${escape(value)}</li>`).join('')}</ul>`;
-  const artists = work.artists.filter((id) => artistBook[id]).map((id) => ({...artistBook[id], images: artistBook[id].images?.length ? artistBook[id].images : workImages[id] || []})).map((artist) => `<article class="work-artist"><header><h4>${escape(artist.name)}</h4><span>${escape(artist.nameEn)} · ${escape(artist.meta)}</span></header><p>${escape(artist.bio)}</p>${artistImages(artist)}<h5>대표 작품</h5>${list(artist.works)}${artist.links.length ? `<div class="work-artist-links">${artist.links.map((link) => `<a href="${escape(link.url)}" target="_blank" rel="noopener noreferrer">${escape(link.label)} ↗</a>`).join('')}</div>` : ''}</article>`).join('');
-  return `<header class="work-detail-head"><span class="career-work-label">WORK ${pad(index + 1)} · ${escape(career.name)}</span><h3 id="workDetailTitle">${escape(item.title)}</h3><p>${escape(work.about)}</p></header>`
-    + `<div class="work-detail-grid"><section><h4>이런 곳에 쓰여요</h4>${list(work.uses)}</section><section><h4>포트폴리오에 담을 것</h4>${list(work.portfolio)}</section></div>`
-    + `<section class="work-artists"><h4>이 분야의 대표 작가</h4>${artists}<p class="work-note">작품 이미지는 작가·출판사·스튜디오의 공식 페이지와 공식 유튜브, 자유 이용이 허락된 위키미디어 공용 사진을 그대로 불러오며, 누르면 원본 페이지로 이동해요. 저작권은 각 작가와 권리자에게 있어요.</p></section>`;
+  const picture = image
+    ? `<a class="work-viewer-picture" href="${escape(image.href)}" target="_blank" rel="noopener noreferrer" title="원본 페이지에서 보기"><img src="${escape(image.src)}" alt="${escape(artist.name)} · ${escape(image.caption)}" decoding="async" referrerpolicy="no-referrer"></a>`
+    : '<div class="work-viewer-picture work-viewer-empty">그림을 불러올 수 없어요</div>';
+  const links = artist?.links.length ? `<div class="work-artist-links">${artist.links.map((link) => `<a href="${escape(link.url)}" target="_blank" rel="noopener noreferrer">${escape(link.label)} ↗</a>`).join('')}</div>` : '';
+  return `<header class="work-viewer-bar"><span>${at + 1} / ${total}</span><span class="work-viewer-crumb">${escape(career.name)} · WORK ${pad(index + 1)}</span><button type="button" class="work-viewer-close" aria-label="닫기">×</button></header>
+    <section class="work-viewer-top"><span class="career-work-label">WORK ${pad(index + 1)}</span><h3 id="workDetailTitle">${escape(item.title)}</h3><p>${escape(work.about)}</p></section>
+    <figure class="work-viewer-stage">${picture}${image ? `<figcaption>${escape(image.caption)} <span>출처: ${escape(image.source)}</span></figcaption>` : ''}</figure>
+    <section class="work-viewer-bottom">${artist ? `<article class="work-viewer-artist"><header><h4>${escape(artist.name)}</h4><span>${escape(artist.nameEn)} · ${escape(artist.meta)}</span></header><p>${escape(artist.bio)}</p><p class="work-viewer-works"><b>대표 작품</b> ${artist.works.map(escape).join(' · ')}</p>${links}</article>` : ''}
+      <div class="work-viewer-lists"><section><h4>이런 곳에 쓰여요</h4>${list(work.uses)}</section><section><h4>포트폴리오에 담을 것</h4>${list(work.portfolio)}</section></div></section>
+    <button type="button" class="work-viewer-nav work-viewer-prev" aria-label="이전 그림"${at === 0 ? ' disabled' : ''}>←</button><button type="button" class="work-viewer-nav work-viewer-next" aria-label="다음 그림"${at === total - 1 ? ' disabled' : ''}>→</button>`;
 }
 function openWork(career, index, opener) {
   let dialog = document.getElementById('workDetail');
   if (!dialog) {
-    dialog = document.createElement('dialog'); dialog.id = 'workDetail'; dialog.className = 'work-detail'; dialog.setAttribute('aria-labelledby', 'workDetailTitle');
-    dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
+    dialog = document.createElement('dialog'); dialog.id = 'workDetail'; dialog.className = 'work-viewer'; dialog.setAttribute('aria-labelledby', 'workDetailTitle');
     document.body.append(dialog);
   }
-  dialog.innerHTML = `<button type="button" class="work-detail-close" aria-label="닫기">×</button>${workDetail(career, index)}`;
-  dialog.querySelector('.work-detail-close').onclick = () => dialog.close();
-  for (const img of dialog.querySelectorAll('.work-artist-images img')) img.addEventListener('error', () => img.closest('figure').remove(), {once: true});
-  dialog.onclose = () => opener?.focus();
+  const slides = workSlides(career);
+  let at = Math.max(0, slides.findIndex((slide) => slide.index === index));
+  const show = (next) => {
+    if (next < 0 || next >= slides.length) return;
+    at = next; dialog.innerHTML = slideHtml(career, slides[at], at, slides.length);
+    dialog.querySelector('.work-viewer-close').onclick = () => dialog.close();
+    dialog.querySelector('.work-viewer-prev').onclick = () => show(at - 1);
+    dialog.querySelector('.work-viewer-next').onclick = () => show(at + 1);
+    const img = dialog.querySelector('.work-viewer-picture img');
+    img?.addEventListener('error', () => { img.closest('a').outerHTML = '<div class="work-viewer-picture work-viewer-empty">그림을 불러올 수 없어요</div>'; }, {once: true});
+    for (const neighbour of [slides[at - 1], slides[at + 1]]) if (neighbour?.image) Object.assign(new Image(), {referrerPolicy: 'no-referrer', src: neighbour.image.src});
+  };
+  dialog.onkeydown = (event) => { if (event.key === 'ArrowLeft') show(at - 1); if (event.key === 'ArrowRight') show(at + 1); };
+  let startX = null;
+  dialog.ontouchstart = (event) => { startX = event.touches[0].clientX; };
+  dialog.ontouchend = (event) => { if (startX === null) return; const dx = event.changedTouches[0].clientX - startX; startX = null; if (Math.abs(dx) > 50) show(at + (dx < 0 ? 1 : -1)); };
+  dialog.onclose = () => { document.documentElement.classList.remove('work-viewer-open'); opener?.focus(); };
+  show(at);
+  document.documentElement.classList.add('work-viewer-open');
   dialog.showModal();
 }
 
