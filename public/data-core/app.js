@@ -852,7 +852,7 @@ function renderAwardFolders() {
   $('awardClassify').classList.toggle('hidden',!folder||!isSuperAdmin()||Boolean(parentOf(folder)));
   if (folder) $('awardCollectionType').value=typeOf(folder)||'enrolled';
   const crumbs=state.awardBreadcrumbs||[];
-  $('awardBreadcrumb').innerHTML=folder?`<button type="button" class="ghost-btn" data-award-crumb="">${typeOf(folder)==='public'?'공개':'재원생'} 수상작 모음</button>`+crumbs.map(item=>`<span aria-hidden="true">›</span><button type="button" class="ghost-btn" data-award-crumb="${h(item.id)}">${h(item.title)}</button>`).join(''):'';
+  $('awardBreadcrumb').innerHTML=folder?`<button type="button" class="ghost-btn" data-award-crumb="">${typeOf(folder)==='public'?'공개':'재원생'} 수상작 모음</button>`+crumbs.map(item=>`<span aria-hidden="true">›</span><button type="button" class="ghost-btn" title="${h(item.title)}" ${item.id===folder.id?'aria-current="page"':''} data-award-crumb="${h(item.id)}">${h(item.title)}</button>`).join(''):'';
   document.querySelectorAll('[data-award-crumb]').forEach(button=>button.onclick=()=>navigateAwardFolder(button.dataset.awardCrumb||null));
   list.querySelector?.('.active')?.scrollIntoView({block:'nearest',inline:'nearest',behavior:'instant'});
   updateAwardFolderArrows();
@@ -921,6 +921,7 @@ function moveAwardFolder(direction) {
 
 const awardSelected = new Set();
 const awardImages = new AwardImageCache({ onDenied: () => {
+  awardSlideshow.clear();
   awardImageObserver?.disconnect();
   $('awardLibraryFiles').querySelectorAll('[data-award-thumbnail]').forEach(img => { img.removeAttribute('src'); img.dataset.loadState = 'denied'; });
   window.DataCoreImageGallery.close('awards');
@@ -942,11 +943,41 @@ const awardImages = new AwardImageCache({ onDenied: () => {
     }
   } finally { clearTimeout(timer); signal.removeEventListener('abort', cancel); }
 } });
+const awardSlideshow = new AwardSlideshow($('awardSlideshow'), {
+  cache: awardImages,
+  onChange: id => {
+    const strip = $('awardLibraryFiles');
+    strip.querySelectorAll('[data-award-image]').forEach(link => {
+      const selected = link.dataset.awardImage === String(id);
+      link.setAttribute('aria-current', String(selected));
+      if (!selected) return;
+      const item = link.getBoundingClientRect(), bounds = strip.getBoundingClientRect();
+      if (item.left < bounds.left) strip.scrollBy({left:item.left-bounds.left-3,behavior:'instant'});
+      else if (item.right > bounds.right) strip.scrollBy({left:item.right-bounds.right+3,behavior:'instant'});
+    });
+  },
+  onOpen: (index, anchor) => openAwardGallery(index, anchor),
+});
+function awardSlideFiles() {
+  return state.awardFiles.filter(file => file.recordId === state.selectedAwardFolderId && String(file.mimeType || '').startsWith('image/'));
+}
+function openAwardGallery(index, anchor) {
+  const files = awardSlideFiles();
+  if (!files[index]) return;
+  window.DataCoreImageGallery.open({scope:'awards', title:selectedAwardFolder()?.title || '수상작', anchor, index,
+    onChange: next => { void awardSlideshow.show(next); },
+    actions:[{label:'다운로드',icon:'Download',run:next=>downloadAward(files[next])}],
+    items:files.map(item => ({title:item.fileName || '수상작',
+      previewSrc:awardImages.peek(item.id) || awardImages.peekPreview(item.id) || item.thumbnailUrl,
+      load:({priority}) => awardImages.get(item.id, {priority:priority!=='low'})}))});
+}
 let awardImageObserver;
 let awardDeletePending = null;
 let awardDeleteBusy = false;
 function clearAwardImages() {
+  ++awardFilesRequest;
   awardImageObserver?.disconnect();
+  awardSlideshow.clear();
   window.DataCoreImageGallery.close('awards');
   awardImages.clear();
 }
@@ -1020,6 +1051,7 @@ async function deleteSelectedAwards() {
   }
 }
 function renderAwardLibraryFiles() {
+  awardSlideshow.clear();
   const root = $('awardLibraryFiles');
   if (!root) return;
   updateAwardSelection();
@@ -1036,7 +1068,7 @@ function renderAwardLibraryFiles() {
   root.innerHTML = state.awardFiles.length ? state.awardFiles.map((file) => {
     const url = fileUrl(file);
     const image = String(file.mimeType || '').startsWith('image/');
-    return `<div class="award-library-item">${canDeleteAward(file) ? `<label class="award-select"><input type="checkbox" data-award-select="${h(file.id)}" aria-label="${h(file.fileName || '수상작')} 선택" ${awardSelected.has(file.id) ? 'checked' : ''}></label>` : ''}<a class="award-library-file" href="${url}" ${image ? `data-award-image="${h(file.id)}" aria-haspopup="dialog"` : 'target="_blank" rel="noopener"'}>
+    return `<div class="award-library-item">${canDeleteAward(file) ? `<label class="award-select"><input type="checkbox" data-award-select="${h(file.id)}" aria-label="${h(file.fileName || '수상작')} 선택" ${awardSelected.has(file.id) ? 'checked' : ''}></label>` : ''}<a class="award-library-file" href="${url}" title="${h(file.fileName || '수상작')}" ${image ? `data-award-image="${h(file.id)}" aria-label="${h(file.fileName || '수상작')} 미리보기" aria-current="false"` : 'target="_blank" rel="noopener"'}>
       ${image ? `<span class="award-thumbnail-frame"><img data-award-thumbnail="${h(file.id)}" alt="${h(file.fileName || '수상작')}" decoding="async" data-load-state="waiting"><span class="award-thumbnail-status" aria-live="polite">불러오는 중</span></span>` : '<span class="award-file-icon">파일</span>'}
       <strong>${h(file.fileName || '수상작 파일')}</strong>
     </a><button type="button" class="ghost-btn award-download" data-award-download="${h(file.id)}">다운로드</button>${image ? `<button class="award-thumbnail-retry hidden" data-award-retry="${h(file.id)}" aria-label="미리보기 다시 불러오기">다시 시도</button>` : ''}</div>`;
@@ -1048,6 +1080,10 @@ function renderAwardLibraryFiles() {
       updateAwardSelection();
     };
   });
+  root.onkeydown = event => {
+    if (event.target.closest('[data-award-image]')) awardSlideshow.keydown(event);
+  };
+  awardSlideshow.render(awardSlideFiles(), selectedAwardFolder()?.title || '수상작');
   const folderId = state.selectedAwardFolderId;
   const loadThumbnail = async (img) => {
     if (['loading', 'ready', 'denied'].includes(img.dataset.loadState)) return;
@@ -1100,13 +1136,7 @@ function renderAwardLibraryFiles() {
       event.preventDefault();
       const file = state.awardFiles.find((item) => String(item.id) === link.dataset.awardImage);
       if (!file || file.recordId !== state.selectedAwardFolderId) return;
-      const files = state.awardFiles.filter(item => item.recordId === file.recordId && String(item.mimeType || '').startsWith('image/'));
-      window.DataCoreImageGallery.open({scope:'awards', title:'수상작', anchor:link,
-        index:files.findIndex(item => item.id === file.id),
-        actions:[{label:'다운로드',icon:'Download',run:index=>downloadAward(files[index])}],
-        items:files.map(item => ({title:item.fileName || '수상작',
-          previewSrc:awardImages.peek(item.id) || awardImages.peekPreview(item.id) || item.thumbnailUrl,
-          load:({priority}) => awardImages.get(item.id, {priority:priority!=='low'})}))});
+      void awardSlideshow.show(awardSlideFiles().findIndex(item => item.id === file.id));
     };
   });
 }
@@ -1114,6 +1144,13 @@ function renderAwardLibraryFiles() {
 async function loadAwardFolders() {
   if (!state.context?.authenticated) return;
   const token=++awardFolderRequest;
+  // Clear before folder metadata arrives so slow requests cannot leave another folder's image visible.
+  ++awardFilesRequest;
+  clearAwardImages();
+  state.awardFiles = [];
+  awardSelected.clear();
+  awardFilesLoading = true;
+  renderAwardLibraryFiles();
   const selectedId=new URL(location.href).searchParams.get('awardFolder');
   async function pages(query) {
     const rows=[];let offset=0;
@@ -1135,6 +1172,8 @@ async function loadAwardFolders() {
     await Promise.all([loadAwardFiles(),loadAwardActivity()]);
   } catch (error) {
     if(token!==awardFolderRequest)return;
+    awardFilesLoading = false;
+    state.selectedAwardFolderId = null;
     state.awardFolders = [];
     state.awardFiles = [];
     renderAwardFolders();

@@ -20,6 +20,7 @@ function harness() {
     console, URL, URLSearchParams, FormData, HTMLDialogElement: class {},
     location: {href:'http://test/data-core/counseling/competitions'}, history:{pushState(){}},
     AwardImageCache: class {clear() {} remove() {}},
+    AwardSlideshow: class {clear() {} render() {}},
   });
   vm.runInContext(source.slice(0, source.lastIndexOf('init().catch')), context);
   vm.runInContext("state.context = {authenticated:true,canWrite:true,isSuperAdmin:true}; toast = () => {};", context);
@@ -51,6 +52,18 @@ test('award gallery ignores stale successes, failures, and foreign record rows',
   await third;
   assert.equal(h.run('state.awardFiles[0].id'), 'b2');
   assert.equal(h.run('awardFilesLoading'), false);
+});
+
+test('clearing the award view invalidates a pending file response', async () => {
+  const h = harness();
+  h.run("state.awardFolders=[{id:'a'}];state.selectedAwardFolderId='a'");
+  let resolve;
+  h.context.api = () => new Promise(done => { resolve = done; });
+  const pending = h.run('loadAwardFiles()');
+  h.run('clearAwardImages()');
+  resolve({files:[{id:'a1',recordId:'a'}]});
+  await pending;
+  assert.equal(h.run('state.awardFiles.length'), 0);
 });
 
 test('award roots escape names and disable writes for readers', async () => {
