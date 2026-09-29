@@ -56,11 +56,12 @@ try {
   const visit=async(id,publicId)=>{await page.goto(base+'/data-core/counseling/competitions'+(id?'?awardFolder='+id:'')+(publicId?'&enrolledAwardFolder='+id+'&publicAwardFolder='+publicId:''));await page.waitForFunction(()=>document.querySelector('#awardActivityList')?.textContent!=='불러오는 중...'&&document.querySelector('#openAwardFolderBtn')?.onclick);};
   const create=async(button,title,type='enrolled')=>{
     await page.locator(button).click();await page.locator('#awardFolderTitle').fill(title);await page.locator('#awardFolderTitle').press('Enter');
-    await page.waitForFunction(({title,type})=>document.querySelector(type==='public'?'#public-selectedAwardFolderTitle':'#selectedAwardFolderTitle')?.textContent===title,{title,type});
+    await page.waitForFunction(({title,type})=>document.querySelector((type==='public'?'#public-awardBreadcrumb':'#awardBreadcrumb')+' [aria-current=page]')?.textContent===title,{title,type});
     return new URL(page.url()).searchParams.get('awardFolder');
   };
   await visit();
   assert.equal(await page.locator('#awardFolderDetail').isHidden(),true);
+  assert.equal(await page.locator('.award-classify, [id$="saveAwardCollectionBtn"], [id$="selectedAwardFolderTitle"]').count(),0);
   const checkCollectionLayout=async(type)=>{
     const detailId=type==='public'?'#public-awardFolderDetail':'#awardFolderDetail';
     assert.equal(await page.locator(detailId).count(),1);
@@ -79,8 +80,8 @@ try {
   const leaf=await create('#openAwardChildBtn','SYNTHETIC 고3 긴 한글 폴더 이름');
   assert.equal(await page.locator('#awardBreadcrumb button').count(),4);
   await page.reload();await page.locator('#awardBreadcrumb button').nth(3).waitFor();
-  await page.goBack();await page.waitForFunction(()=>document.querySelector('#selectedAwardFolderTitle')?.textContent==='SYNTHETIC 2026');
-  await page.goForward();await page.waitForFunction(()=>document.querySelector('#selectedAwardFolderTitle')?.textContent==='SYNTHETIC 고3 긴 한글 폴더 이름');
+  await page.goBack();await page.waitForFunction(()=>document.querySelector('#awardBreadcrumb [aria-current=page]')?.textContent==='SYNTHETIC 2026');
+  await page.goForward();await page.waitForFunction(()=>document.querySelector('#awardBreadcrumb [aria-current=page]')?.textContent==='SYNTHETIC 고3 긴 한글 폴더 이름');
   const publicRoot=await create('#openPublicAwardFolderBtn','SYNTHETIC 공개 2','public');
   await create('#openPublicAwardFolderBtn','SYNTHETIC 공개 10','public');
   assert.deepEqual(await page.locator('#publicAwardFolderList strong').allTextContents(),['SYNTHETIC 공개 2','SYNTHETIC 공개 10']);
@@ -118,7 +119,7 @@ try {
   assert.equal(download.suggestedFilename(),name);await download.saveAs(resolve(out,'synthetic-download.png'));assert.deepEqual(await readFile(resolve(out,'synthetic-download.png')),png);assert.equal(await count(),1);
   await page.locator('#awardSlideshow [data-slide-next]').click();
   await page.locator('#publicAwardFolderList [data-award-folder-id="'+publicRoot+'"]').click();
-  await page.locator('#public-selectedAwardFolderTitle').getByText('SYNTHETIC 공개 2',{exact:true}).waitFor();
+  await page.locator('#public-awardBreadcrumb [aria-current=page]').getByText('SYNTHETIC 공개 2',{exact:true}).waitFor();
   assert.equal(await page.locator('#awardSlideshow output').textContent(),'2 / 2');
   await page.locator('#public-openAwardUploadBtn').click();
   const publicPng=await sharp({create:{width:720,height:480,channels:3,background:'#b84d68'}}).png().toBuffer();
@@ -171,6 +172,40 @@ try {
     await page.screenshot({path:resolve(out,`awards-${width}.png`),fullPage:true});result.widths.push(width);
   }
   result.flows.push('two groups, independent numeric sorting/persistence, depth3, blue current breadcrumb, 22px collection headings, back/forward/reload, duplicate Korean filenames, inline first image, thumbnails, arrows/keyboard/swipe, synchronized lightbox, download bytes/name, preview not audited');
+  const longTitle='SYNTHETIC 2026 청강대학교 공모전 수상작 VeryLongFolderName1234567890'.repeat(2);
+  for(const parent of [root,publicRoot]) {
+    const created=await h.request('POST','/api/data-core/awards/folders',users.master,{title:longTitle,parentFolderId:parent});
+    assert.equal(created.status,201);
+  }
+  for(const width of [1440,768,390,320]) {
+    await page.setViewportSize({width,height:1000});await visit(root,publicRoot);
+    for(const type of ['enrolled','public']) {
+      const collection=page.locator(`[data-award-collection="${type}"]`);
+      await collection.locator('.award-child-list button').filter({hasText:longTitle}).waitFor();
+      const children=await collection.locator('.award-child-list').boundingBox();
+      const actions=await collection.locator('.award-folder-toolbar .row-actions').boundingBox();
+      assert.ok(actions.x>=children.x+children.width-1 || actions.y>=children.y+children.height-1,'children/actions do not overlap '+type+' '+width);
+      for(const button of await collection.locator('.award-folder-toolbar button').all()) {
+        const box=await button.boundingBox();
+        assert.ok(box.x>=0&&box.x+box.width<=width+1,'toolbar button stays in viewport');
+      }
+      assert.equal(await collection.locator('.award-child-list button').filter({hasText:longTitle}).getAttribute('title'),longTitle);
+      assert.equal(await collection.locator('.award-child-list button strong').last().evaluate(el=>getComputedStyle(el).webkitLineClamp),'2');
+      if(width===1440)assert.ok(actions.x>=children.x+children.width-1,'desktop children left/actions right');
+    }
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'navigation overflow '+width);
+    await page.screenshot({path:resolve(out,`navigation-${width}.png`),fullPage:true});
+  }
+  const publicTrack=page.locator('#publicAwardFolderTrack');
+  await publicTrack.evaluate(el=>{el.scrollLeft=0;el.dispatchEvent(new Event('scroll'));});
+  const enrolledScroll=await page.locator('#awardFolderTrack').evaluate(el=>el.scrollLeft);
+  await page.locator('#publicAwardFolderNext').click();
+  await page.waitForFunction(()=>document.querySelector('#publicAwardFolderTrack').scrollLeft>0);
+  assert.equal(await page.locator('#awardFolderTrack').evaluate(el=>el.scrollLeft),enrolledScroll);
+  await page.locator('#publicAwardFolderPrev').click();
+  await page.waitForFunction(()=>document.querySelector('#publicAwardFolderTrack').scrollLeft<=1);
+  result.flows.push('no classification UI or redundant title; wrapped two-line child folders left/actions right; mobile controls do not overlap; public folder arrows do not move enrolled strip');
+  await visit(leaf,publicRoot);await page.locator('#public-awardLibraryFiles [data-award-select]').first().waitFor();
   await page.locator('#public-awardLibraryFiles [data-award-select]').first().check();
   await page.locator('#public-deleteSelectedAwardsBtn').click();
   assert.match(await page.locator('#awardDeleteSummary').textContent(),/SYNTHETIC 공개 2/);
@@ -186,7 +221,7 @@ try {
     await page.locator('#public-awardSlideshow img:not([hidden])').waitFor();assert.equal(await page.locator('#public-awardSlideshow output').textContent(),'1 / 1');
     assert.equal(await page.locator('#public-awardSlideshow [data-slide-prev]').isDisabled(),true);assert.equal(await page.locator('#public-awardSlideshow [data-slide-next]').isDisabled(),true);
     await checkCollectionLayout('public');
-    await page.locator('#public-deleteAwardFolderBtn').click();await page.waitForFunction(()=>document.querySelector('#public-selectedAwardFolderTitle')?.textContent==='SYNTHETIC 공개 2');
+    await page.locator('#public-deleteAwardFolderBtn').click();await page.waitForFunction(()=>document.querySelector('#public-awardBreadcrumb [aria-current=page]')?.textContent==='SYNTHETIC 공개 2');
     assert.equal(await page.locator('#awardSlideshow output').textContent(),'1 / 2');
     assert.ok((await h.env.DB.prepare('SELECT deleted_at FROM data_records WHERE id=?').bind(id).first()).deleted_at);
   }
@@ -194,7 +229,7 @@ try {
   await page.waitForFunction(()=>document.querySelectorAll('#awardLibraryFiles [data-award-image]').length===0);
   assert.equal(await page.locator('#awardSlideshow').isHidden(),true);
   for(const file of stored){assert.deepEqual(Buffer.from(await (await h.env.FILES.get(file.r2_key)).arrayBuffer()),png);assert.ok((await h.file(file.id)).deleted_at);await h.request('POST',`/api/data-core/trash/files/${file.id}/restore`,users.master);}
-  await visit(root);await page.locator('#deleteAwardFolderBtn').click();await page.waitForFunction(()=>document.querySelector('#selectedAwardFolderTitle')?.textContent==='수상작 폴더를 선택하세요');
+  await visit(root);await page.locator('#deleteAwardFolderBtn').click();await page.locator('#awardFolderDetail').waitFor({state:'hidden'});
   await page.goto(base+'/data-core/operations');await page.locator(`[data-award-restore="${root}"]`).click();await page.locator(`[data-award-restore="${root}"]`).waitFor({state:'detached'});
   await visit(leaf);await page.locator('#awardLibraryFiles [data-award-image]').nth(1).waitFor();
   assert.equal((await h.request('GET',`/api/data-core/awards/folders/${child}`,users.staff)).status,200);
