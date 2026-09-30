@@ -8,8 +8,8 @@
   const safeUrl = url => /^\/api\/data-core\/files\/[a-zA-Z0-9_-]+$/.test(url || '') ? url : '';
   let dispose = () => {}, sequence = 0;
   const naturalOrder = new Intl.Collator('ko', {numeric:true, sensitivity:'base'});
-  const post = async (url, body) => {
-    const r = await fetch(url, {method:'POST', credentials:'same-origin', cache:'no-store', body, headers: body instanceof FormData ? {} : {'content-type':'application/json'}});
+  const post = async (url, body, method = 'POST') => {
+    const r = await fetch(url, {method, credentials:'same-origin', cache:'no-store', body, headers: body instanceof FormData || body === undefined ? {} : {'content-type':'application/json'}});
     const json = await r.json().catch(() => ({}));
     if (!r.ok) throw Error(json.error || json.message || '저장하지 못했습니다.');
     return json;
@@ -55,6 +55,30 @@
         catch (e) { if (active()) { status.textContent = e.message; form.querySelectorAll('button,input').forEach(el => { el.disabled = false; }); } }
       };
     }
+    const renameButton = host.querySelector('[data-rename]'), deleteButton = host.querySelector('[data-delete]');
+    if (renameButton) renameButton.onclick = () => {
+      const heading = host.querySelector('.lesson-heading h2'), old = data.folder.title;
+      const editor = document.createElement('form');
+      editor.className = 'lesson-rename';
+      editor.innerHTML = `<input maxlength="60" required aria-label="폴더 이름"><button type="submit">저장</button><button type="button" data-cancel>취소</button>`;
+      const input = editor.querySelector('input'); input.value = old;
+      heading.replaceWith(editor); renameButton.disabled = true; input.select();
+      editor.querySelector('[data-cancel]').onclick = () => { editor.replaceWith(heading); renameButton.disabled = false; };
+      editor.onsubmit = async event => {
+        event.preventDefault();
+        const title = input.value.trim(); if (!title || title === old) { editor.querySelector('[data-cancel]').click(); return; }
+        editor.querySelectorAll('button,input').forEach(el => { el.disabled = true; });
+        try { await post(`${api}/folders/${encodeURIComponent(data.folder.id)}`, JSON.stringify({title}), 'PATCH'); if (active()) rerender(); }
+        catch (e) { if (active()) { status.textContent = e.message; editor.querySelectorAll('button,input').forEach(el => { el.disabled = false; }); } }
+      };
+    };
+    if (deleteButton) deleteButton.onclick = async () => {
+      const count = data.pages.length;
+      if (!confirm(`'${data.folder.title}' ${count ? `폴더와 수업자료 ${count}장을` : '폴더를'} 삭제할까요?\n삭제하면 목록과 인쇄에서 사라집니다.`)) return;
+      deleteButton.disabled = true;
+      try { await post(`${api}/folders/${encodeURIComponent(data.folder.id)}`, undefined, 'DELETE'); if (active()) navigate(stage === 'main' ? `/data-core/curriculum/${family}` : `/data-core/curriculum/${family}/${stage}`); }
+      catch (e) { if (active()) { status.textContent = e.message; deleteButton.disabled = false; } }
+    };
     const button = host.querySelector('[data-upload]'), picker = host.querySelector('[data-upload-input]');
     if (!button || !picker) return;
     button.onclick = () => picker.click();
@@ -95,7 +119,7 @@
       if (data.family !== family || data.stage !== stage) throw Error('선택한 과정의 수업이 아닙니다.');
       const crumbs = [{title:'꿈을 향한 커리큘럼',url:'/data-core/curriculum'},{title:families[family],url:root},...(stage==='main'?[]:[{title:titles[stage],url:stageUrl}]),...(data.breadcrumbs||[]).map(f=>({title:f.title,url:lessonUrl(f.id)}))];
       host.innerHTML = `<nav class="lesson-breadcrumb" aria-label="현재 위치">${crumbs.map((c,i)=>`<a href="${escape(c.url)}" ${i===crumbs.length-1?'aria-current="page"':''}>${escape(c.title)}</a>`).join('<span aria-hidden="true">/</span>')}</nav>
-        <header class="lesson-heading"><div><h2>${escape(data.folder?.title||titles[stage])}</h2><p>${data.folder?`${data.pages.length}장의 수업자료`:descriptions[stage]}</p></div>${data.canManage&&data.folder?.webManaged?`<button type="button" data-upload>${icon('Image')}<span>업로드</span></button><input type="file" data-upload-input accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden>`:''}<button type="button" data-print ${!(lesson?data.pages.length||data.folders.length:data.totalPages)?'disabled':''}>${icon('Printer')}<span>${lesson?'이 수업 인쇄':'전체 인쇄'}</span></button></header>
+        <header class="lesson-heading"><div><h2>${escape(data.folder?.title||titles[stage])}</h2><p>${data.folder?`${data.pages.length}장의 수업자료`:descriptions[stage]}</p></div><div class="lesson-actions">${data.canManage&&data.folder?.webManaged?`<button type="button" data-rename>이름 변경</button><button type="button" data-delete>삭제</button>`:''}${data.canManage&&data.folder?.webManaged?`<button type="button" data-upload>${icon('Image')}<span>업로드</span></button><input type="file" data-upload-input accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden>`:''}<button type="button" data-print ${!(lesson?data.pages.length||data.folders.length:data.totalPages)?'disabled':''}>${icon('Printer')}<span>${lesson?'이 수업 인쇄':'전체 인쇄'}</span></button></div></header>
         <p class="lesson-status" role="status" aria-live="polite"></p>
         <div class="lesson-grid">${data.folders.map((f,i)=>`<a class="lesson-card" href="${escape(lessonUrl(f.id))}"><div class="lesson-card-media">${safeUrl(f.representativeUrl)?`<img src="${escape(f.representativeUrl)}" data-fallback="${escape(safeUrl(f.fallbackRepresentativeUrl))}" alt="${escape(f.coverAlt||`${f.title} 대표 수업자료`)}" loading="${i<4?'eager':'lazy'}" fetchpriority="${i<4?'high':'auto'}" decoding="async" width="640" height="480">`:icon('Folder')}</div><div class="lesson-card-copy"><h3>${escape(f.title)}</h3><p>${f.pageCount}장의 수업자료</p><span aria-hidden="true">→</span></div></a>`).join('')}</div>
         ${lesson&&data.pages.length?'<section class="lesson-reader" aria-label="수업자료 슬라이드"><div class="lesson-reader-toolbar"><button data-prev aria-label="이전 페이지" title="이전 페이지">←</button><output class="lesson-counter" aria-live="polite"></output><button data-next aria-label="다음 페이지" title="다음 페이지">→</button></div><button class="lesson-canvas" aria-label="원본 크게 보기" title="원본 크게 보기"></button><div class="lesson-pages" aria-label="전체 페이지 목록"></div></section>':''}

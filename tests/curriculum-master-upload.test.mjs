@@ -62,6 +62,43 @@ test('only a master can add lesson folders and upload pages, in every course fam
   } finally { await h.mf.dispose(); }
 });
 
+test('a master can rename and delete web-made lesson folders; deleted lessons and files disappear for everyone', async () => {
+  const h = await libraryHarness();
+  try {
+    const made = await h.request('POST', '/api/data-core/curriculum/folders', users.master, { family: 'design', stage: 'basic', title: '옛 이름' });
+    const id = made.body.folder.id, path = `/api/data-core/curriculum/folders/${id}`;
+    assert.equal((await h.request('POST', `${path}/pages`, users.master, await pageForm())).status, 201);
+    const page = (await h.request('GET', path, users.master)).body.pages[0];
+
+    for (const user of [users.campusAdmin, users.teacher, users.staff]) {
+      assert.equal((await h.request('PATCH', path, user, { title: '금지' })).status, 403);
+      assert.equal((await h.request('DELETE', path, user)).status, 403);
+    }
+    assert.equal((await h.request('PATCH', path, users.master, { title: '새 이름' }, 'https://evil.example')).status, 403);
+    assert.equal((await h.request('PATCH', path, users.master, { title: ' ' })).status, 400);
+    assert.equal((await h.request('PATCH', path, users.master, { title: '새 이름' })).status, 200);
+    assert.equal((await h.request('GET', path, users.teacher)).body.folder.title, '새 이름');
+
+    assert.equal((await h.raw('GET', page.previewUrl, users.teacher)).status, 200);
+    assert.equal((await h.request('DELETE', path, users.master)).status, 200);
+    assert.equal((await h.request('GET', path, users.teacher)).status, 404);
+    const list = await h.request('GET', '/api/data-core/curriculum?family=design&stage=basic', users.teacher);
+    assert.equal(list.body.totalFolders, 0); assert.equal(list.body.totalPages, 0);
+    assert.ok((await h.raw('GET', page.previewUrl, users.teacher)).status >= 400);
+    assert.equal((await h.request('DELETE', path, users.master)).status, 404);
+    // Bytes stay in storage so a mistaken delete can be recovered by an administrator.
+    const kept = await h.env.DB.prepare("SELECT count(*) AS n FROM file_objects WHERE data_record_id=? AND deleted_at IS NULL").bind(page.id).first();
+    assert.equal(kept.n, 4);
+
+    const now = new Date().toISOString();
+    await h.env.DB.prepare(`INSERT INTO data_records (id,organization_id,campus_id,created_by_user_id,record_type,source_app,title,visibility,status,metadata_json,created_at,updated_at)
+      VALUES ('cur-folder-imported2',?,NULL,NULL,'curriculum-folder','curriculum','가져온 수업','organization','active',?,?,?)`)
+      .bind(ORG, JSON.stringify({ schemaVersion: 1, family: 'content', stage: 'basic', order: 1, relativePath: '1 수업', parentFolderId: null, representativeFileId: null, active: true }), now, now).run();
+    assert.equal((await h.request('PATCH', '/api/data-core/curriculum/folders/cur-folder-imported2', users.master, { title: 'x' })).status, 403);
+    assert.equal((await h.request('DELETE', '/api/data-core/curriculum/folders/cur-folder-imported2', users.master)).status, 403);
+  } finally { await h.mf.dispose(); }
+});
+
 test('every course family opens the shared lesson library with master-only folder and upload controls', () => {
   const page = readFileSync('public/data-core/curriculum.js', 'utf8'), library = readFileSync('public/data-core/curriculum-library.js', 'utf8');
   assert.match(page, /const libraryStage = family === 'start' \? 'main' : Object\.hasOwn\(stages, stage\) \? stage : null;/);
