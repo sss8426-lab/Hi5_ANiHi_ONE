@@ -203,7 +203,7 @@ async function deleteFolder(db: D1Database, context: DataCoreAccessContext, id: 
   const folder = await webFolder(db, id), now = new Date().toISOString();
   const result = await db.prepare(`UPDATE data_records SET status='deleted',deleted_at=?,updated_at=? WHERE organization_id=? AND source_app='curriculum' AND deleted_at IS NULL
     AND (id=? OR (record_type='curriculum-page' AND json_valid(metadata_json) AND json_extract(metadata_json,'$.curriculumFolderId')=?))`).bind(now, now, DEFAULT_ORGANIZATION_ID, id, id).run();
-  await audit(db, context, 'curriculum.folder.delete', id, { title: folder.title, records: result.meta.changes });
+  await audit(db, context, 'curriculum.folder.delete', id, { title: folder.title, records: result.meta?.changes ?? 0 });
   return Response.json({ deleted: true, id }, { headers: { 'cache-control': 'private, no-store' } });
 }
 
