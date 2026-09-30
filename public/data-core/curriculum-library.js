@@ -40,7 +40,7 @@
     } finally { bitmap.close?.(); }
   }
   // Master-only controls: the server also checks 마스터 권한 on every write.
-  function manage({host, data, status, active, navigate, lessonUrl, family, stage, rerender}) {
+  function manage({host, data, status, active, navigate, lessonUrl, family, stage, stageUrl, rerender}) {
     if (!data.canManage) return;
     const form = host.querySelector('[data-new-folder]');
     if (form) {
@@ -76,7 +76,7 @@
       const count = data.pages.length;
       if (!confirm(`'${data.folder.title}' ${count ? `폴더와 수업자료 ${count}장을` : '폴더를'} 삭제할까요?\n삭제하면 목록과 인쇄에서 사라집니다.`)) return;
       deleteButton.disabled = true;
-      try { await post(`${api}/folders/${encodeURIComponent(data.folder.id)}`, undefined, 'DELETE'); if (active()) navigate(stage === 'main' ? `/data-core/curriculum/${family}` : `/data-core/curriculum/${family}/${stage}`); }
+      try { await post(`${api}/folders/${encodeURIComponent(data.folder.id)}`, undefined, 'DELETE'); if (active()) navigate(stageUrl); }
       catch (e) { if (active()) { status.textContent = e.message; deleteButton.disabled = false; } }
     };
     const button = host.querySelector('[data-upload]'), picker = host.querySelector('[data-upload-input]');
@@ -98,7 +98,7 @@
       else rerender();
     };
   }
-  async function mount(host, family, stage, rerender) {
+  async function mount(host, family, stage, rerender, display) {
     const current = ++sequence, controller = new AbortController(), query = new URLSearchParams(location.search), lesson = query.get('lesson');
     let removed = false, printing = false, dialog, printRoot, keyHandler, slideRevision=0;
     const imageCache=window.DataCoreImageGallery.createCache();
@@ -108,7 +108,8 @@
     const active = () => !removed && sequence === current && host.classList.contains('active');
     const get = async url => { const r = await fetch(url,{credentials:'same-origin',cache:'no-store',signal:controller.signal}); if(!r.ok) { const error = new Error(r.status===401?'로그인이 필요합니다.':'수업자료를 불러오지 못했습니다.'); error.status=r.status;throw error; } return r.json(); };
     const navigate = url => { history.pushState({},'',url); rerender(); };
-    const root = `/data-core/curriculum/${family}`, stageUrl = stage === 'main' ? root : `${root}/${stage}`;
+    const root = `/data-core/curriculum/${family}`, stageUrl = display?.url || (stage === 'main' ? root : `${root}/${stage}`);
+    const stageTitle = display?.title || titles[stage], stageDescription = display?.detail || descriptions[stage];
     const lessonUrl = id => `${stageUrl}?lesson=${encodeURIComponent(id)}`;
     const decode = img => img.decode ? img.decode() : new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=reject;});
     const image = (url,alt) => {const img = new Image();img.src=url?.startsWith(`blob:${location.origin}/`)?url:safeUrl(url);img.alt=alt;return img;};
@@ -117,9 +118,9 @@
       const data = await get(lesson ? `${api}/folders/${encodeURIComponent(lesson)}` : `${api}?family=${family}&stage=${stage}`);
       if (!active()) return;
       if (data.family !== family || data.stage !== stage) throw Error('선택한 과정의 수업이 아닙니다.');
-      const crumbs = [{title:'꿈을 향한 커리큘럼',url:'/data-core/curriculum'},{title:families[family],url:root},...(stage==='main'?[]:[{title:titles[stage],url:stageUrl}]),...(data.breadcrumbs||[]).map(f=>({title:f.title,url:lessonUrl(f.id)}))];
+      const crumbs = [{title:'꿈을 향한 커리큘럼',url:'/data-core/curriculum'},{title:families[family],url:root},...(stage==='main'&&!display?[]:[{title:stageTitle,url:stageUrl}]),...(data.breadcrumbs||[]).map(f=>({title:f.title,url:lessonUrl(f.id)}))];
       host.innerHTML = `<nav class="lesson-breadcrumb" aria-label="현재 위치">${crumbs.map((c,i)=>`<a href="${escape(c.url)}" ${i===crumbs.length-1?'aria-current="page"':''}>${escape(c.title)}</a>`).join('<span aria-hidden="true">/</span>')}</nav>
-        <header class="lesson-heading"><div><h2>${escape(data.folder?.title||titles[stage])}</h2><p>${data.folder?`${data.pages.length}장의 수업자료`:descriptions[stage]}</p></div><div class="lesson-actions">${data.canManage&&data.folder?.webManaged?`<button type="button" data-rename>이름 변경</button><button type="button" data-delete>삭제</button>`:''}${data.canManage&&data.folder?.webManaged?`<button type="button" data-upload>${icon('Image')}<span>업로드</span></button><input type="file" data-upload-input accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden>`:''}<button type="button" data-print ${!(lesson?data.pages.length||data.folders.length:data.totalPages)?'disabled':''}>${icon('Printer')}<span>${lesson?'이 수업 인쇄':'전체 인쇄'}</span></button></div></header>
+        <header class="lesson-heading"><div><h2>${escape(data.folder?.title||stageTitle)}</h2><p>${data.folder?`${data.pages.length}장의 수업자료`:escape(stageDescription)}</p></div><div class="lesson-actions">${data.canManage&&data.folder?.webManaged?`<button type="button" data-rename>이름 변경</button><button type="button" data-delete>삭제</button>`:''}${data.canManage&&data.folder?.webManaged?`<button type="button" data-upload>${icon('Image')}<span>업로드</span></button><input type="file" data-upload-input accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden>`:''}<button type="button" data-print ${!(lesson?data.pages.length||data.folders.length:data.totalPages)?'disabled':''}>${icon('Printer')}<span>${lesson?'이 수업 인쇄':'전체 인쇄'}</span></button></div></header>
         <p class="lesson-status" role="status" aria-live="polite"></p>
         <div class="lesson-grid">${data.folders.map((f,i)=>`<a class="lesson-card" href="${escape(lessonUrl(f.id))}"><div class="lesson-card-media">${safeUrl(f.representativeUrl)?`<img src="${escape(f.representativeUrl)}" data-fallback="${escape(safeUrl(f.fallbackRepresentativeUrl))}" alt="${escape(f.coverAlt||`${f.title} 대표 수업자료`)}" loading="${i<4?'eager':'lazy'}" fetchpriority="${i<4?'high':'auto'}" decoding="async" width="640" height="480">`:icon('Folder')}</div><div class="lesson-card-copy"><h3>${escape(f.title)}</h3><p>${f.pageCount}장의 수업자료</p><span aria-hidden="true">→</span></div></a>`).join('')}</div>
         ${lesson&&data.pages.length?'<section class="lesson-reader" aria-label="수업자료 슬라이드"><div class="lesson-reader-toolbar"><button data-prev aria-label="이전 페이지" title="이전 페이지">←</button><output class="lesson-counter" aria-live="polite"></output><button data-next aria-label="다음 페이지" title="다음 페이지">→</button></div><button class="lesson-canvas" aria-label="원본 크게 보기" title="원본 크게 보기"></button><div class="lesson-pages" aria-label="전체 페이지 목록"></div></section>':''}
@@ -143,7 +144,7 @@
           let loaded=0,failed=0,cursor=0;
           const sheets=payload.pages.map((p,i)=>{const sheet=document.createElement('section');sheet.className='curriculum-print-sheet';sheet.dataset.page=p.id;const img=new Image();img.alt=`수업자료 ${i+1}`;sheet.append(img);printRoot.append(sheet);return img;});
           // Bounded decoding keeps failed pages explicit; never print an incomplete lesson.
-          async function next(){while(cursor<sheets.length&&active()){const i=cursor++;sheets[i].src=safeUrl(payload.pages[i].printUrl);try{await decode(sheets[i]);}catch{failed++;}loaded++;if(!active())return;status.textContent=`${titles[stage]} ${sheets.length}장의 인쇄를 준비 중입니다. ${loaded} / ${sheets.length}`;}}
+          async function next(){while(cursor<sheets.length&&active()){const i=cursor++;sheets[i].src=safeUrl(payload.pages[i].printUrl);try{await decode(sheets[i]);}catch{failed++;}loaded++;if(!active())return;status.textContent=`${stageTitle} ${sheets.length}장의 인쇄를 준비 중입니다. ${loaded} / ${sheets.length}`;}}
           await Promise.all(Array.from({length:Math.min(4,sheets.length)},next));
           if(!active())return;
           if(failed)throw Error(`${failed}개의 수업자료를 불러오지 못했습니다.`);
@@ -155,7 +156,7 @@
         finally{printing=false;if(active())host.querySelector('[data-print]').disabled=false;}
       }
       host.querySelector('[data-print]').onclick=print;
-      manage({host,data,status,active,navigate,lessonUrl,family,stage,rerender});
+      manage({host,data,status,active,navigate,lessonUrl,family,stage,stageUrl,rerender});
       if(!lesson||!data.pages.length)return;
       const pages=data.pages, canvas=host.querySelector('.lesson-canvas'), strip=host.querySelector('.lesson-pages');
       let index=Math.min(pages.length-1,Math.max(0,(parseInt(query.get('slide'),10)||1)-1));

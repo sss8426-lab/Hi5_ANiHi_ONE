@@ -22,9 +22,10 @@ test('only a master can add lesson folders and upload pages, in every course fam
   for (const user of [users.campusAdmin, users.director, users.teacher, users.staff]) assert.equal((await create(user, { family: 'design', stage: 'basic', title: '금지' })).status, 403);
   assert.equal((await create(users.master, { family: 'design', stage: 'basic', title: '교차 출처' }, 'https://evil.example')).status, 403);
   assert.equal((await create(users.master, { family: 'start', stage: 'basic', title: '없는 단계' })).status, 404);
+  for (const stage of ['main', 'comics', 'design']) assert.equal((await create(users.teacher, {family: 'start', stage, title: '금지'})).status, 403);
   assert.equal((await create(users.master, { family: 'design', stage: 'basic', title: '  ' })).status, 400);
 
-  for (const [family, stage] of [['start', 'main'], ['content', 'admission'], ['design', 'advanced']]) {
+  for (const [family, stage] of [['start', 'main'], ['start', 'comics'], ['start', 'design'], ['content', 'admission'], ['design', 'advanced']]) {
     const made = await create(users.master, { family, stage, title: `${family} 새 수업` });
     assert.equal(made.status, 201);
     const id = made.body.folder.id;
@@ -41,6 +42,7 @@ test('only a master can add lesson folders and upload pages, in every course fam
     assert.equal(list.status, 200);
     const card = list.body.folders.find(f => f.id === id);
     assert.equal(card.pageCount, 2); assert.match(card.representativeUrl, /^\/api\/data-core\/files\/cur-file-/);
+    if (family === 'start') assert.equal(list.body.folders.length, 1, 'elementary categories must not share each other\'s lessons');
     const lesson = await h.request('GET', `/api/data-core/curriculum/folders/${id}`, users.teacher);
     assert.deepEqual(lesson.body.pages.map(p => p.order), [1, 2]);
     const print = await h.request('GET', `/api/data-core/curriculum/print?family=${family}&stage=${stage}&lesson=${id}`, users.staff);
@@ -58,7 +60,7 @@ test('only a master can add lesson folders and upload pages, in every course fam
     .bind(ORG, JSON.stringify({ schemaVersion: 1, family: 'content', stage: 'basic', order: 1, relativePath: '1 수업', parentFolderId: null, representativeFileId: null, active: true }), now, now).run();
   assert.equal((await h.request('POST', '/api/data-core/curriculum/folders/cur-folder-imported/pages', users.master, await pageForm())).status, 403);
   const audit = await h.env.DB.prepare("SELECT action, count(*) AS n FROM audit_logs WHERE resource_type='curriculum' GROUP BY action ORDER BY action").all();
-  assert.deepEqual(audit.results.map(r => [r.action, r.n]), [['curriculum.folder.create', 3], ['curriculum.page.upload', 6]]);
+  assert.deepEqual(audit.results.map(r => [r.action, r.n]), [['curriculum.folder.create', 5], ['curriculum.page.upload', 10]]);
   } finally { await h.mf.dispose(); }
 });
 
@@ -101,10 +103,12 @@ test('a master can rename and delete web-made lesson folders; deleted lessons an
 
 test('every course family opens the shared lesson library with master-only folder and upload controls', () => {
   const page = readFileSync('public/data-core/curriculum.js', 'utf8'), library = readFileSync('public/data-core/curriculum-library.js', 'utf8');
-  assert.match(page, /const libraryStage = family === 'start' \? 'main' : Object\.hasOwn\(stages, stage\) \? stage : null;/);
+  assert.match(page, /const libraryStage = family === 'start' \? startLibraryStages\[startStage\] : Object\.hasOwn\(stages, stage\) \? stage : null;/);
+  assert.match(page, /const startLibraryStages = \{ drawing: 'main', comics: 'comics', design: 'design' \};/);
+  assert.match(page, /has\('lesson'\)/);
   assert.match(page, /family=\$\{family\}&stage=/);
   assert.match(library, /data\.canManage&&!lesson\?'<form class="lesson-new-folder"/);
   assert.match(library, /data\.canManage&&data\.folder\?\.webManaged\?`<button type="button" data-upload>/);
   assert.match(library, /rendition\(bitmap, 2200, 'image\/webp', \.88\)/);
-  assert.match(readFileSync('worker/router.ts', 'utf8'), /curriculum\(\?:\\\/\(start\|content\|design\)/);
+  assert.match(readFileSync('worker/router.ts', 'utf8'), /start\(\?:\\\/\(\?:drawing\|comics\|design\)/);
 });

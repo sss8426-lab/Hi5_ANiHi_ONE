@@ -53,8 +53,8 @@ export async function curriculumFileReadable(db: D1Database, context: DataCoreAc
   return visited.size > 0;
 }
 
-// 꿈 그림의 시작 has no stage split, so its lessons live under a single 'main' stage.
-export const CURRICULUM_STAGES: Record<string, string[]> = { start: ['main'], content: ['basic','advanced','admission'], design: ['basic','advanced','admission'] };
+// Keep existing elementary lessons in 'main', displayed as 꿈 그림 기초.
+export const CURRICULUM_STAGES: Record<string, string[]> = { start: ['main','comics','design'], content: ['basic','advanced','admission'], design: ['basic','advanced','admission'] };
 const knownStage = (family: string, stage: string) => Object.hasOwn(CURRICULUM_STAGES, family) && CURRICULUM_STAGES[family].includes(stage);
 
 async function collection(db: D1Database, family: string, stage: string) {

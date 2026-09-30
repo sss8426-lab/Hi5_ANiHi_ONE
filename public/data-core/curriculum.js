@@ -6,6 +6,12 @@
     design: { title: '디자이너', description: '디자인 계열 진학과 진로를 준비하는 성장 과정', image: 'design-academy-work-v1.webp', alt: '하이파이브 미술학원 작품 · 유리 질감 발상과 표현', width: 1440, height: 1051 },
   };
   const stages = { basic: '기초과정', advanced: '심화과정', admission: '입시과정' };
+  const startFolders = {
+    drawing: { title: '꿈 그림 기초', image: 'start-drawing-v1.webp', description: '선과 색으로 시작하는 그림 놀이', detail: '다양한 선과 색을 만나고, 보고 느낀 것을 자유롭게 그려요.', alt: '색연필과 물감으로 무지개와 집을 즐겁게 그리는 초등학생들' },
+    comics: { title: '만화그리기 기초', image: 'start-comics-v1.webp', description: '표정과 이야기로 만드는 나만의 만화', detail: '캐릭터의 표정과 움직임을 배우고, 재미있는 이야기를 만화로 표현해요.', alt: '직접 그린 네 칸 만화와 캐릭터 표정을 보여주는 초등학생들' },
+    design: { title: '디자인하기 기초', image: 'start-design-v1.webp', description: '모양과 색으로 만드는 즐거운 디자인', detail: '모양과 색을 조합하고, 나만의 생각을 멋진 작품으로 만들어요.', alt: '색종이 도형과 꽃으로 나만의 콜라주를 만드는 초등학생들' },
+  };
+  const startLibraryStages = { drawing: 'main', comics: 'comics', design: 'design' };
   const stageImages = {
     content: {
       basic: { image: 'content-basic-v2.webp', description: '기초 인체 · 비례와 움직임', detail: '인체의 비례와 구조, 자연스러운 동작을 익힙니다.', alt: '미술학원에 처음 와서 인체 드로잉을 어려워하는 학생과 도와주는 선생님' },
@@ -25,29 +31,31 @@
   function render(path = location.pathname) {
     countController?.abort();
     window.DataCoreCurriculumLibrary?.dispose();
-    const match = path.replace(/\/+$/, '').match(/^\/data-core\/curriculum(?:\/(start|content|design)(?:\/(basic|advanced|admission))?)?$/);
+    const match = path.replace(/\/+$/, '').match(/^\/data-core\/curriculum(?:\/(start|content|design)(?:\/(basic|advanced|admission|drawing|comics|design))?)?$/);
     const host = document.getElementById('view-curriculum');
     if (!host) return;
-    if (!match || (match[1] === 'start' && match[2])) { host.innerHTML = '<h2>과정을 찾을 수 없습니다.</h2>'; return; }
+    if (!match || (match[2] && !Object.hasOwn(match[1] === 'start' ? startFolders : stages, match[2]))) { host.classList.remove('curriculum-library'); host.innerHTML = '<h2>과정을 찾을 수 없습니다.</h2>'; return; }
     const [, family, stage] = match, selected = families[family];
-    // Every course stage (and 꿈 그림의 시작 as a single 'main' stage) opens the shared lesson library.
-    const libraryStage = family === 'start' ? 'main' : Object.hasOwn(stages, stage) ? stage : null;
+    const labels = family === 'start' ? Object.fromEntries(Object.entries(startFolders).map(([key, item]) => [key, item.title])) : stages;
+    const legacyLesson = family === 'start' && !stage && new URLSearchParams(location.search).has('lesson');
+    const startStage = family === 'start' ? stage || (legacyLesson ? 'drawing' : null) : null;
+    const libraryStage = family === 'start' ? startLibraryStages[startStage] : Object.hasOwn(stages, stage) ? stage : null;
     host.classList.toggle('curriculum-library', Boolean(family && libraryStage));
     if (family && libraryStage) {
-      window.DataCoreCurriculumLibrary?.mount(host, family, libraryStage, () => render());
+      const display = startStage ? { ...startFolders[startStage], url: `${root}/start/${startStage}` } : undefined;
+      window.DataCoreCurriculumLibrary?.mount(host, family, libraryStage, () => render(), display);
       return;
     }
-    const title = stage ? stages[stage] : selected ? `${selected.title} 커리큘럼` : '꿈을 향한 커리큘럼';
+    const title = stage ? labels[stage] : selected ? `${selected.title} 커리큘럼` : '꿈을 향한 커리큘럼';
     const back = stage ? `${root}/${family}` : selected ? root : '/data-core/counseling';
     host.innerHTML = `<div class="curriculum-heading"><a class="curriculum-back" href="${back}" aria-label="${stage ? '과정 선택' : selected ? '커리큘럼 선택' : '상담용 홈'}으로 돌아가기">${icon('ArrowLeft')}</a><div>${stage ? `<p>${selected.title} 커리큘럼</p>` : ''}<h2>${title}</h2></div></div>` +
       (!selected ? `<div class="curriculum-cards">${Object.entries(families).map(([key, item]) => `<a class="curriculum-card${item.tag ? ' curriculum-start-card' : ''}" href="${root}/${key}">${item.tag ? `<span class="curriculum-card-tag">${item.tag}</span>` : ''}<img src="/data-core/assets/work-visuals/${item.image}" alt="${item.alt}" width="${item.width || 1440}" height="${item.height || 960}" decoding="async"><div><h3>${item.title}</h3><p>${item.description}</p>${icon('ArrowRight')}</div></a>`).join('')}</div>`
-        : family === 'start' ? `<section class="curriculum-empty" data-family="start" data-course-count="${courses.start.length}">${icon('BookOpen')}<p>등록된 커리큘럼이 없습니다.</p></section>`
-        : !stage ? `<div class="curriculum-folders">${Object.entries(stages).map(([key, label]) => {
-          const art = stageImages[family][key];
-          return `<a class="curriculum-card curriculum-stage-card" href="${root}/${family}/${key}"><img src="/data-core/assets/curriculum/${art.image}" alt="${art.alt}" width="1200" height="800" decoding="async"><div><h3>${label}</h3><p class="curriculum-stage-focus">${art.description}</p><p class="curriculum-stage-detail">${art.detail}</p>${family!=='start'?`<p data-stage-count="${key}" aria-live="polite" hidden></p>`:''}${icon('ArrowRight')}</div></a>`;
+        : !stage ? `<div class="curriculum-folders">${Object.entries(labels).map(([key, label]) => {
+          const art = family === 'start' ? startFolders[key] : stageImages[family][key];
+          return `<a class="curriculum-card curriculum-stage-card" href="${root}/${family}/${key}"><img src="/data-core/assets/curriculum/${art.image}" alt="${art.alt}" width="1200" height="800" decoding="async"><div><h3>${label}</h3><p class="curriculum-stage-focus">${art.description}</p><p class="curriculum-stage-detail">${art.detail}</p><p data-stage-count="${family === 'start' ? startLibraryStages[key] : key}" aria-live="polite" hidden></p>${icon('ArrowRight')}</div></a>`;
         }).join('')}</div>`
-          : `<section class="curriculum-empty" data-family="${family}" data-stage="${stage}" data-course-count="${courses[family][stage].length}">${icon('BookOpen')}<p>등록된 커리큘럼이 없습니다.</p></section>`);
-    if (family && family !== 'start' && !stage) {
+          : `<section class="curriculum-empty" data-family="${family}" data-stage="${stage}" data-course-count="${family === 'start' ? courses.start.length : courses[family][stage].length}">${icon('BookOpen')}<p>${family === 'start' ? '이 폴더에 등록된 수업자료가 없습니다.' : '등록된 커리큘럼이 없습니다.'}</p></section>`);
+    if (family && !stage) {
       countController = new AbortController();
       const { signal } = countController;
       host.querySelectorAll('[data-stage-count]').forEach(async label => {

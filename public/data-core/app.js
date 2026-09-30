@@ -233,7 +233,7 @@ function switchView(view, options = {}) {
 function initialViewFromPath() {
   const path = location.pathname.replace(/\/+$/, '');
   if(path==='/data-core/work'&&new URLSearchParams(location.search).get('view')==='admin')return 'admin';
-  if (/^\/data-core\/curriculum(?:\/(start|content|design)(?:\/(basic|advanced|admission))?)?$/.test(path)) return 'curriculum';
+  if (/^\/data-core\/curriculum(?:\/(?:start(?:\/(?:drawing|comics|design))?|(content|design)(?:\/(basic|advanced|admission))?))?$/.test(path)) return 'curriculum';
   if (path === '/data-core/counseling') return 'counseling-home';
   if (path === '/data-core/counseling/competitions') return 'competitions';
   if (path === '/data-core/work/library') return 'library';
