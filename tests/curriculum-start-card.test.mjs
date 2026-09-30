@@ -15,7 +15,7 @@ test('꿈을 향한 커리큘럼 starts with the elementary 꿈 그림의 시작
     assert.ok(existsSync(`public/data-core/assets/work-visuals/${image}`));
   }
   assert.match(js, /curriculum\(\?:\\\/\(start\|content\|design\)/);
-  assert.match(js, /match\[1\] === 'start' && match\[2\]/);
+  assert.match(js, /Object\.hasOwn\(match\[1\] === 'start' \? startFolders : stages, match\[2\]\)/);
 });
 
 test('curriculum cards keep their colours on hover (only the border changes)', () => {

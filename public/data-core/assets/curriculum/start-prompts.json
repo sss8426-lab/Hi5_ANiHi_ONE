@@ -1,0 +1,21 @@
+{
+  "mode": "built-in image_gen",
+  "purpose": "Approved elementary curriculum illustrations, not actual student submissions. PNG artwork resized without cropping to 1200x800 WebP.",
+  "assets": [
+    {
+      "file": "start-drawing-v1.webp",
+      "title": "꿈 그림 기초",
+      "prompt": "Create ONE original landscape 1536x1024 full-bleed illustration for a Korean elementary art curriculum card. Use the LEFT illustration inside the supplied approved UI preview as the visual reference: preserve its charming storybook anime watercolor style, cute young children, sunny classroom, cheerful colors, composition and drawing activity. Two Korean elementary school children age 8-10, a girl with dark hair in a bun and denim overalls over a light shirt and a boy with tousled dark hair and a mint shirt, happily drawing at a white art table. Clearly visible large paper with a child's rainbow, house, sun and flowers. Colored pencils and a watercolor set nearby. Hands believable, natural focused smiles, bright neutral room and foliage through windows. Refined hand-painted watercolor/gouache illustration, soft pencil lines, rich details, pastel sky blue, mint, coral and yellow. Warm friendly but not beige-dominated. Horizontal framing with full scene filling image, important faces and art well inside crop-safe margins. Generate ONLY this artwork: no UI, borders, cards, headings, letters, numbers, labels, logos or watermark. Not a screenshot. Original fictional children."
+    },
+    {
+      "file": "start-comics-v1.webp",
+      "title": "만화그리기 기초",
+      "prompt": "Create ONE original landscape 1536x1024 full-bleed illustration for a Korean elementary comic-drawing curriculum card. Use the MIDDLE illustration inside the supplied approved UI preview as the visual reference: preserve its charming storybook anime watercolor style, cute young children, sunny classroom, cheerful colors and comic drawing activity. Three Korean elementary school children age 8-10 around a bright art table, a smiling tousled-dark-haired boy in a blue shirt holding up a paper with FOUR clearly separated comic panels depicting an original human cartoon child's different happy/surprised/determined/laughing expressions; a dark-haired girl in a lilac shirt and another boy in a yellow shirt smiling with interest beside him. Their table has pencils, markers and comic sketches. Believable small hands and natural expressions. Classroom wall has a few expressive human character study sketches. Rich detailed refined hand-painted watercolor/gouache illustration, soft pencil lines, neutral sunlit classroom, sky blue, lilac, mint and yellow. Full horizontal scene, faces and four-panel page inside crop-safe margins. Generate ONLY this artwork: no UI, cards, frames, headings, letters, text, speech text, numbers, labels, logos or watermark. Original fictional children and original comic character."
+    },
+    {
+      "file": "start-design-v1.webp",
+      "title": "디자인하기 기초",
+      "prompt": "Create ONE original landscape 1536x1024 full-bleed illustration for a Korean elementary design curriculum card. Use the RIGHT illustration inside the supplied approved UI preview as the visual reference: preserve its charming storybook anime watercolor style, cute young children, sunny classroom, cheerful colors and paper design activity. Three Korean elementary school children age 8-10 at a white table: a dark-haired girl with two small braids in a coral pink shirt arranging colorful paper shapes, a happy girl with a high bun wearing light yellow proudly holding a handmade paper collage greeting card showing a large tulip and heart, and a boy with tousled dark hair in a green shirt holding a geometric house collage made from colorful triangles/circles/squares. Table has colored paper, a glue stick and safe rounded-tip child scissors. The actual paper artwork is clearly visible. Believable small hands and natural smiles, bright clean classroom and blue sky through window. Refined detailed hand-painted watercolor/gouache style with soft pencil contours and cheerful coral, lemon, lilac, sky blue and mint accents. Full horizontal scene, artwork and faces inside crop-safe margins. Generate ONLY this artwork: no UI, cards, borders, headings, text, letters, numbers, labels, logos or watermark. Original fictional children."
+    }
+  ]
+}
