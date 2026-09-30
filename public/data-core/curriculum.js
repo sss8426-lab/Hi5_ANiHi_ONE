@@ -30,9 +30,11 @@
     if (!host) return;
     if (!match || (match[1] === 'start' && match[2])) { host.innerHTML = '<h2>과정을 찾을 수 없습니다.</h2>'; return; }
     const [, family, stage] = match, selected = families[family];
-    host.classList.toggle('curriculum-library', family === 'content' && Object.hasOwn(stages, stage));
-    if (family === 'content' && Object.hasOwn(stages, stage)) {
-      window.DataCoreCurriculumLibrary?.mount(host, family, stage, () => render());
+    // Every course stage (and 꿈 그림의 시작 as a single 'main' stage) opens the shared lesson library.
+    const libraryStage = family === 'start' ? 'main' : Object.hasOwn(stages, stage) ? stage : null;
+    host.classList.toggle('curriculum-library', Boolean(family && libraryStage));
+    if (family && libraryStage) {
+      window.DataCoreCurriculumLibrary?.mount(host, family, libraryStage, () => render());
       return;
     }
     const title = stage ? stages[stage] : selected ? `${selected.title} 커리큘럼` : '꿈을 향한 커리큘럼';
@@ -42,19 +44,19 @@
         : family === 'start' ? `<section class="curriculum-empty" data-family="start" data-course-count="${courses.start.length}">${icon('BookOpen')}<p>등록된 커리큘럼이 없습니다.</p></section>`
         : !stage ? `<div class="curriculum-folders">${Object.entries(stages).map(([key, label]) => {
           const art = stageImages[family][key];
-          return `<a class="curriculum-card curriculum-stage-card" href="${root}/${family}/${key}"><img src="/data-core/assets/curriculum/${art.image}" alt="${art.alt}" width="1200" height="800" decoding="async"><div><h3>${label}</h3><p class="curriculum-stage-focus">${art.description}</p><p class="curriculum-stage-detail">${art.detail}</p>${family==='content'?`<p data-stage-count="${key}" aria-live="polite" hidden></p>`:''}${icon('ArrowRight')}</div></a>`;
+          return `<a class="curriculum-card curriculum-stage-card" href="${root}/${family}/${key}"><img src="/data-core/assets/curriculum/${art.image}" alt="${art.alt}" width="1200" height="800" decoding="async"><div><h3>${label}</h3><p class="curriculum-stage-focus">${art.description}</p><p class="curriculum-stage-detail">${art.detail}</p>${family!=='start'?`<p data-stage-count="${key}" aria-live="polite" hidden></p>`:''}${icon('ArrowRight')}</div></a>`;
         }).join('')}</div>`
           : `<section class="curriculum-empty" data-family="${family}" data-stage="${stage}" data-course-count="${courses[family][stage].length}">${icon('BookOpen')}<p>등록된 커리큘럼이 없습니다.</p></section>`);
-    if (family === 'content' && !stage) {
+    if (family && family !== 'start' && !stage) {
       countController = new AbortController();
       const { signal } = countController;
       host.querySelectorAll('[data-stage-count]').forEach(async label => {
         try {
-          const response = await fetch(`/api/data-core/curriculum?family=content&stage=${label.dataset.stageCount}`, { credentials: 'same-origin', cache: 'no-store', signal });
+          const response = await fetch(`/api/data-core/curriculum?family=${family}&stage=${label.dataset.stageCount}`, { credentials: 'same-origin', cache: 'no-store', signal });
           if (!response.ok) throw Error('count unavailable');
           const data = await response.json();
           if (!Number.isSafeInteger(data.totalFolders) || data.totalFolders < 0) throw Error('invalid count');
-          if (!signal.aborted && label.isConnected) { label.textContent = `${data.totalFolders}개 수업`; label.hidden = false; }
+          if (!signal.aborted && label.isConnected && data.totalFolders) { label.textContent = `${data.totalFolders}개 수업`; label.hidden = false; }
         } catch {
           if (!signal.aborted && label.isConnected) label.remove();
         }

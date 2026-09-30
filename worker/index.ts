@@ -280,7 +280,7 @@ async function handleDataCoreApi(request: Request, env: Env) {
   if (url.pathname === '/api/data-core/curriculum' || url.pathname.startsWith('/api/data-core/curriculum/')) {
     if (!env.DB) throw new DataCoreAccessError(503, 'DATA CORE 데이터베이스가 연결되지 않았습니다.');
     const { handleCurriculumApi } = await import('./data-core-curriculum');
-    return handleCurriculumApi(request, env.DB, context);
+    return handleCurriculumApi(request, env.DB, context, env.FILES);
   }
 
   if (url.pathname.startsWith('/api/data-core/library/')) {
