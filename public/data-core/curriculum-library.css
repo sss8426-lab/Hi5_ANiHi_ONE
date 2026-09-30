@@ -47,3 +47,13 @@
   .curriculum-print-sheet:last-child { break-after:auto; }
   .curriculum-print-sheet img { display:block; max-width:100%; max-height:100%; object-fit:contain; }
 }
+/* 마스터 전용: 새 폴더 · 업로드 */
+.lesson-heading [data-upload] { margin-left:auto; margin-right:-8px; background:#20392d; color:#fff; border-color:#20392d; }
+.lesson-heading [data-upload] svg { stroke:currentColor; }
+.lesson-new-folder { margin-top:24px; }
+.lesson-new-folder [data-new-folder-open] { width:100%; min-height:72px; border:1.5px dashed #9fb8aa; background:#f6f9f7; color:#254c3b; font-weight:600; font-size:15px; border-radius:8px; }
+.lesson-new-folder [data-new-folder-open]:hover { border-color:#247154; background:#eef5f1; }
+.lesson-new-folder > div { display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:16px; border:1.5px dashed #9fb8aa; border-radius:8px; background:#f6f9f7; }
+.lesson-new-folder input { flex:1 1 280px; min-height:42px; padding:8px 12px; border:1px solid #bdcec2; border-radius:6px; font:inherit; }
+.lesson-new-folder button[type="submit"] { background:#20392d; color:#fff; border-color:#20392d; }
+.lesson-new-folder [hidden] { display:none; }

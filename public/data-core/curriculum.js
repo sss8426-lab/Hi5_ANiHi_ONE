@@ -11,6 +11,7 @@
     comics: { title: '만화그리기 기초', image: 'start-comics-v1.webp', description: '표정과 이야기로 만드는 나만의 만화', detail: '캐릭터의 표정과 움직임을 배우고, 재미있는 이야기를 만화로 표현해요.', alt: '직접 그린 네 칸 만화와 캐릭터 표정을 보여주는 초등학생들' },
     design: { title: '디자인하기 기초', image: 'start-design-v1.webp', description: '모양과 색으로 만드는 즐거운 디자인', detail: '모양과 색을 조합하고, 나만의 생각을 멋진 작품으로 만들어요.', alt: '색종이 도형과 꽃으로 나만의 콜라주를 만드는 초등학생들' },
   };
+  const startLibraryStages = { drawing: 'main', comics: 'comics', design: 'design' };
   const stageImages = {
     content: {
       basic: { image: 'content-basic-v2.webp', description: '기초 인체 · 비례와 움직임', detail: '인체의 비례와 구조, 자연스러운 동작을 익힙니다.', alt: '미술학원에 처음 와서 인체 드로잉을 어려워하는 학생과 도와주는 선생님' },
@@ -36,9 +37,13 @@
     if (!match || (match[2] && !Object.hasOwn(match[1] === 'start' ? startFolders : stages, match[2]))) { host.classList.remove('curriculum-library'); host.innerHTML = '<h2>과정을 찾을 수 없습니다.</h2>'; return; }
     const [, family, stage] = match, selected = families[family];
     const labels = family === 'start' ? Object.fromEntries(Object.entries(startFolders).map(([key, item]) => [key, item.title])) : stages;
-    host.classList.toggle('curriculum-library', family === 'content' && Object.hasOwn(stages, stage));
-    if (family === 'content' && Object.hasOwn(stages, stage)) {
-      window.DataCoreCurriculumLibrary?.mount(host, family, stage, () => render());
+    const legacyLesson = family === 'start' && !stage && new URLSearchParams(location.search).has('lesson');
+    const startStage = family === 'start' ? stage || (legacyLesson ? 'drawing' : null) : null;
+    const libraryStage = family === 'start' ? startLibraryStages[startStage] : Object.hasOwn(stages, stage) ? stage : null;
+    host.classList.toggle('curriculum-library', Boolean(family && libraryStage));
+    if (family && libraryStage) {
+      const display = startStage ? { ...startFolders[startStage], url: `${root}/start/${startStage}` } : undefined;
+      window.DataCoreCurriculumLibrary?.mount(host, family, libraryStage, () => render(), display);
       return;
     }
     const title = stage ? labels[stage] : selected ? `${selected.title} 커리큘럼` : '꿈을 향한 커리큘럼';
@@ -47,19 +52,19 @@
       (!selected ? `<div class="curriculum-cards">${Object.entries(families).map(([key, item]) => `<a class="curriculum-card${item.tag ? ' curriculum-start-card' : ''}" href="${root}/${key}">${item.tag ? `<span class="curriculum-card-tag">${item.tag}</span>` : ''}<img src="/data-core/assets/work-visuals/${item.image}" alt="${item.alt}" width="${item.width || 1440}" height="${item.height || 960}" decoding="async"><div><h3>${item.title}</h3><p>${item.description}</p>${icon('ArrowRight')}</div></a>`).join('')}</div>`
         : !stage ? `<div class="curriculum-folders">${Object.entries(labels).map(([key, label]) => {
           const art = family === 'start' ? startFolders[key] : stageImages[family][key];
-          return `<a class="curriculum-card curriculum-stage-card" href="${root}/${family}/${key}"><img src="/data-core/assets/curriculum/${art.image}" alt="${art.alt}" width="1200" height="800" decoding="async"><div><h3>${label}</h3><p class="curriculum-stage-focus">${art.description}</p><p class="curriculum-stage-detail">${art.detail}</p>${family==='content'?`<p data-stage-count="${key}" aria-live="polite" hidden></p>`:''}${icon('ArrowRight')}</div></a>`;
+          return `<a class="curriculum-card curriculum-stage-card" href="${root}/${family}/${key}"><img src="/data-core/assets/curriculum/${art.image}" alt="${art.alt}" width="1200" height="800" decoding="async"><div><h3>${label}</h3><p class="curriculum-stage-focus">${art.description}</p><p class="curriculum-stage-detail">${art.detail}</p><p data-stage-count="${family === 'start' ? startLibraryStages[key] : key}" aria-live="polite" hidden></p>${icon('ArrowRight')}</div></a>`;
         }).join('')}</div>`
           : `<section class="curriculum-empty" data-family="${family}" data-stage="${stage}" data-course-count="${family === 'start' ? courses.start.length : courses[family][stage].length}">${icon('BookOpen')}<p>${family === 'start' ? '이 폴더에 등록된 수업자료가 없습니다.' : '등록된 커리큘럼이 없습니다.'}</p></section>`);
-    if (family === 'content' && !stage) {
+    if (family && !stage) {
       countController = new AbortController();
       const { signal } = countController;
       host.querySelectorAll('[data-stage-count]').forEach(async label => {
         try {
-          const response = await fetch(`/api/data-core/curriculum?family=content&stage=${label.dataset.stageCount}`, { credentials: 'same-origin', cache: 'no-store', signal });
+          const response = await fetch(`/api/data-core/curriculum?family=${family}&stage=${label.dataset.stageCount}`, { credentials: 'same-origin', cache: 'no-store', signal });
           if (!response.ok) throw Error('count unavailable');
           const data = await response.json();
           if (!Number.isSafeInteger(data.totalFolders) || data.totalFolders < 0) throw Error('invalid count');
-          if (!signal.aborted && label.isConnected) { label.textContent = `${data.totalFolders}개 수업`; label.hidden = false; }
+          if (!signal.aborted && label.isConnected && data.totalFolders) { label.textContent = `${data.totalFolders}개 수업`; label.hidden = false; }
         } catch {
           if (!signal.aborted && label.isConnected) label.remove();
         }

@@ -239,7 +239,8 @@ test('central curriculum imports idempotently, resumes partial files, shares rea
     r=await h.request('GET','/api/data-core/curriculum/print?family=content&stage=basic',users.teacher);
     assert.equal(r.body.pages.length,7);assert.deepEqual(r.body.pages.slice(0,3).map(p=>p.id),tree.files.slice(0,3).map(p=>p.id));
     r=await h.request('GET',`/api/data-core/curriculum/print?family=content&stage=basic&lesson=${folder.id}`,users.teacher);assert.equal(r.body.pages.length,3);
-    r=await h.request('GET','/api/data-core/curriculum?family=design&stage=basic',users.teacher);assert.equal(r.status,404);
+    r=await h.request('GET','/api/data-core/curriculum?family=design&stage=basic',users.teacher);assert.equal(r.status,200);assert.equal(r.body.totalFolders,0);
+    r=await h.request('GET','/api/data-core/curriculum?family=unknown&stage=basic',users.teacher);assert.equal(r.status,404);
     await h.env.DB.prepare('UPDATE file_objects SET deleted_at=? WHERE id=?').bind('synthetic-trash',p.assets[0].id).run();
     r=await h.raw('GET',`/api/data-core/files/${p.assets[1].id}`,users.teacher);assert.equal(r.status,403);
     await h.env.DB.prepare('UPDATE file_objects SET deleted_at=NULL WHERE id=?').bind(p.assets[0].id).run();

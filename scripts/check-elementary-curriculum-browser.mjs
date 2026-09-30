@@ -26,6 +26,8 @@ try {
       memberships: [{role, campusId: role === 'MASTER' ? null : 'synthetic-campus'}],
     }});
     if (url.pathname.endsWith('/health')) return route.fulfill({json: {ok: true, bindings: {database: true, files: true}}});
+    if (url.pathname === '/api/data-core/curriculum/folders/legacy-elementary') return route.fulfill({json: {family: 'start', stage: 'main', canManage: role === 'MASTER', folder: {id: 'legacy-elementary', title: '기존 초등 수업', webManaged: true}, folders: [], pages: [], breadcrumbs: [{id: 'legacy-elementary', title: '기존 초등 수업'}], totalFolders: 0, totalPages: 0}});
+    if (url.pathname === '/api/data-core/curriculum') return route.fulfill({json: {family: url.searchParams.get('family'), stage: url.searchParams.get('stage'), canManage: role === 'MASTER', folders: [], pages: [], breadcrumbs: [], totalFolders: 0, totalPages: 0}});
     return route.fulfill({json: {records: [], files: [], events: [], campuses: [], items: [], folders: [], pages: [], totalFolders: 0}});
   });
   const page = await context.newPage();
@@ -60,10 +62,11 @@ try {
       await page.locator(`.curriculum-stage-card[href$="/${folder.slug}"]`).click();
       await page.locator('#view-curriculum h2').getByText(folder.title, {exact: true}).waitFor();
       assert.equal(page.url(), url);
-      assert.equal(await page.locator('.curriculum-empty').getAttribute('data-family'), 'start');
+      await page.locator('.lesson-empty').waitFor();
+      assert.equal(await page.locator('[data-new-folder]').count(), actor === 'MASTER' ? 1 : 0);
       await page.reload();
       await page.locator('#view-curriculum h2').getByText(folder.title, {exact: true}).waitFor();
-      await page.locator('#view-curriculum .curriculum-back').click();
+      await page.locator('.lesson-breadcrumb a[href="/data-core/curriculum/start"]').click();
       await page.locator('.curriculum-stage-card').first().waitFor();
       assert.equal(page.url(), `${base}/data-core/curriculum/start`);
       await page.goBack();
@@ -72,6 +75,11 @@ try {
       await page.locator('#view-curriculum h2').getByText(folder.title, {exact: true}).waitFor();
     }
   }
+  await page.goto(`${base}/data-core/curriculum/start?lesson=legacy-elementary`);
+  await page.getByRole('heading', {name: '기존 초등 수업', exact: true}).waitFor();
+  await page.locator('.lesson-breadcrumb a[href="/data-core/curriculum/start/drawing"]').click();
+  await page.getByRole('heading', {name: '꿈 그림 기초', exact: true}).waitFor();
+  assert.equal(page.url(), `${base}/data-core/curriculum/start/drawing`);
   for (const family of ['content', 'design']) {
     await page.goto(`${base}/data-core/curriculum/${family}`);
     await page.locator('.curriculum-stage-card').first().waitFor();
@@ -83,7 +91,7 @@ try {
   assert.equal(page.url(), `${base}/data-core/curriculum/start`);
   assert.deepEqual(errors, []);
   assert.equal(mutations, 0);
-  const report = {api: 'isolated synthetic fixtures, no production data', reports, roles: ['MASTER', 'CAMPUS_ADMIN', 'TEACHER'], folderNavigation: 'click, reload, back, history, trailing slash', errors, mutations};
+  const report = {api: 'isolated synthetic fixtures, no production data', reports, roles: ['MASTER', 'CAMPUS_ADMIN', 'TEACHER'], folderNavigation: 'click, reload, back, history, trailing slash, legacy lesson link', errors, mutations};
   await writeFile(`${out}/results.json`, JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report, null, 2));
 } finally {
