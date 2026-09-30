@@ -183,8 +183,38 @@ async function uploadPage(request: Request, db: D1Database, files: R2Bucket, con
   return Response.json({ page: { id: pageId, order } }, { status: 201, headers: { 'cache-control': 'private, no-store' } });
 }
 
+async function webFolder(db: D1Database, id: string) {
+  const folder = await db.prepare("SELECT * FROM data_records WHERE id=? AND organization_id=? AND record_type='curriculum-folder'").bind(id, DEFAULT_ORGANIZATION_ID).first<Row>();
+  const m = folder && metadata(folder);
+  if (!folder || !valid(folder) || !m?.active) throw new DataCoreAccessError(404, '수업을 찾을 수 없습니다.');
+  if (m.createdVia !== 'web') throw new DataCoreAccessError(403, '새로 만든 폴더만 이름을 바꾸거나 삭제할 수 있습니다.');
+  return folder;
+}
+async function renameFolder(request: Request, db: D1Database, context: DataCoreAccessContext, id: string) {
+  const folder = await webFolder(db, id);
+  const body = await request.json().catch(() => null) as { title?: unknown } | null, title = String(body?.title ?? '').trim();
+  if (!title || title.length > 60) throw new DataCoreAccessError(400, '폴더 이름은 1~60자로 입력해 주세요.');
+  await db.prepare('UPDATE data_records SET title=?,updated_at=? WHERE id=? AND deleted_at IS NULL').bind(title, new Date().toISOString(), id).run();
+  await audit(db, context, 'curriculum.folder.rename', id, { from: folder.title, to: title });
+  return Response.json({ folder: { id, title } }, { headers: { 'cache-control': 'private, no-store' } });
+}
+// Soft delete: the folder and its pages leave every list and their files stop being served; R2 bytes are kept.
+async function deleteFolder(db: D1Database, context: DataCoreAccessContext, id: string) {
+  const folder = await webFolder(db, id), now = new Date().toISOString();
+  const result = await db.prepare(`UPDATE data_records SET status='deleted',deleted_at=?,updated_at=? WHERE organization_id=? AND source_app='curriculum' AND deleted_at IS NULL
+    AND (id=? OR (record_type='curriculum-page' AND json_valid(metadata_json) AND json_extract(metadata_json,'$.curriculumFolderId')=?))`).bind(now, now, DEFAULT_ORGANIZATION_ID, id, id).run();
+  await audit(db, context, 'curriculum.folder.delete', id, { title: folder.title, records: result.meta?.changes ?? 0 });
+  return Response.json({ deleted: true, id }, { headers: { 'cache-control': 'private, no-store' } });
+}
+
 export async function handleCurriculumApi(request: Request, db: D1Database, context: DataCoreAccessContext, files?: R2Bucket) {
   requireCurriculumRead(context);
+  const folderPath = new URL(request.url).pathname.match(/^\/api\/data-core\/curriculum\/folders\/([^/]+)$/);
+  if ((request.method === 'PATCH' || request.method === 'DELETE') && folderPath) {
+    requireCurriculumManager(request, context);
+    const id = decodeURIComponent(folderPath[1]);
+    return request.method === 'PATCH' ? renameFolder(request, db, context, id) : deleteFolder(db, context, id);
+  }
   if (request.method === 'POST') {
     requireCurriculumManager(request, context);
     const path = new URL(request.url).pathname, upload = path.match(/^\/api\/data-core\/curriculum\/folders\/([^/]+)\/pages$/);
