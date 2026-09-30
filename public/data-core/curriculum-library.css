@@ -48,7 +48,13 @@
   .curriculum-print-sheet img { display:block; max-width:100%; max-height:100%; object-fit:contain; }
 }
 /* 마스터 전용: 새 폴더 · 업로드 */
-.lesson-heading [data-upload] { margin-left:auto; margin-right:-8px; background:#20392d; color:#fff; border-color:#20392d; }
+.lesson-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+.lesson-heading [data-upload] { background:#20392d; color:#fff; border-color:#20392d; }
+.lesson-heading [data-delete] { color:#b3261e; border-color:#e3b9b5; }
+.lesson-heading [data-delete]:hover { background:#fdf1f0; }
+.lesson-rename { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
+.lesson-rename input { min-width:280px; min-height:42px; padding:8px 12px; border:1px solid #bdcec2; border-radius:6px; font:inherit; font-size:20px; font-weight:700; color:#20392d; }
+.lesson-rename button[type="submit"] { background:#20392d; color:#fff; border-color:#20392d; }
 .lesson-heading [data-upload] svg { stroke:currentColor; }
 .lesson-new-folder { margin-top:24px; }
 .lesson-new-folder [data-new-folder-open] { width:100%; min-height:72px; border:1.5px dashed #9fb8aa; background:#f6f9f7; color:#254c3b; font-weight:600; font-size:15px; border-radius:8px; }
@@ -57,3 +63,6 @@
 .lesson-new-folder input { flex:1 1 280px; min-height:42px; padding:8px 12px; border:1px solid #bdcec2; border-radius:6px; font:inherit; }
 .lesson-new-folder button[type="submit"] { background:#20392d; color:#fff; border-color:#20392d; }
 .lesson-new-folder [hidden] { display:none; }
+.lesson-heading > div:first-child { flex:1; min-width:0; }
+.lesson-rename { flex-wrap:nowrap; }
+.lesson-rename input { flex:1 1 auto; max-width:520px; }
