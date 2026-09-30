@@ -34,3 +34,5 @@
 - 2026-09-30 로컬 `npm audit --prefix tools/hi5-anihi-sync --audit-level=high --json` 결과는 모든 등급 0개다. 이는 해당 도구의 검사 시점 결과이며 전체 저장소가 모든 보안 위험에서 자유롭다는 의미는 아니다.
 - 갱신 후 로컬 Sync 7개 검사가 모두 통과했고, 기존 Node 실행 보조 파일을 통한 Wrangler CLI 실행에서 `4.144.0`을 확인했다.
 - Windows 설치 프로그램 재배포나 운영 자료 동기화는 이번 변경에 포함하지 않는다.
+
+최종 병합 조정: 검사 중 별도 PR #294 (`3256f9a`)의 최소 보안 수정이 먼저 main에 반영됐다. 중복된 버전 수정을 남기지 않도록 해당 PR의 package/lock을 그대로 보존한다. 최종 구성은 기존 Wrangler `4.131.1`과 Undici `7.30.0` override 및 위 brace-expansion/fast-uri 패치다. 위 `4.144.0` 실행 검증은 중간안의 기록이며 최종 설치 버전을 의미하지 않는다. 이번 카드 PR은 최종적으로 Sync package/lock을 main 대비 변경하지 않는다.
