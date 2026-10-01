@@ -4,7 +4,7 @@ import {mountTextPresets} from './content-text-presets.js?v=20260929-seo';
 import {postHashtags,hashtagText,titlePrefix,withTitlePrefix,stripTitlePrefix} from './campus-seo-keywords.js?v=20260929-seo';
 import {normalizeTags} from './content-preset-catalog.js';
 import {captionTail,assemblePost} from './content-caption.js?v=20260924-order';
-import {mountBlogWorkflow,TITLE_KIND_LABELS} from './blog-workflow.js?v=20261001-naver';
+import {mountBlogWorkflow,TITLE_KIND_LABELS} from './blog-workflow.js?v=20261001-photos';
 import {optimizeImageForAi} from './image-ai-optimize.js?v=20260923-imgfix';
 
 const state = {
@@ -922,7 +922,7 @@ async function runAi(captionOnly = false, quick = false) {
       const form = new FormData();
       const keywordSettings = textPresets?.values();
       state.blogTitlePrefix = titlePrefix(keywordSettings?.keywords || [], keywordSettings?.keywordBrand, state.blogRecentRawTitles || []);
-      form.set('input', JSON.stringify({ selectedFileIds: ids, notes: direction + mainTextGuide(), sourceApp, campusId, strategyMode: $('strategyMode').value, recentTitles, keywordBrand: keywordSettings?.keywordBrand, templateId: $('blogTemplate')?.value, photoInstructions:blogWorkflow?.instructions(),requestId: crypto.randomUUID() }));
+      form.set('input', JSON.stringify({ selectedFileIds: ids, notes: direction + mainTextGuide(), sourceApp, campusId, strategyMode: $('strategyMode').value, recentTitles, keywordBrand: keywordSettings?.keywordBrand, keywordTags: normalizeTags(keywordSettings?.userHashtags || ''), templateId: $('blogTemplate')?.value, photoInstructions:blogWorkflow?.instructions(),requestId: crypto.randomUUID() }));
       for (const [id, blob] of photos) form.set(`photo:${id}`, blob, `${id}.jpg`);
       result = await api('/api/data-core/content/generate', { method: 'POST', signal, body: form });
     }
@@ -945,6 +945,7 @@ async function runAi(captionOnly = false, quick = false) {
       state.currentLead = generated.lead; state.currentBody = generated.body;
       state.lastHashtags = generated.hashtags || []; state.lastCta = generated.cta || '';state.blogAiTags = generated.hashtags || [];
       state.blogNextTopics = generated.nextTopics || []; state.blogWarnings = generated.warnings || [];
+      blogWorkflow?.setAiCaptions(generated.photoCaptions || []);
       const referenced = generated.referenceTitles?.length ? ` · 우리 캠퍼스 잘된 글 ${generated.referenceTitles.length}편 참고` : '';
       if (quick) {
         applyBlogTitleAndBody(state.blogSelectedTitleKind);

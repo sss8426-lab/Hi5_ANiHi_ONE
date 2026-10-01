@@ -1,5 +1,5 @@
 export const BLOG_SCHEMA = 1;
-export const BLOG_TEMPLATES = {class:'수업 소개',student:'학생 작품',teacher:'선생님 연구작',award:'수상 소식',admission:'합격 소식',career:'입시·진로 정보',recruit:'모집·특강',space:'학원 공간'};
+export const BLOG_TEMPLATES = {class:'수업 소개',student:'학생 작품',teacher:'선생님 연구작',event:'행사·대회 후기',award:'수상 소식',admission:'합격 소식',career:'입시·진로 정보',recruit:'모집·특강',space:'학원 공간'};
 export const PHOTO_KINDS = {unknown:'유형 확인 필요',class:'실제 수업',student:'학생 작품',teacher:'선생님 연구작',space:'학원 공간',event:'행사',fact:'합격·수상 자료',illustration:'설명용 이미지'};
 export const templateDefaults = () => ({templateId:'class',templateVersion:1,topFileId:'',bottomFileId:'',logoType:'none',greeting:'',align:'left',spacing:24,font:'sans-serif',coverWidth:1200,coverHeight:900,contactMode:'verified'});
 export function safeName(value, fallback='사진', max=110) {
@@ -25,10 +25,13 @@ export function assembleBlocks({body='',lead='',photos=[],template=templateDefau
   if(lead&&paragraphs[0]===lead)paragraphs.shift();
   text('lead',lead||paragraphs.shift()||'');
   const used=photos.filter(p=>p.use);
-  for(let i=0;i<Math.max(paragraphs.length,used.length);i++){
-    if(paragraphs[i])text(paragraphs[i].startsWith('## ')?'heading':'paragraph',paragraphs[i].replace(/^## /,''));
-    const photo=used[i];if(photo){image(photo.editedFileId||photo.fileId,'body',photo.fileId);text('caption',photo.description);}
-  }
+  // Laid out like the academy's own posts: a divider before each section title, and each section reads
+  // title → photos → text. Photos are spread evenly, a share just before each ordinary paragraph, so a
+  // long photo set never ends as one run of photos with no text between them.
+  const slots=paragraphs.flatMap((p,i)=>p.startsWith('## ')?[]:[i]),count=slots.length||1;
+  let slot=0;const put=()=>{const k=slot++;for(const photo of used.slice(Math.round(k*used.length/count),Math.round((k+1)*used.length/count))){image(photo.editedFileId||photo.fileId,'body',photo.fileId);text('caption',photo.description||photo.aiCaption||'');}};
+  if(!slots.length)put();
+  paragraphs.forEach(p=>{if(p.startsWith('## ')){blocks.push({id:id(),type:'divider',text:''});text('heading',p.slice(3));}else{put();text('paragraph',p);}});
   image(template.bottomFileId,'bottom');
   return placeManaged(blocks,{greeting,contact,closing:footer,hashtags:tags.map(t=>'#'+String(t).replace(/^#+/,'')).join(' ')},id);
 }

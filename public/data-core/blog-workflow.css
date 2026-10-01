@@ -74,3 +74,5 @@
 .nv-complete-actions>#saveDraftBtn,.nv-complete-actions>#copyContent{display:none}
 @media(max-width:1100px){.nv-shell{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:600px){.nv-card textarea,#blogTitleBox,.nv-text{font-size:16px}.nv-page{padding:22px 14px 40px}#blogTitleBox{font-size:23px}.blog-workflow .nv-tool{width:48px}.nv-toolbar .nv-spacer{flex-basis:100%}.blog-workflow .nv-btn{margin:4px 6px 0 0}.nv-block-tools{top:-30px;right:0}}
+/* The academy's posts are center aligned on Naver; the page previews them the same way. */
+.nv-page .nv-text,.nv-page .nv-quote-note{text-align:center}.nv-quote .nv-text{text-align:left}
