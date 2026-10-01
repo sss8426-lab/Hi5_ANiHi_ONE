@@ -17,7 +17,7 @@ export type ContentGenerationSourceApp = "blog" | "instagram";
 // sets or reads this field.
 export type BlogStrategyMode = "search" | "homefeed" | "balanced";
 export type BlogStrategy = { primaryTopic: string; searchIntent: string; nextQuestion: string; readerProblem: string };
-export type BlogTitleCandidates = { search: string; homefeed: string; balanced: string };
+export type BlogTitleCandidates = { search: string; homefeed: string; balanced: string; list?: string; curious?: string };
 
 export type ContentGenerationInput = {
   sourceApp?: ContentGenerationSourceApp;

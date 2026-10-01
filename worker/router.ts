@@ -550,6 +550,14 @@ async function handleContentApi(request: Request, env: Env) {
     const input=await contentJson(request,65000),scope=contentScope(context,{sourceApp:'blog',campusId:input.campusId});
     return jsonResponse(await withAiRequest(env.DB,context,input.requestId,scope.campusId,()=>blogTextAction(env,env.DB!,context,input,request.signal)));
   }
+  if (url.pathname === '/api/data-core/content/blog/stats' && request.method === 'GET') {
+    const { blogStats } = await import('./blog-insights');
+    return jsonResponse(await blogStats(env.DB, context, url.searchParams.get('campusId')), { headers: { 'cache-control': 'private, no-store' } });
+  }
+  if (url.pathname === '/api/data-core/content/blog/overlap' && request.method === 'POST') {
+    const { blogOverlap } = await import('./blog-insights');
+    return jsonResponse(await blogOverlap(env.DB, context, await contentJson(request, 130000)), { headers: { 'cache-control': 'private, no-store' } });
+  }
   if (url.pathname === '/api/data-core/content/blog/save' && request.method === 'POST') {
     if(!env.FILES)throw new DataCoreAccessError(503,'파일 저장소를 확인하세요.');
     return jsonResponse({draft:await saveBlogPost(env.DB,env.FILES,context,await contentJson(request,200000))});
