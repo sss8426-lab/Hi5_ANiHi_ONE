@@ -97,6 +97,17 @@ export function mountBlogWorkflow({state,$,toast,renderSelection,managed=()=>({g
   moreExtra.prepend(reviewExtra);
   $('blogTextCancel').hidden=true;
   $('blogCancelDownload').hidden=true;
+  // 수상·합격·행사·입시정보 글은 사실이 글의 전부라, 그 사실을 적는 칸을 메인 화면에 꺼내 두고 비어 있으면 AI를 부르지 않습니다.
+  const FACT_GUIDE={award:{label:'수상 내역',need:'대회명·상·시기',placeholder:'대회명 · 상/부문 · 시기 · 인원\n예) 2026 청강대 콘텐츠 실기대전 · 만화 문해력 2P 최우수상 · 2026년 5월 · 수상 45명'},
+    admission:{label:'합격 내역',need:'학교·학과·연도',placeholder:'학교 · 학과 · 전형 · 연도\n예) ○○대학교 만화애니메이션과 · 실기전형 · 2027학년도'},
+    event:{label:'행사 정보',need:'행사명·날짜',placeholder:'행사명 · 날짜 · 장소 · 참가 인원\n예) 서울문화예술대학교 실기대회 · 2026년 9월 · 참가 12명'},
+    career:{label:'정보 출처',need:'출처와 기준일',placeholder:'모집요강·공지 등 출처와 기준일, 꼭 넣을 수치\n예) ○○대학교 2027 수시 모집요강(2026.6 발표) · 실기 70%'}};
+  const factsField=document.createElement('label');factsField.className='blog-facts-field';factsField.id='blogFactsField';
+  factsField.innerHTML='<span><span id="blogFactsLabel"></span> <b class="blog-facts-need">필수</b></span><small id="blogFactsHint">여기 적은 사실만 글에 쓰입니다. 비어 있으면 AI가 지어내지 않도록 글을 만들지 않습니다.</small>';
+  const oldFactsLabel=$('blogFacts').closest('label');factsField.append($('blogFacts'));oldFactsLabel.remove();
+  document.querySelector('.brief-grid').after(factsField);
+  function renderFactsField(){const g=FACT_GUIDE[$('blogTemplate').value];factsField.hidden=!g;if(g){$('blogFactsLabel').textContent=g.label;$('blogFacts').placeholder=g.placeholder;$('blogFacts').rows=3;}}
+  $('blogTemplate').addEventListener('change',renderFactsField);
   const fieldIds=['blogMessage','blogReader','blogInclude','blogExclude','blogFacts','blogSources','blogStyle','blogTeacherComment','blogCommonDescription','blogPrivacy','blogPublishedUrl','blogPublishedDate','blogViews','blogFeedViews','blogMeasuredDate','blogMetricSource'];
   function changed(){pendingSave=null;reviewSnapshot='';reviewResult=null;$('blogAiReviewResult').replaceChildren();$('blogTextStatus').textContent='변경 후 미검사';saveStatus.textContent='변경사항 미저장';scheduleOverlap();}
   const signature=()=>{const p=read();delete p.timings;delete p.reviewReport;return JSON.stringify(p);};
@@ -339,12 +350,13 @@ export function mountBlogWorkflow({state,$,toast,renderSelection,managed=()=>({g
     changed();renderBlocks();return true;
   }
   window.addEventListener('pagehide',()=>downloadController?.abort());
-  renderPhotos();renderBlocks();void loadStats();
+  renderPhotos();renderBlocks();renderFactsField();void loadStats();
   return {read,save,load,reset,selectionChanged:renderPhotos,assemble,applyManaged,review:renderReview,copy:copyText,downloadPackage:()=>$('blogPackage').click(),defaultsToken:()=>defaultsEdit,
     applyDefaults(value,token){if(token!==defaultsEdit||state.editingDraftId||!value)return;templates=value.templates||{};template={...templateDefaults(),...value.template};$('strategyMode').value=value.strategyMode||'balanced';$('blogTemplate').value=template.templateId;applyTemplate();},
     hasUnsaved:()=>Boolean((blocks.length||photos.length||Object.values(brief()).some(v=>v.trim()))&&signature()!==saved),
     // One-line captions the AI wrote for photos it actually saw or had a description for; a user's own
     // description always wins, and these are never sent back to the AI as facts.
+    missingFacts(){const type=$('blogTemplate').value,g=FACT_GUIDE[type];renderFactsField();return g&&$('blogFacts').value.trim().length<6?`${BLOG_TEMPLATES[type]} 글은 ${g.need}부터 적어 주세요. 사실이 없으면 AI가 내용을 지어내거나 “자료가 없다”는 글을 쓰게 됩니다.`:'';},
     setAiCaptions(list=[]){const map=new Map(list.map(c=>[c.fileId,String(c.caption||'').trim().slice(0,200)]));for(const ph of photos)ph.aiCaption=map.get(ph.fileId)||'';},
     instructions:()=>({brief:brief(),commonDescription:$('blogCommonDescription').value,photos:photos.map(({fileId,kind,description,facts,exclude,externalAiConsent})=>({fileId,kind,description,facts,exclude,externalAiConsent}))}),
     async aiPhotos(signal){const ids=photos.filter(p=>p.externalAiConsent&&!['student','teacher','fact','unknown'].includes(p.kind)).map(p=>p.fileId);if(!ids.length)return [];const rows=await resolveFiles(ids,$('draftCampus').value,signal);const bad=rows.find(r=>r.error);if(bad)throw Error(bad.error);return rows.filter(r=>!r.preserveReason).map(r=>r.selectedId).slice(0,AI_IMAGE_PHOTOS);},
