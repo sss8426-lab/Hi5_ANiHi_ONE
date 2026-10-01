@@ -32,14 +32,46 @@ test('수상 글에 사실이 없어 AI가 "자료가 없다"는 말을 본문�
     const result = await h.request('POST', '/api/data-core/content/generate', users.staff, form);
     assert.equal(result.status, 200, JSON.stringify(result.body));
     assert.equal(calls.length, 2, 'one corrective retry, even with photo instructions');
-    assert.match(calls[0].instructions, /26\) 입력에 필요한 사실.*missingInfo에 짧게 적고/);
-    assert.match(calls[0].instructions, /핵심 키워드 하나를 골라 제목·도입부·본문을 합쳐 3~5번/);
+    assert.match(calls[0].instructions, /32\) 입력에 필요한 사실.*missingInfo에 짧게 적고/);
+    assert.match(calls[0].instructions, /핵심 키워드 하나를 골라 제목·상단 답변·본문·하단 요약을 합쳐 3~5번/);
     assert.match(calls[1].instructions, /본문에 자료가 부족하다는 설명이 들어갔습니다/);
     assert.ok(calls[0].text.format.schema.required.includes('missingInfo'));
     assert.equal(result.body.generated.body, '학생들은 장면을 먼저 나누는 연습으로 작품을 시작했어요.');
     assert.deepEqual(result.body.generated.missingInfo, ['수상 인원']);
     assert.equal(result.body.generated.warnings, undefined);
   } finally { globalThis.fetch = originalFetch; await h.mf.dispose(); }
+});
+
+test('지침이 금지한 표현(무료 체험·전원 합격 등)은 입력에 없으면 한 번 다시 쓰고, 사용자가 직접 적은 경우는 그대로 둔다', async () => {
+  const h = await libraryHarness(), originalFetch = globalThis.fetch;
+  try {
+    h.env.OPENAI_API_KEY = 'synthetic-test-only';
+    const folder = await h.folder('category:' + A + ':class-photo', '__synthetic_guide', users.staff);
+    const file = (await h.upload(folder.body.folder.id, users.staff, { bytes: png(), mime: 'image/png', name: 'SYNTHETIC.png' })).body.file;
+    let calls = 0;
+    globalThis.fetch = async (url, options) => {
+      if (!String(url).startsWith('https://api.openai.com/')) return originalFetch(url, options);
+      calls++;
+      return textResponse(calls === 1 || calls === 3 ? reply('청강대 실기대전, 최우수상까지의 과정을 정리합니다.', '지금 무료 체험을 신청하세요. 장면 설계 연습을 했습니다.') : reply('청강대 실기대전, 최우수상까지의 과정을 정리합니다.', '장면 설계 연습을 했습니다.'));
+    };
+    const generate = (notes) => {
+      const form = new FormData();
+      form.set('input', JSON.stringify({ sourceApp: 'blog', campusId: A, selectedFileIds: [file.id], notes, templateId: 'class', requestId: randomUUID() }));
+      form.set(`photo:${file.id}`, new Blob([png()], { type: 'image/png' }), 'a.png');
+      return h.request('POST', '/api/data-core/content/generate', users.staff, form);
+    };
+    const first = await generate('수업 소개 글');
+    assert.equal(calls, 2, 'one rewrite');
+    assert.equal(first.body.generated.body, '장면 설계 연습을 했습니다.');
+    const typed = await generate('수업 소개 글, 이번 달 무료 체험 수업 안내 포함');
+    assert.equal(calls, 3, 'the writer asked for it, so no rewrite');
+    assert.match(typed.body.generated.body, /무료 체험/);
+  } finally { globalThis.fetch = originalFetch; await h.mf.dispose(); }
+});
+
+test('블로그 글 만들기는 추천 제목으로 바로 완성본을 보여 주고, 다른 제목은 위의 칩으로 바꾼다', () => {
+  const content = fs.readFileSync('public/data-core/content.js', 'utf8');
+  assert.match(content, /\$\('generateAi'\)\.onclick = \(\) => runAi\(false, state\.sourceApp === 'blog'\);/);
 });
 
 test('흔한 오해 바로잡기는 입시·진로 정보 글에만 들어간다', () => {

@@ -4,7 +4,7 @@ import {mountTextPresets} from './content-text-presets.js?v=20260929-seo';
 import {postHashtags,hashtagText,titlePrefix,withTitlePrefix,stripTitlePrefix} from './campus-seo-keywords.js?v=20260929-seo';
 import {normalizeTags} from './content-preset-catalog.js';
 import {captionTail,assemblePost} from './content-caption.js?v=20260924-order';
-import {mountBlogWorkflow,TITLE_KIND_LABELS} from './blog-workflow.js?v=20261001-facts';
+import {mountBlogWorkflow,TITLE_KIND_LABELS} from './blog-workflow.js?v=20261001-guide';
 import {optimizeImageForAi} from './image-ai-optimize.js?v=20260923-imgfix';
 
 const state = {
@@ -610,8 +610,10 @@ function bindEvents() {
   $('draftSearchInput').onkeydown = (event) => { if (event.key === 'Enter') loadDrafts(); };
   $('openDraftsBtn').onclick = () => { $('draftsDialog').showModal(); void loadDrafts(); };
   $('closeDraftsBtn').onclick = () => $('draftsDialog').close();
-  $('generateAi').onclick = () => runAi();
-  $('regenerateAi').onclick = () => runAi();
+  // Blog: the writing guide asks for one ready title, so the recommended title is applied at once;
+  // the other candidates stay one click away as chips above the title.
+  $('generateAi').onclick = () => runAi(false, state.sourceApp === 'blog');
+  $('regenerateAi').onclick = () => runAi(false, state.sourceApp === 'blog');
   $('retryCaption').onclick = () => runAi(true);
   $('cancelAi').onclick = () => state.aiController?.abort();
   $('copyContent').onclick = copyContent;

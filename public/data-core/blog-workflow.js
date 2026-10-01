@@ -173,6 +173,10 @@ export function mountBlogWorkflow({state,$,toast,renderSelection,managed=()=>({g
     const ai=new Set((state.blogAiTags||[]).map(t=>String(t).replace(/^#+/,''))),tags=normalizeTags(p.blocks.find(b=>b.type==='hashtags')?.text||'').filter(t=>!ai.has(t));
     if(tags.length){const plain=p.blocks.filter(b=>[...WRITTEN_TYPES,'caption','quote'].includes(b.type)).map(b=>b.text).join(' ').replace(/\s+/g,''),hits=tags.filter(t=>plain.includes(t)).length,goal=Math.min(3,tags.length);
       row('핵심 키워드 본문 반영',`${hits} / ${tags.length}개`,hits>=goal);if(hits<goal)notes.push('저장한 핵심 키워드가 본문에 적게 들어갔어요. 문단 사이사이에 문장으로 자연스럽게 넣어 주세요.');}
+    const length=p.blocks.filter(b=>[...WRITTEN_TYPES,'quote'].includes(b.type)).map(b=>b.text).join('').replace(/\s/g,'').length,spaced=p.blocks.filter(b=>[...WRITTEN_TYPES,'quote'].includes(b.type)).map(b=>b.text).join(' ').length;
+    if(p.blocks.length){row('본문 길이',`${spaced.toLocaleString('ko-KR')}자 / 기준 1,200~1,800자`,length>=500&&spaced<=2500);if(spaced>2500)notes.push('글이 기준보다 길어요. 같은 이야기를 반복한 문단이 없는지 확인해 주세요.');}
+    const tagCount=normalizeTags(p.blocks.find(b=>b.type==='hashtags')?.text||'').length;
+    if(tagCount){row('해시태그',`${tagCount}개 / 기준 6~10개`,tagCount>=6&&tagCount<=10);if(tagCount>10)notes.push('해시태그가 많아요. 문구 설정의 고정 해시태그를 이 글과 관련 있는 것 위주로 줄이면 좋아요.');}
     if(aiSentences.length){const n=editedSentences(p.blocks,aiSentences);row('직접 고친 문장',`${n} / 권장 ${EDIT_TARGET}`,n>=EDIT_TARGET);if(n<EDIT_TARGET)notes.push(`직접 고친 문장이 적어요 — 수업 분위기나 학생 반응을 ${EDIT_TARGET-n}문장만 더 바꿔 주세요.`);}
     $('blogChecks').innerHTML=rows.join('');$('blogCheckNote').hidden=!notes.length||!p.blocks.length;$('blogCheckNote').textContent=notes.join(' ');
   }
