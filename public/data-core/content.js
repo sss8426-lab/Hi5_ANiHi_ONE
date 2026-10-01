@@ -4,7 +4,7 @@ import {mountTextPresets} from './content-text-presets.js?v=20260929-seo';
 import {postHashtags,hashtagText,titlePrefix,withTitlePrefix,stripTitlePrefix} from './campus-seo-keywords.js?v=20260929-seo';
 import {normalizeTags} from './content-preset-catalog.js';
 import {captionTail,assemblePost} from './content-caption.js?v=20260924-order';
-import {mountBlogWorkflow,TITLE_KIND_LABELS} from './blog-workflow.js?v=20261001-photos';
+import {mountBlogWorkflow,TITLE_KIND_LABELS} from './blog-workflow.js?v=20261001-facts';
 import {optimizeImageForAi} from './image-ai-optimize.js?v=20260923-imgfix';
 
 const state = {
@@ -882,6 +882,8 @@ async function runAi(captionOnly = false, quick = false) {
   if (instagram && (material?.usePermission !== 'allowed' || !material.externalAiConsent || (captionOnly ? !['real-photo','ai-support'].includes(material.materialKind) : material.materialKind !== 'ai-support'))) return toast('학생 작품은 로고 합성으로 제작하세요. AI는 자료 유형·홍보 권한·별도 AI 처리 동의를 확인한 경우에만 사용합니다.', 'error');
   if (!ids.length || (instagram && ids.length !== 1)) return toast('사용할 사진을 선택하세요.', 'error');
   if (!direction) return toast('원하는 내용을 입력해주세요.', 'error');
+  const missingFacts = instagram ? '' : blogWorkflow?.missingFacts();
+  if (missingFacts) { $('aiStatus').textContent = missingFacts; $('blogFacts').focus(); return toast(missingFacts, 'error'); }
   const campusId = $('draftCampus').value || null, sourceApp = state.sourceApp;
   state.aiController = new AbortController();
   state.browseGeneration++;
@@ -946,7 +948,8 @@ async function runAi(captionOnly = false, quick = false) {
       state.lastHashtags = generated.hashtags || []; state.lastCta = generated.cta || '';state.blogAiTags = generated.hashtags || [];
       state.blogNextTopics = generated.nextTopics || []; state.blogWarnings = generated.warnings || [];
       blogWorkflow?.setAiCaptions(generated.photoCaptions || []);
-      const referenced = generated.referenceTitles?.length ? ` · 우리 캠퍼스 잘된 글 ${generated.referenceTitles.length}편 참고` : '';
+      const needed = generated.missingInfo?.length ? ` · 더 적으면 좋은 정보: ${generated.missingInfo.join(', ')}` : '';
+      const referenced = needed + (generated.referenceTitles?.length ? ` · 우리 캠퍼스 잘된 글 ${generated.referenceTitles.length}편 참고` : '');
       if (quick) {
         applyBlogTitleAndBody(state.blogSelectedTitleKind);
         assembleBlogResult();

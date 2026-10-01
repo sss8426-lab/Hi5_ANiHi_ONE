@@ -165,8 +165,9 @@ const blogSchema = { type: 'object', additionalProperties: false, properties: {
   strategy: strategySchema, titles: titlesSchema, selectedTitleKind: { type: 'string', enum: ['search','homefeed','balanced'] },
   lead: { type: 'string' }, body: { type: 'string' },
   hashtags: { type: 'array', items: { type: 'string' } }, cta: { type: 'string' }, nextTopics: { type: 'array', items: { type: 'string' } },
+  missingInfo: { type: 'array', items: { type: 'string' } },
   photoCaptions: { type: 'array', items: { type: 'object', additionalProperties: false, properties: { fileId: { type: 'string' }, caption: { type: 'string' } }, required: ['fileId','caption'] } },
-}, required: ['strategy','titles','selectedTitleKind','lead','body','hashtags','cta','nextTopics','photoCaptions'] };
+}, required: ['strategy','titles','selectedTitleKind','lead','body','hashtags','cta','nextTopics','photoCaptions','missingInfo'] };
 const titlesOnlySchema = { type: 'object', additionalProperties: false, properties: { titles: titlesSchema }, required: ['titles'] };
 const retitleSchema = { type: 'object', additionalProperties: false, properties: { lead: { type: 'string' }, body: { type: 'string' } }, required: ['lead','body'] };
 
@@ -199,7 +200,8 @@ function seoRule(campusName: string | null, seo: ContentGenerationProviderReques
     `도입부(lead)에 캠퍼스명과 검색 키워드 하나를 자연스럽게 한 번 넣고, 소제목 하나에 검색 키워드 하나를 넣으세요.`,
     words.length ? `검색 키워드는 글 전체에 골고루 녹이세요. 본문 문단 3개 이상에 서로 다른 키워드를 하나씩 문장의 일부로 넣습니다(예: "만화입시나 애니입시를 준비하는 학생에게 ~", "저희 ${home} ${academy}${brand}는 ~"). 키워드를 나열하거나 한 문단에 몰아 넣지 말고, 키워드만으로 된 문장은 쓰지 마세요.` : '',
     nearby.length ? `본문 뒷부분에서 함께 쓰는 지역 중 한두 곳을 "${nearby.slice(0, 2).join('·')}에서도 가까운"처럼 위치 설명으로만 한 번 언급하고, 그 지역의 학생 수·문의·실적은 만들지 마세요.` : '',
-    `이 목록에 없는 지역명은 넣지 마세요. "${home}${academy}"처럼 붙여 쓴 형태는 24번의 학원 이름 문구 안에서만 해시태그로 쓰고, 그 밖의 문장에서는 "${home} ${academy}"처럼 띄어 쓰며, 같은 키워드를 본문에서 3번 넘게 반복하지 마세요.`,
+    `이 목록에 없는 지역명은 넣지 마세요. "${home}${academy}"처럼 붙여 쓴 형태는 24번의 학원 이름 문구 안에서만 해시태그로 쓰고, 그 밖의 문장에서는 "${home} ${academy}"처럼 띄어 쓰세요.`,
+    `검색 키워드 중 이 글에 가장 맞는 핵심 키워드 하나를 골라 제목·도입부·본문을 합쳐 3~5번 쓰고, 나머지 자리에는 비슷한 말(예: 웹툰학원·만화학원·웹툰 입시반)을 섞으세요. 그 밖의 키워드는 각각 3번을 넘기지 마세요.`,
   ].filter(Boolean).join(' ');
 }
 
@@ -230,10 +232,14 @@ function blogInstructions(brandContext: ContentGenerationProviderRequest['brandC
 
 // Cheap heuristic checks standing in for the spec's "홈피드 품질검사" — never blocks generation,
 // only decides whether the one allowed corrective retry runs and what warnings reach the client.
+// Words about the input itself ("제공된 자료에는 … 정보가 없어") belong in missingInfo, never in the post.
+const DATA_TALK = /제공(된|받은) (자료|정보|사진)|자료(가|에는|만으로는?) (없|부족|확인)|정보가 (없어|없으므로|부족)|확인할 수 있는 정보|확인되지 않(은|아)[^.\n]{0,20}(덧붙이지|추정)|추정하지 않|임의로 덧붙이지|사실처럼 (정리|쓰)/;
+const DATA_TALK_ISSUE = '본문에 자료가 부족하다는 설명이 들어갔습니다. 그런 말은 missingInfo로만 알리고, 본문은 확인된 내용만으로 자연스럽게 쓰세요.';
 function blogQualityIssues(result: { strategy: { primaryTopic: string }; titles: Record<BlogStrategyMode, string>; selectedTitleKind: BlogStrategyMode; lead: string; body: string }) {
   const issues: string[] = [];
   const title = result.titles[result.selectedTitleKind] || '';
   if (!result.strategy?.primaryTopic?.trim()) issues.push('핵심 주제가 비어 있습니다.');
+  if (DATA_TALK.test([title, result.lead, result.body].join('\n'))) issues.push(DATA_TALK_ISSUE);
   if (title.length > 60) issues.push('제목이 너무 깁니다.');
   if (!result.lead || result.lead.trim().length < 10) issues.push('첫 문단에 핵심 답이 부족합니다.');
   const titleWords = title.replace(/[^가-힣a-zA-Z0-9\s]/g, ' ').split(/\s+/).filter(word => word.length >= 2);
@@ -254,6 +260,7 @@ function photoRules(count: number) {
   const paragraphs = Math.min(10, Math.ceil(count / 2));
   return [
     count >= 4 ? `18) 사진이 ${count}장입니다. 사진이 문단 사이사이에 들어가므로 본문 문단(소제목 제외)을 최소 ${paragraphs}개 쓰고, 문단마다 2~4문장으로 사진 순서에 맞는 내용을 이어 가세요.` : '',
+    '26) 입력에 필요한 사실(대회명·상·시기, 학교·학과, 행사명·날짜, 출처 등)이 없으면 그 내용을 지어내지도 말고, "자료가 없다", "확인할 수 없다", "추정하지 않는다" 같은 말을 제목·본문에 쓰지도 마세요. 부족한 정보는 missingInfo에 짧게 적고(예: "대회명과 수상 부문"), 본문은 확인된 내용(사진 장면, 수업 과정, 입력한 메시지)만으로 자연스럽게 쓰세요. 부족한 것이 없으면 missingInfo는 빈 배열입니다.',
     '19) photoCaptions에는 사진마다 사진 순서대로 {fileId, caption}을 넣으세요. 이미지를 직접 봤거나 그 사진의 description·facts가 있을 때만 그 사진을 소개하는 한 문장(40자 이내)을 쓰고, 근거가 없으면 caption을 빈 문자열로 두세요. 같은 문장을 반복하지 말고, 학생 이름·얼굴 묘사·확인되지 않은 사실은 쓰지 마세요.',
   ].filter(Boolean).join('\n');
 }
@@ -261,7 +268,7 @@ function photoRules(count: number) {
 function parseBlogResult(texts: { type?: string; text?: string }[]) {
   const raw = texts.filter(item => item.type === 'output_text').map(item => item.text).join('');
   let result; try { result = JSON.parse(raw); } catch { console.error('[openai]', { code: 'invalid_json' }); throw failure(); }
-  const { strategy, titles, selectedTitleKind, lead, body, hashtags, cta, nextTopics, photoCaptions } = result || {};
+  const { strategy, titles, selectedTitleKind, lead, body, hashtags, cta, nextTopics, photoCaptions, missingInfo } = result || {};
   const validText = (value: unknown, max: number) => typeof value === 'string' && value.length <= max;
   const fail = (reason: string): never => { console.error('[openai]', { code: 'invalid_result', field: reason }); throw failure(); };
   if (!strategy || !['primaryTopic','searchIntent','nextQuestion','readerProblem'].every(key => validText(strategy[key], 600))) fail('strategy');
@@ -273,7 +280,8 @@ function parseBlogResult(texts: { type?: string; text?: string }[]) {
   // Captions are optional extras: anything malformed is dropped instead of failing the whole post.
   const captions = (Array.isArray(photoCaptions) ? photoCaptions : []).filter((c: any) => c && typeof c.fileId === 'string' && typeof c.caption === 'string' && c.caption.trim() && c.caption.length <= 200)
     .map((c: any) => ({ fileId: c.fileId, caption: c.caption.trim() }));
-  return { strategy, titles, selectedTitleKind, lead, body, hashtags, cta, nextTopics, photoCaptions: captions } as const;
+  const missing = (Array.isArray(missingInfo) ? missingInfo : []).filter((m: unknown): m is string => typeof m === 'string' && Boolean(m.trim()) && m.length <= 200).slice(0, 5);
+  return { strategy, titles, selectedTitleKind, lead, body, hashtags, cta, nextTopics, photoCaptions: captions, missingInfo: missing } as const;
 }
 
 async function responsesCall(env: OpenAiEnv, instructions: string, content: unknown[], schema: object, schemaName: string, signal?: AbortSignal) {
@@ -333,7 +341,7 @@ export function openAiContentProvider(env: OpenAiEnv, db: D1Database, files: R2B
     let texts = await responsesCall(measuredEnv, instructions, content, blogSchema, 'academy_blog_content', signal);
     let result = parseBlogResult(texts);
     const issues = blogQualityIssues(result);
-    if (issues.length >= 2 && !input.photoInstructions) {
+    if ((issues.length >= 2 && !input.photoInstructions) || issues.includes(DATA_TALK_ISSUE)) {
       // The one bounded corrective retry the spec allows ("무한 재생성 금지") — never looped further.
       const retryInstructions = `${instructions}\n\n이전 결과에 다음 문제가 있었습니다. 이번에는 고쳐서 다시 작성하세요: ${issues.join(' / ')}`;
       try {
@@ -349,6 +357,7 @@ export function openAiContentProvider(env: OpenAiEnv, db: D1Database, files: R2B
       nextTopics: result.nextTopics, strategyMode, warnings: warnings.length ? warnings : undefined,
       referenceTitles: (input.references || []).map(ref => ref.title),
       photoCaptions: result.photoCaptions.filter(c => input.selectedFiles.some(file => file.id === c.fileId)),
+      missingInfo: result.missingInfo,
     };
   }, async refine(input: ContentRefineProviderRequest) {
     const instructions = privacyRules(input.brandContext) + '\n' + (

@@ -61,6 +61,8 @@ export type ContentGenerationOutput = {
   referenceTitles?: string[];
   // One-line captions for photos the AI saw or had a description for (blog only).
   photoCaptions?: Array<{ fileId: string; caption: string }>;
+  // What the AI said it still needs (e.g. "대회명과 수상 부문"); shown to the writer, never put in the post.
+  missingInfo?: string[];
 };
 
 export type ContentGenerationProviderRequest = {

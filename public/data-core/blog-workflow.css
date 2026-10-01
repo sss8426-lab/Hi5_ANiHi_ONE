@@ -76,3 +76,7 @@
 @media(max-width:600px){.nv-card textarea,#blogTitleBox,.nv-text{font-size:16px}.nv-page{padding:22px 14px 40px}#blogTitleBox{font-size:23px}.blog-workflow .nv-tool{width:48px}.nv-toolbar .nv-spacer{flex-basis:100%}.blog-workflow .nv-btn{margin:4px 6px 0 0}.nv-block-tools{top:-30px;right:0}}
 /* The academy's posts are center aligned on Naver; the page previews them the same way. */
 .nv-page .nv-text,.nv-page .nv-quote-note{text-align:center}.nv-quote .nv-text{text-align:left}
+/* 수상·합격·행사·입시정보 글의 필수 사실 칸 (메인 입력 화면) */
+.blog-facts-field{display:grid;gap:6px;margin:14px 0 4px}.blog-facts-field[hidden]{display:none}
+.blog-facts-field>span{display:flex;align-items:center;gap:6px;font-weight:700}.blog-facts-field>span>*{display:inline}.blog-facts-need{font-size:11px;color:#fff;background:#b86e00;border-radius:4px;padding:1px 6px;margin-left:4px;vertical-align:1px}
+.blog-facts-field small{color:#6d5a26;font-size:12.5px}.blog-facts-field textarea{width:100%;box-sizing:border-box;line-height:1.6}
