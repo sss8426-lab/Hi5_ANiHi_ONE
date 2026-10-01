@@ -33,6 +33,8 @@ export type ContentGenerationInput = {
   recentTitles?: string[];
   // Which brand's 캠퍼스 고정 키워드 the post uses (hi5 | anihi); the keywords themselves are read on the server.
   keywordBrand?: string | null;
+  // The user's saved 고정 해시태그 (without #): woven into the body as search keywords.
+  keywordTags?: string[];
   // 글 종류 (blog template id): picks the post structure and which past posts are references.
   templateId?: string | null;
   photoInstructions?: {brief:Record<string,string>;commonDescription:string;photos:Array<{fileId:string;kind:string;description:string;facts:string;exclude:string;externalAiConsent:boolean}>};
@@ -57,6 +59,8 @@ export type ContentGenerationOutput = {
   warnings?: string[];
   // Titles of the same campus's past posts the AI was shown as references (blog only).
   referenceTitles?: string[];
+  // One-line captions for photos the AI saw or had a description for (blog only).
+  photoCaptions?: Array<{ fileId: string; caption: string }>;
 };
 
 export type ContentGenerationProviderRequest = {
@@ -71,7 +75,7 @@ export type ContentGenerationProviderRequest = {
   strategyMode?: BlogStrategyMode;
   recentTitles?: string[];
   // SEO words for the text: campus regions + region-free keywords from the campus's saved fixed keywords.
-  seo?: { regions: string[]; keywords: string[] } | null;
+  seo?: { regions: string[]; keywords: string[]; regionTags?: string[]; brandName?: string } | null;
   templateId?: BlogTemplateId;
   references?: BlogReference[];
   selectedFiles: Array<{
@@ -232,9 +236,16 @@ async function selectedFileDescriptors(
   return descriptors;
 }
 
-async function blogSeo(db: D1Database, campusId: string | null, brand: unknown) {
-  const tags = await loadCampusKeywords(db, campusId, brand);
-  return tags ? seoGuide(campusId, tags) : null;
+const BRAND_NAMES: Record<string, string> = { hi5: '하이파이브', anihi: '애니하이' };
+async function blogSeo(db: D1Database, campusId: string | null, brand: unknown, userTags: unknown) {
+  const own = Array.isArray(userTags) ? userTags.filter((tag): tag is string => typeof tag === 'string').map(tag => cleanText(tag.replace(/^#+/, ''), 40)).filter(Boolean).slice(0, 30) : [];
+  // The user's own saved tags come first: they are the words the post should be found by.
+  const tags = [...own, ...((await loadCampusKeywords(db, campusId, brand)) || [])];
+  if (!tags.length) return null;
+  const guide = seoGuide(campusId, tags), brandName = BRAND_NAMES[String(brand)];
+  // "#부천만화학원 #부평만화학원 애니하이는": one region-glued tag for each of the first two regions.
+  const regionTags = (guide.regions as string[]).slice(0, 2).map((region: string) => tags.find((tag: string) => tag.startsWith(region) && tag.endsWith('학원'))).filter((tag): tag is string => Boolean(tag));
+  return { ...guide, ...(regionTags.length ? { regionTags } : {}), ...(brandName ? { brandName } : {}) };
 }
 
 export async function generateContentDraft(
@@ -266,7 +277,7 @@ export async function generateContentDraft(
     // Grounds the blog "지역 키워드" rule in the caller's own selected campus, never a client-typed
     // string — campusDisplayName() only resolves known campus ids/codes.
     campusName: sourceApp === 'blog' ? campusDisplayName(campusId) : null,
-    seo: sourceApp === 'blog' ? await blogSeo(db, campusId, input.keywordBrand) : null,
+    seo: sourceApp === 'blog' ? await blogSeo(db, campusId, input.keywordBrand, input.keywordTags) : null,
     contentPurpose: cleanText(input.contentPurpose || "class-story", 80) || "class-story",
     notes: cleanText(input.notes, 4000),
     coreMessage: cleanText(input.coreMessage, 1200),

@@ -91,5 +91,5 @@ test('the screen and the AI use the keywords: chips + [고정키워드 수정], 
   assert.match(provider,/hashtags는 이 글의 수업 내용·주제에 맞는 태그 5개만/);
   assert.match(provider,/도입부\(lead\)에 캠퍼스명과 검색 키워드 하나를 자연스럽게 한 번 넣고/);
   assert.match(provider,/blogInstructions\(input\.brandContext, strategyMode, input\.campusName, input\.recentTitles \|\| \[\], input\.seo\)/);
-  assert.match(fs.readFileSync('worker/data-core-content-generation.ts','utf8'),/seo: sourceApp === 'blog' \? await blogSeo\(db, campusId, input\.keywordBrand\) : null/);
+  assert.match(fs.readFileSync('worker/data-core-content-generation.ts','utf8'),/seo: sourceApp === 'blog' \? await blogSeo\(db, campusId, input\.keywordBrand, input\.keywordTags\) : null/);
 });

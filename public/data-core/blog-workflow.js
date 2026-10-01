@@ -1,4 +1,4 @@
-import {BLOG_SCHEMA,BLOG_TEMPLATES,PHOTO_KINDS,templateDefaults,synchronizePhotos,assembleBlocks,placeManaged,publishingImages,postText,inspectPost,WRITTEN_TYPES,sentencesOf,editedSentences,placeTeacherComment} from './blog-post-model.js?v=20261001-naver';
+import {BLOG_SCHEMA,BLOG_TEMPLATES,PHOTO_KINDS,templateDefaults,synchronizePhotos,assembleBlocks,placeManaged,publishingImages,postText,inspectPost,WRITTEN_TYPES,sentencesOf,editedSentences,placeTeacherComment} from './blog-post-model.js?v=20261001-photos';
 import {buildDownload,startDownload,resolveFiles} from './blog-download.js';
 import {normalizeTags} from './content-preset-catalog.js';
 import {postHashtags,hashtagText} from './campus-seo-keywords.js?v=20260929-seo';
@@ -157,6 +157,11 @@ export function mountBlogWorkflow({state,$,toast,renderSelection,managed=()=>({g
     if(!teacher)notes.push('오른쪽 ‘강사 코멘트’에 한 줄만 적어도 글이 훨씬 우리 학원 글다워져요.');
     row('다른 글과 겹침',overlap?`${overlap.percent}% · ${overlap.percent>=30?'높음':'안전'}`:'확인 중',overlap?overlap.percent<30:null);
     if(overlap?.percent>=30)notes.push(`${overlap.otherCampus?'다른 캠퍼스':'이전'} 글과 ${overlap.percent}% 겹쳐요. 같은 문장을 그대로 쓰면 네이버에서 유사 문서로 볼 수 있어요.`);
+    const bare=photos.filter(ph=>ph.use&&!ph.description?.trim()&&!ph.aiCaption).length;
+    if(bare){row('설명 없는 사진',`${bare}장`,false);notes.push('위 ‘사진별 설명·순서’에 사진마다 한 줄 설명을 적으면 AI가 그 사진을 글 속에서 설명해 줍니다.');}
+    const ai=new Set((state.blogAiTags||[]).map(t=>String(t).replace(/^#+/,''))),tags=normalizeTags(p.blocks.find(b=>b.type==='hashtags')?.text||'').filter(t=>!ai.has(t));
+    if(tags.length){const plain=p.blocks.filter(b=>[...WRITTEN_TYPES,'caption','quote'].includes(b.type)).map(b=>b.text).join(' ').replace(/\s+/g,''),hits=tags.filter(t=>plain.includes(t)).length,goal=Math.min(3,tags.length);
+      row('핵심 키워드 본문 반영',`${hits} / ${tags.length}개`,hits>=goal);if(hits<goal)notes.push('저장한 핵심 키워드가 본문에 적게 들어갔어요. 문단 사이사이에 문장으로 자연스럽게 넣어 주세요.');}
     if(aiSentences.length){const n=editedSentences(p.blocks,aiSentences);row('직접 고친 문장',`${n} / 권장 ${EDIT_TARGET}`,n>=EDIT_TARGET);if(n<EDIT_TARGET)notes.push(`직접 고친 문장이 적어요 — 수업 분위기나 학생 반응을 ${EDIT_TARGET-n}문장만 더 바꿔 주세요.`);}
     $('blogChecks').innerHTML=rows.join('');$('blogCheckNote').hidden=!notes.length||!p.blocks.length;$('blogCheckNote').textContent=notes.join(' ');
   }
@@ -338,6 +343,9 @@ export function mountBlogWorkflow({state,$,toast,renderSelection,managed=()=>({g
   return {read,save,load,reset,selectionChanged:renderPhotos,assemble,applyManaged,review:renderReview,copy:copyText,downloadPackage:()=>$('blogPackage').click(),defaultsToken:()=>defaultsEdit,
     applyDefaults(value,token){if(token!==defaultsEdit||state.editingDraftId||!value)return;templates=value.templates||{};template={...templateDefaults(),...value.template};$('strategyMode').value=value.strategyMode||'balanced';$('blogTemplate').value=template.templateId;applyTemplate();},
     hasUnsaved:()=>Boolean((blocks.length||photos.length||Object.values(brief()).some(v=>v.trim()))&&signature()!==saved),
+    // One-line captions the AI wrote for photos it actually saw or had a description for; a user's own
+    // description always wins, and these are never sent back to the AI as facts.
+    setAiCaptions(list=[]){const map=new Map(list.map(c=>[c.fileId,String(c.caption||'').trim().slice(0,200)]));for(const ph of photos)ph.aiCaption=map.get(ph.fileId)||'';},
     instructions:()=>({brief:brief(),commonDescription:$('blogCommonDescription').value,photos:photos.map(({fileId,kind,description,facts,exclude,externalAiConsent})=>({fileId,kind,description,facts,exclude,externalAiConsent}))}),
     async aiPhotos(signal){const ids=photos.filter(p=>p.externalAiConsent&&!['student','teacher','fact','unknown'].includes(p.kind)).map(p=>p.fileId);if(!ids.length)return [];const rows=await resolveFiles(ids,$('draftCampus').value,signal);const bad=rows.find(r=>r.error);if(bad)throw Error(bad.error);return rows.filter(r=>!r.preserveReason).map(r=>r.selectedId).slice(0,AI_IMAGE_PHOTOS);},
     recordTime(key,start){timings[key]=Math.round(performance.now()-start);$('blogTimings').textContent=JSON.stringify(timings,null,2);},

@@ -12,7 +12,7 @@ test('plain copy for Naver: numbered photo places and dividers, no formatting',(
   const blocks=assembleBlocks({body:'도입 문단입니다.\n\n## 소제목\n\n둘째 문단입니다.',photos,tags:['태그']},ids());
   blocks.splice(blocks.length-1,0,{id:'d',type:'divider',text:''});
   const text=postText({title:'제목',blocks});
-  assert.match(text,/^제목\n\n도입 문단입니다\.\n\n소제목\n\n\[사진 1\]\n\n첫 사진\n\n둘째 문단입니다\.\n\n\[사진 2\]\n\n· · ·\n\n#태그$/);
+  assert.match(text,/^제목\n\n도입 문단입니다\.\n\n· · ·\n\n소제목\n\n\[사진 1\]\n\n첫 사진\n\n\[사진 2\]\n\n둘째 문단입니다\.\n\n· · ·\n\n#태그$/);
   assert.doesNotMatch(text,/<|style|font/);
   const html=exportHtml({title:'제목',template:{},blocks:[{id:'q',type:'quote',text:'<b>인용</b>'},{id:'d',type:'divider',text:''}]});
   assert.match(html,/<blockquote>&lt;b&gt;인용&lt;\/b&gt;<\/blockquote><hr>/);
@@ -23,7 +23,7 @@ test('강사 코멘트 becomes one quote after the second written block, keeps p
   const blocks=assembleBlocks({body:'도입.\n\n첫 문단.\n\n둘째 문단.',photos,contact:'상담전화: 032',tags:['a']},ids());
   const placed=placeTeacherComment(blocks,'칸을 먼저 나누면 쉬워집니다.',()=>'teacher');
   const types=placed.map(b=>b.type);
-  assert.deepEqual(types,['lead','paragraph','image','caption','quote','paragraph','contact','hashtags']);
+  assert.deepEqual(types,['lead','image','caption','paragraph','quote','paragraph','contact','hashtags']);
   const quote=placed.find(b=>b.type==='quote');
   assert.equal(quote.text,'“칸을 먼저 나누면 쉬워집니다.”');assert.equal(quote.role,'teacher');
   const again=placeTeacherComment(placed,'"이미 따옴표"',()=>'new');
@@ -94,5 +94,5 @@ test('Naver-style editor screen: toolbar, plain copy, side checks and title kind
   assert.match(blog,/contentEditable='plaintext-only'/,'pasted formatting never enters the page');
   assert.match(blog,/서식 없이 복사/);
   assert.match(content,/const BLOG_TITLE_KINDS = \['homefeed', 'search', 'balanced', 'list', 'curious'\];/);
-  assert.match(html,/blog-workflow\.css\?v=20261001-naver/);assert.match(html,/content\.js\?v=20261001-[a-z]+/);
+  assert.match(html,/blog-workflow\.css\?v=20261001-[a-z]+/);assert.match(html,/content\.js\?v=20261001-[a-z]+/);
 });
