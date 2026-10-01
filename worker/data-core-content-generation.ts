@@ -4,6 +4,7 @@ import { AI_PHOTO_LIMIT, PHOTO_SAFETY_LIMIT } from './content-ai-images';
 import { campusDisplayName } from './campus-directory';
 import { loadCampusKeywords } from './content-campus-keywords';
 import { seoGuide } from '../public/data-core/campus-seo-keywords.js';
+import { blogReferences, normalizeTemplateId, type BlogReference, type BlogTemplateId } from './blog-structures';
 import {
   DataCoreAccessContext,
   DataCoreAccessError,
@@ -32,6 +33,8 @@ export type ContentGenerationInput = {
   recentTitles?: string[];
   // Which brand's 캠퍼스 고정 키워드 the post uses (hi5 | anihi); the keywords themselves are read on the server.
   keywordBrand?: string | null;
+  // 글 종류 (blog template id): picks the post structure and which past posts are references.
+  templateId?: string | null;
   photoInstructions?: {brief:Record<string,string>;commonDescription:string;photos:Array<{fileId:string;kind:string;description:string;facts:string;exclude:string;externalAiConsent:boolean}>};
 };
 
@@ -52,6 +55,8 @@ export type ContentGenerationOutput = {
   nextTopics?: string[];
   strategyMode?: BlogStrategyMode;
   warnings?: string[];
+  // Titles of the same campus's past posts the AI was shown as references (blog only).
+  referenceTitles?: string[];
 };
 
 export type ContentGenerationProviderRequest = {
@@ -67,6 +72,8 @@ export type ContentGenerationProviderRequest = {
   recentTitles?: string[];
   // SEO words for the text: campus regions + region-free keywords from the campus's saved fixed keywords.
   seo?: { regions: string[]; keywords: string[] } | null;
+  templateId?: BlogTemplateId;
+  references?: BlogReference[];
   selectedFiles: Array<{
     id: string;
     category: string;
@@ -251,6 +258,7 @@ export async function generateContentDraft(
     for(const id of photos?.keys()||[]){const p=input.photoInstructions.photos.find(v=>v.fileId===id);if(!p||p.externalAiConsent!==true||['student','teacher','fact','unknown'].includes(p.kind))throw new DataCoreAccessError(403,'이 사진은 텍스트 설명만 사용할 수 있습니다.');}
   }
   const selectedFiles = await selectedFileDescriptors(db, context, campusId, selectedFileIds);
+  const templateId = normalizeTemplateId(input.templateId);
   const request: ContentGenerationProviderRequest = {
     photoInstructions:input.photoInstructions,
     sourceApp,
@@ -263,7 +271,8 @@ export async function generateContentDraft(
     notes: cleanText(input.notes, 4000),
     coreMessage: cleanText(input.coreMessage, 1200),
     brandContext: HI5_CONTENT_BRAND_CONTEXT,
-    ...(sourceApp === 'blog' ? { strategyMode: normalizeStrategyMode(input.strategyMode), recentTitles: normalizeRecentTitles(input.recentTitles) } : {}),
+    ...(sourceApp === 'blog' ? { strategyMode: normalizeStrategyMode(input.strategyMode), recentTitles: normalizeRecentTitles(input.recentTitles),
+      templateId, references: provider ? await blogReferences(db, campusId, templateId) : [] } : {}),
     selectedFiles,
   };
 

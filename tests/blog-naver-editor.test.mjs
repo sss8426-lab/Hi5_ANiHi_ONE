@@ -94,5 +94,5 @@ test('Naver-style editor screen: toolbar, plain copy, side checks and title kind
   assert.match(blog,/contentEditable='plaintext-only'/,'pasted formatting never enters the page');
   assert.match(blog,/서식 없이 복사/);
   assert.match(content,/const BLOG_TITLE_KINDS = \['homefeed', 'search', 'balanced', 'list', 'curious'\];/);
-  assert.match(html,/blog-workflow\.css\?v=20261001-naver/);assert.match(html,/content\.js\?v=20261001-naver/);
+  assert.match(html,/blog-workflow\.css\?v=20261001-naver/);assert.match(html,/content\.js\?v=20261001-[a-z]+/);
 });

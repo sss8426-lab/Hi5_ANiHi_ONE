@@ -922,7 +922,7 @@ async function runAi(captionOnly = false, quick = false) {
       const form = new FormData();
       const keywordSettings = textPresets?.values();
       state.blogTitlePrefix = titlePrefix(keywordSettings?.keywords || [], keywordSettings?.keywordBrand, state.blogRecentRawTitles || []);
-      form.set('input', JSON.stringify({ selectedFileIds: ids, notes: direction + mainTextGuide(), sourceApp, campusId, strategyMode: $('strategyMode').value, recentTitles, keywordBrand: keywordSettings?.keywordBrand, photoInstructions:blogWorkflow?.instructions(),requestId: crypto.randomUUID() }));
+      form.set('input', JSON.stringify({ selectedFileIds: ids, notes: direction + mainTextGuide(), sourceApp, campusId, strategyMode: $('strategyMode').value, recentTitles, keywordBrand: keywordSettings?.keywordBrand, templateId: $('blogTemplate')?.value, photoInstructions:blogWorkflow?.instructions(),requestId: crypto.randomUUID() }));
       for (const [id, blob] of photos) form.set(`photo:${id}`, blob, `${id}.jpg`);
       result = await api('/api/data-core/content/generate', { method: 'POST', signal, body: form });
     }
@@ -945,13 +945,14 @@ async function runAi(captionOnly = false, quick = false) {
       state.currentLead = generated.lead; state.currentBody = generated.body;
       state.lastHashtags = generated.hashtags || []; state.lastCta = generated.cta || '';state.blogAiTags = generated.hashtags || [];
       state.blogNextTopics = generated.nextTopics || []; state.blogWarnings = generated.warnings || [];
+      const referenced = generated.referenceTitles?.length ? ` · 우리 캠퍼스 잘된 글 ${generated.referenceTitles.length}편 참고` : '';
       if (quick) {
         applyBlogTitleAndBody(state.blogSelectedTitleKind);
         assembleBlogResult();
-        $('aiStatus').textContent = state.blogWarnings.length ? `작성이 완료되었습니다. ${state.blogWarnings[0]}` : '작성이 완료되었습니다.';
+        $('aiStatus').textContent = (state.blogWarnings.length ? `작성이 완료되었습니다. ${state.blogWarnings[0]}` : '작성이 완료되었습니다.') + referenced;
       } else {
         renderTitlePicker();
-        $('aiStatus').textContent = '제목 후보 중 하나를 선택해주세요.';
+        $('aiStatus').textContent = '제목 후보 중 하나를 선택해주세요.' + referenced;
       }
     }
   } catch (error) {
