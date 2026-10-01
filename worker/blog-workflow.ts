@@ -98,7 +98,7 @@ export async function saveBlogPost(db:D1Database,bucket:R2Bucket,context:DataCor
     if(['views','homefeedViews'].some(key=>p.publication[key]!=null&&(!Number.isSafeInteger(p.publication[key])||p.publication[key]<0)))fail('통계 수치는 0 이상의 정수로 입력하세요.');
     if(measured&&(!/^\d{4}-\d{2}-\d{2}$/.test(p.publication.asOf||'')||typeof p.publication.source!=='string'||!p.publication.source.trim()))fail('통계 기준일과 출처를 입력하세요.');
   }
-  const types=['greeting','lead','heading','paragraph','caption','related','closing','contact','hashtags','image'];
+  const types=['greeting','lead','heading','paragraph','caption','quote','divider','related','closing','contact','hashtags','image'];
   if(p.blocks.some((b:any)=>!object(b)||typeof b.id!=='string'||b.id.length>80||!types.includes(b.type)||(b.type==='image'?typeof b.fileId!=='string':typeof b.text!=='string'))||new Set(p.blocks.map((b:any)=>b.id)).size!==p.blocks.length)fail('본문 블록을 확인하세요.');
   const id=input.id||`blog:${context.user!.internalUserId}:${input.requestId}`;
   if(typeof id!=='string'||id.length>180)fail('게시물 ID를 확인하세요.');

@@ -153,8 +153,8 @@ const strategySchema = { type: 'object', additionalProperties: false, properties
   primaryTopic: { type: 'string' }, searchIntent: { type: 'string' }, nextQuestion: { type: 'string' }, readerProblem: { type: 'string' },
 }, required: ['primaryTopic','searchIntent','nextQuestion','readerProblem'] };
 const titlesSchema = { type: 'object', additionalProperties: false, properties: {
-  search: { type: 'string' }, homefeed: { type: 'string' }, balanced: { type: 'string' },
-}, required: ['search','homefeed','balanced'] };
+  search: { type: 'string' }, homefeed: { type: 'string' }, balanced: { type: 'string' }, list: { type: 'string' }, curious: { type: 'string' },
+}, required: ['search','homefeed','balanced','list','curious'] };
 // A single structured call produces strategy + 3 title candidates + one body already written to fit
 // the strategyMode's matching title (see BLOG_STRATEGY_GUIDE) — picking a *different* candidate on
 // the client goes through the provider's much smaller refine('retitle') call instead of a full
@@ -171,6 +171,9 @@ const BLOG_STRATEGY_GUIDE = {
   search: '검색형: 명확한 검색 의도(지역+분야+문제)를 담아 구체적인 정보를 전달하는 제목. 억지 키워드 반복 금지.',
   homefeed: '홈피드형: 이 주제에 관심 있는 사람이 다음으로 궁금해할 질문을 중심으로 만든 제목. 자극적인 낚시 제목 금지, 본문과 실제로 연결되는 질문만 사용.',
   balanced: '균형형: 검색 키워드와 홈피드 관심형 질문을 함께 담은 제목.',
+  // 상위 블로그 분석에서 클릭을 만든 제목 구조 중 학원 글에 맞는 두 가지. 자극·논란·과장 강조어는 쓰지 않습니다.
+  list: '목록형: "3가지", "총정리", "한눈에"처럼 본문에 실제로 있는 항목 수나 정리를 약속하는 제목. 제목의 숫자와 본문 항목 수가 반드시 같아야 함.',
+  curious: '궁금증형: 핵심 답을 제목에 다 말하지 않고 "~한 이유", "~은 따로 있었습니다"처럼 본문 도입부에서 바로 답하는 제목. 반전·숫자 대비는 사실일 때만 쓰고, "난리 난", "역대급" 같은 과장 표현과 논란·대결 프레임은 금지.',
 } as const;
 const BLOG_STRATEGY_MODES = ['search','homefeed','balanced'] as const;
 export type BlogStrategyMode = typeof BLOG_STRATEGY_MODES[number];
@@ -204,7 +207,7 @@ function blogInstructions(brandContext: ContentGenerationProviderRequest['brandC
     '이 글은 네이버 홈피드 노출과 SmartEditor로 옮겨 쓰기 좋은 블로그 글입니다. 다음 순서로 작성하세요.',
     '1) 이 글의 핵심 주제(strategy.primaryTopic)를 하나만 정하세요. 입시/공모전/학원소개/대학소개/이벤트 등 서로 다른 내용을 한 글에 섞지 말고, 필요한 다른 내용은 nextTopics로 분리하세요.',
     '2) strategy.searchIntent(이 글로 검색해 올 사람이 원하는 것), strategy.nextQuestion(관심 있는 사람이 다음으로 궁금해할 질문), strategy.readerProblem(독자가 겪는 문제)을 정하세요.',
-    `3) 제목 후보 3개(titles)를 만드세요. ${BLOG_STRATEGY_GUIDE.search} ${BLOG_STRATEGY_GUIDE.homefeed} ${BLOG_STRATEGY_GUIDE.balanced} selectedTitleKind는 "${strategyMode}"로 하고, lead와 body는 titles.${strategyMode}에 맞춰 작성하세요.`,
+    `3) 제목 후보 5개(titles)를 만드세요. ${BLOG_STRATEGY_GUIDE.search} ${BLOG_STRATEGY_GUIDE.homefeed} ${BLOG_STRATEGY_GUIDE.balanced} ${BLOG_STRATEGY_GUIDE.list} ${BLOG_STRATEGY_GUIDE.curious} selectedTitleKind는 "${strategyMode}"로 하고, lead와 body는 titles.${strategyMode}에 맞춰 작성하세요.`,
     '4) 제목에서 질문하거나 약속한 내용은 본문 초반(lead, 3~5문장)에서 먼저 답하세요. 그 다음 근거와 실제 수업 사례를 설명하세요. 학원 소개부터 시작해 마지막에야 답을 설명하는 구성은 금지합니다.',
     '5) body는 정보/교육 내용 위주(약 70~80%)로 쓰고, 학원·브랜드 설명은 15~20%, 상담 유도는 마지막 5~10% 정도로 자연스럽게 배분하세요. "애니하이는 최고입니다" 같은 광고 문구를 반복하지 마세요.',
     '6) 문단은 2~4문장 단위로 나누고, 문장마다 줄바꿈하지 마세요. 본문이 길면 자연스러운 문장형 소제목을 2~4개 사용하고, 키워드만 나열한 소제목은 쓰지 마세요.',
@@ -214,6 +217,8 @@ function blogInstructions(brandContext: ContentGenerationProviderRequest['brandC
     '10) hashtags는 이 글의 수업 내용·주제에 맞는 태그 5개만 만드세요. 지역명·학원명·브랜드명이 들어간 태그(예: 부천미술학원)는 앱이 고정 키워드로 따로 붙이므로 만들지 마세요.',
     '11) cta는 "지금 당장 전화하세요!!!" 같은 상투적 문구 대신, 본문을 방해하지 않는 자연스러운 상담 유도 한두 문장으로 쓰세요.',
     '12) nextTopics에는 이번 글과 주제 일관성이 있는 다음 콘텐츠 아이디어를 3개 제안하세요.',
+    '14) photoInstructions.brief.teacherComment(강사 코멘트)가 있으면 앱이 그 문장을 그대로 인용구로 본문에 넣습니다. 본문에 같은 문장을 반복하지 말고, 코멘트 앞뒤 문단이 자연스럽게 이어지도록 쓰세요. 코멘트를 근거로 사실을 과장하지 마세요.',
+    '15) 정형화된 AI 문체를 피하세요. 모든 문단을 같은 길이·같은 어미로 쓰지 말고, 수업 장면과 학생 반응처럼 이 글에만 있는 구체적인 관찰을 담으세요.',
     recentTitles.length ? `13) 다음 제목들과 완전히 동일한 제목은 만들지 마세요: ${recentTitles.slice(0, 20).join(' / ')}` : '',
   ].filter(Boolean).join('\n');
 }
@@ -327,7 +332,7 @@ export function openAiContentProvider(env: OpenAiEnv, db: D1Database, files: R2B
   }, async refine(input: ContentRefineProviderRequest) {
     const instructions = privacyRules(input.brandContext) + '\n' + (
       input.mode === 'titles'
-        ? `다음 전략을 바탕으로 제목 후보 3개(titles)만 다시 만드세요. ${BLOG_STRATEGY_GUIDE.search} ${BLOG_STRATEGY_GUIDE.homefeed} ${BLOG_STRATEGY_GUIDE.balanced} 핵심 주제: ${input.strategy.primaryTopic}. 다음으로 궁금해할 질문: ${input.strategy.nextQuestion}.${input.recentTitles.length ? ` 다음 제목들과 완전히 동일한 제목은 만들지 마세요: ${input.recentTitles.slice(0, 20).join(' / ')}` : ''}`
+        ? `다음 전략을 바탕으로 제목 후보 5개(titles)만 다시 만드세요. ${BLOG_STRATEGY_GUIDE.search} ${BLOG_STRATEGY_GUIDE.homefeed} ${BLOG_STRATEGY_GUIDE.balanced} ${BLOG_STRATEGY_GUIDE.list} ${BLOG_STRATEGY_GUIDE.curious} 핵심 주제: ${input.strategy.primaryTopic}. 다음으로 궁금해할 질문: ${input.strategy.nextQuestion}.${input.recentTitles.length ? ` 다음 제목들과 완전히 동일한 제목은 만들지 마세요: ${input.recentTitles.slice(0, 20).join(' / ')}` : ''}`
         : `이미 작성된 도입부(lead)와 본문(body)을 아래 새 제목에 맞게 최소한으로 고쳐 쓰세요. 핵심 내용과 근거, 사례는 최대한 유지하고, 제목에서 질문하거나 약속한 내용을 본문 초반(lead, 3~5문장)에서 먼저 답하도록만 조정하세요. 새 제목: ${input.selectedTitle}\n\n기존 도입부: ${input.priorLead}\n\n기존 본문: ${input.priorBody}`
     );
     const texts = await responsesCall({...env,meter:(id,status,usage)=>recordAiCall(db,context,id,'blog',status,usage,env)}, instructions, [{ type: 'input_text', text: input.notes || '' }], input.mode === 'titles' ? titlesOnlySchema : retitleSchema, 'academy_blog_refine', signal);

@@ -4,7 +4,7 @@ import {mountTextPresets} from './content-text-presets.js?v=20260929-seo';
 import {postHashtags,hashtagText,titlePrefix,withTitlePrefix,stripTitlePrefix} from './campus-seo-keywords.js?v=20260929-seo';
 import {normalizeTags} from './content-preset-catalog.js';
 import {captionTail,assemblePost} from './content-caption.js?v=20260924-order';
-import {mountBlogWorkflow} from './blog-workflow.js?v=20260929-seo';
+import {mountBlogWorkflow,TITLE_KIND_LABELS} from './blog-workflow.js?v=20261001-naver';
 import {optimizeImageForAi} from './image-ai-optimize.js?v=20260923-imgfix';
 
 const state = {
@@ -787,6 +787,8 @@ function blogHashtags() { return hashtagText(postHashtags(textPresets?.values().
 // selectedTitleKind, or the result of a completed retitleTo() call) to the visible draft form.
 function applyBlogTitleAndBody(kind) {
   state.pendingBlogGeneration=false;
+  // The next assemble records these AI sentences so the editor can count the writer's own edits.
+  state.blogAiOriginal=true;
   state.blogSelectedTitleKind = kind;
   $('draftTitle').value = blogTitle(kind);
   $('draftContent').value = [state.currentLead, state.currentBody].filter(Boolean).join('\n\n');
@@ -834,8 +836,12 @@ function assembleBlogResult() {
   if (textPresets) blogWorkflow?.applyManaged(textPresets.values());
 }
 
+// Title candidates in the order shown; 목록형·궁금증형 appear only when the AI made them (older posts have three).
+const BLOG_TITLE_KINDS = ['homefeed', 'search', 'balanced', 'list', 'curious'];
+function blogTitleKinds() { return BLOG_TITLE_KINDS.filter((kind) => state.blogTitles?.[kind]).map((kind) => [kind, TITLE_KIND_LABELS[kind]]); }
+
 function renderTitlePicker() {
-  const kinds = [['search', '검색형'], ['homefeed', '홈피드형'], ['balanced', '균형형']];
+  const kinds = blogTitleKinds();
   $('titleOptions').innerHTML = kinds.map(([kind, label]) => `
     <label class="title-option">
       <input type="radio" name="titleKind" value="${h(kind)}" ${state.blogSelectedTitleKind === kind ? 'checked' : ''}>
@@ -945,7 +951,7 @@ async function runAi(captionOnly = false, quick = false) {
         $('aiStatus').textContent = state.blogWarnings.length ? `작성이 완료되었습니다. ${state.blogWarnings[0]}` : '작성이 완료되었습니다.';
       } else {
         renderTitlePicker();
-        $('aiStatus').textContent = '제목 3개 중 하나를 선택해주세요.';
+        $('aiStatus').textContent = '제목 후보 중 하나를 선택해주세요.';
       }
     }
   } catch (error) {
@@ -999,7 +1005,9 @@ async function init() {
   textPresets=mountTextPresets({api,state,$,mount:$('textSettingsMount'),onSaved:applySettingsToResult,
     // Instagram's 로고 선택·제작 방식 are saved with the same [설정 저장].
     extraSettings:()=>state.sourceApp==='instagram'&&instagramProduction?{instagramSettings:instagramProduction.templateSettings()}:{}});
-  blogWorkflow=mountBlogWorkflow({state,$,toast,renderSelection:()=>{renderSelectedFiles();renderFilePicker();},managed:()=>textPresets.values()});
+  blogWorkflow=mountBlogWorkflow({state,$,toast,renderSelection:()=>{renderSelectedFiles();renderFilePicker();},managed:()=>textPresets.values(),
+    titleChoices:()=>blogTitleKinds().map(([kind])=>({kind,title:state.blogTitles[kind],selected:state.blogSelectedTitleKind===kind})),
+    chooseTitle:async(kind)=>{if(state.busy)return;setAiBusy(true);try{await retitleTo(kind);}catch(error){toast(error.message,'error');}finally{setAiBusy(false);}}});
   renderSelectedFiles();
   if (state.context?.authenticated) {
     state.folderId = $('draftCampus').value ? 'campus:' + $('draftCampus').value : 'root';

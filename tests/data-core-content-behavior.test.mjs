@@ -1421,7 +1421,8 @@ test('explicit admin purge compensates R2/DB failures and refuses concurrent del
 
 test('live news isolates exact row status, ignores comments, reports three pages and keeps partial failures read-only', async () => {
   const h = await createHarness(), originalFetch = globalThis.fetch;
-  const artRow = (id,status,date='09.01 ~ 09.30') => `<li class="list-item"><div class="wr-subject"><a href="./item.php?it_id=${id}&amp;ca_id=20">합성 대회 ${id}</a></div><div class="wr-date">${date}</div><div class="wr-wr_4">합성 주최</div><div class="wr-wr_15">${status}</div></li>`;
+  // A fixed future year: a year-less '09.01 ~ 09.30' turned into a closed (past) contest after September 30.
+  const artRow = (id,status,date='2099.09.01 ~ 2099.09.30') => `<li class="list-item"><div class="wr-subject"><a href="./item.php?it_id=${id}&amp;ca_id=20">합성 대회 ${id}</a></div><div class="wr-date">${date}</div><div class="wr-wr_4">합성 주최</div><div class="wr-wr_15">${status}</div></li>`;
   const mgoodRow = (id,status) => `<tr><td>실기대회</td><td><a href="21002_contest_view.php?c_seq=${id}&amp;state=other">합성 대회 ${id}</a></td><td>합성 주최</td><td>2099-09-01<br>~<br>2099-09-30</td><td><div class="dDay">${status}</div><div class="dd">D-20</div></td></tr>`;
   try {
     let failOther = false;

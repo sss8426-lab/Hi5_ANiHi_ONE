@@ -173,7 +173,7 @@ test('/refine mode=retitle: 사진 재전송 없이 새 제목에 맞춰 lead/bo
       if (!String(url).startsWith('https://api.openai.com/')) return originalFetch(url, options);
       const body = JSON.parse(options.body);
       sawImage = sawImage || body.input[0].content.some((item) => item.type === 'input_image');
-      if (body.instructions.includes('제목 후보 3개(titles)만')) return textResponse({ titles: { search: '새 검색형', homefeed: '새 홈피드형', balanced: '새 균형형' } });
+      if (body.instructions.includes('제목 후보 5개(titles)만')) return textResponse({ titles: { search: '새 검색형', homefeed: '새 홈피드형', balanced: '새 균형형' } });
       return textResponse({ lead: '새 제목에 맞춘 새 도입부입니다.', body: '새 제목에 맞춰 최소한으로 고친 본문입니다.' });
     };
     const titlesResult = await h.request('POST', '/api/data-core/content/refine', users.staff, {

@@ -43,7 +43,26 @@ export function placeManaged(blocks,values={},id=()=>crypto.randomUUID()) {
   return [...top,make('greeting'),...body,make('contact'),make('closing'),make('hashtags')].filter(Boolean);
 }
 export const publishingImages = post => (post.blocks||[]).filter(b=>b.type==='image').map(b=>({id:b.fileId,sourceFileId:b.sourceFileId,role:b.role,blockId:b.id}));
-export const postText = post => [post.title,...(post.blocks||[]).filter(b=>b.type!=='image').map(b=>b.text)].filter(Boolean).join('\n\n');
+// Plain text for pasting into Naver: no fonts, colours or hidden tags. Photos become numbered places
+// ([사진 1] …) that match the order of '원본 사진 받기', so each photo is uploaded on Naver itself.
+export const postText = post => {let n=0;return [post.title,...(post.blocks||[]).map(b=>b.type==='image'?`[사진 ${++n}]`:b.type==='divider'?'· · ·':b.text)].filter(Boolean).join('\n\n');};
+// Text the writer (or the AI) wrote; photo captions come from the photo descriptions instead.
+export const WRITTEN_TYPES=['lead','paragraph','heading'];
+export const sentencesOf = text => String(text||'').split(/(?<=[.!?…])\s+|\n+/).map(s=>s.trim()).filter(s=>s.length>=8);
+// How many sentences differ from what the AI first wrote — a nudge to add the writer's own voice.
+export function editedSentences(blocks,aiSentences=[]){const ai=new Set(aiSentences);return (blocks||[]).filter(b=>WRITTEN_TYPES.includes(b.type)).flatMap(b=>sentencesOf(b.text)).filter(s=>!ai.has(s)).length;}
+// 강사 코멘트 becomes one quote block (role 'teacher') after the second body block; empty removes it.
+export function placeTeacherComment(blocks,comment,id=()=>crypto.randomUUID()){
+  const text=String(comment||'').trim(),rest=blocks.filter(b=>!(b.type==='quote'&&b.role==='teacher')),old=blocks.find(b=>b.type==='quote'&&b.role==='teacher');
+  if(!text)return rest;
+  const quoted=/^["“]/.test(text)?text:`“${text}”`,block={...(old||{id:id(),type:'quote',role:'teacher'}),text:quoted};
+  const body=rest.map((b,i)=>WRITTEN_TYPES.includes(b.type)?i:-1).filter(i=>i>=0);
+  let at=body.length>1?body[1]+1:body.length?body[0]+1:rest.findIndex(b=>['contact','closing','hashtags'].includes(b.type));
+  if(at<0)at=rest.length;
+  // Keep a photo and its caption together.
+  while(rest[at]?.type==='image'||rest[at]?.type==='caption')at++;
+  return [...rest.slice(0,at),block,...rest.slice(at)];
+}
 export function inspectPost(post) {
   const issues=[],add=(status,blockId,message)=>issues.push({status,blockId,message});
   for(const issue of post.fileIssues||[])add('needs_changes',issue.fileId,issue.message);
@@ -66,5 +85,5 @@ export function inspectPost(post) {
 export function exportHtml(post,names=new Map()) {
   const escape=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const font=post.template?.font==='serif'?'serif':'sans-serif',align=post.template?.align==='center'?'center':'left',spacing=[16,24,32].includes(post.template?.spacing)?post.template.spacing:24;
-  return '<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+escape(post.title)+`</title><style>body{font:17px/1.8 ${font};text-align:${align};max-width:760px;margin:24px auto;padding:16px;overflow-wrap:anywhere}img{max-width:100%;height:auto}figure,p{margin:${spacing}px 0}p{white-space:pre-wrap}</style><article><h1>`+escape(post.title)+'</h1>'+post.blocks.map(b=>b.type==='image'?`<figure><img alt="${escape(b.role)}" src="${escape(names.get(b.id)||'')}"></figure>`:b.type==='heading'?`<h2>${escape(b.text)}</h2>`:`<p>${escape(b.text)}</p>`).join('')+'</article></html>';
+  return '<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+escape(post.title)+`</title><style>body{font:17px/1.8 ${font};text-align:${align};max-width:760px;margin:24px auto;padding:16px;overflow-wrap:anywhere}img{max-width:100%;height:auto}figure,p{margin:${spacing}px 0}p{white-space:pre-wrap}</style><article><h1>`+escape(post.title)+'</h1>'+post.blocks.map(b=>b.type==='image'?`<figure><img alt="${escape(b.role)}" src="${escape(names.get(b.id)||'')}"></figure>`:b.type==='heading'?`<h2>${escape(b.text)}</h2>`:b.type==='quote'?`<blockquote>${escape(b.text)}</blockquote>`:b.type==='divider'?'<hr>':`<p>${escape(b.text)}</p>`).join('')+'</article></html>';
 }
