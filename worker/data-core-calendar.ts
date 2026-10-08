@@ -120,19 +120,42 @@ function ensureCalendarRecord(record: CalendarRecord): CalendarRecord {
   return record;
 }
 
-function calendarEvent(record: CalendarRecord, context: DataCoreAccessContext) {
+// Who may edit or delete an event:
+// - MASTER: every event.
+// - the person who wrote it: their own events.
+// - 캠퍼스 관리자: events of their campus written by people who belong to a campus they manage
+//   (an event MASTER wrote for that campus stays MASTER's).
+type CreatorCampuses = Map<string, string[]>;
+async function creatorCampuses(db: D1Database, ids: unknown[]): Promise<CreatorCampuses> {
+  const unique = [...new Set(ids.filter((id): id is string => typeof id === 'string' && id.length > 0))];
+  const map: CreatorCampuses = new Map();
+  for (let i = 0; i < unique.length; i += 90) {
+    const part = unique.slice(i, i + 90);
+    const rows = (await db.prepare(`SELECT user_id, campus_id FROM memberships WHERE organization_id=? AND campus_id IS NOT NULL AND user_id IN (${part.map(() => '?').join(',')})`)
+      .bind(DEFAULT_ORGANIZATION_ID, ...part).all<{ user_id: string; campus_id: string }>()).results || [];
+    for (const row of rows) map.set(row.user_id, [...(map.get(row.user_id) || []), row.campus_id]);
+  }
+  return map;
+}
+
+function calendarEvent(record: CalendarRecord, context: DataCoreAccessContext, creators: CreatorCampuses = new Map()) {
   const metadata = calendarMetadata(record.metadata);
+  const mine = Boolean(context.user?.internalUserId) && record.createdByUserId === context.user?.internalUserId;
+  const memberOfMine = isCampusAdmin(context) && managesCampus(context, record.campusId)
+    && (creators.get(String(record.createdByUserId)) || []).some(campus => managesCampus(context, campus));
   return {
     ...record,
     metadata,
-    canManage: context.canWrite && !metadata.sourceRecordId && (context.isSuperAdmin || record.visibility !== 'organization') && canMutateRecord(context, {
+    canManage: context.canWrite && !metadata.sourceRecordId && (context.isSuperAdmin || (record.visibility !== 'organization' && (mine || memberOfMine) && canMutateRecord(context, {
       campus_id: record.campusId, created_by_user_id: record.createdByUserId, record_type: record.recordType,
-    }),
+    }))),
   };
 }
+const eventWithCreators = async (db: D1Database, record: CalendarRecord, context: DataCoreAccessContext) =>
+  calendarEvent(record, context, await creatorCampuses(db, [record.createdByUserId]));
 
 export async function getAcademyCalendarEvent(db: D1Database, context: DataCoreAccessContext, id: string) {
-  return calendarEvent(ensureCalendarRecord(await getDataRecord(db, context, id)), context);
+  return eventWithCreators(db, ensureCalendarRecord(await getDataRecord(db, context, id)), context);
 }
 
 function calendarScope(
@@ -218,9 +241,10 @@ export async function listAcademyCalendar(db: D1Database, context: DataCoreAcces
     FROM data_records dr LEFT JOIN campuses c ON c.id=dr.campus_id LEFT JOIN users u ON u.id=dr.created_by_user_id
     WHERE ${conditions.join(' AND ')} ORDER BY ${start}, dr.id LIMIT ?`).bind(...bindings, Math.floor(limit)+1).all<Record<string, unknown>>();
   const rows = result.results || [], hasMore = rows.length > limit, page = rows.slice(0,limit);
+  const creators = await creatorCampuses(db, page.map(row => row.created_by_user_id));
   const events = page.flatMap(row => {
     if (!canReadRow(context,row)) return [];
-    try { return [calendarEvent(rowToRecord(row),context)]; } catch (error) {
+    try { return [calendarEvent(rowToRecord(row),context,creators)]; } catch (error) {
       if (error instanceof DataCoreAccessError && error.status === 400) return [];
       throw error;
     }
@@ -248,7 +272,7 @@ export async function createAcademyCalendarEvent(
     summary: cleanText(body.summary, 10_000) || null,
     metadata: calendarMetadata(calendarInput(body)),
   });
-  return calendarEvent(record, context);
+  return eventWithCreators(db, record, context);
 }
 
 export async function updateAcademyCalendarEvent(
@@ -259,7 +283,7 @@ export async function updateAcademyCalendarEvent(
 ) {
   requireWriteAccess(context);
   const existing = ensureCalendarRecord(await getDataRecord(db, context, recordId));
-  if (!calendarEvent(existing, context).canManage) throw new DataCoreAccessError(403, '이 일정을 수정할 권한이 없습니다.');
+  if (!(await eventWithCreators(db, existing, context)).canManage) throw new DataCoreAccessError(403, '본인이 쓴 일정만 고칠 수 있습니다. 캠퍼스 관리자는 자기 캠퍼스 사람들의 일정을 고칠 수 있습니다.');
   const body = input && typeof input === "object" && !Array.isArray(input)
     ? input as Record<string, unknown>
     : {};
@@ -282,7 +306,7 @@ export async function updateAcademyCalendarEvent(
       : cleanText(body.summary, 10_000) || null,
     metadata: calendarMetadata(metadataInput, existingMetadata),
   });
-  return calendarEvent(record, context);
+  return eventWithCreators(db, record, context);
 }
 
 export async function deleteAcademyCalendarEvent(
@@ -292,6 +316,6 @@ export async function deleteAcademyCalendarEvent(
 ) {
   requireWriteAccess(context);
   const existing = ensureCalendarRecord(await getDataRecord(db, context, recordId));
-  if (!calendarEvent(existing, context).canManage) throw new DataCoreAccessError(403, '이 일정을 삭제할 권한이 없습니다.');
+  if (!(await eventWithCreators(db, existing, context)).canManage) throw new DataCoreAccessError(403, '본인이 쓴 일정만 지울 수 있습니다. 캠퍼스 관리자는 자기 캠퍼스 사람들의 일정을 지울 수 있습니다.');
   return deleteDataRecord(db, context, recordId);
 }
