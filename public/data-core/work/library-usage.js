@@ -65,7 +65,9 @@
     if(!active){controller?.abort();controller=null;dialog?.close();target.replaceChildren();return;}
     if(!dialog){dialog=document.createElement('dialog');dialog.id='libraryUsageDialog';dialog.setAttribute('aria-label','R2 사용량 상세');document.getElementById('libraryBrowser').append(dialog);
       target.addEventListener('click',e=>{const kind=e.target.closest('[data-usage]')?.dataset.usage;if(kind){details(kind);dialog.showModal();}});
-      dialog.addEventListener('click',e=>{if(e.target===dialog||e.target.closest('[data-usage-close]'))dialog.close();if(e.target.closest('[data-usage-refresh]')&&!e.target.disabled)void request(dialog.dataset.kind,controller.signal);});
+      let pressedOutside=false;const outside=e=>{const r=dialog.getBoundingClientRect();return e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom;};
+      dialog.addEventListener('pointerdown',e=>{pressedOutside=e.target===dialog&&outside(e);});
+      dialog.addEventListener('click',e=>{const backdrop=pressedOutside&&e.target===dialog&&outside(e);pressedOutside=false;if(backdrop||e.target.closest('[data-usage-close]'))dialog.close();if(e.target.closest('[data-usage-refresh]')&&!e.target.disabled)void request(dialog.dataset.kind,controller.signal);});
     }
     controller ||= new AbortController();render();
     for(const kind of Object.keys(titles))if(Date.now()-(attempts[kind]||0)>=900000)void request(kind,controller.signal);

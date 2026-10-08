@@ -1601,9 +1601,15 @@ function bindEvents() {
   document.querySelectorAll('[data-close-modal]').forEach((button) => {
     button.onclick = () => closeModal(button.dataset.closeModal);
   });
+  // Only a press that starts and ends on the backdrop closes a modal; dragging out of a text field
+  // (e.g. selecting what was typed) and letting go on the backdrop keeps it open.
   document.querySelectorAll('.modal-backdrop').forEach((backdrop) => {
+    let pressedOnBackdrop = false;
+    backdrop.addEventListener('pointerdown', (event) => { pressedOnBackdrop = event.target === backdrop; });
     backdrop.addEventListener('click', (event) => {
-      if (event.target === backdrop) closeModal(backdrop.id);
+      const close = pressedOnBackdrop && event.target === backdrop;
+      pressedOnBackdrop = false;
+      if (close) closeModal(backdrop.id);
     });
   });
 

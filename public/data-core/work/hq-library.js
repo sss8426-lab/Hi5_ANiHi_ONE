@@ -311,7 +311,14 @@
   $('libraryCancelUpload').onclick=()=>state.queue?.cancel(); $('libraryRetry').onclick=()=>run(true);
   $('libraryCloseProgress').onclick=()=>$('libraryProgressDialog').close();
   $('libraryProgressDialog').addEventListener('cancel',e=>{if(state.queue?.running)e.preventDefault();});
-  for(const dialog of host.querySelectorAll('dialog'))dialog.addEventListener('click',e=>{if(e.target===dialog&&dialog.id!=='libraryProgressDialog')dialog.close();});
+  // Close on a backdrop click only when the press also started on the backdrop: dragging to select the
+  // folder name and letting go outside the window must not close it (a mouseup there counts as a click).
+  for(const dialog of host.querySelectorAll('dialog')){
+    let pressedOutside=false;
+    const outside=e=>{const r=dialog.getBoundingClientRect();return e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom;};
+    dialog.addEventListener('pointerdown',e=>{pressedOutside=e.target===dialog&&outside(e);});
+    dialog.addEventListener('click',e=>{const close=pressedOutside&&e.target===dialog&&outside(e);pressedOutside=false;if(close&&dialog.id!=='libraryProgressDialog')dialog.close();});
+  }
   window.DataCoreLibrary={refresh:load};
   import('/data-core/work/library-manager.js?v=20260928-library-names').then(module=>{enhancements=module.setup({host,state,api,navigate,load,locationState,cachedOriginal:file=>imageCache?.peek(file.previewUrl)});enhancements.render();}).catch(()=>{$('libraryStatus').textContent='추가 파일 관리 기능을 불러오지 못했습니다. 새로고침해 주세요.';});
 })();
