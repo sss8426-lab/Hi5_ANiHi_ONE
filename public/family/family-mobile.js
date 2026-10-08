@@ -10,7 +10,7 @@
   top.innerHTML=names.map((label,i)=>`<button type="button" role="tab" data-family-news="${i}" aria-selected="${i===0}">${label}</button>`).join('');
   document.querySelector('.app-header').after(top);
   const bottom=document.createElement('nav');bottom.className='km-bottom';bottom.hidden=true;bottom.setAttribute('aria-label','꿈이음 하단 메뉴');
-  const menus=[['attendance','ShieldCheck','출석체크'],['news','BookOpen','아이소식 글모음'],['answers','BookOpen','답변모음'],['inquiries','PenLine','문의모음'],['more','Menu','더보기']];
+  const menus=[['attendance','ShieldCheck','출결'],['news','BookOpen','아이소식 글모음'],['answers','BookOpen','답변모음'],['inquiries','PenLine','문의모음'],['more','Menu','더보기']];
   bottom.innerHTML=menus.map(([key,img,label])=>`<button type="button" data-family-menu="${key}">${icon(img)}<span>${label}</span></button>`).join('');shell.append(bottom);
   const more=document.createElement('dialog');more.className='km-more';more.setAttribute('aria-label','더보기');
   more.innerHTML='<div class="km-sheet-head"><h2>더보기</h2><button type="button" data-close>닫기</button></div><div class="km-more-items">'+[['home','House','아이 성장'],['child','Image','작품'],['growth','BookOpen','월간 평가'],['more','Settings','알림 · 계정'],['help','BookOpen','도움말'],['suggest','PenLine','비트에게 건의/문의'],['consents','ShieldCheck','신청/동의서']].map(([key,img,label])=>`<button type="button" data-open="${key}">${icon(img)}<span>${label}</span></button>`).join('')+'</div>';shell.append(more);
@@ -30,7 +30,7 @@
   }
   top.addEventListener('click',e=>{const b=e.target.closest('[data-family-news]');if(b)news(Number(b.dataset.familyNews));});
   top.addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight'].includes(e.key))return;e.preventDefault();const i=Number(document.activeElement.dataset.familyNews||0);const n=(i+(e.key==='ArrowRight'?1:3))%4;news(n);top.querySelectorAll('button')[n].focus();});
-  bottom.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;bottom.querySelectorAll('button').forEach(n=>n.removeAttribute('aria-current'));b.setAttribute('aria-current','page');const key=b.dataset.familyMenu;if(key==='more')more.showModal();else if(key==='news')news(0);else unavailable(key);});
+  bottom.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;bottom.querySelectorAll('button').forEach(n=>n.removeAttribute('aria-current'));b.setAttribute('aria-current','page');const key=b.dataset.familyMenu;if(key==='more')more.showModal();else if(key==='news')news(0);else if(key==='attendance'){extra.hidden=true;window.switchTab('attendance');}else unavailable(key);});
   more.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;more.close();if(b.hasAttribute('data-close'))return;const key=b.dataset.open;if(['home','child','growth','more'].includes(key))existing(key);else unavailable(key);});
   tools.querySelector('button').onclick=()=>existing('home');
   let visible=false;

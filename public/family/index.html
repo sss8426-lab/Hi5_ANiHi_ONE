@@ -10,6 +10,8 @@
   <title>꿈이음 | HI5·ANiHi</title>
   <link rel="manifest" href="/family/manifest.webmanifest">
   <link rel="icon" href="/family/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/family/apple-touch-icon.png">
+  <link rel="stylesheet" href="/family/family-connect.css?v=20261009-connect2">
   <link rel="stylesheet" href="/family/family.css">
   <link rel="stylesheet" href="/family/family-news.css">
   <link rel="stylesheet" href="/data-core/design-tokens.css?v=20260913-soft-premium">
@@ -39,13 +41,22 @@
         <div class="auth-symbol">꿈</div>
         <p class="eyebrow">우리 아이의 오늘과 내일을 잇는 기록</p>
         <h1>꿈이음</h1>
-        <p class="auth-copy">아이의 작품과 선생님 평가를 한곳에서 확인하세요.</p>
-        <form id="loginForm" class="auth-form" autocomplete="on">
-          <label><span>로그인 ID</span><input id="loginId" name="username" autocomplete="username" required></label>
-          <label><span>비밀번호</span><input id="loginPassword" name="password" type="password" autocomplete="current-password" required></label>
-          <button class="primary-button" type="submit">로그인</button>
+        <p class="auth-copy">등·하원 알림, 수업 소식, 작품과 성장기록을 한곳에서 확인하세요.</p>
+        <form id="codeForm" class="auth-form" autocomplete="off">
+          <label><span>학원에서 받은 인증키</span><input id="inviteCode" name="code" inputmode="text" autocapitalize="characters" autocomplete="one-time-code" spellcheck="false" maxlength="9" placeholder="예: ABCD-2345" required></label>
+          <label><span>아이와의 관계</span><select id="inviteRelationship" name="relationship"><option>어머니</option><option>아버지</option><option>할머니</option><option>할아버지</option><option>보호자</option></select></label>
+          <button class="primary-button" type="submit">시작하기</button>
         </form>
-        <p class="form-message hidden" id="loginMessage" role="alert"></p>
+        <p class="form-message hidden" id="codeMessage" role="alert"></p>
+        <details class="login-alt">
+          <summary>아이디와 비밀번호로 로그인</summary>
+          <form id="loginForm" class="auth-form" autocomplete="on">
+            <label><span>로그인 ID</span><input id="loginId" name="username" autocomplete="username" required></label>
+            <label><span>비밀번호</span><input id="loginPassword" name="password" type="password" autocomplete="current-password" required></label>
+            <button class="secondary-button" type="submit">로그인</button>
+          </form>
+          <p class="form-message hidden" id="loginMessage" role="alert"></p>
+        </details>
       </section>
 
       <section class="auth-card hidden" id="passwordView">
@@ -83,6 +94,7 @@
             <div><span class="mini-label">THIS MONTH</span><h2 id="homeChildName">우리 아이</h2><p id="homeChildMeta">성장기록을 불러오는 중입니다.</p></div>
             <span class="hero-badge" id="homeReportBadge">이번 달</span>
           </article>
+          <section class="section-block attendance-today"><div class="section-head"><h2>오늘 출결</h2><button class="text-button" type="button" id="attendanceMonthBtn">이번 달 보기</button></div><div id="attendanceToday" class="attendance-chips"></div></section>
           <div class="summary-grid">
             <button class="summary-card" type="button" data-go-tab="growth"><span>성장기록</span><strong id="reportCount">0</strong><small>전달된 평가</small></button>
             <button class="summary-card" type="button" data-go-tab="child"><span>작품</span><strong id="artworkCount">0</strong><small>확인 가능한 작품</small></button>
@@ -107,11 +119,21 @@
           <article class="empty-card"><span class="empty-icon">◌</span><h3>소식을 확인하고 있습니다</h3><p>보호자에게 전달된 소식만 안전하게 표시합니다.</p></article>
         </section>
 
+        <section class="tab-panel" data-panel="attendance">
+          <div class="page-title"><p class="eyebrow">ATTENDANCE</p><h2>출결 기록</h2><p>학원에서 등원·하원을 확인하면 바로 기록되고 알림이 옵니다.</p></div>
+          <div class="attendance-month-nav"><button type="button" class="secondary-button" id="attendancePrev" aria-label="이전 달">‹</button><strong id="attendanceMonthLabel">이번 달</strong><button type="button" class="secondary-button" id="attendanceNext" aria-label="다음 달">›</button></div>
+          <div id="attendanceList" class="attendance-list"></div>
+        </section>
+
         <section class="tab-panel" data-panel="more">
           <div class="page-title"><p class="eyebrow">MORE</p><h2>더보기</h2></div>
           <div class="settings-list">
             <div class="setting-row"><div><strong>로그인 계정</strong><span id="guardianAccountName">보호자</span></div></div>
-            <div class="setting-row"><div><strong>앱 설치</strong><span>브라우저 메뉴에서 홈 화면에 추가할 수 있습니다.</span></div></div>
+            <div class="setting-row"><div><strong>앱 설치</strong><span id="installStatus">홈 화면에 꿈이음을 추가하면 앱처럼 열리고 알림을 받을 수 있습니다.</span></div><button class="secondary-button" id="installBtn" type="button">설치하기</button></div>
+            <p class="setting-help hidden" id="installHelp" role="status"></p>
+            <div class="setting-row add-child-row"><div><strong>자녀 추가</strong><span>다른 자녀의 인증키를 넣으면 한 앱에서 함께 볼 수 있습니다.</span></div>
+              <form id="addChildForm" class="inline-form"><input id="addChildCode" aria-label="추가할 자녀의 인증키" autocapitalize="characters" spellcheck="false" maxlength="9" placeholder="ABCD-2345" required><button class="secondary-button" type="submit">추가</button></form></div>
+            <p class="setting-help hidden" id="addChildMessage" role="status"></p>
             <div class="setting-row notification-setting"><div><strong>알림 받기</strong><span id="pushStatus">이 기기에서 알림 상태를 확인하고 있습니다.</span></div><button class="secondary-button" id="pushToggleBtn" type="button">알림 설정</button></div>
             <p class="setting-help hidden" id="pushHelp" role="status"></p>
             <button class="danger-button" id="logoutBtn" type="button">로그아웃</button>
@@ -129,9 +151,9 @@
     </nav>
   </div>
   <script src="/data-core/image-gallery.js?v=20260913-fast-images" defer></script>
-  <script src="/family/family.js?v=20260913-fast-images" defer></script>
+  <script src="/family/family.js?v=20261009-connect" defer></script>
   <script src="/family/family-growth-labels.js" defer></script>
   <script src="/family/family-news.js" defer></script>
-  <script src="/family/family-mobile.js" defer></script>
+  <script src="/family/family-mobile.js?v=20261009-connect" defer></script>
 </body>
 </html>

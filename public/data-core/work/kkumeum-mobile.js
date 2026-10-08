@@ -157,12 +157,12 @@
     content.innerHTML=`<button type="button" class="km-back" data-back>${icon('ArrowLeft')}소식으로 돌아가기</button><h2>${h(title)}</h2>${body}`;
   }
   function render() {
-    if(route().view==='attendance') { location.replace('/data-core/work/attendance'); return; }
     renderNav();content.hidden=false;$('kmLegacy').hidden=true;
     if(state.loading){content.innerHTML=empty('불러오는 중...');return;}
     if(state.error){content.innerHTML=empty(state.error)+'<button type="button" class="km-primary" data-retry>다시 시도</button>';return;}
     const {view,id}=route();
     if(['members','student','analytics'].includes(view)){if(view!=='student'&&!manager()){content.innerHTML=empty('관리 권한이 없습니다.');return;}void showLegacy(view,id);return;}
+    if(view==='attendance'){if(!writer()){content.innerHTML=empty('출석체크는 담당 반이 있는 교직원만 할 수 있습니다.');return;}window.KkumeumAttendance?.open({state,route});return;}
     if(view==='notice'){void detail(id);return;}
     if(view==='calendar'){void calendar();return;}
     if(view){auxiliary(view);return;}

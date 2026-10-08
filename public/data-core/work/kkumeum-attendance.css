@@ -1,0 +1,53 @@
+/* 꿈이음 출석체크 (staff) */
+.km-att-tabs{display:flex;gap:6px;margin:8px 0 6px}
+.km-att-tabs button{flex:1;min-height:44px;border:1px solid var(--km-line,#e5eceb);border-radius:10px;background:#fff;font-weight:600;color:#475a55}
+.km-att-tabs button[aria-pressed=true]{background:var(--km-accent,#167d79);border-color:var(--km-accent,#167d79);color:#fff}
+.km-att-feedback{min-height:20px;margin:4px 0;font-size:13px;color:var(--km-accent,#167d79);font-weight:600}
+.km-att-feedback:empty{display:none}
+.km-att-group{padding:4px 0 8px}
+.km-att-head{display:flex;align-items:center;gap:8px;min-height:52px;border-bottom:1px solid var(--km-line,#e5eceb)}
+.km-att-head strong{flex:1;font-size:15px}
+.km-att-head small{color:#6b7a75;font-size:12.5px;padding-right:6px}
+.km-att-row{display:flex;align-items:center;gap:8px;min-height:52px;padding:4px 6px 4px 0;border-bottom:1px solid #f0f4f3}
+.km-att-row.km-att-picked{background:#eef8f6}
+.km-att-row label{display:flex;align-items:center;gap:12px;flex:0 0 auto;min-width:120px;min-height:48px;padding-left:12px;cursor:pointer}
+.km-att-row input{width:21px;height:21px;accent-color:var(--km-accent,#167d79)}
+.km-att-row span{font-size:15px;font-weight:600}
+.km-att-chips{display:flex;flex-wrap:wrap;gap:5px;justify-content:flex-end;flex:1}
+.km-att-chip{display:inline-flex;align-items:center;gap:2px;border-radius:999px;padding:3px 4px 3px 10px;font-size:12px!important;font-weight:700!important;background:#eef2f1;color:#30443e}
+.km-att-chip button{width:26px;height:26px;border:0;background:transparent;color:inherit;font-size:15px;line-height:1;border-radius:50%;opacity:.6}
+.km-att-chip button:hover,.km-att-chip button:focus-visible{opacity:1;background:#ffffff99}
+.km-att-chip.km-att-arrive,.km-att-buttons .km-att-arrive{background:#e3f4ea;color:#17703f}
+.km-att-chip.km-att-leave,.km-att-buttons .km-att-leave{background:#e6efff;color:#2c4aa8}
+.km-att-chip.km-att-absent,.km-att-buttons .km-att-absent{background:#fdecec;color:#b3261e}
+.km-att-chip.km-att-late,.km-att-buttons .km-att-late{background:#fff1dc;color:#9a5200}
+.km-att-chip.km-att-early,.km-att-buttons .km-att-early{background:#f3e8ff;color:#6b2fb3}
+.km-att-chip.km-att-makeup,.km-att-buttons .km-att-makeup{background:#e0f5f5;color:#0e6b6b}
+.km-att-bar{position:sticky;bottom:calc(72px + env(safe-area-inset-bottom));z-index:5;margin-top:12px;padding:10px;border-radius:14px;background:#fff;border:1px solid var(--km-line,#e5eceb);box-shadow:0 8px 24px #0f2a2414}
+.km-att-bar-top{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.km-att-bar-top output{flex:none;font-weight:800;font-size:14px}
+.km-att-bar-top input{flex:1;min-width:0;min-height:42px;border:1px solid var(--km-line,#e5eceb);border-radius:9px;padding:0 10px;font:inherit;font-size:16px}
+.km-att-buttons{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.km-att-buttons button{min-height:48px;border:0;border-radius:10px;font-size:15px;font-weight:800}
+.km-att-buttons button:disabled{opacity:.4}
+.km-att-month{display:flex;align-items:center;gap:8px;margin:6px 0 10px;font-weight:600}
+.km-att-month input{min-height:42px;border:1px solid var(--km-line,#e5eceb);border-radius:9px;padding:0 10px;font:inherit;font-size:16px}
+.km-att-table-wrap{overflow-x:auto}
+.km-att-table{width:100%;border-collapse:collapse;font-size:13.5px}
+.km-att-table th,.km-att-table td{padding:9px 6px;border-bottom:1px solid #eef2f1;text-align:center}
+.km-att-table th[scope=row]{text-align:left;font-weight:600}
+.km-att-table thead th{background:#f4f8f7;color:#475a55;font-size:12.5px}
+@media(min-width:720px){.km-att-buttons{grid-template-columns:repeat(6,1fr)}.km-att-bar{bottom:16px}}
+/* 인증키 (staff, 보호자 연결) */
+.kk-invite{margin:10px 0 14px;padding:12px 14px;border:1px solid var(--km-line,#e5eceb);border-radius:12px;background:#f7fbfa}
+.kk-invite-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.kk-invite-head strong{display:block;font-size:15px}
+.kk-invite-head small{display:block;color:#5d6f69;font-size:12.5px;margin-top:2px}
+.kk-invite-head button,.kk-invite-actions button{min-height:42px;padding:6px 14px;border-radius:9px;border:1px solid #b9d8cf;background:#fff;color:#16614f;font-weight:700}
+.kk-invite-code{margin:12px 0 4px;font-size:30px;font-weight:800;letter-spacing:.12em;color:#16614f;font-variant-numeric:tabular-nums}
+.kk-invite-note{margin:0 0 8px;font-size:12.5px;color:#9a5200}
+.kk-invite textarea{width:100%;box-sizing:border-box;border:1px solid var(--km-line,#e5eceb);border-radius:9px;padding:10px;font:inherit;font-size:13px;line-height:1.6;background:#fff}
+.kk-invite-actions{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+#kkInviteBox,#kkInviteBox .kk-invite-head div{text-align:left}
+#kkInviteBox .kk-invite-code{font-size:30px!important;line-height:1.3;font-weight:800!important;letter-spacing:.12em;color:#16614f!important;text-align:left}
+#kkInviteBox .kk-invite-head strong{font-size:15px!important}

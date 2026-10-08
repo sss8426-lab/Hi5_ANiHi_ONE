@@ -58,6 +58,8 @@ import {
   updateKkumeumGuardianLink,
 } from "./kkumeum-guardian-admin";
 import { assertKkumeumPilotCampus } from "./kkumeum-pilot";
+import { cancelKkumeumAttendance, listStaffAttendanceDay, listStaffAttendanceMonth, markKkumeumAttendance } from "./kkumeum-attendance";
+import { issueKkumeumInviteCode, kkumeumInviteStatus, revokeKkumeumInviteCode } from "./kkumeum-invite-codes";
 import { dispatchGuardianAnnouncementPush, type KkumeumPushEnv } from "./kkumeum-push";
 import { kkumeumGrowthSkillCatalog } from "./kkumeum-growth-skills";
 
@@ -224,6 +226,53 @@ export async function handleKkumeumApi(
 
   requireKkumeumBindingsReady(context, env);
   const familyDb = requireFamilyDatabase(context, env.FAMILY_DB);
+
+  // 출석체크: day view, month summary, marking (alerts guardians) and same-day undo.
+  if (url.pathname === "/api/kkumeum/attendance") {
+    if (request.method === "GET") {
+      const campusId = requiredCampusId(url);
+      await assertKkumeumPilotCampus(familyDb, campusId);
+      return respond(await listStaffAttendanceDay(familyDb, context, campusId, url.searchParams.get("date"), url.searchParams.get("classId") || undefined));
+    }
+    if (request.method === "POST") {
+      assertSameOrigin(request);
+      const input = await readJson(request);
+      await assertKkumeumPilotCampus(familyDb, requiredBodyId(input.campusId, "campusId"));
+      return respond(await markKkumeumAttendance(familyDb, context, env, input), { status: 201 });
+    }
+    return respond({ error: "지원하지 않는 출석체크 요청입니다." }, { status: 405 });
+  }
+  if (url.pathname === "/api/kkumeum/attendance/monthly" && request.method === "GET") {
+    const campusId = requiredCampusId(url);
+    await assertKkumeumPilotCampus(familyDb, campusId);
+    return respond(await listStaffAttendanceMonth(familyDb, context, campusId, url.searchParams.get("month"), url.searchParams.get("classId") || undefined));
+  }
+  const attendanceMatch = url.pathname.match(/^\/api\/kkumeum\/attendance\/([^/]+)$/);
+  if (attendanceMatch) {
+    if (request.method !== "DELETE") return respond({ error: "지원하지 않는 출석체크 요청입니다." }, { status: 405 });
+    assertSameOrigin(request);
+    return respond(await cancelKkumeumAttendance(familyDb, context, decodeURIComponent(attendanceMatch[1])));
+  }
+
+  // 인증키: status, issue (shown once) and retire, per student.
+  const inviteMatch = url.pathname.match(/^\/api\/kkumeum\/students\/([^/]+)\/invite-code$/);
+  if (inviteMatch) {
+    const studentId = decodeURIComponent(inviteMatch[1]);
+    if (request.method === "GET") {
+      const campusId = requiredCampusId(url);
+      await assertKkumeumPilotCampus(familyDb, campusId);
+      return respond(await kkumeumInviteStatus(familyDb, context, campusId, studentId));
+    }
+    if (request.method === "POST" || request.method === "DELETE") {
+      assertSameOrigin(request);
+      const campusId = requiredBodyId((await readJson(request)).campusId, "campusId");
+      await assertKkumeumPilotCampus(familyDb, campusId);
+      return request.method === "POST"
+        ? respond(await issueKkumeumInviteCode(familyDb, context, campusId, studentId), { status: 201 })
+        : respond(await revokeKkumeumInviteCode(familyDb, context, campusId, studentId));
+    }
+    return respond({ error: "지원하지 않는 인증키 요청입니다." }, { status: 405 });
+  }
 
   if (url.pathname === "/api/kkumeum/dashboard") {
     if (request.method !== "GET") return respond({ error: "지원하지 않는 꿈이음 현황 요청입니다." }, { status: 405 });

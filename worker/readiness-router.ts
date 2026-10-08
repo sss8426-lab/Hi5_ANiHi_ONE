@@ -21,6 +21,8 @@ import {
   guardianMonthlyReportReadMap,
   markGuardianMonthlyReportRead,
 } from "./kkumeum-report-read-receipts";
+import { listGuardianChildAttendance } from "./kkumeum-attendance";
+import { redeemKkumeumInviteCode } from "./kkumeum-invite-codes";
 import {
   guardianPushStatus,
   subscribeGuardianPush,
@@ -81,6 +83,15 @@ async function handleFamilyGuardianAuthApi(request: Request, env: Env): Promise<
         expiresAt: result.expiresAt,
       },
       { headers: { "set-cookie": result.setCookie } },
+    );
+  }
+
+  // 인증키로 시작하기 / 자녀 추가.
+  if (url.pathname === "/api/family/auth/code" && request.method === "POST") {
+    const result = await redeemKkumeumInviteCode(env.FAMILY_DB, request, await readJson<Record<string, unknown>>(request));
+    return privateJsonResponse(
+      { authenticated: true, added: result.added, studentId: result.studentId, childName: result.childName },
+      result.setCookie ? { headers: { "set-cookie": result.setCookie } } : {},
     );
   }
 
@@ -181,6 +192,16 @@ async function handleFamilyGuardianFeedApi(request: Request, env: Env): Promise<
         readAt: receipts.get(report.reportId) || null,
       })),
     });
+  }
+
+  const childAttendanceMatch = url.pathname.match(/^\/api\/family\/children\/([^/]+)\/attendance$/);
+  if (childAttendanceMatch && request.method === "GET") {
+    return privateJsonResponse(await listGuardianChildAttendance(
+      env.FAMILY_DB,
+      request,
+      decodeURIComponent(childAttendanceMatch[1]),
+      url.searchParams.get("month"),
+    ));
   }
 
   const childArtworksMatch = url.pathname.match(/^\/api\/family\/children\/([^/]+)\/artworks$/);

@@ -201,10 +201,10 @@ export async function createKkumeumGuardianPasswordRecord(password: string): Pro
   };
 }
 
-async function createGuardianSession(familyDb: D1Database, guardianId: string) {
+async function createGuardianSession(familyDb: D1Database, guardianId: string, maxAgeSeconds = GUARDIAN_SESSION_MAX_AGE_SECONDS) {
   const rawToken = toBase64Url(crypto.getRandomValues(new Uint8Array(32)));
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + GUARDIAN_SESSION_MAX_AGE_SECONDS * 1000).toISOString();
+  const expiresAt = new Date(now.getTime() + maxAgeSeconds * 1000).toISOString();
   await familyDb.prepare(
     `INSERT INTO guardian_sessions (
        id, guardian_id, token_hash, created_at, expires_at, revoked_at, last_seen_at
@@ -441,4 +441,12 @@ export async function logoutKkumeumGuardian(
     if (session?.guardian_id) await auditGuardianAuth(familyDb, session.guardian_id, "logout");
   }
   return { ok: true, setCookie: kkumeumGuardianCookie("", 0) };
+}
+
+// 인증키로 시작한 보호자: the phone stays signed in for 180 days (staff can end it any time from 보호자 연결).
+const CODE_SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 180;
+export async function startKkumeumGuardianCodeSession(familyDb: D1Database, guardianId: string) {
+  const session = await createGuardianSession(familyDb, guardianId, CODE_SESSION_MAX_AGE_SECONDS);
+  await auditGuardianAuth(familyDb, guardianId, "login_code");
+  return { expiresAt: session.expiresAt, setCookie: kkumeumGuardianCookie(session.rawToken, CODE_SESSION_MAX_AGE_SECONDS) };
 }
