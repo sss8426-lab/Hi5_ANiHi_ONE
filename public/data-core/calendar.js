@@ -1,7 +1,7 @@
 (() => {
   let state, $, h, api, canWrite, isSuperAdmin, orderedCampuses, campusDisplayName, toast;
   const ui = { view:'month', q:'', scope:'', type:'', loading:false, error:'', upcoming:[], upcomingError:'', upcomingLoading:false,
-    external:[], fixed:null, detailKey:null, detailEpoch:0, detailAbort:null, returnTo:null, editSnapshot:'', editOrigin:null, summary:'today', timer:null, identity:'' };
+    external:[], fixed:null, lastPress:null, detailKey:null, detailEpoch:0, detailAbort:null, returnTo:null, editSnapshot:'', editOrigin:null, summary:'today', timer:null, identity:'' };
   const labels = {class:'수업',admission:'입시',competition:'공모전',marketing:'홍보',holiday:'휴일',meeting:'회의',other:'기타'};
   const dayMs = 86400000;
   const mounted = new WeakSet();
@@ -79,12 +79,16 @@
         if(target?.dataset.calendarMode){ui.view=target.dataset.calendarMode;render();return;}
         if(target?.hasAttribute('data-calendar-retry')){void load();return;}
         const day=event.target.closest('[data-calendar-cell]');
-        if(day){state.calendarSelectedDate=day.dataset.calendarCell;render();home.querySelector(`[data-calendar-date="${state.calendarSelectedDate}"]`)?.focus({preventScroll:true});}
-      });
-      // Double-click (or double-tap) a day to write an event that starts on that day.
-      home.addEventListener('dblclick',event=>{
-        const day=event.target.closest('[data-calendar-cell]');if(!day||!canWrite())return;
-        event.preventDefault();state.calendarSelectedDate=day.dataset.calendarCell;render();openEditor();
+        if(day){
+          // Two presses on the same day (double-click or double-tap) write an event for that day. This is
+          // counted here, not with the browser's dblclick: the first press re-draws the month, and the browser
+          // then no longer sees the second press as part of a double-click.
+          const date=day.dataset.calendarCell,now=Date.now(),again=ui.lastPress?.date===date&&now-ui.lastPress.at<500;
+          ui.lastPress=again?null:{date,at:now};
+          state.calendarSelectedDate=date;render();
+          if(again&&canWrite()){openEditor();return;}
+          home.querySelector(`[data-calendar-date="${state.calendarSelectedDate}"]`)?.focus({preventScroll:true});
+        }
       });
       const search=home.querySelector('[data-calendar-search]');let composing=false;
       const change=()=>{if(composing)return;ui.q=search.value.trim();syncTools(search);clearTimeout(ui.timer);ui.timer=setTimeout(()=>load(),180);};
