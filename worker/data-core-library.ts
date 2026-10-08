@@ -261,7 +261,11 @@ export async function fileRow(tree: LibraryTree, id: string) {
 }
 
 async function listFiles(tree: LibraryTree, folder: LibraryFolder, url: URL) {
-  if (!folder.category) return { files: [], hasMore: false, navigationHidden: Boolean(folder.navigationHidden) };
+  // 하위 폴더 포함: files of every folder below this one, each still checked against its own folder's rules.
+  const deep = url.searchParams.get('deep') === '1' && folder.id !== 'root';
+  if (!folder.category && !deep) return { files: [], hasMore: false, navigationHidden: Boolean(folder.navigationHidden) };
+  const kind = text(url.searchParams.get('kind'));
+  const kindFilter = kind === 'image' ? "AND fo.mime_type LIKE 'image/%'" : kind === 'doc' ? "AND fo.mime_type NOT LIKE 'image/%'" : '';
   const q = text(url.searchParams.get('q')).slice(0,120), page = Math.max(1, Math.min(100000, Number(url.searchParams.get('page')) || 1));
   const sorts: Record<string, [string,string]> = {newest:['created_at','DESC'],oldest:['created_at','ASC'],name:['original_file_name','ASC'],'name-desc':['original_file_name','DESC'],size:['size_bytes','DESC'],'size-asc':['size_bytes','ASC']};
   const [column,direction] = sorts[text(url.searchParams.get('sort'))] || sorts.newest;
@@ -270,18 +274,23 @@ async function listFiles(tree: LibraryTree, folder: LibraryFolder, url: URL) {
   const legacy = folder.id.startsWith('category:');
   const files = [], visible:Record<string,any>[] = [];
   let skip=(Math.floor(page)-1)*50, accepted=0,hasMore=false,offset=0,locatedPage:number|null=null;
+  const like = `%${q.replace(/[\\%_]/g, '\\$&')}%`;
+  const scope = deep ? `fo.category IN (${LIBRARY_CATEGORIES.map(() => '?').join(',')})`
+    : `fo.category = ? AND (fo.data_record_id = ? OR (? = 1 AND NOT EXISTS (SELECT 1 FROM data_records dr WHERE dr.id = fo.data_record_id AND dr.record_type IN (?, ?))))`;
+  const scoped = deep ? LIBRARY_CATEGORIES.map(c => c[0]) : [folder.category, folder.id, legacy ? 1 : 0, LIBRARY_FOLDER, HQ_FOLDER];
   while(!hasMore){
   const rows:Record<string,any>[] = (await tree.db.prepare(`SELECT fo.*, u.display_name AS owner_name FROM file_objects fo LEFT JOIN users u ON u.id = fo.owner_user_id
-    WHERE fo.organization_id = ? AND fo.campus_id IS ? AND fo.category = ? AND fo.deleted_at IS NULL
-    AND (fo.data_record_id = ? OR (? = 1 AND NOT EXISTS (SELECT 1 FROM data_records dr WHERE dr.id = fo.data_record_id AND dr.record_type IN (?, ?))))
-    AND fo.original_file_name LIKE ? ESCAPE '\\' ORDER BY fo.${column} ${direction}, fo.id LIMIT 100 OFFSET ?`)
-    .bind(ORG, folder.campusId, folder.category, folder.id, legacy ? 1 : 0, LIBRARY_FOLDER, HQ_FOLDER,
-      `%${q.replace(/[\\%_]/g, '\\$&')}%`,offset).all<Record<string, any>>()).results || [];
+    WHERE fo.organization_id = ? AND fo.campus_id IS ? AND fo.deleted_at IS NULL AND ${scope}
+    AND (fo.original_file_name LIKE ? ESCAPE '\\' OR u.display_name LIKE ? ESCAPE '\\') ${kindFilter}
+    ORDER BY fo.${column} ${direction}, fo.id LIMIT 100 OFFSET ?`)
+    .bind(ORG, folder.campusId, ...scoped, like, like, offset).all<Record<string, any>>()).results || [];
   await tree.prefetch(rows.map(row=>row.data_record_id).filter(Boolean));
   for (const row of rows) {
     try {
       const sourceFolder = await fileFolder(tree, row);
-      if (sourceFolder.id !== folder.id || !libraryFileReadable(tree.context, sourceFolder, row)) continue;
+      if (!libraryFileReadable(tree.context, sourceFolder, row)) continue;
+      const inside = sourceFolder.id === folder.id || deep && (await tree.breadcrumbs(sourceFolder)).some(p => p.id === folder.id);
+      if (!inside) continue;
       if (seek && locatedPage === null) {
         if (accepted % 50 === 0) { files.length=0; visible.length=0; }
         if (row.id === seek) { locatedPage=Math.floor(accepted/50)+1; skip=(locatedPage-1)*50; }
@@ -292,9 +301,9 @@ async function listFiles(tree: LibraryTree, folder: LibraryFolder, url: URL) {
       files.push({ id: row.id, fileName: row.original_file_name, mimeType: row.mime_type, sizeBytes: row.size_bytes,
         instagramPreserveReason: instagramPreserveReason({...row, protected:sourceFolder.protected, shareMode:sourceFolder.shareMode}),
         createdAt: row.created_at, campusId: row.campus_id, ownerName: row.owner_name, recordId: row.data_record_id,
-        folderId:folder.id, folderTitle:folder.title, path, revision:row.data_record_id,
-        canDelete: libraryCanDelete(tree.context, folder, row.owner_user_id),
-        canMove: libraryCanWrite(tree.context, folder),
+        folderId:sourceFolder.id, folderTitle:sourceFolder.title, path:sourceFolder.id === folder.id ? path : await tree.breadcrumbs(sourceFolder), revision:row.data_record_id,
+        canDelete: libraryCanDelete(tree.context, sourceFolder, row.owner_user_id),
+        canMove: libraryCanWrite(tree.context, sourceFolder),
         previewUrl: `/api/data-core/library/files/${encodeURIComponent(row.id)}`,
         downloadUrl: `/api/data-core/library/files/${encodeURIComponent(row.id)}/download` });
     } catch (e) { if (!(e instanceof DataCoreAccessError)) throw e; }
@@ -371,19 +380,51 @@ async function moveFile(tree: LibraryTree, id: string, input: Record<string,unkn
   return {ok:true, id, folderId:target.id};
 }
 
-async function fileCounts(tree:LibraryTree, folders:LibraryFolder[], campusTotals = false) {
+// Files and photos in each folder — with deep, over every depth below it too. Grouped metadata only (one query);
+// each group passes the same ancestry, deleted-folder and read rules as the listing before it is counted.
+async function folderTotals(tree:LibraryTree, folders:LibraryFolder[], deep = true) {
+  const totals = new Map<string,{files:number; images:number}>();
+  if (!folders.length) return totals;
+  const wanted = new Set(folders.map(f => f.id));
+  const campuses = [...new Set(folders.map(f => f.campusId).filter(Boolean))] as string[], shared = folders.some(f => !f.campusId);
+  const campusScope = [campuses.length ? `fo.campus_id IN (${campuses.map(() => '?').join(',')})` : '', shared ? 'fo.campus_id IS NULL' : ''].filter(Boolean).join(' OR ');
+  const linked = "dr.record_type IN ('library-folder','hq-library-folder')";
+  const effective = `CASE WHEN ${linked} THEN fo.data_record_id END`;
+  const rows = (await tree.db.prepare(`SELECT ${effective} AS data_record_id, fo.data_record_id AS owner_record_id, fo.campus_id, fo.category, fo.source_app,
+    fo.visibility, fo.area, fo.owner_user_id, fo.organization_id, COUNT(*) AS n, SUM(CASE WHEN fo.mime_type LIKE 'image/%' THEN 1 ELSE 0 END) AS images
+    FROM file_objects fo LEFT JOIN data_records dr ON dr.id = fo.data_record_id
+    WHERE fo.organization_id = ? AND fo.deleted_at IS NULL AND (${campusScope}) AND fo.category IN (${LIBRARY_CATEGORIES.map(() => '?').join(',')})
+    AND fo.source_app NOT LIKE '%family%' AND fo.source_app NOT LIKE '%kkumeum%' AND fo.r2_key NOT LIKE 'family/%' AND fo.r2_key NOT LIKE 'kkumeum/%'
+    AND COALESCE(dr.record_type,'') NOT LIKE '%family%' AND COALESCE(dr.record_type,'') NOT LIKE '%kkumeum%'
+    AND COALESCE(dr.source_app,'') NOT LIKE '%family%' AND COALESCE(dr.source_app,'') NOT LIKE '%kkumeum%'
+    GROUP BY ${effective}, fo.data_record_id, fo.campus_id, fo.category, fo.source_app, fo.visibility, fo.area, fo.owner_user_id`)
+    .bind(ORG, ...campuses, ...LIBRARY_CATEGORIES.map(c => c[0])).all<Record<string,unknown>>()).results || [];
+  await tree.prefetch(rows.map(row => String(row.owner_record_id || '')).filter(Boolean));
+  for (const row of rows) {
+    try {
+      if (row.owner_record_id && await ownerDeleted(tree, String(row.owner_record_id))) continue;
+      const f = await fileFolder(tree, row);
+      if (!libraryFileReadable(tree.context, f, row)) continue;
+      for (const id of deep ? (await tree.breadcrumbs(f)).map(p => p.id) : [f.id]) {
+        if (!wanted.has(id)) continue;
+        const t = totals.get(id) || {files:0, images:0};
+        t.files += Number(row.n); t.images += Number(row.images) || 0; totals.set(id, t);
+      }
+    } catch (e) { if (!(e instanceof DataCoreAccessError)) throw e; }
+  }
+  return totals;
+}
+
+async function fileCounts(tree:LibraryTree, folders:LibraryFolder[]) {
   const counts = new Map<string,number>();
   if (!folders.length) return counts;
   // Count metadata groups, never list R2 objects or fetch file bytes.
   const ids=folders.map(f=>f.id), legacy=folders.filter(f=>f.id.startsWith('category:')).map(f=>f.category!);
   const linked = "dr.record_type IN ('library-folder','hq-library-folder')";
   const effective = `CASE WHEN ${linked} THEN fo.data_record_id END`;
-  // Campus totals include every depth, while the existing resolver validates each
-  // grouped owner's full ancestry. Never sum raw campus rows before checking ACLs.
-  const scope = campusTotals
-    ? `fo.campus_id IN (${folders.map(()=>'?').join(',')}) AND fo.category IN (${LIBRARY_CATEGORIES.map(()=>'?').join(',')})`
-    : `fo.campus_id IS ? AND (fo.data_record_id IN (${ids.map(()=>'?').join(',')}) ${legacy.length ? `OR (fo.category IN (${legacy.map(()=>'?').join(',')}) AND (${linked}) IS NOT TRUE)` : ''})`;
-  const bindings = campusTotals ? [...folders.map(f=>f.campusId), ...LIBRARY_CATEGORIES.map(c=>c[0])] : [folders[0].campusId, ...ids, ...legacy];
+  // Direct files only; folderTotals covers every depth (campus cards and 하위 폴더 totals).
+  const scope = `fo.campus_id IS ? AND (fo.data_record_id IN (${ids.map(()=>'?').join(',')}) ${legacy.length ? `OR (fo.category IN (${legacy.map(()=>'?').join(',')}) AND (${linked}) IS NOT TRUE)` : ''})`;
+  const bindings = [folders[0].campusId, ...ids, ...legacy];
   const rows = (await tree.db.prepare(`SELECT ${effective} AS data_record_id, fo.data_record_id AS owner_record_id, fo.campus_id, fo.category, fo.source_app,
     fo.visibility, fo.area, fo.owner_user_id, fo.organization_id, COUNT(*) AS n
     FROM file_objects fo LEFT JOIN data_records dr ON dr.id = fo.data_record_id
@@ -399,7 +440,7 @@ async function fileCounts(tree:LibraryTree, folders:LibraryFolder[], campusTotal
     try {
       // Same rule as listing: files of a deleted folder are not counted anywhere.
       if (row.owner_record_id && await ownerDeleted(tree, String(row.owner_record_id))) continue;
-      const f = await fileFolder(tree, row), target = campusTotals ? `campus:${f.campusId}` : f.id;
+      const f = await fileFolder(tree, row), target = f.id;
       if (wanted.has(target) && libraryFileReadable(tree.context,f,row)) counts.set(target,(counts.get(target)||0)+Number(row.n)); }
     catch(e) { if (!(e instanceof DataCoreAccessError)) throw e; }
   }
@@ -434,15 +475,17 @@ export async function handleLibraryApi(request: Request, db: D1Database, bucket:
     if (archived) requireLibraryWrite(tree.context, folder);
     const folders = (await children(tree, folder, archived)).filter(f => (folder.id !== 'root' || !f.navigationHidden) && (!archived || f.archived));
     const includeCounts = url.searchParams.get('counts') !== '0';
-    let counts:Map<string,number>|null=null,subcounts:Map<string,number>|null=null,campusCounts:Map<string,number>|null=null;
+    let counts:Map<string,number>|null=null,subcounts:Map<string,number>|null=null,totals:Map<string,{files:number;images:number}>|null=null;
     if(includeCounts){
       try{counts=await fileCounts(tree,folders.filter(f=>f.category));}catch{/* Counts must not block authorized folder browsing. */}
-      try{campusCounts=await fileCounts(tree,folders.filter(f=>f.id.startsWith('campus:')),true);}catch{/* Failed totals remain unknown, not zero. */}
+      try{totals=await folderTotals(tree,folders);}catch{/* Failed totals remain unknown, not zero. */}
       try{subcounts=await folderCounts(tree,folders);}catch{/* Unknown counts are not zero. */}
     }
     return json({ folder: serialize(tree, folder), breadcrumbs: await tree.breadcrumbs(folder), folders: folders.map(f => {
-      const files = f.id.startsWith('campus:') ? campusCounts : counts;
-      return {...serialize(tree, f), folderCount:subcounts?subcounts.get(f.id)||0:null, fileCount:files?files.get(f.id)||0:null};
+      const total = totals ? totals.get(f.id) || {files:0, images:0} : null;
+      // fileCount: campus cards show every depth, other cards their direct files. totalFiles/totalImages: every depth.
+      const fileCount = f.id.startsWith('campus:') ? total?.files ?? null : counts ? counts.get(f.id) || 0 : null;
+      return {...serialize(tree, f), folderCount:subcounts?subcounts.get(f.id)||0:null, fileCount, totalFiles:total?.files ?? null, totalImages:total?.images ?? null};
     }) });
   }
   if(url.pathname==='/api/data-core/library/move'&&request.method==='POST'){
@@ -492,8 +535,14 @@ export async function handleLibraryApi(request: Request, db: D1Database, bucket:
   if (uploadMatch && request.method === 'DELETE') return json(await abortLibraryMultipartUpload(db, bucket, tree, context,
     decodeURIComponent(uploadMatch[1])));
 
-  if (url.pathname === '/api/data-core/library/files' && request.method === 'GET') return json(await listFiles(tree,
-    await tree.resolve(text(url.searchParams.get('folderId')) || 'root'), url));
+  if (url.pathname === '/api/data-core/library/files' && request.method === 'GET') {
+    const folder = await tree.resolve(text(url.searchParams.get('folderId')) || 'root');
+    const listing = await listFiles(tree, folder, url);
+    // 전체 / 사진 / 문서 tab numbers for this folder (with 하위 폴더 포함, every depth below it).
+    let totals: {files:number; images:number} | null = null;
+    if (folder.id !== 'root') try { totals = (await folderTotals(tree, [folder], url.searchParams.get('deep') === '1')).get(folder.id) || {files:0, images:0}; } catch { /* Unknown, not zero. */ }
+    return json({...listing, totals});
+  }
   if (url.pathname === '/api/data-core/library/files' && request.method === 'POST') {
     const declaredSize = Number(request.headers.get('x-data-core-file-size'));
     if (request.headers.has('x-data-core-file-size') && Number.isFinite(declaredSize) && declaredSize > SIMPLE_UPLOAD_MAX_BYTES) {

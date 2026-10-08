@@ -57,10 +57,15 @@
 /* Grid view: a large photo on top, then name and date · uploader · size. Actions sit in the selection bar. */
 #libraryBrowser[data-view=grid] .lb-file{padding:0;overflow:hidden;gap:0;border-radius:9px}
 #libraryBrowser[data-view=grid] .lb-file .lb-file-main{gap:0}
-#libraryBrowser[data-view=grid] .lb-file .lb-thumbnail{border:0;border-radius:0;border-bottom:1px solid #e1e8e3;flex-basis:auto}
+#libraryBrowser[data-view=grid] .lb-file .lb-thumbnail{border:0;border-radius:0;border-bottom:1px solid #e1e8e3;flex-basis:auto;aspect-ratio:auto;height:150px}
 #libraryBrowser[data-view=grid] .lb-file .lb-thumbnail img{object-fit:cover}
 #libraryBrowser[data-view=grid] .lb-file .lb-document-visual{border-bottom:1px solid #e1e8e3}
 #libraryBrowser[data-view=grid] .lb-file .lb-file-main>div{padding:8px 10px 10px}
-#libraryBrowser[data-view=grid] .lb-file .lb-file-main strong{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#libraryBrowser[data-view=grid] .lb-file .lb-file-main strong{font-size:13.5px;font-weight:800;line-height:1.45}
+#libraryBrowser[data-view=grid] .lb-file .lb-file-main small{font-size:12px;color:#6b7a72;line-height:1.6}
+#libraryBrowser[data-view=grid] .lb-file .lb-document-visual{aspect-ratio:auto;height:150px;font-size:0}
+#libraryBrowser[data-view=grid] .lb-file .lb-document-visual span{display:grid;place-items:end center;width:52px;height:64px;padding-bottom:9px;border-radius:6px;background:#d93a2f;color:#fff;font-size:12px;font-weight:800}
+#libraryBrowser[data-view=grid] .lb-file .lb-document-visual svg{display:none}
+#libraryBrowser[data-view=grid] .lb-file-list{grid-template-columns:repeat(auto-fill,minmax(190px,1fr))}
 #libraryBrowser[data-view=grid] .lb-file .lb-full-path,#libraryBrowser[data-view=grid] .lb-file .lb-file-actions{display:none}
 #libraryBrowser[data-view=grid] .lb-file:hover{border-color:#9fc7b1}

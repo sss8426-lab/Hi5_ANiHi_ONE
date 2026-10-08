@@ -1,33 +1,35 @@
 import { setupUploads } from './library-upload-panel.js?v=20260928-library-names';
 import { open as openPreview } from './library-preview.js';
-import { setupTree } from './library-tree.js?v=20261009-tree';
-import { downloadFiles } from './library-download.js?v=20261009-tree';
+import { setupTree } from './library-tree.js?v=20261009-mock';
+import { downloadFiles } from './library-download.js?v=20261009-mock';
 const el=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
 const cardSelector='[data-library-file],[data-recent-file],[data-library-folder]';
 export function setup(ctx){
-  const css=el('link');css.rel='stylesheet';css.href='/data-core/work/library-manager.css?v=20261009-tree';document.head.append(css);
+  const css=el('link');css.rel='stylesheet';css.href='/data-core/work/library-manager.css?v=20261009-mock';document.head.append(css);
   const {host,state,api,navigate,load,locationState}=ctx,selected=new Map();let anchor=null,drag=null,selectionOrigin='',moveItems=[],requestId;
   const key=card=>card.dataset.libraryFolder?'folder:'+card.dataset.libraryFolder:'file:'+(card.dataset.libraryFile||card.dataset.recentFile);
   const lookup=k=>{const [kind,...id]=k.split(':');const item=(kind==='folder'?state.folders:[...state.files,...state.recent]).find(i=>i.id===id.join(':'));return item?{...item,kind}:null;};
   const controls=el('div');controls.className='lb-manage lb-toolbar';
   controls.innerHTML='<label>정렬 <select aria-label="파일 정렬"><option value="newest">최신순</option><option value="oldest">오래된순</option><option value="name">이름 오름차순</option><option value="name-desc">이름 내림차순</option><option value="size">큰 파일순</option><option value="size-asc">작은 파일순</option></select></label><div role="group" aria-label="보기 방식"><button data-view="grid" aria-label="그리드 보기" title="그리드 보기">▦</button><button data-view="list" aria-label="목록 보기" title="목록 보기">☰</button></div><button data-select-all>불러온 항목 선택</button><button data-clear>선택 해제</button><button data-move>선택 항목 이동</button><span role="status" data-count></span>';
-  host.querySelector('#librarySearch').after(controls);
+  // Sort sits in the search row; 전체 선택 and 크게/목록 sit right of the 전체/사진/문서 tabs.
+  const sortSelect=controls.querySelector('select');
+  host.querySelector('.lb-tabs-row').append(controls);host.querySelector('#librarySearch').append(controls.querySelector('label'));
+  controls.querySelector('[data-select-all]').textContent='전체 선택';
   const trash=el('button','선택 항목 휴지통');trash.dataset.trash='';controls.querySelector('[data-count]').before(trash);
   // Actions on the selection live in a bar that appears only while something is selected.
   const bar=el('div');bar.className='lb-selbar';bar.hidden=true;bar.setAttribute('role','region');bar.setAttribute('aria-label','선택한 항목');
-  const preview1=el('button','미리보기');preview1.dataset.previewOne='';const download=el('button','다운로드');download.dataset.download='';
+  const download=el('button','다운로드');download.dataset.download='';const hint=el('span','Ctrl·Shift로 여러 개 선택 · 끌어서 폴더로 이동');hint.className='lb-selbar-hint';
   const [count,moveButton,clearButton]=['[data-count]','[data-move]','[data-clear]'].map(q=>controls.querySelector(q));
-  bar.append(count,preview1,download,moveButton,trash,clearButton);moveButton.textContent='이동';trash.textContent='휴지통';clearButton.textContent='선택 해제';
+  bar.append(count,moveButton,download,trash,hint,clearButton);moveButton.textContent='이동';trash.textContent='휴지통';clearButton.textContent='✕';clearButton.setAttribute('aria-label','선택 해제');clearButton.title='선택 해제';
   host.querySelector('.lb-main').append(bar);
-  for(const b of controls.querySelectorAll('[data-view]'))b.innerHTML=`<svg class="lb-icon" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#${b.dataset.view==='grid'?'LayoutDashboard':'Menu'}"></use></svg>`;
+  for(const b of controls.querySelectorAll('[data-view]'))b.textContent=b.dataset.view==='grid'?'크게':'목록';
   let mode='grid';try{mode=localStorage.getItem('library-view')||mode;}catch{/* Storage may be disabled. */}
   const setMode=value=>{mode=value==='list'?'list':'grid';host.dataset.view=mode;for(const b of controls.querySelectorAll('[data-view]'))b.setAttribute('aria-pressed',String(b.dataset.view===mode));try{localStorage.setItem('library-view',mode);}catch{/* View preference is optional. */}};setMode(mode);
-  controls.querySelector('select').onchange=e=>{const s=locationState();navigate(s.id,s.q,1,'',e.target.value);};
+  sortSelect.onchange=e=>{const s=locationState();navigate(s.id,s.q,1,'',e.target.value);};
   function sync(){
     for(const card of host.querySelectorAll(cardSelector)){const active=selected.has(key(card));card.classList.toggle('lb-selected',active);const box=card.querySelector('.lb-select');if(box)box.checked=active;}
     const items=[...selected.values()];bar.hidden=!items.length;
-    bar.querySelector('[data-count]').textContent=items.length?`${items.length}개 선택`:'';
-    preview1.disabled=items.length!==1||items[0].kind!=='file';
+    bar.querySelector('[data-count]').textContent=items.length?`${items.length}개 선택됨`:'';
     download.disabled=!items.length||items.some(i=>i.kind!=='file');download.title=download.disabled&&items.length?'폴더는 열어서 파일을 받아 주세요.':'선택한 파일 받기 (여러 개는 압축 파일 하나로)';
     bar.querySelector('[data-move]').disabled=!items.length||items.some(i=>!i.canMove);
     bar.querySelector('[data-move]').title=items.some(i=>!i.canMove)?'선택 항목 중 이동 권한이 없는 자료가 있습니다.':'선택한 파일·폴더 이동';
@@ -43,9 +45,8 @@ export function setup(ctx){
   }
   function all(){for(const card of host.querySelectorAll(cardSelector)){const item=lookup(key(card));if(item&&(item.kind==='file'||item.canMove))selected.set(key(card),item);}sync();}
   controls.onclick=bar.onclick=e=>{const b=e.target.closest('button');if(!b||b.disabled)return;if(b.dataset.view)setMode(b.dataset.view);if(b.hasAttribute('data-select-all'))all();if(b.hasAttribute('data-clear')){selected.clear();sync();}if(b.hasAttribute('data-move'))void openMove([...selected.values()]);
-    if(b.hasAttribute('data-preview-one')){const f=[...selected.values()][0];if(f)void previewFile(f);}
     if(b.hasAttribute('data-download')){const files=[...selected.values()];const count=bar.querySelector('[data-count]');b.disabled=true;
-      downloadFiles(files,state.folder?.title||'자료보관함',text=>{count.textContent=text||`${selected.size}개 선택`;}).catch(e=>{count.textContent=e.message;}).finally(()=>{b.disabled=false;});}};
+      downloadFiles(files,state.folder?.title||'자료보관함',text=>{count.textContent=text||`${selected.size}개 선택됨`;}).catch(e=>{count.textContent=e.message;}).finally(()=>{b.disabled=false;});}};
   const dialog=el('dialog');dialog.className='lb-bulk-move';dialog.innerHTML='<h3>선택 항목 이동</h3><p data-path></p><div data-folders></div><p role="alert" data-error></p><div class="lb-toolbar"><button data-cancel>취소</button><button data-submit>이 폴더로 이동</button></div>';host.append(dialog);let target,moveGeneration=0;
   dialog.querySelector('[data-cancel]').onclick=()=>dialog.close();dialog.addEventListener('close',()=>{moveGeneration++;});
   async function browse(id){
@@ -109,13 +110,13 @@ export function setup(ctx){
   window.addEventListener('pointermove',e=>{if(!rectangle)return;const {x,y,box,original}=rectangle,left=Math.min(x,e.clientX),top=Math.min(y,e.clientY),right=Math.max(x,e.clientX),bottom=Math.max(y,e.clientY);Object.assign(box.style,{left:left+'px',top:top+'px',width:right-left+'px',height:bottom-top+'px'});selected.clear();for(const [k,v] of original)selected.set(k,v);for(const card of host.querySelectorAll(cardSelector)){const r=card.getBoundingClientRect();if(r.left<right&&r.right>left&&r.top<bottom&&r.bottom>top){const i=lookup(key(card));if(i&&(i.kind==='file'||i.canMove))selected.set(key(card),i);}}sync();});
   const end=()=>{rectangle?.box.remove();rectangle=null;};window.addEventListener('pointerup',end);window.addEventListener('pointercancel',end);
   function render(){
-    const s=locationState(),scope=s.id+'|'+s.q;if(selectionOrigin!==scope){selected.clear();selectionOrigin=scope;}controls.querySelector('select').value=s.sort;
+    const s=locationState(),scope=s.id+'|'+s.q;if(selectionOrigin!==scope){selected.clear();selectionOrigin=scope;}sortSelect.value=s.sort;
     for(const card of host.querySelectorAll(cardSelector)){
       const item=lookup(key(card));if(!item)continue;
       if((item.kind==='file'||item.canMove)&&!card.querySelector('.lb-select')){const box=el('input');box.type='checkbox';box.className='lb-select';box.setAttribute('aria-label',`${item.title||item.fileName} 선택`);card.prepend(box);card.draggable=!!item.canMove;}
       if(item.kind==='file'){
         const title=card.querySelector('.lb-file-main strong');if(title&&!title.querySelector('.library-item-name'))title.innerHTML=window.DataCoreLibraryClient.nameMarkup(item.fileName);
-        const main=card.querySelector('.lb-file-main'),symbol=main?.querySelector(':scope > svg');if(symbol){const visual=el('div');visual.className='lb-document-visual';symbol.replaceWith(visual);visual.append(symbol,el('span',item.fileName.split('.').pop().toUpperCase()));}
+        const main=card.querySelector('.lb-file-main'),symbol=main?.querySelector(':scope > svg');if(symbol){const visual=el('div');visual.className='lb-document-visual';visual.dataset.ext=item.fileName.split('.').pop().toUpperCase();symbol.replaceWith(visual);visual.append(symbol,el('span',item.fileName.split('.').pop().toUpperCase()));}
         const path=(item.path||state.breadcrumbs).map(p=>p.title).join(' > ');let line=card.querySelector('.lb-full-path');
         if(!line){line=el('button');line.type='button';line.className='lb-full-path';line.dataset.lbLocate=item.id;card.querySelector('.lb-file-main')?.append(line);}line.textContent=path;line.title=path;
         const name=card.querySelector('.lb-recent-text>a');if(name)name.dataset.lbPreview=item.id;
