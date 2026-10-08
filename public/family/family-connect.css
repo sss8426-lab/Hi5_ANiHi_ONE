@@ -1,0 +1,33 @@
+/* 인증키로 시작하기 · 오늘 출결 · 출결 기록 · 앱 설치 · 자녀 추가 */
+.auth-form select{width:100%;border:1px solid var(--line,#dce5f0);border-radius:13px;padding:13px 14px;background:#fbfcfe;font:inherit;font-size:16px}
+#inviteCode,#addChildCode{text-transform:uppercase;letter-spacing:.12em;font-size:18px!important;font-weight:800}
+.login-alt{margin-top:18px;text-align:left;border-top:1px solid #edf1f5;padding-top:12px}
+.login-alt summary{cursor:pointer;color:var(--muted,#6d7f94);font-size:13px;font-weight:700;padding:6px 0;list-style:none;text-align:center}
+.login-alt summary::-webkit-details-marker{display:none}
+.login-alt[open] summary{color:var(--navy,#173a68)}
+.attendance-today{margin-top:16px;background:#fff;border:1px solid var(--line,#dce5f0);border-radius:20px;padding:16px 18px}
+.attendance-today .section-head{margin-bottom:10px}
+.attendance-chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.attendance-chips .empty-inline{width:100%;padding:14px;border-radius:14px}
+.attendance-chip{display:inline-flex;align-items:center;min-height:34px;padding:6px 13px;border-radius:999px;font-size:14px;font-weight:800;background:#eef2f6;color:#30445a}
+.attendance-arrive{background:#e3f4ea;color:#17703f}
+.attendance-leave{background:#e6efff;color:#2c4aa8}
+.attendance-absent{background:#fdecec;color:#b3261e}
+.attendance-late{background:#fff1dc;color:#9a5200}
+.attendance-early{background:#f3e8ff;color:#6b2fb3}
+.attendance-makeup{background:#e0f5f5;color:#0e6b6b}
+.attendance-note{width:100%;margin:8px 0 0;padding:9px 12px;border-radius:12px;background:#f6f8fb;font-size:13px;line-height:1.55;color:#40546a;white-space:pre-wrap}
+.attendance-month-nav{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 14px}
+.attendance-month-nav strong{font-size:17px}
+.attendance-month-nav button{min-width:48px;min-height:44px;font-size:20px}
+.attendance-month-nav button:disabled{opacity:.35}
+.attendance-list{display:grid;gap:10px}
+.attendance-day{background:#fff;border:1px solid var(--line,#dce5f0);border-radius:16px;padding:14px 16px;display:grid;gap:9px}
+.attendance-day strong{font-size:14px}
+.setting-row:has(#installBtn),.add-child-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.setting-row #installBtn{min-height:44px}
+.inline-form{display:flex!important;grid:none!important;gap:8px;width:100%}
+.inline-form input{flex:1;min-width:0;min-height:44px;border:1px solid var(--line,#dce5f0);border-radius:12px;padding:0 12px;background:#fbfcfe}
+.inline-form button{min-height:44px;white-space:nowrap}
+.setting-help{margin:4px 0 10px;font-size:12px;line-height:1.6;color:#40546a}
+#codeForm .primary-button{min-height:52px;border-radius:13px;background:var(--km-accent,#167d79)!important;color:#fff!important;font-size:16px;font-weight:800}

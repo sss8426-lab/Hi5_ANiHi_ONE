@@ -207,13 +207,52 @@
 
   function guardians() {
     const root=$('kkGuardianOperations'); if(!root||!state.student||!manager())return;
-    const rows=state.guardians.map((item)=>`<article class="kk-guardian-row"><div><strong>${escapeHtml(item.displayName)}</strong><small>${escapeHtml(item.loginId)} · ${escapeHtml(item.relationshipLabel||'관계 미지정')} · ${item.status==='active'?'활성':'중지'}</small></div><div><button data-reset="${escapeHtml(item.id)}" type="button">비밀번호 재설정</button><button data-revoke="${escapeHtml(item.id)}" type="button">세션 종료</button>${item.status==='active'?`<button data-disable="${escapeHtml(item.id)}" type="button">중지</button>`:''}<button data-unlink="${escapeHtml(item.id)}" type="button">연결 해제</button></div></article>`).join('')||'<div class="kk-empty"><strong>연결된 보호자가 없습니다.</strong><p>실제 보호자 정보를 입력할 때만 연결을 만드세요.</p></div>';
-    root.innerHTML=`<div class="kk-operation-head"><div><strong>${escapeHtml(state.student.name)} 보호자 연결</strong><small>원장·최고관리자만 관리할 수 있습니다.</small></div><button id="kkAddGuardian" type="button">보호자 연결</button></div>${rows}<p data-feedback class="kk-inline-feedback"></p>`;
+    const rows=state.guardians.map((item)=>`<article class="kk-guardian-row"><div><strong>${escapeHtml(item.displayName)}</strong><small>${escapeHtml(item.loginId||'인증키로 연결')} · ${escapeHtml(item.relationshipLabel||'관계 미지정')} · ${item.status==='active'?'활성':'중지'}</small></div><div>${item.loginId?`<button data-reset="${escapeHtml(item.id)}" type="button">비밀번호 재설정</button>`:''}<button data-revoke="${escapeHtml(item.id)}" type="button">세션 종료</button>${item.status==='active'?`<button data-disable="${escapeHtml(item.id)}" type="button">중지</button>`:''}<button data-unlink="${escapeHtml(item.id)}" type="button">연결 해제</button></div></article>`).join('')||'<div class="kk-empty"><strong>연결된 보호자가 없습니다.</strong><p>실제 보호자 정보를 입력할 때만 연결을 만드세요.</p></div>';
+    root.innerHTML=`<div class="kk-operation-head"><div><strong>${escapeHtml(state.student.name)} 보호자 연결</strong><small>원장·최고관리자만 관리할 수 있습니다.</small></div><button id="kkAddGuardian" type="button">아이디로 연결</button></div><div id="kkInviteBox" class="kk-invite" aria-live="polite">인증키 상태를 확인하는 중...</div>${rows}<p data-feedback class="kk-inline-feedback"></p>`;
+    void inviteStatus();
     root.querySelectorAll('[data-reset], [data-revoke], [data-disable]').forEach(button=>{
       const id = button.dataset.reset || button.dataset.revoke || button.dataset.disable;
       button.hidden = state.guardians.find(g=>g.id===id)?.canManageAccount === false;
     });
     $('kkAddGuardian').onclick=addGuardian; root.querySelectorAll('[data-reset]').forEach((button)=>button.onclick=()=>resetGuardian(button.dataset.reset));root.querySelectorAll('[data-revoke]').forEach((button)=>button.onclick=()=>revokeGuardian(button.dataset.revoke));root.querySelectorAll('[data-disable]').forEach((button)=>button.onclick=()=>disableGuardian(button.dataset.disable));root.querySelectorAll('[data-unlink]').forEach((button)=>button.onclick=()=>unlinkGuardian(button.dataset.unlink));
+  }
+  // 인증키: parents type it once in the 꿈이음 app (or open the shared link); only shown right after issuing.
+  const kstDay = (iso) => iso ? new Date(new Date(iso).getTime()+9*3600_000).toISOString().slice(0,10) : '';
+  async function inviteStatus(){
+    const box=$('kkInviteBox'), sid=state.student?.id; if(!box||!sid)return;
+    try{
+      const s=await api(`/api/kkumeum/students/${encodeURIComponent(sid)}/invite-code?campusId=${encodeURIComponent(campusId())}`);
+      if(state.student?.id!==sid)return;
+      box.innerHTML=`<div class="kk-invite-head"><div><strong>인증키</strong><small>${s.active?`${escapeHtml(kstDay(s.createdAt))} 발급 · 이 인증키로 ${s.redeemedCount}번 연결 · 연결된 보호자 ${s.connectedGuardians}명`:'아직 발급하지 않았습니다. 발급해서 보호자에게 보내면 앱에서 바로 연결됩니다.'}</small></div><div><button type="button" data-invite-issue>${s.active?'새로 발급':'인증키 발급'}</button>${s.active?'<button type="button" data-invite-stop>사용 중지</button>':''}</div></div><div data-invite-result></div>`;
+      box.querySelector('[data-invite-issue]').onclick=()=>issueInvite(s.active);
+      const stop=box.querySelector('[data-invite-stop]'); if(stop) stop.onclick=stopInvite;
+    }catch(error){box.textContent=error.message||'인증키 상태를 확인하지 못했습니다.';}
+  }
+  async function issueInvite(active){
+    if(active&&!window.confirm('새로 발급하면 이전 인증키로는 더 이상 연결할 수 없습니다. 이미 연결된 보호자는 그대로 유지됩니다. 새로 발급할까요?'))return;
+    const sid=state.student.id;
+    const r=await api(`/api/kkumeum/students/${encodeURIComponent(sid)}/invite-code`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({campusId:campusId()})});
+    await inviteStatus(); if(state.student?.id!==sid)return;
+    const link=`${location.origin}/family/#code=${encodeURIComponent(r.code)}`;
+    const message=`[꿈이음 안내]
+${r.studentName} 학생의 등·하원 알림, 수업 소식, 작품과 성장기록을 꿈이음 앱에서 받아보실 수 있습니다.
+
+1) 아래 주소를 눌러 꿈이음을 열어 주세요.
+${link}
+2) 인증키 ${r.code} 가 입력된 상태에서 '시작하기'를 누르세요.
+3) 홈 화면에 추가하고 알림을 켜 두시면 등·하원 알림을 바로 받으실 수 있습니다.
+
+가족 모두 같은 인증키로 연결하실 수 있습니다.`;
+    const out=$('kkInviteBox')?.querySelector('[data-invite-result]'); if(!out)return;
+    out.innerHTML=`<p class="kk-invite-code" aria-label="인증키">${escapeHtml(r.code)}</p><p class="kk-invite-note">이 화면을 닫으면 인증키를 다시 볼 수 없습니다. 필요하면 새로 발급하세요.</p><textarea readonly rows="9" aria-label="보호자에게 보낼 안내문">${escapeHtml(message)}</textarea><div class="kk-invite-actions"><button type="button" data-copy-code>인증키 복사</button><button type="button" data-copy-message>안내문 복사</button></div>`;
+    const copy=async(text,label)=>{try{await navigator.clipboard.writeText(text);note('kkGuardianOperations',`${label}를 복사했습니다. 문자나 카카오톡에 붙여 넣어 보내세요.`);}catch{note('kkGuardianOperations','복사하지 못했습니다. 글자를 길게 눌러 직접 복사해 주세요.');}};
+    out.querySelector('[data-copy-code]').onclick=()=>copy(r.code,'인증키');
+    out.querySelector('[data-copy-message]').onclick=()=>copy(message,'안내문');
+  }
+  async function stopInvite(){
+    if(!window.confirm('인증키 사용을 중지할까요? 이미 연결된 보호자는 그대로 유지됩니다.'))return;
+    await api(`/api/kkumeum/students/${encodeURIComponent(state.student.id)}/invite-code`,{method:'DELETE',headers:{'content-type':'application/json'},body:JSON.stringify({campusId:campusId()})});
+    await inviteStatus();
   }
   function addGuardian(){dialog('보호자 연결','<label><span>보호자 표시 이름</span><input name="displayName" required maxlength="100"></label><label><span>로그인 ID</span><input name="loginId" required pattern="[a-z0-9._-]{3,120}" maxlength="120"></label><label><span>관계</span><input name="relationshipLabel" maxlength="80" placeholder="예: 부모"></label><label><span><input type="checkbox" name="canViewReports" checked> 평가 열람 허용</span></label><label><span><input type="checkbox" name="canViewPhotos" checked> 작품 열람 허용</span></label>',async(form)=>{const result=await api('/api/kkumeum/guardians',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({campusId:campusId(),studentId:state.student.id,displayName:form.get('displayName'),loginId:form.get('loginId'),relationshipLabel:form.get('relationshipLabel'),canViewReports:form.get('canViewReports')==='on',canViewPhotos:form.get('canViewPhotos')==='on'})});await load(state.student.id);note('kkGuardianOperations',`임시 비밀번호: ${result.temporaryPassword} (새로고침하면 다시 표시되지 않습니다.)`);});}
   async function resetGuardian(id){if(!id||!window.confirm('비밀번호를 재설정할까요? 기존 세션은 종료됩니다.'))return;const result=await api(`/api/kkumeum/guardians/${encodeURIComponent(id)}/reset-password`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({campusId:campusId(),studentId:state.student.id})});note('kkGuardianOperations',`임시 비밀번호: ${result.temporaryPassword} (새로고침하면 다시 표시되지 않습니다.)`);}

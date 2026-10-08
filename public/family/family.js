@@ -7,6 +7,8 @@ const state = {
   activeTab: 'home',
   pushStatus: null,
   currentPushSubscription: null,
+  attendance: { month: '', today: '', events: [] },
+  pendingOpen: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -61,9 +63,10 @@ function clearPrivateUi() {
   state.selectedChildId = '';
   state.reports = [];
   state.artworks = [];
+  state.attendance = { month: '', today: '', events: [] };
   state.pushStatus = null;
   state.currentPushSubscription = null;
-  ['reportList', 'artworkGallery', 'latestReport', 'latestArtworks'].forEach((id) => {
+  ['reportList', 'artworkGallery', 'latestReport', 'latestArtworks', 'attendanceToday', 'attendanceList'].forEach((id) => {
     const node = $(id);
     if (node) node.replaceChildren();
   });
@@ -341,6 +344,74 @@ function renderCurrentChild() {
   else recent.append(emptyInline('아직 확인 가능한 작품이 없습니다.'));
 }
 
+// 출결: today's chips on 홈 and a month list on the 출결 기록 panel.
+const kstToday = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+const kstMonth = () => kstToday().slice(0, 7);
+function attendanceChip(event) {
+  const chip = document.createElement('span');
+  chip.className = `attendance-chip attendance-${event.status}`;
+  chip.textContent = event.status === 'absent' ? event.label : `${event.label} ${event.time}`;
+  if (event.message) chip.title = event.message;
+  return chip;
+}
+function attendanceNote(event) {
+  const p = document.createElement('p');
+  p.className = 'attendance-note';
+  p.textContent = `${event.label} · ${event.message}`;
+  return p;
+}
+function renderAttendance() {
+  const { events, today, month } = state.attendance;
+  const todayBox = $('attendanceToday');
+  if (todayBox) {
+    todayBox.replaceChildren();
+    const todays = events.filter((event) => event.date === (today || kstToday()));
+    if (todays.length) todays.forEach((event) => todayBox.append(attendanceChip(event)));
+    else todayBox.append(emptyInline('오늘은 아직 출결 기록이 없습니다.'));
+    todays.filter((event) => event.message).forEach((event) => todayBox.append(attendanceNote(event)));
+  }
+  const label = $('attendanceMonthLabel');
+  if (label && month) { const [y, m] = month.split('-').map(Number); label.textContent = `${y}년 ${m}월`; }
+  if ($('attendanceNext')) $('attendanceNext').disabled = !month || month >= kstMonth();
+  const list = $('attendanceList');
+  if (!list) return;
+  list.replaceChildren();
+  const days = new Map();
+  events.forEach((event) => { if (!days.has(event.date)) days.set(event.date, []); days.get(event.date).push(event); });
+  if (!days.size) { list.append(emptyInline('이 달에는 출결 기록이 없습니다.')); return; }
+  [...days.entries()].sort((a, b) => b[0].localeCompare(a[0])).forEach(([date, items]) => {
+    const row = document.createElement('article');
+    row.className = 'attendance-day';
+    const [y, m, d] = date.split('-').map(Number);
+    const title = document.createElement('strong');
+    title.textContent = `${m}월 ${d}일 (${'일월화수목금토'[new Date(y, m - 1, d).getDay()]})`;
+    const chips = document.createElement('div');
+    chips.className = 'attendance-chips';
+    items.forEach((event) => chips.append(attendanceChip(event)));
+    row.append(title, chips);
+    items.filter((event) => event.message).forEach((event) => row.append(attendanceNote(event)));
+    list.append(row);
+  });
+}
+async function loadAttendance(studentId, month = kstMonth()) {
+  state.attendance = { month, today: kstToday(), events: [] };
+  renderAttendance();
+  try {
+    const result = await api(`/api/family/children/${encodeURIComponent(studentId)}/attendance?month=${encodeURIComponent(month)}`);
+    if (state.selectedChildId !== studentId || state.attendance.month !== month) return;
+    state.attendance = { month: result.month, today: result.today, events: Array.isArray(result.events) ? result.events : [] };
+    renderAttendance();
+  } catch (error) {
+    if (state.selectedChildId === studentId) genericAccessMessage(error);
+  }
+}
+function shiftAttendanceMonth(delta) {
+  const [y, m] = (state.attendance.month || kstMonth()).split('-').map(Number);
+  const next = new Date(Date.UTC(y, m - 1 + delta, 1)).toISOString().slice(0, 7);
+  if (next > kstMonth() || !state.selectedChildId) return;
+  void loadAttendance(state.selectedChildId, next);
+}
+
 async function loadChildFeed(studentId) {
   const request = ++childFeedRequest;
   window.DataCoreImageGallery.close('family-artworks');
@@ -380,9 +451,14 @@ async function enterFamily(session) {
       $('latestArtworks').replaceChildren(emptyInline('연결된 자녀가 없습니다.'));
       return;
     }
-    state.selectedChildId = state.children[0].studentId;
+    const wanted = state.pendingOpen?.studentId;
+    state.selectedChildId = state.children.some((child) => child.studentId === wanted) ? wanted : state.children[0].studentId;
     renderChildSelector();
-    await loadChildFeed(state.selectedChildId);
+    if (state.pendingOpen?.tab) switchTab(state.pendingOpen.tab);
+    state.pendingOpen = null;
+    const feed = loadChildFeed(state.selectedChildId);
+    void loadAttendance(state.selectedChildId);
+    await feed;
   } catch (error) {
     genericAccessMessage(error);
   }
@@ -461,13 +537,85 @@ $('passwordForm').addEventListener('submit', async (event) => {
   }
 });
 
-$('childSelect').addEventListener('change', (event) => loadChildFeed(event.target.value));
+$('childSelect').addEventListener('change', (event) => { void loadChildFeed(event.target.value); void loadAttendance(event.target.value); });
 $('retryBtn').addEventListener('click', checkSession);
 $('logoutBtn').addEventListener('click', logout);
 $('logoutTopBtn').addEventListener('click', logout);
 $('pushToggleBtn').addEventListener('click', () => togglePush().catch((error) => setPushMessage(error?.status === 503 ? '알림 발송 설정을 준비하고 있습니다.' : '알림 설정을 완료하지 못했습니다.')));
 document.querySelectorAll('[data-tab]').forEach((button) => button.addEventListener('click', () => switchTab(button.dataset.tab)));
 document.querySelectorAll('[data-go-tab]').forEach((button) => button.addEventListener('click', () => switchTab(button.dataset.goTab)));
+
+// 인증키로 시작하기 / 자녀 추가. A shared link carries the code in the #fragment, which never reaches the server.
+async function redeemCode(code, relationship) {
+  return api('/api/family/auth/code', { method: 'POST', body: JSON.stringify({ code, relationship }) });
+}
+function codeErrorMessage(error) {
+  if (error?.status === 429) return '인증키를 여러 번 잘못 입력했습니다. 15분 뒤에 다시 시도해 주세요.';
+  if (error?.status === 403) return error.message || '지금은 인증키로 시작할 수 없습니다. 학원에 문의해 주세요.';
+  return '인증키를 다시 확인해 주세요. 학원에서 받은 8자리입니다.';
+}
+$('codeForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  setFormMessage('codeMessage');
+  const button = event.currentTarget.querySelector('button[type=submit]');
+  button.disabled = true;
+  try {
+    await redeemCode($('inviteCode').value, $('inviteRelationship').value);
+    $('inviteCode').value = '';
+    await checkSession();
+  } catch (error) {
+    if (error?.status === 503) return unavailable(error);
+    setFormMessage('codeMessage', codeErrorMessage(error));
+  } finally { button.disabled = false; }
+});
+$('addChildForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const message = $('addChildMessage');
+  const show = (value) => { message.textContent = value; message.classList.toggle('hidden', !value); };
+  show('');
+  try {
+    const result = await redeemCode($('addChildCode').value, '보호자');
+    $('addChildCode').value = '';
+    state.pendingOpen = { studentId: result.studentId, tab: 'home' };
+    await enterFamily(state.session);
+    show(`${result.childName} 학생을 추가했습니다.`);
+  } catch (error) { show(codeErrorMessage(error)); }
+});
+function takeSharedLink() {
+  const code = new URLSearchParams(location.hash.slice(1)).get('code');
+  const openAttendance = new URLSearchParams(location.search).get('openAttendance');
+  if (openAttendance) state.pendingOpen = { studentId: openAttendance, tab: 'attendance' };
+  if (code || openAttendance) history.replaceState(null, '', '/family/');
+  if (code) { $('inviteCode').value = code.slice(0, 9); $('addChildCode').value = code.slice(0, 9); }
+}
+$('attendanceMonthBtn').addEventListener('click', () => switchTab('attendance'));
+$('attendancePrev').addEventListener('click', () => shiftAttendanceMonth(-1));
+$('attendanceNext').addEventListener('click', () => shiftAttendanceMonth(1));
+
+// 앱 설치: Android/Chrome shows its install sheet; iPhone uses Safari's share menu.
+let installPrompt = null;
+const standalone = () => window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIos = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+function renderInstall() {
+  const status = $('installStatus');
+  const button = $('installBtn');
+  if (!status || !button) return;
+  if (standalone()) { status.textContent = '이 기기에 설치되어 있습니다.'; button.hidden = true; return; }
+  button.hidden = false;
+  status.textContent = installPrompt ? '버튼을 누르면 홈 화면에 꿈이음이 추가됩니다.' : isIos() ? 'Safari 아래쪽 공유 버튼에서 [홈 화면에 추가]를 누르세요.' : '브라우저 메뉴에서 [앱 설치] 또는 [홈 화면에 추가]를 누르세요.';
+}
+window.addEventListener('beforeinstallprompt', (event) => { event.preventDefault(); installPrompt = event; renderInstall(); });
+window.addEventListener('appinstalled', () => { installPrompt = null; renderInstall(); });
+$('installBtn').addEventListener('click', async () => {
+  const help = $('installHelp');
+  if (installPrompt) { installPrompt.prompt(); await installPrompt.userChoice.catch(() => null); installPrompt = null; renderInstall(); return; }
+  help.textContent = isIos()
+    ? 'iPhone: Safari에서 꿈이음을 연 뒤 아래쪽 공유 버튼(□↑)을 누르고 [홈 화면에 추가]를 선택하세요. 홈 화면의 꿈이음을 열어 알림을 켜면 등·하원 알림을 받을 수 있습니다.'
+    : 'Android: Chrome 오른쪽 위 메뉴(⋮)에서 [앱 설치] 또는 [홈 화면에 추가]를 누르세요.';
+  help.classList.remove('hidden');
+});
+renderInstall();
+takeSharedLink();
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

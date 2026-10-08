@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'kkumeum-family-shell-';
-const CACHE_NAME = `${CACHE_PREFIX}v7`;
+const CACHE_NAME = `${CACHE_PREFIX}v8`;
 const STATIC_SHELL = [
   '/family/',
   '/family/index.html',
@@ -7,6 +7,7 @@ const STATIC_SHELL = [
   '/family/family-news.css',
   '/family/family-theme.css',
   '/family/family-mobile.css',
+  '/family/family-connect.css',
   '/family/family-mobile.js',
   '/family/kkumeum-mobile.css',
   '/data-core/assets/core-icons.svg',
@@ -18,6 +19,8 @@ const STATIC_SHELL = [
   '/family/family-news.js',
   '/family/manifest.webmanifest',
   '/family/icon.svg',
+  '/family/icon-192.png',
+  '/family/apple-touch-icon.png',
 ];
 
 self.addEventListener('install', (event) => {
@@ -66,11 +69,25 @@ self.addEventListener('fetch', (event) => {
 
 self.addEventListener('push', (event) => {
   let noticeId = '';
+  let payload = {};
   try {
-    const payload = event.data ? event.data.json() : {};
+    payload = event.data ? event.data.json() : {};
     noticeId = String(payload?.noticeId || '').slice(0, 160);
   } catch {
     // Keep the notification generic when a provider payload is malformed.
+  }
+  // 등·하원 알림 say what happened (like a text message from the academy); notices stay generic.
+  if (payload?.kind === 'attendance') {
+    const studentId = String(payload.studentId || '').slice(0, 160);
+    const route = String(payload.route || '');
+    event.waitUntil(self.registration.showNotification(String(payload.title || '꿈이음').slice(0, 60), {
+      body: String(payload.body || '출결 알림이 도착했습니다.').slice(0, 300),
+      tag: `kkumeum-attendance-${studentId || 'latest'}`,
+      renotify: true,
+      icon: '/family/icon-192.png',
+      data: { route: route.startsWith('/family/') ? route : '/family/' },
+    }));
+    return;
   }
   const route = noticeId ? `/family/?openNotice=${encodeURIComponent(noticeId)}` : '/family/';
   event.waitUntil(self.registration.showNotification('꿈이음', {

@@ -411,7 +411,7 @@ async function encryptPushPayload(p256dh: string, auth: string, payload: Record<
   return body;
 }
 
-async function sendPush(subscription: StoredSubscription, settings: PushConfig, announcementId: string): Promise<PushDeliveryResult> {
+async function sendPush(subscription: StoredSubscription, settings: PushConfig, payload: Record<string, string>): Promise<PushDeliveryResult> {
   if (!settings.providerConfigured || !settings.encryptionKey || !settings.encryptionKeyId || !settings.privateJwk || !settings.subject || !settings.publicKey) {
     return { sent: false, errorCode: settings.code || "push_not_configured", legacyKeyVerified: false, usedSubscription: false };
   }
@@ -438,7 +438,7 @@ async function sendPush(subscription: StoredSubscription, settings: PushConfig, 
     const response = await fetch(endpoint, {
       method: "POST",
       headers: { Authorization: `vapid t=${await vapidToken(settings.privateJwk, settings.subject, new URL(endpoint).origin)}, k=${settings.publicKey}`, "Content-Encoding": "aes128gcm", "Content-Type": "application/octet-stream", TTL: "300", Urgency: "normal" },
-      body: bytesBuffer(await encryptPushPayload(p256dh, auth, { title: "꿈이음", body: "꿈이음 새 소식이 도착했습니다.", noticeId: announcementId, route: `/family/?openNotice=${encodeURIComponent(announcementId)}` })),
+      body: bytesBuffer(await encryptPushPayload(p256dh, auth, payload)),
     });
     if (response.ok) {
       return { sent: true, errorCode: null, legacyKeyVerified: !subscription.encryption_key_id, usedSubscription: true };
@@ -454,6 +454,10 @@ async function sendPush(subscription: StoredSubscription, settings: PushConfig, 
   }
 }
 
+function noticePayload(announcementId: string): Record<string, string> {
+  return { title: "꿈이음", body: "꿈이음 새 소식이 도착했습니다.", noticeId: announcementId, route: `/family/?openNotice=${encodeURIComponent(announcementId)}` };
+}
+
 async function recordDelivery(familyDb: D1Database, announcementId: string, subscription: StoredSubscription, result: PushDeliveryResult, encryptionKeyIdValue: string | null) {
   const now = new Date().toISOString();
   await familyDb.prepare(`INSERT INTO push_delivery_attempts (
@@ -462,6 +466,11 @@ async function recordDelivery(familyDb: D1Database, announcementId: string, subs
   ON CONFLICT(announcement_id, subscription_id) DO UPDATE SET status = excluded.status, error_code = excluded.error_code, attempted_at = excluded.attempted_at`).bind(
     crypto.randomUUID(), announcementId, subscription.id, subscription.guardian_id, result.sent ? "sent" : "failed", result.errorCode, now,
   ).run();
+  await touchSubscription(familyDb, subscription, result, encryptionKeyIdValue);
+}
+
+async function touchSubscription(familyDb: D1Database, subscription: StoredSubscription, result: PushDeliveryResult, encryptionKeyIdValue: string | null) {
+  const now = new Date().toISOString();
   if (result.errorCode === "subscription_gone") {
     await familyDb.prepare("UPDATE push_subscriptions SET active = 0, revoked_at = ?, updated_at = ? WHERE id = ?").bind(now, now, subscription.id).run();
   } else if (result.usedSubscription) {
@@ -483,8 +492,34 @@ export async function dispatchGuardianAnnouncementPush(familyDb: D1Database, env
     let sent = 0; let failed = 0;
     for (const subscription of subscriptions.results || []) {
       if (!(await guardianCanViewPublishedAnnouncement(familyDb, announcementId, subscription.guardian_id))) continue;
-      const result = await sendPush(subscription, settings, announcementId);
+      const result = await sendPush(subscription, settings, noticePayload(announcementId));
       await recordDelivery(familyDb, announcementId, subscription, result, settings.encryptionKeyId);
+      if (result.sent) sent += 1; else failed += 1;
+    }
+    return { sent, failed, code: settings.code || (settings.providerConfigured ? null : "push_not_configured") };
+  } catch { return { sent: 0, failed: 0, code: "push_delivery_unavailable" }; }
+}
+
+// Direct alerts (등원·하원 etc.) go to the given guardians' active devices. Like announcement pushes, the action
+// that triggered them is already saved, so this never throws into that response.
+export async function dispatchGuardianDirectPush(
+  familyDb: D1Database,
+  env: KkumeumPushEnv,
+  guardianIds: string[],
+  payload: Record<string, string>,
+): Promise<{ sent: number; failed: number; code: string | null }> {
+  try {
+    const ids = [...new Set(guardianIds)].slice(0, 200);
+    if (!ids.length) return { sent: 0, failed: 0, code: null };
+    await ensureKkumeumPushSchema(familyDb);
+    const subscriptions = await familyDb.prepare(`SELECT ps.id, ps.guardian_id, ps.endpoint_encrypted, ps.p256dh_encrypted, ps.auth_encrypted, ps.encryption_key_id
+      FROM push_subscriptions ps INNER JOIN family_guardians g ON g.id = ps.guardian_id
+      WHERE ps.active = 1 AND ps.revoked_at IS NULL AND g.status = 'active' AND ps.guardian_id IN (${ids.map(() => "?").join(",")})`).bind(...ids).all<StoredSubscription>();
+    const settings = await config(env);
+    let sent = 0; let failed = 0;
+    for (const subscription of subscriptions.results || []) {
+      const result = await sendPush(subscription, settings, payload);
+      await touchSubscription(familyDb, subscription, result, settings.encryptionKeyId);
       if (result.sent) sent += 1; else failed += 1;
     }
     return { sent, failed, code: settings.code || (settings.providerConfigured ? null : "push_not_configured") };
