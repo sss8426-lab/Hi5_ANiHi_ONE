@@ -14,12 +14,14 @@
     "test:gui": "node node_modules/electron/install.js && node test/gui-check.mjs"
   },
   "dependencies": {
-    "sharp": "0.35.4",
+    "sharp": "0.35.5",
     "wrangler": "4.131.1",
     "lucide": "0.577.0"
   },
   "overrides": {
-    "undici": "7.30.0"
+    "undici": "7.30.0",
+    "sharp": "0.35.5",
+    "http-cache-semantics": "4.3.0"
   },
   "devDependencies": {
     "electron": "44.3.0",
