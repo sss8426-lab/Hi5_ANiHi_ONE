@@ -81,6 +81,11 @@
         const day=event.target.closest('[data-calendar-cell]');
         if(day){state.calendarSelectedDate=day.dataset.calendarCell;render();home.querySelector(`[data-calendar-date="${state.calendarSelectedDate}"]`)?.focus({preventScroll:true});}
       });
+      // Double-click (or double-tap) a day to write an event that starts on that day.
+      home.addEventListener('dblclick',event=>{
+        const day=event.target.closest('[data-calendar-cell]');if(!day||!canWrite())return;
+        event.preventDefault();state.calendarSelectedDate=day.dataset.calendarCell;render();openEditor();
+      });
       const search=home.querySelector('[data-calendar-search]');let composing=false;
       const change=()=>{if(composing)return;ui.q=search.value.trim();syncTools(search);clearTimeout(ui.timer);ui.timer=setTimeout(()=>load(),180);};
       search.addEventListener('compositionstart',()=>{composing=true;clearTimeout(ui.timer);});
@@ -162,7 +167,7 @@
         if(lane<0){for(let c=seg.c1;c<=seg.c2;c++)hidden[c]++;continue;}
         for(let c=seg.c1;c<=seg.c2;c++)lanes[lane][c]=true;placed.push({...seg,lane});
       }
-      const cells=week.map((date,i)=>{const outside=date<from||date>to;return `<div class="calendar-day${outside?' outside':''}${date===today?' today':''}${date===state.calendarSelectedDate?' selected':''}" data-calendar-cell="${date}" style="grid-column:${i+1}">
+      const cells=week.map((date,i)=>{const outside=date<from||date>to;return `<div class="calendar-day${outside?' outside':''}${date===today?' today':''}${date===state.calendarSelectedDate?' selected':''}" data-calendar-cell="${date}" style="grid-column:${i+1}"${canWrite()?' title="두 번 누르면 이 날 일정을 씁니다"':''}>
         <button class="calendar-date${outside?' outside':''}" type="button" data-calendar-date="${date}" aria-pressed="${date===state.calendarSelectedDate}" aria-label="${date} 일정 보기">${Number(date.slice(-2))}${date===today?'<span class="calendar-today-label">오늘</span>':''}</button></div>`;}).join('');
       const bars=placed.map(({e,c1,c2,contL,contR,lane})=>{
         const multi=c2>c1||contL||contR,place=`grid-column:${c1+1}/${c2+2};grid-row:${lane+2}`;
