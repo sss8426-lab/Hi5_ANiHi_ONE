@@ -6,9 +6,10 @@
   const h = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const icon = name => `<svg class="lb-icon" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#${name}"></use></svg>`;
   const href = id => `/data-core/work/library${id === 'root' ? '' : `?folder=${encodeURIComponent(id)}`}`;
-  const state = { folder: null, folders: [], files: [], recent: [], recentCount: 0, breadcrumbs: [], controller: null, generation: 0, queue: null, pending: null };
+  const state = { folder: null, folders: [], files: [], recent: [], recentCount: 0, picked: new Set(), breadcrumbs: [], controller: null, generation: 0, queue: null, pending: null };
+  let recentScope = 'campus'; try { recentScope = localStorage.getItem('library-recent-scope') === 'all' ? 'all' : 'campus'; } catch { /* Storage may be disabled. */ }
   let enhancements;
-  const sheet = document.createElement('link'); sheet.rel = 'stylesheet'; sheet.href = '/data-core/work/library-browser.css?v=20260928-library-names'; document.head.append(sheet);
+  const sheet = document.createElement('link'); sheet.rel = 'stylesheet'; sheet.href = '/data-core/work/library-browser.css?v=20261009-tree'; document.head.append(sheet);
   let imageCache=null, observer=null, recentObserver=null, imageGeneration=0;
   function clearImages() {
     window.DataCoreImageGallery.close('library');
@@ -41,7 +42,6 @@
   }
   function loadNearbyImages() {
     if('IntersectionObserver' in window)return;
-    if (!$('libraryRecent').hidden && $('libraryRecentEnd').getBoundingClientRect().top < innerHeight + 200) appendRecent();
     for(const img of host.querySelectorAll('.lb-thumbnail img:not([data-started])')){
       const rect=img.parentElement.getBoundingClientRect();
       if(rect.top<innerHeight+400&&rect.bottom>-400){img.dataset.started='true';void showImage(img,imageGeneration);}
@@ -53,8 +53,7 @@
   document.addEventListener('click',e=>{if(e.target.closest('#logoutBtn'))clearImages();},true);
   host.innerHTML = `<nav id="libraryBreadcrumb" aria-label="자료보관함 경로"></nav>
     <header class="lb-heading"><div><h2 id="libraryTitle" tabindex="-1">자료보관함</h2><small id="libraryPermission"></small></div>
-    <div class="lb-toolbar"><a id="libraryUp" class="lb-button" hidden>${icon('ArrowLeft')}상위 폴더</a>
-      <span id="libraryUsage" class="lb-usage" hidden></span>
+    <div class="lb-toolbar">
       <button id="libraryNew" class="lb-button" hidden>${icon('Folder')}새 폴더</button>
       <button id="libraryUpload" class="lb-button lb-primary" hidden>${icon('Image')}파일 업로드</button>
       <button id="libraryDeleteFolder" class="lb-button lb-danger" hidden>폴더 삭제</button>
@@ -63,12 +62,20 @@
       <button id="libraryRestoreFolder" class="lb-button" hidden>${icon('RotateCcw')}폴더 복원</button>
       <button id="libraryRefresh" class="lb-button lb-square" aria-label="새로고침" title="새로고침">${icon('RotateCcw')}</button>
     </div></header>
+    <div class="lb-layout">
+    <aside id="libraryTree" class="lb-tree" aria-label="폴더 목록"><h3>폴더</h3><ul data-tree></ul><div class="lb-tree-foot"><span id="libraryUsage" class="lb-usage" hidden></span></div></aside>
+    <div class="lb-main">
     <form id="librarySearch" class="lb-search"><label for="libraryQuery">현재 폴더 검색</label><input id="libraryQuery" type="search" maxlength="120"><button class="lb-button" type="submit">검색</button></form>
     <p id="libraryStatus" role="status"></p><div id="libraryContents" aria-busy="false"><div id="libraryFolders"></div><div id="libraryFiles"></div></div>
     <nav id="libraryPages" class="lb-toolbar" aria-label="파일 페이지"></nav>
-    <section id="libraryRecent" class="lb-recent" hidden><h3>최근 업로드 파일</h3>
-      <ul id="libraryRecentList" class="lb-recent-list"></ul>
-      <p id="libraryRecentEmpty" hidden>최근 업로드된 파일이 없습니다.</p><p id="libraryRecentEnd" role="status"></p></section>
+    </div>
+    <aside id="libraryRecent" class="lb-recent" aria-labelledby="libraryRecentTitle" hidden>
+      <header class="lb-recent-head"><h3 id="libraryRecentTitle">최근 올린 파일</h3><div class="lb-recent-scope" role="group" aria-label="최근 파일 범위"><button type="button" data-recent-scope="campus">이 캠퍼스</button><button type="button" data-recent-scope="all">전체</button></div></header>
+      <div id="libraryRecentPick" class="lb-recent-pick" hidden><span></span><button type="button" class="lb-primary" data-recent-download-picked>${icon('Download')}선택한 파일 받기</button><button type="button" data-recent-clear>선택 해제</button></div>
+      <p id="libraryRecentStatus" role="status"></p>
+      <div id="libraryRecentList" class="lb-recent-list"></div>
+      <p id="libraryRecentEmpty" hidden>최근 올린 파일이 없습니다.</p><p id="libraryRecentEnd"></p></aside>
+    </div>
     <input id="libraryFileInput" type="file" multiple hidden>
     <dialog id="libraryArchivedDialog" aria-labelledby="libraryArchivedTitle"><h3 id="libraryArchivedTitle">삭제한 기본 폴더</h3><div id="libraryArchivedList"></div><p id="libraryArchivedError" role="alert"></p><button type="button" data-lb-close>닫기</button></dialog>
     <dialog id="libraryFolderDialog" aria-labelledby="libraryFolderTitle"><form id="libraryFolderForm"><h3 id="libraryFolderTitle">새 폴더</h3>
@@ -112,7 +119,6 @@
   }
   function size(bytes) { return bytes < 1024 ? `${bytes} B` : bytes < 1048576 ? `${(bytes/1024).toFixed(1)} KB` : bytes < 1073741824 ? `${(bytes/1048576).toFixed(1)} MB` : `${(bytes/1073741824).toFixed(2)} GB`; }
   const opaquePreview = fileName => /\.(ai|psd|psb|clip|eps|zip)$/i.test(fileName || '');
-  const previewable = file => !opaquePreview(file.fileName) && /^(image\/(jpeg|png|webp|gif|avif)|application\/pdf|text\/plain)$/.test(file.mimeType);
   const imageFile = file => !opaquePreview(file.fileName) && /^image\/(jpeg|png|webp|gif|avif)$/.test(file.mimeType);
   function renderFiles(files) {
     $('libraryFiles').innerHTML = files.length ? `<ul class="lb-file-list">${files.map(f => {
@@ -120,63 +126,83 @@
       const image = imageFile(f);
       const visual = image ? `<a class="lb-thumbnail" data-lb-image="${h(f.id)}" href="${h(f.previewUrl)}" target="_blank" rel="noopener" aria-label="${h(f.fileName)} 미리보기">${icon('Image')}<img hidden data-original="${h(f.previewUrl)}" data-thumbnail="${h(f.thumbnailUrl||'')}" alt="" width="112" height="84" loading="lazy" decoding="async"></a>` : icon('BookOpen');
       return `<li class="lb-file" data-library-file="${h(f.id)}"><div class="lb-file-main">${visual}
-        <div><strong>${window.DataCoreLibraryClient.nameMarkup(f.fileName)}</strong><small>${h(f.mimeType)} · ${h(size(f.sizeBytes))} · ${h(new Date(f.createdAt).toLocaleDateString('ko-KR'))}</small>
-        <small>${h(state.breadcrumbs.find(b=>b.id.startsWith('campus:'))?.title || '본원·조직 공통')} · ${h(f.ownerName || '')}</small></div></div>
+        <div><strong>${window.DataCoreLibraryClient.nameMarkup(f.fileName)}</strong><small>${h([new Date(f.createdAt).toLocaleDateString('ko-KR'),f.ownerName,size(f.sizeBytes)].filter(Boolean).join(' · '))}</small></div></div>
         <div class="lb-file-actions">${preview ? `<a class="lb-button" data-lb-preview="${h(f.id)}" href="${h(f.previewUrl)}" target="_blank" rel="noopener">미리보기</a>` : ''}
         <a class="lb-button" href="${h(f.downloadUrl)}" download>다운로드</a>${f.canMove ? `<button class="lb-button" data-lb-move="${h(f.id)}">이동</button>` : ''}${f.canDelete ? `<button class="lb-button lb-danger" data-lb-delete="${h(f.id)}">삭제</button>` : ''}</div></li>`;
     }).join('')}</ul>` : '';
     observeImages();
     enhancements?.render();
   }
-  function timeLabel(iso) {
-    const date = new Date(iso);
-    if (Number.isNaN(date.getTime())) return '';
-    const minutes = Math.floor((Date.now() - date.getTime()) / 60000);
-    if (minutes < 1) return '방금 전';
-    if (minutes < 60) return `${minutes}분 전`;
-    if (date.toDateString() === new Date().toDateString()) return `오늘 ${date.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',hour12:false})}`;
-    return date.toLocaleDateString('ko-KR');
+  const pad = n => String(n).padStart(2,'0');
+  function dayKey(iso) { const d=new Date(iso); return Number.isNaN(d.getTime())?'':`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+  function dayLabel(key) {
+    const today=new Date(), yesterday=new Date(today.getFullYear(),today.getMonth(),today.getDate()-1);
+    if(key===dayKey(today.toISOString()))return '오늘';
+    if(key===dayKey(yesterday.toISOString()))return '어제';
+    const [y,m,d]=key.split('-').map(Number), date=new Date(y,m-1,d);
+    return `${y===today.getFullYear()?'':y+'년 '}${m}월 ${d}일 (${'일월화수목금토'[date.getDay()]})`;
   }
-  function renderRecent(files) {
-    state.recent=files.slice(0,50);state.recentCount=0;
-    recentObserver?.disconnect();recentObserver=null;
+  // Long camera/KakaoTalk names keep their start and end so similar files stay distinguishable.
+  const shortName = name => { const s=String(name||''); return s.length>27?`${s.slice(0,14)}…${s.slice(-11)}`:s; };
+  function recentPlace(f,scope) {
+    const crumbs=(f.path||[]).filter(p=>p.id!=='root'), rest=crumbs.slice(1);
+    const parts=scope==='all'?[f.campusName||crumbs[0]?.title||'본원·조직 공통',rest.at(-1)?.title]:(rest.length?rest.slice(-2):crumbs.slice(-1)).map(p=>p.title);
+    return parts.filter(Boolean).join(' › ')||f.folderTitle||'';
+  }
+  function renderRecent(files,scope) {
+    state.recent=files.slice(0,50);state.recentCount=state.recent.length;state.picked.clear();
     $('libraryRecent').hidden = false;
-    $('libraryRecentEmpty').hidden = files.length > 0;
-    $('libraryRecentList').replaceChildren();appendRecent();
-    if ('IntersectionObserver' in window && state.recentCount < state.recent.length) {
-      recentObserver=new IntersectionObserver(entries=>{if(entries.some(e=>e.isIntersecting))appendRecent();},{rootMargin:'150px'});
-      recentObserver.observe($('libraryRecentEnd'));
-    }
-  }
-  function appendRecent() {
-    const batch=state.recent.slice(state.recentCount,state.recentCount+12);if(!batch.length)return;
-    state.recentCount+=batch.length;
-    $('libraryRecentList').insertAdjacentHTML('beforeend',batch.map(f=>{
-      const image=imageFile(f), open=previewable(f)?f.previewUrl:f.downloadUrl;
-      const visual=image?`<a class="lb-thumbnail" data-lb-image="${h(f.id)}" href="${h(open)}" aria-label="${h(f.fileName)} 미리보기">${icon('Image')}<img hidden alt="" width="112" height="84" loading="lazy" decoding="async" data-original="${h(f.previewUrl)}" data-thumbnail="${h(f.thumbnailUrl||'')}"></a>`:icon('BookOpen');
-      return `<li class="lb-recent-item" data-recent-file="${h(f.id)}"><div class="lb-file-main">${visual}<div class="lb-recent-text"><a href="${h(open)}" ${image?`data-lb-image="${h(f.id)}"`: 'target="_blank" rel="noopener"'}><strong>${h(f.fileName)}</strong></a><small>${h(f.campusName||'본원·조직 공통')} · <a href="${h(href(f.folderId))}" data-lb-folder="${h(f.folderId)}">${h(f.folderTitle)}</a></small><small>${h(timeLabel(f.createdAt))}</small></div></div><div class="lb-file-actions"><a class="lb-button" href="${h(f.downloadUrl)}" download>다운로드</a>${f.canMove?`<button data-lb-move="${h(f.id)}">이동</button>`:''}${f.canDelete?`<button data-lb-delete="${h(f.id)}">휴지통</button>`:''}</div></li>`;
-    }).join(''));
-    $('libraryRecentEnd').textContent=state.recentCount===50?'최근 업로드 50개를 모두 확인했습니다.':state.recentCount<state.recent.length?'불러오는 중…':'';
-    if(state.recentCount>=state.recent.length)recentObserver?.disconnect();
+    $('libraryRecentEmpty').hidden = files.length > 0;$('libraryRecentEmpty').textContent='최근 올린 파일이 없습니다.';
+    const groups=new Map();for(const f of state.recent){const k=dayKey(f.createdAt);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(f);}
+    $('libraryRecentList').innerHTML=[...groups].map(([key,rows])=>`<section class="lb-recent-group"><div class="lb-recent-day"><strong>${h(dayLabel(key))}</strong><button type="button" data-recent-day="${h(key)}" aria-label="${h(dayLabel(key))} 파일 ${rows.length}개 모두 받기">${rows.length}개 · 모두 받기</button></div>${rows.map(f=>{
+      const image=imageFile(f), time=new Date(f.createdAt), when=Number.isNaN(time.getTime())?'':`${pad(time.getHours())}:${pad(time.getMinutes())}`;
+      const visual=image?`<a class="lb-thumbnail" data-lb-preview="${h(f.id)}" href="${h(f.previewUrl)}" aria-label="${h(f.fileName)} 미리보기">${icon('Image')}<img hidden alt="" width="56" height="42" loading="lazy" decoding="async" data-original="${h(f.previewUrl)}" data-thumbnail="${h(f.thumbnailUrl||'')}"></a>`
+        :`<a class="lb-recent-doc" data-lb-preview="${h(f.id)}" href="${h(f.previewUrl)}" aria-label="${h(f.fileName)} 미리보기">${h((f.fileName.split('.').pop()||'').slice(0,4).toUpperCase())}</a>`;
+      return `<div class="lb-recent-row" data-recent-row="${h(f.id)}"><input type="checkbox" class="lb-pick" data-recent-pick="${h(f.id)}" aria-label="${h(f.fileName)} 선택">${visual}<div class="lb-recent-text"><a class="lb-recent-name" href="${h(f.previewUrl)}" data-lb-preview="${h(f.id)}" title="${h(f.fileName)}">${h(shortName(f.fileName))}</a><a class="lb-recent-folder" href="${h(href(f.folderId))}" data-lb-folder="${h(f.folderId)}" title="${h((f.path||[]).map(p=>p.title).join(' › '))}">${h(recentPlace(f,scope))}</a><small>${h([f.ownerName,when].filter(Boolean).join(' · '))}</small></div><a class="lb-recent-dl" href="${h(f.downloadUrl)}" download aria-label="${h(f.fileName)} 다운로드" title="다운로드">${icon('Download')}</a></div>`;
+    }).join('')}</section>`).join('');
+    $('libraryRecentEnd').textContent=state.recent.length>=50?'최근 올린 파일 50개까지 보여줍니다.':'';
+    syncPicked();
     observeImages();
-    enhancements?.render();
   }
   async function loadRecent(id, options) {
-    if (!(id === 'root' || id.startsWith('campus:'))) { $('libraryRecent').hidden = true; return; }
+    // Every folder shows the newest uploads of its own campus (or of all readable campuses) for quick downloads.
+    const campus=Boolean(state.folder?.campusId), scope=campus?recentScope:'all';
+    for(const b of host.querySelectorAll('[data-recent-scope]')){b.setAttribute('aria-pressed',String(b.dataset.recentScope===scope));b.hidden=!campus;}
     const generation=state.generation;
-    try { const result=await api(`/api/data-core/library/recent?folderId=${encodeURIComponent(id)}`, options);if(generation===state.generation)renderRecent(result.files); }
-    catch (e) { if (e.name !== 'AbortError' && generation===state.generation) {renderRecent([]);$('libraryRecentEmpty').textContent='최근 파일을 불러오지 못했습니다. 새로고침해주세요.';} }
+    $('libraryRecent').hidden=false;$('libraryRecentEnd').textContent='불러오는 중…';
+    try { const result=await api(`/api/data-core/library/recent?folderId=${encodeURIComponent(scope==='campus'?id:'root')}`, options);if(generation===state.generation)renderRecent(result.files,scope); }
+    catch (e) { if (e.name !== 'AbortError' && generation===state.generation) {renderRecent([],scope);$('libraryRecentEmpty').textContent='최근 파일을 불러오지 못했습니다. 새로고침해주세요.';} }
   }
+  let downloader=null;
+  async function downloadRecent(files,name) {
+    if(!files.length)return;
+    const status=$('libraryRecentStatus');status.textContent='';
+    try{downloader ||= await import('/data-core/work/library-download.js?v=20261009-tree');await downloader.downloadFiles(files,name,text=>{status.textContent=text;});}
+    catch(e){status.textContent=e.message||'파일을 받지 못했습니다.';}
+  }
+  function syncPicked() {
+    for(const box of host.querySelectorAll('[data-recent-pick]')){box.checked=state.picked.has(box.dataset.recentPick);box.closest('.lb-recent-row').classList.toggle('lb-picked',box.checked);}
+    $('libraryRecentPick').hidden=!state.picked.size;$('libraryRecentPick').querySelector('span').textContent=`${state.picked.size}개 선택`;
+  }
+  $('libraryRecent').addEventListener('change',e=>{const box=e.target.closest('[data-recent-pick]');if(!box)return;if(box.checked)state.picked.add(box.dataset.recentPick);else state.picked.delete(box.dataset.recentPick);syncPicked();});
+  $('libraryRecent').addEventListener('click',e=>{
+    const scope=e.target.closest('[data-recent-scope]');
+    if(scope){recentScope=scope.dataset.recentScope;try{localStorage.setItem('library-recent-scope',recentScope);}catch{/* Scope preference is optional. */}void loadRecent(state.folder?.id||'root',{});return;}
+    const day=e.target.closest('[data-recent-day]');
+    if(day){const files=state.recent.filter(f=>dayKey(f.createdAt)===day.dataset.recentDay);void downloadRecent(files,`최근 파일_${day.dataset.recentDay}`);return;}
+    if(e.target.closest('[data-recent-download-picked]')){void downloadRecent(state.recent.filter(f=>state.picked.has(f.id)),`최근 파일_${dayKey(new Date().toISOString())}`);return;}
+    if(e.target.closest('[data-recent-clear]')){state.picked.clear();syncPicked();}
+  });
   async function load(focus = false) {
     clearImages();
     if (!/\/data-core\/work\/library\/?$/.test(location.pathname)) return;
     const generation = ++state.generation, current = locationState();
     state.controller?.abort(); state.controller = new AbortController();
     state.folder = null; state.folders = []; state.files = [];state.recent=[];state.recentCount=0;
-    $('libraryUp').hidden = true; $('libraryPermission').textContent = '';
+    $('libraryPermission').textContent = '';
     $('libraryStatus').textContent = '불러오는 중…'; $('libraryContents').setAttribute('aria-busy','true');
     $('libraryFolders').replaceChildren(); $('libraryFiles').replaceChildren(); $('libraryPages').replaceChildren();
-    $('libraryRecent').hidden = true; $('libraryRecentList').replaceChildren();
+    $('libraryRecentList').replaceChildren(); $('libraryRecentEmpty').hidden = true; state.picked.clear(); syncPicked();
     for (const id of ['libraryNew','libraryUpload','libraryDeleteFolder','libraryRenameFolder','libraryArchived','libraryRestoreFolder']) $(id).hidden = true;
     $('libraryQuery').value = current.q;
     try {
@@ -190,7 +216,6 @@
       $('libraryTitle').textContent = presentation(view.folder).title;
       $('libraryPermission').textContent = view.folder.archived ? '삭제한 기본 폴더 · 원본 자료 보존 중' : view.folder.readOnly ? (view.folder.campusId?'다른 캠퍼스 자료 · 읽기 전용':'읽기·다운로드 가능') : '';
       $('libraryBreadcrumb').innerHTML = `<ol>${view.breadcrumbs.map((b,i) => `<li>${i === view.breadcrumbs.length-1 ? `<span aria-current="page">${h(presentation(b).title)}</span>` : `<a href="${h(href(b.id))}" data-lb-folder="${h(b.id)}">${h(presentation(b).title)}</a>`}</li>`).join('')}</ol>`;
-      $('libraryUp').hidden = !view.folder.parentId; $('libraryUp').href = href(view.folder.parentId || 'root'); $('libraryUp').dataset.lbFolder = view.folder.parentId || 'root';
       $('libraryNew').hidden = !view.folder.canWrite;
       $('libraryUpload').hidden = !view.folder.canWrite || !view.folder.category;
       $('libraryDeleteFolder').hidden = !view.folder.canDelete;
@@ -210,7 +235,7 @@
       if (e.name === 'AbortError' || generation !== state.generation) return;
       $('libraryTitle').textContent = '자료보관함';
       $('libraryBreadcrumb').innerHTML = `<a href="${href('root')}" data-lb-folder="root">자료보관함</a>`;
-      $('libraryStatus').textContent = e.message;
+      $('libraryStatus').textContent = e.message; $('libraryRecent').hidden = true;
       if (e.status === 401) $('libraryStatus').innerHTML = `<a href="/data-core/login?next=${encodeURIComponent(location.pathname+location.search)}">교직원 로그인</a>`;
     } finally { if (generation === state.generation) $('libraryContents').setAttribute('aria-busy','false'); }
   }
@@ -320,5 +345,5 @@
     dialog.addEventListener('click',e=>{const close=pressedOutside&&e.target===dialog&&outside(e);pressedOutside=false;if(close&&dialog.id!=='libraryProgressDialog')dialog.close();});
   }
   window.DataCoreLibrary={refresh:load};
-  import('/data-core/work/library-manager.js?v=20260928-library-names').then(module=>{enhancements=module.setup({host,state,api,navigate,load,locationState,cachedOriginal:file=>imageCache?.peek(file.previewUrl)});enhancements.render();}).catch(()=>{$('libraryStatus').textContent='추가 파일 관리 기능을 불러오지 못했습니다. 새로고침해 주세요.';});
+  import('/data-core/work/library-manager.js?v=20261009-tree').then(module=>{enhancements=module.setup({host,state,api,navigate,load,locationState,cachedOriginal:file=>imageCache?.peek(file.previewUrl)});enhancements.render();}).catch(()=>{$('libraryStatus').textContent='추가 파일 관리 기능을 불러오지 못했습니다. 새로고침해 주세요.';});
 })();

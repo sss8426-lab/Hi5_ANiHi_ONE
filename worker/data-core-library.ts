@@ -332,7 +332,7 @@ async function recentFiles(tree: LibraryTree, folder: LibraryFolder) {
       visible.push(row);
       files.push({ id: row.id, fileName: row.original_file_name, folderId: sourceFolder.id, folderTitle: sourceFolder.title,
         instagramPreserveReason: instagramPreserveReason(row),
-        campusId: row.campus_id, campusName: row.campus_id ? campusNames.get(row.campus_id) || null : null,
+        campusId: row.campus_id, campusName: row.campus_id ? campusNames.get(row.campus_id) || null : null, ownerUserId: row.owner_user_id,
         mimeType: row.mime_type, sizeBytes: row.size_bytes, createdAt: row.created_at, path:await tree.breadcrumbs(sourceFolder), revision:row.data_record_id,
         canDelete: libraryCanDelete(tree.context, sourceFolder, row.owner_user_id), canMove: libraryCanWrite(tree.context, sourceFolder),
         previewUrl: `/api/data-core/library/files/${encodeURIComponent(String(row.id))}`,
@@ -343,7 +343,11 @@ async function recentFiles(tree: LibraryTree, folder: LibraryFolder) {
     const last = rows.at(-1)!; cursor = {time:String(last.created_at), id:String(last.id)};
   }
   const thumbnails = await thumbnailUrls(tree.db, visible, '/api/data-core/library/files/');
-  return { files: files.map(f => ({...f, thumbnailUrl:thumbnails.get(String(f.id)) || null})), limit: RECENT_UPLOAD_LIMIT };
+  // The 자료보관함 recent panel shows who uploaded each file, as the folder listing already does.
+  const owners = [...new Set(files.map(f => String(f.ownerUserId || '')).filter(Boolean))];
+  const names = new Map<string,string>();
+  if (owners.length) for (const row of (await tree.db.prepare(`SELECT id, display_name FROM users WHERE id IN (${owners.map(() => '?').join(',')})`).bind(...owners).all<{id:string; display_name:string|null}>()).results || []) if (row.display_name) names.set(row.id, row.display_name);
+  return { files: files.map(({ownerUserId, ...f}) => ({...f, ownerName:names.get(String(ownerUserId || '')) || null, thumbnailUrl:thumbnails.get(String(f.id)) || null})), limit: RECENT_UPLOAD_LIMIT };
 }
 
 async function moveFile(tree: LibraryTree, id: string, input: Record<string,unknown>) {
