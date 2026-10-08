@@ -1,6 +1,6 @@
 (() => {
   const KKUMEUM_HREF = '/data-core/kkumeum';
-  const HQ_LIBRARY_SRC = '/data-core/work/hq-library.js?v=20260921-upload-pipeline';
+  const HQ_LIBRARY_SRC = '/data-core/work/hq-library.js?v=20261008-drag';
   const MODE_ARTWORK_SRC = '/data-core/mode-home-artwork.js?v=20260908-mode-home';
 
   function addWorkSidebarLink() {
