@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>월간 업무보고 · HI5·ANiHi DATA CORE</title>
+  <link rel="stylesheet" href="/data-core/styles.css?v=20260928-signup">
+  <link rel="stylesheet" href="/data-core/layout-theme.css?v=20260909-bright-layout">
+  <link rel="stylesheet" href="/data-core/design-tokens.css?v=20260913-soft-premium">
+  <link rel="stylesheet" href="/data-core/design-system.css?v=20260928-approved-logo">
+  <link rel="stylesheet" href="/data-core/reports.css?v=20261008-reports">
+</head>
+<body class="data-core-layout">
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><img class="core-logo" src="/data-core/assets/hi5-data-core-approved-v1.png" alt="Hi5·ANiHi DATA CORE" width="48" height="48"><div><strong>HI5·ANiHi</strong><small>DATA CORE</small></div></div>
+      <nav class="nav">
+        <div class="nav-group" data-work-navigation="work"></div>
+        <div class="nav-group hidden" data-work-navigation="admin"></div>
+      </nav>
+      <div class="sidebar-bottom"><a class="back-link" href="/data-core/work">업무용 홈으로 돌아가기</a></div>
+    </aside>
+    <main class="main">
+      <header class="topbar"><div><p class="eyebrow">HI5·ANiHi DATA CORE</p><h1>월간 업무보고</h1></div>
+        <div class="user-chip" id="userChip"><div class="avatar">H</div><div><strong>사용자 확인 중</strong><small>로그인 정보 확인 중</small></div></div>
+      </header>
+      <section class="notice hidden" id="reportNotice" role="status"></section>
+      <section class="reports-toolbar" aria-label="업무보고 거르기">
+        <label><span>보고한 달</span><input type="month" id="reportMonth"></label>
+        <div class="report-campuses" id="reportCampuses" role="group" aria-label="캠퍼스"></div>
+        <label><span>분류</span><select id="reportCategory"><option value="">전체</option><option>행사</option><option>홍보</option><option>수업</option><option>상담</option><option>운영</option></select></label>
+        <label class="report-search"><span>검색</span><input type="search" id="reportSearch" maxlength="80" placeholder="업무·수업 내용 검색"></label>
+        <button class="primary-btn" type="button" id="reportWriteBtn">＋ 업무보고 쓰기</button>
+      </section>
+      <div class="reports-layout">
+        <section id="reportFeed" class="report-feed" aria-live="polite"></section>
+        <aside class="report-side">
+          <section class="report-card" id="reportSubmit" aria-label="제출 현황"></section>
+          <section class="report-card" id="reportTotals" aria-label="이번 달 합계"></section>
+        </aside>
+      </div>
+    </main>
+  </div>
+
+  <dialog id="reportEditor" class="report-editor" aria-labelledby="reportEditorTitle">
+    <form id="reportForm" method="dialog">
+      <header class="report-editor-head"><h2 id="reportEditorTitle">업무보고 쓰기</h2><span id="reportEditorWho"></span>
+        <button type="button" class="ghost-btn" id="reportDraftBtn">임시저장</button><button type="button" class="ghost-btn" id="reportCancelBtn">닫기</button><button type="submit" class="primary-btn" id="reportSaveBtn">게시하기</button></header>
+      <div class="report-editor-meta"><label><span>보고할 달</span><input type="month" id="reportFormMonth" required></label><label id="reportCampusField"><span>캠퍼스</span><select id="reportFormCampus"></select></label></div>
+      <div class="report-editor-grid">
+        <div>
+          <section class="report-card"><h3>① 진행업무</h3><p class="report-hint">‘＋ 칸 추가’로 칸을 늘리고, 칸마다 분류를 골라 주세요. 분류는 다른 캠퍼스 사례를 찾을 때 쓰여요.</p><div id="reportDone"></div><button type="button" class="report-add" data-add="done">＋ 칸 추가</button></section>
+          <section class="report-card"><h3>② 예정업무 <small>다음 달에 할 일</small></h3><div id="reportPlanned"></div><button type="button" class="report-add" data-add="planned">＋ 칸 추가</button></section>
+          <section class="report-card"><h3>③ 수업내용</h3><div id="reportClasses"></div><button type="button" class="report-add" data-add="classes">＋ 칸 추가</button></section>
+        </div>
+        <div>
+          <section class="report-card"><h3>④ 신입·퇴원 <small>숫자만 · 합계는 자동</small></h3><div class="report-table-wrap"><table class="report-counts" id="reportCounts"></table></div><p class="report-hint" id="reportCountSummary"></p></section>
+          <section class="report-card"><h3>⑤ 수상·성과</h3><div id="reportAwards"></div><button type="button" class="report-add" data-add="awards">＋ 대회 추가</button></section>
+          <section class="report-card"><h3>⑥ 사진 <small>수상 포스터·수업 사진</small></h3><div class="report-photos" id="reportPhotos"></div>
+            <label class="report-add report-photo-add">＋ 사진 추가<input type="file" id="reportPhotoInput" accept="image/*" multiple hidden></label>
+            <p class="report-warning">모든 직원이 보는 글이에요. 학생 이름은 김O경처럼 가려 주세요. 실명·얼굴이 보이는 사진은 올리기 전에 한 번 더 확인해 주세요.</p>
+            <p class="report-hint">공개 범위: 모든 직원 · 수정·삭제: 작성자, MASTER</p></section>
+        </div>
+      </div>
+      <p id="reportFormError" class="report-error" role="alert"></p>
+    </form>
+  </dialog>
+  <dialog id="reportReaders" class="report-small-dialog" aria-labelledby="reportReadersTitle"><h3 id="reportReadersTitle">읽은 사람</h3><ul id="reportReadersList"></ul><button type="button" class="ghost-btn" id="reportReadersClose">닫기</button></dialog>
+  <dialog id="reportPhotoView" class="report-photo-view" aria-label="사진 크게 보기"><img id="reportPhotoImage" alt="업무보고 사진"><button type="button" class="ghost-btn" id="reportPhotoClose">닫기</button></dialog>
+  <div class="toast hidden" id="toast"></div>
+  <script src="/data-core/work-navigation.js?v=20261008-reports"></script>
+  <script type="module" src="/data-core/reports.js?v=20261008-reports"></script>
+  <script type="module" src="/data-core/design-shell.js?v=20260912-campus"></script>
+</body>
+</html>

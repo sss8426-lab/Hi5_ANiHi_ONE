@@ -124,6 +124,9 @@ function isProtectedDataCoreUiPath(pathname: string) {
     pathname === "/data-core/content/" ||
     pathname.startsWith("/data-core/content/") ||
     pathname === "/data-core/content.html" ||
+    pathname === "/data-core/reports" ||
+    pathname === "/data-core/reports/" ||
+    pathname === "/data-core/reports.html" ||
     pathname === "/data-core/roadmap" ||
     pathname === "/data-core/roadmap/" ||
     pathname === "/data-core/roadmap.html" ||
@@ -776,6 +779,10 @@ const worker = {
           env,
         );
       }
+      if (url.pathname === "/data-core/reports" || url.pathname === "/data-core/reports/") {
+        url.pathname = "/data-core/reports.html";
+        return baseWorker.fetch(new Request(url.toString(), { headers: request.headers }), env);
+      }
       if (url.pathname === "/data-core/accounts" || url.pathname === "/data-core/accounts/") {
         url.pathname = "/data-core/accounts.html";
         return baseWorker.fetch(new Request(url.toString(), { headers: request.headers }), env);
@@ -831,6 +838,13 @@ const worker = {
 
       const competitionSourceResponse = await handleCompetitionSourceApi(request, env);
       if (competitionSourceResponse) return competitionSourceResponse;
+
+      if (env.DB && (url.pathname.startsWith('/api/data-core/staff-reports') || url.pathname.startsWith('/api/data-core/calendar/fixed-tasks'))) {
+        const context = await resolveDataCoreAccess(request, env.DB, env.DATA_CORE_SUPER_ADMIN_EMAILS);
+        const { handleStaffWorkApi } = await import('./staff-work');
+        const staffResponse = await handleStaffWorkApi(request, env.DB, env.FILES, context);
+        if (staffResponse) return staffResponse;
+      }
 
       const contentResponse = await handleContentApi(request, env);
       if (contentResponse) return contentResponse;
