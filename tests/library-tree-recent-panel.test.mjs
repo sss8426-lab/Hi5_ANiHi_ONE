@@ -61,7 +61,8 @@ test('자료보관함 layout: folder tree, recent panel for every folder, select
   assert.doesNotMatch(hq, /id="libraryUp"|\$\('libraryUp'\)|최근 업로드 파일/);
   // The recent list is no longer limited to the root and campus folders.
   assert.doesNotMatch(hq, /if \(!\(id === 'root' \|\| id\.startsWith\('campus:'\)\)\)/);
-  assert.match(hq, /scope==='campus'\?id:'root'/);
+  assert.match(hq, /const target=scope==='all'\?'root':picked\?`campus:\$\{picked\}`:id;/, 'recent panel: 이 캠퍼스 / a picked campus / 전체');
+  assert.match(hq, /data-recent-campus="\$\{h\(c\.campusId\)\}"/);
   assert.match(hq, /data-recent-day=/); assert.match(hq, /data-recent-download-picked/); assert.match(hq, /class="lb-recent-dl"[^>]*download/);
   const manager = read('public/data-core/work/library-manager.js');
   assert.match(manager, /import \{ setupTree \} from '\.\/library-tree\.js/);
@@ -72,9 +73,9 @@ test('자료보관함 layout: folder tree, recent panel for every folder, select
   assert.match(tree, /data-lb-folder="\$\{h\(folder\.id\)\}"/, 'tree links reuse the existing folder navigation');
   assert.match(tree, /navigationHidden\(folder\)/, 'hidden legacy folders stay out of the tree');
   const css = read('public/data-core/work/library-browser.css');
-  assert.match(css, /\.lb-layout\{display:grid;grid-template-columns:230px minmax\(0,1fr\) 330px/);
+  assert.match(css, /\.lb-layout\{display:grid;grid-template-columns:250px minmax\(0,1fr\) 360px/);
   assert.match(css, /@container \(max-width:820px\)/);
   const index = read('public/data-core/index.html');
-  assert.match(index, /work\/hq-library\.js\?v=20261009-tree/);
-  assert.match(read('public/data-core/work/kkumeum-nav.js'), /hq-library\.js\?v=20261009-tree/);
+  assert.match(index, /work\/hq-library\.js\?v=20261009-mock/);
+  assert.match(read('public/data-core/work/kkumeum-nav.js'), /hq-library\.js\?v=20261009-mock/);
 });
