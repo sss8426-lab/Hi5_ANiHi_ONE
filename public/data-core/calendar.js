@@ -1,7 +1,7 @@
 (() => {
   let state, $, h, api, canWrite, isSuperAdmin, orderedCampuses, campusDisplayName, toast;
   const ui = { view:'month', q:'', scope:'', type:'', loading:false, error:'', upcoming:[], upcomingError:'', upcomingLoading:false,
-    external:[], detailKey:null, detailEpoch:0, detailAbort:null, returnTo:null, editSnapshot:'', editOrigin:null, summary:'today', timer:null, identity:'' };
+    external:[], fixed:null, detailKey:null, detailEpoch:0, detailAbort:null, returnTo:null, editSnapshot:'', editOrigin:null, summary:'today', timer:null, identity:'' };
   const labels = {class:'수업',admission:'입시',competition:'공모전',marketing:'홍보',holiday:'휴일',meeting:'회의',other:'기타'};
   const dayMs = 86400000;
   const mounted = new WeakSet();
@@ -74,6 +74,8 @@
         if(target?.hasAttribute('data-calendar-add')){openEditor();return;}
         if(target?.dataset.calendarEvent) {openDetail(target.dataset.calendarEvent,target);return;}
         if(target?.dataset.calendarMore){openDay(target.dataset.calendarMore,target);return;}
+        if(target?.dataset.calendarFixed){openFixed(target.dataset.calendarFixed);return;}
+        if(target?.hasAttribute('data-calendar-fixed-manage')){openFixedManager();return;}
         if(target?.dataset.calendarMode){ui.view=target.dataset.calendarMode;render();return;}
         if(target?.hasAttribute('data-calendar-retry')){void load();return;}
         const day=event.target.closest('[data-calendar-cell]');
@@ -107,6 +109,7 @@
       const button=event.target.closest('button');if(!button)return;
       if(button.dataset.calendarEvent){openDetail(button.dataset.calendarEvent,ui.returnTo);return;}
       if(button.hasAttribute('data-detail-retry')){openDetail(ui.detailKey,ui.returnTo);return;}
+      if(button.dataset.fixedEdit){openFixedManager((ui.fixed?.tasks||[]).find(t=>t.id===button.dataset.fixedEdit));return;}
       const item=lookup(ui.detailKey);
       if(button.hasAttribute('data-detail-edit')&&item&&manage(item)){ui.editOrigin=key(item);closeDetail(false);openEditor(item);}
       if(button.hasAttribute('data-detail-copy')&&item&&canWrite()){ui.editOrigin=null;closeDetail(false);openEditor(item,true);}
@@ -146,12 +149,29 @@
     if(!state.calendarSelectedDate||state.calendarSelectedDate<grid.from||state.calendarSelectedDate>grid.to)state.calendarSelectedDate=from;
     const events=authenticated?filtered():[];
     const dates=[];for(let date=grid.from;date<=grid.to;date=addDays(date,1))dates.push(date);
-    const html=dates.map(date=>{
-      const dayEvents=events.filter(e=>overlaps(e,date));const outside=date<from||date>to;
-      return `<div class="calendar-day${outside?' outside':''}${date===today?' today':''}${date===state.calendarSelectedDate?' selected':''}" data-calendar-cell="${date}">
-        <button class="calendar-date${outside?' outside':''}" type="button" data-calendar-date="${date}" aria-pressed="${date===state.calendarSelectedDate}" aria-label="${date} 일정 보기">${Number(date.slice(-2))}${date===today?'<span class="calendar-today-label">오늘</span>':''}</button>
-        ${dayEvents.slice(0,2).map(event=>`<button type="button" class="calendar-event-chip ${h(event.metadata.eventType||'other')}" data-calendar-event="${h(key(event))}" title="${h(event.title)}"><span>${h(labels[event.metadata.eventType]||'기타')}</span> ${h(event.title)}${event.metadata.endDate?` <small>${date===event.metadata.startDate?'시작':date===event.metadata.endDate?'종료':'진행'}</small>`:''}</button>`).join('')}
-        ${dayEvents.length>2&&!ui.loading&&!ui.error?`<button type="button" class="calendar-more" data-calendar-more="${date}">+ ${dayEvents.length-2}개 더보기</button>`:''}</div>`;
+    // Week rows: a multi-day event is one bar across its days (like a phone calendar), and 고정 업무 sit first.
+    const fixedEvents=(ui.fixed?.tasks||[]).flatMap(task=>task.dates.map(date=>({id:`fixed:${task.id}:${date}`,fixed:true,task,title:task.title,metadata:{startDate:date,eventType:'fixed'}})));
+    const LANES=3,html=Array.from({length:dates.length/7},(_,w)=>{
+      const week=dates.slice(w*7,w*7+7),ws=week[0],we=week[6],lanes=Array.from({length:LANES},()=>Array(7).fill(false)),hidden=Array(7).fill(0);
+      const end=e=>e.metadata.endDate||e.metadata.startDate;
+      const segs=[...fixedEvents,...events].filter(e=>overlaps(e,ws,we)).map(e=>({e,c1:week.indexOf(e.metadata.startDate<ws?ws:e.metadata.startDate),c2:week.indexOf(end(e)>we?we:end(e)),contL:e.metadata.startDate<ws,contR:end(e)>we}))
+        .sort((a,b)=>Number(Boolean(b.e.fixed))-Number(Boolean(a.e.fixed))||(b.c2-b.c1)-(a.c2-a.c1)||a.c1-b.c1);
+      const placed=[];
+      for(const seg of segs){
+        const lane=lanes.findIndex(row=>row.slice(seg.c1,seg.c2+1).every(used=>!used));
+        if(lane<0){for(let c=seg.c1;c<=seg.c2;c++)hidden[c]++;continue;}
+        for(let c=seg.c1;c<=seg.c2;c++)lanes[lane][c]=true;placed.push({...seg,lane});
+      }
+      const cells=week.map((date,i)=>{const outside=date<from||date>to;return `<div class="calendar-day${outside?' outside':''}${date===today?' today':''}${date===state.calendarSelectedDate?' selected':''}" data-calendar-cell="${date}" style="grid-column:${i+1}">
+        <button class="calendar-date${outside?' outside':''}" type="button" data-calendar-date="${date}" aria-pressed="${date===state.calendarSelectedDate}" aria-label="${date} 일정 보기">${Number(date.slice(-2))}${date===today?'<span class="calendar-today-label">오늘</span>':''}</button></div>`;}).join('');
+      const bars=placed.map(({e,c1,c2,contL,contR,lane})=>{
+        const multi=c2>c1||contL||contR,place=`grid-column:${c1+1}/${c2+2};grid-row:${lane+2}`;
+        if(e.fixed)return `<button type="button" class="calendar-event-chip calendar-bar calendar-fixed-chip" data-calendar-fixed="${h(e.task.id)}" style="${place}" title="${h(e.title)}">📌 ${h(e.title)}</button>`;
+        const type=e.metadata.eventType||'other';
+        return `<button type="button" class="calendar-event-chip calendar-bar ${h(type)}${multi?' multi':''}${contL?' cont-l':''}${contR?' cont-r':''}" data-calendar-event="${h(key(e))}" style="${place}" title="${h(e.title)}"><span>${h(labels[type]||'기타')}</span> ${h(e.title)}${multi&&!contR?` <small>~${Number(end(e).slice(-2))}일</small>`:''}</button>`;
+      }).join('');
+      const more=!ui.loading&&!ui.error?hidden.map((n,i)=>n?`<button type="button" class="calendar-more" data-calendar-more="${week[i]}" style="grid-column:${i+1};grid-row:${LANES+2}">+ ${n}개 더보기</button>`:'').join(''):'';
+      return `<div class="calendar-week">${cells}${bars}${more}</div>`;
     }).join('');
     const selected=events.filter(e=>overlaps(e,state.calendarSelectedDate));
     const monthly=events.filter(e=>overlaps(e,from,to));let group='';
@@ -163,10 +183,96 @@
       home.querySelector('[data-calendar-agenda]').hidden=ui.view!=='list';home.querySelector('[data-calendar-agenda]').innerHTML=agenda||(!ui.loading&&!ui.error?'<p>조건에 맞는 일정이 없습니다.</p>':'');
       home.querySelector('[data-calendar-list]').hidden=ui.view!=='month';
       home.querySelector('[data-calendar-list]').innerHTML=`<h4>${h(dateLabel(state.calendarSelectedDate))}</h4>`+(rows(selected)||(!ui.loading&&!ui.error?'<p>조건에 맞는 일정이 없습니다.</p>':''));
-      home.querySelector('[data-calendar-status]').innerHTML=!authenticated?'로그인 후 내부 일정을 확인할 수 있습니다.':ui.loading?'불러오는 중... · 전체 조회 완료 전입니다.':ui.error?`${h(ui.error)} <button type="button" data-calendar-retry>다시 시도</button>`:`선택한 월 ${monthly.length}건 · 전체 조회 완료`;
+      home.querySelector('[data-calendar-status]').innerHTML=!authenticated?'로그인 후 내부 일정을 확인할 수 있습니다.':ui.loading?'불러오는 중... · 전체 조회 완료 전입니다.':ui.error?`${h(ui.error)} <button type="button" data-calendar-retry>다시 시도</button>`:fixedStrip()+`<span class="calendar-status-count">선택한 월 ${monthly.length}건 · 전체 조회 완료</span>`+(ui.fixed?.canCreate?'<button type="button" class="ghost-btn calendar-fixed-manage" data-calendar-fixed-manage>🔒 고정 업무 관리</button>':'');
       home.querySelector('[data-calendar-add]').classList.toggle('hidden',!canWrite());
     });
     syncTools();renderSummary();
+  }
+  // 고정 업무 (e.g. the 월간 업무보고 deadline) shown on top of the calendar and on their days.
+  function fixedStrip(){
+    const tasks=ui.fixed?.tasks||[];if(!tasks.length)return '';
+    const today=dateKey(new Date());
+    return '<span class="calendar-fixed-label">📌 고정 업무</span>'+tasks.map(task=>{
+      const date=task.dates.find(d=>d>=today)||task.dates[0];if(!date)return '';
+      const days=Math.round((Date.parse(date)-Date.parse(today))/dayMs);
+      return `<button type="button" class="calendar-fixed-item${task.kind==='monthly-report'?' report':''}" data-calendar-fixed="${h(task.id)}"><b>${h(task.title)}</b> ${h(dateLabel(date))}${days>=0?` <span class="calendar-dday">${days===0?'D-day':'D-'+days}</span>`:''} <small>${h(task.campusName)}${task.kind==='monthly-report'&&task.staffCount?` · 제출 ${task.submittedCount}/${task.staffCount}`:''}</small></button>`;
+    }).join('');
+  }
+  function openFixed(id){
+    const task=(ui.fixed?.tasks||[]).find(t=>t.id===id);if(!task)return;
+    ui.detailEpoch++;ui.detailAbort?.abort();ui.detailKey=null;
+    showReader('📌 '+task.title,`<div class="calendar-detail-meta"><span class="calendar-type fixed">고정 업무</span> <span>${h(task.campusName)}</span>${task.dates.map(d=>`<p>${h(dateLabel(d))}</p>`).join('')}<p class="muted">${h(fixedRuleText(task))}</p>${task.kind==='monthly-report'?`<p>제출 ${task.submittedCount}/${task.staffCount}명 · <a href="/data-core/reports">월간 업무보고 열기</a></p>`:''}</div>`,
+      task.canManage?`<button type="button" class="ghost-btn" data-fixed-edit="${h(task.id)}">수정</button>`:'');
+  }
+  const WEEKDAYS=['일','월','화','수','목','금','토'];
+  const fixedRuleText=task=>task.rule==='first-saturday'?'매월 첫째 주 토요일 (첫 주가 3일 이하면 다음 주 토요일)':task.rule==='month-end'?'매월 마지막 날':task.rule==='month-day'?`매월 ${task.ruleValue}일`:task.rule==='weekday'?`매주 ${WEEKDAYS[task.ruleValue]}요일`:'';
+  function mountFixedDialog(){
+    if(document.getElementById('calendarFixedDialog'))return;
+    const dialog=document.createElement('dialog');dialog.id='calendarFixedDialog';dialog.className='calendar-reader calendar-fixed-dialog';dialog.setAttribute('aria-labelledby','calendarFixedTitle');
+    dialog.innerHTML=`<header><h3 id="calendarFixedTitle">📌 고정 업무 관리</h3><button type="button" class="icon-btn" data-fixed-close aria-label="닫기">×</button></header>
+      <div class="calendar-reader-body"><div data-fixed-list></div>
+      <form data-fixed-form class="calendar-fixed-form"><h4 data-fixed-form-title>고정 업무 등록</h4><input type="hidden" name="id">
+        <label>업무 이름<input name="title" maxlength="60" required placeholder="예: 출석부 월말 정리"></label>
+        <fieldset><legend>날짜 규칙</legend>
+          <label><input type="radio" name="rule" value="first-saturday" checked> 매월 첫째 주 토요일 <small>첫 주가 3일 이하(1일이 목·금·토요일)면 다음 주 토요일</small></label>
+          <label><input type="radio" name="rule" value="month-end"> 매월 마지막 날</label>
+          <label><input type="radio" name="rule" value="month-day"> 매월 <input type="number" name="day" min="1" max="31" value="1" aria-label="날짜"> 일</label>
+          <label><input type="radio" name="rule" value="weekday"> 매주 <select name="weekday" aria-label="요일">${WEEKDAYS.map((d,i)=>`<option value="${i}">${d}요일</option>`).join('')}</select></label></fieldset>
+        <label>보이는 범위<select name="campusId"></select></label>
+        <p class="calendar-fixed-preview" data-fixed-preview></p><p class="calendar-fixed-error" data-fixed-error role="alert"></p>
+        <div class="calendar-fixed-actions"><button type="button" class="ghost-btn" data-fixed-new>새로 쓰기</button><button type="submit" class="primary-btn">저장</button></div></form></div>`;
+    document.body.append(dialog);
+    const form=dialog.querySelector('[data-fixed-form]');
+    dialog.addEventListener('click',event=>{
+      const b=event.target.closest('button');if(!b)return;
+      if(b.hasAttribute('data-fixed-close'))dialog.close();
+      if(b.hasAttribute('data-fixed-new'))fillFixed(null);
+      if(b.dataset.fixedPick)fillFixed((ui.fixed?.tasks||[]).find(t=>t.id===b.dataset.fixedPick));
+      if(b.dataset.fixedDelete)void removeFixed(b.dataset.fixedDelete);
+    });
+    form.addEventListener('input',()=>void previewFixed());
+    form.addEventListener('submit',event=>{event.preventDefault();void saveFixed();});
+  }
+  function fixedPayload(){
+    const f=document.querySelector('[data-fixed-form]'),rule=f.elements.rule.value;
+    return {id:f.elements.id.value,title:f.elements.title.value.trim(),rule,ruleValue:rule==='month-day'?Number(f.elements.day.value):rule==='weekday'?Number(f.elements.weekday.value):null,campusId:f.elements.campusId.value||null};
+  }
+  async function previewFixed(){
+    const t=fixedPayload(),rules=await import('/data-core/fixed-task-rules.js?v=20261008-reports');
+    const out=[];let month=monthKey();for(let i=0;i<4;i++){const [y,m]=month.split('-').map(Number);const d=rules.ruleDates(t.rule,t.ruleValue,y,m);out.push(`${m}월 → ${d.slice(0,2).map(x=>`${Number(x.slice(8))}일(${WEEKDAYS[new Date(x+'T00:00:00Z').getUTCDay()]})`).join(', ')}${d.length>2?' 외':''}`);month=rules.shiftMonth(month,1);}
+    const node=document.querySelector('[data-fixed-preview]');if(node)node.textContent='앞으로의 날짜: '+out.join(' · ');
+  }
+  function fillFixed(task){
+    const f=document.querySelector('[data-fixed-form]');
+    f.querySelector('[data-fixed-form-title]').textContent=task?'고정 업무 수정':'고정 업무 등록';
+    f.elements.id.value=task?.id||'';f.elements.title.value=task?.title?.replace(/^\d+월 /,'')||'';
+    f.elements.rule.value=task?.rule||'first-saturday';f.elements.day.value=task?.rule==='month-day'?task.ruleValue:1;f.elements.weekday.value=task?.rule==='weekday'?task.ruleValue:6;
+    f.elements.campusId.innerHTML=(ui.fixed?.manageableCampuses||[]).map(c=>`<option value="${h(c.id||'')}">${h(c.name)}</option>`).join('');
+    f.elements.campusId.value=task?task.campusId||'':(ui.fixed?.manageableCampuses?.find(c=>c.id)?.id||'');
+    f.elements.campusId.disabled=task?.kind==='monthly-report';
+    f.querySelector('[data-fixed-error]').textContent='';void previewFixed();
+  }
+  function renderFixedList(){
+    const list=document.querySelector('[data-fixed-list]');if(!list)return;
+    const mine=(ui.fixed?.tasks||[]).filter(t=>t.canManage);
+    list.innerHTML=mine.length?`<ul class="calendar-fixed-list">${mine.map(t=>`<li><b>${h(t.title)}</b> <small>${h(t.campusName)} · ${h(fixedRuleText(t))}</small> <button type="button" class="ghost-btn" data-fixed-pick="${h(t.id)}">수정</button>${t.kind==='monthly-report'?'':`<button type="button" class="danger-btn" data-fixed-delete="${h(t.id)}">삭제</button>`}</li>`).join('')}</ul>`:'<p class="muted">관리할 수 있는 고정 업무가 아직 없습니다.</p>';
+  }
+  function openFixedManager(task=null){
+    if(!ui.fixed?.canCreate)return;mountFixedDialog();renderFixedList();fillFixed(task);
+    if($('calendarDetail').open)closeDetail(false);
+    document.getElementById('calendarFixedDialog').showModal();
+  }
+  async function saveFixed(){
+    const t=fixedPayload(),err=document.querySelector('[data-fixed-error]');err.textContent='';
+    try{
+      ui.fixed=await api('/api/data-core/calendar/fixed-tasks'+(t.id?'/'+encodeURIComponent(t.id):'')+'?month='+monthKey(),{method:t.id?'PATCH':'POST',headers:{'content-type':'application/json'},body:JSON.stringify(t)});
+      renderFixedList();fillFixed(null);render();toast(t.id?'고정 업무를 고쳤습니다.':'고정 업무를 등록했습니다.');
+    }catch(error){err.textContent=error.message;}
+  }
+  async function removeFixed(id){
+    const task=(ui.fixed?.tasks||[]).find(t=>t.id===id);if(!task||!confirm(`'${task.title}' 고정 업무를 삭제할까요?`))return;
+    try{ui.fixed=await api('/api/data-core/calendar/fixed-tasks/'+encodeURIComponent(id)+'?month='+monthKey(),{method:'DELETE'});renderFixedList();fillFixed(null);render();toast('고정 업무를 삭제했습니다.');}
+    catch(error){toast(error.message,'error');}
   }
   async function pages(from,to,signal,filters=true) {
     const params=new URLSearchParams({from,to});if(filters){if(ui.q)params.set('q',ui.q);if(ui.type)params.set('eventType',ui.type);if(ui.scope==='organization')params.set('scope','organization');else if(ui.scope)params.set('campusId',ui.scope);}
@@ -194,17 +300,18 @@
     const current=state.calendarLoadId,controller=new AbortController();state.calendarAbort=controller;
     ui.loading=true;ui.error='';ui.upcomingLoading=true;ui.upcomingError='';state.calendarEvents=[];ui.upcoming=[];render();
     const visible=range(!ui.q),today=dateKey(new Date());
-    const results=await Promise.allSettled([pages(visible.from,visible.to,controller.signal),pages(today,addDays(today,7),controller.signal,false)]);
+    const results=await Promise.allSettled([pages(visible.from,visible.to,controller.signal),pages(today,addDays(today,7),controller.signal,false),api('/api/data-core/calendar/fixed-tasks?month='+monthKey(),{signal:controller.signal})]);
     if(current!==state.calendarLoadId||controller.signal.aborted)return;
     if(results[0].status==='fulfilled')state.calendarEvents=results[0].value;else ui.error='일정을 불러오지 못했습니다. 다시 시도해주세요.';
     if(results[1].status==='fulfilled')ui.upcoming=results[1].value;else ui.upcomingError='가까운 일정을 불러오지 못했습니다.';
+    ui.fixed=results[2].status==='fulfilled'?results[2].value:null;
     ui.loading=false;ui.upcomingLoading=false;state.calendarAbort=null;render();
   }
   function reset() {
     pendingLoad=null;
     clearTimeout(ui.timer);++state.calendarLoadId;state.calendarAbort?.abort();state.calendarAbort=null;
     ui.detailEpoch++;ui.detailAbort?.abort();ui.detailKey=null;ui.editOrigin=null;ui.editSnapshot='';ui.returnTo=null;
-    ui.identity='';state.calendarEvents=[];ui.upcoming=[];ui.external=[];ui.scope='';ui.q='';ui.type='';ui.loading=false;ui.error='';ui.upcomingLoading=false;ui.upcomingError='';
+    ui.identity='';state.calendarEvents=[];ui.upcoming=[];ui.external=[];ui.fixed=null;ui.scope='';ui.q='';ui.type='';ui.loading=false;ui.error='';ui.upcomingLoading=false;ui.upcomingError='';
     $('calendarDetail')?.close();$('calendarModal')?.close();$('calendarForm')?.reset();$('calendarDetailBody').replaceChildren();document.body.classList.remove('calendar-dialog-open');render();
   }
   function closeDetail(restore=true) {

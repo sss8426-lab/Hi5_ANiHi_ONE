@@ -6,7 +6,7 @@ import {libraryHarness,users,A} from './support/library-harness.mjs';
 
 test('shared navigation executes the same role-filtered menu for work, blog and Instagram',async()=>{
   const source=await fs.readFile('public/data-core/work-navigation.js','utf8');
-  const expected=['work-home','library','blog','instagram','kkumeum','attendance','mode-home'];
+  const expected=['work-home','library','blog','instagram','reports','kkumeum','attendance','mode-home'];
   for(const role of ['STAFF','TEACHER','CAMPUS_ADMIN','MASTER','SUPER_ADMIN']){
     let previous;
     for(const path of ['/data-core/work','/data-core/content/blog','/data-core/content/instagram']){
