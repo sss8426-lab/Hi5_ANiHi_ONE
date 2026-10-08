@@ -44,7 +44,9 @@ test('일정 수정·삭제: 본인 글, 캠퍼스 관리자는 자기 캠퍼스
   } finally { await h.mf.dispose(); }
 });
 
-test('달력 날짜를 두 번 누르면 그 날 일정 쓰기 창이 열린다', () => {
+test('달력 날짜를 두 번 누르면 그 날 일정 쓰기 창이 열린다 (브라우저 dblclick 대신 같은 날 두 번 누름을 직접 셈)', () => {
   const calendar = fs.readFileSync('public/data-core/calendar.js', 'utf8');
-  assert.match(calendar, /home\.addEventListener\('dblclick',event=>\{\s*const day=event\.target\.closest\('\[data-calendar-cell\]'\);if\(!day\|\|!canWrite\(\)\)return;\s*event\.preventDefault\(\);state\.calendarSelectedDate=day\.dataset\.calendarCell;render\(\);openEditor\(\);/);
+  assert.match(calendar, /const date=day\.dataset\.calendarCell,now=Date\.now\(\),again=ui\.lastPress\?\.date===date&&now-ui\.lastPress\.at<500;/);
+  assert.match(calendar, /if\(again&&canWrite\(\)\)\{openEditor\(\);return;\}/);
+  assert.doesNotMatch(calendar, /addEventListener\('dblclick'/, 'the first press re-draws the month, so the browser dblclick never arrives');
 });
