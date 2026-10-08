@@ -1,7 +1,7 @@
 (() => {
   let state, $, h, api, canWrite, isSuperAdmin, orderedCampuses, campusDisplayName, toast;
   const ui = { view:'month', q:'', scope:'', type:'', loading:false, error:'', upcoming:[], upcomingError:'', upcomingLoading:false,
-    external:[], fixed:null, lastPress:null, detailKey:null, detailEpoch:0, detailAbort:null, returnTo:null, editSnapshot:'', editOrigin:null, summary:'today', timer:null, identity:'' };
+    external:[], fixed:null, important:[], lastPress:null, detailKey:null, detailEpoch:0, detailAbort:null, returnTo:null, editSnapshot:'', editOrigin:null, summary:'today', timer:null, identity:'' };
   const labels = {class:'수업',admission:'입시',competition:'공모전',marketing:'홍보',holiday:'휴일',meeting:'회의',other:'기타'};
   const dayMs = 86400000;
   const mounted = new WeakSet();
@@ -18,7 +18,9 @@
   const key = event => `${event.external?'competition':'academy'}:${event.id}`;
   const overlaps = (event,from,to=from) => event.metadata.startDate<=to && (event.metadata.endDate||event.metadata.startDate)>=from;
   const allEvents = () => [...state.calendarEvents,...ui.external];
-  const lookup = id => [...allEvents(),...ui.upcoming].find(event=>key(event)===id);
+  const lookup = id => [...allEvents(),...ui.upcoming,...ui.important].find(event=>key(event)===id);
+  // Same pin shape for both rows; 고정 업무 is red, 중요 업무 is blue.
+  const PIN = kind => `<svg class="calendar-pin ${kind}" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>`;
   function matches(event) {
     const m=event.metadata;
     return (!ui.type||m.eventType===ui.type) && (!ui.scope || (ui.scope==='organization'?event.visibility==='organization':event.campusId===ui.scope))
@@ -175,9 +177,9 @@
         <button class="calendar-date${outside?' outside':''}" type="button" data-calendar-date="${date}" aria-pressed="${date===state.calendarSelectedDate}" aria-label="${date} 일정 보기">${Number(date.slice(-2))}${date===today?'<span class="calendar-today-label">오늘</span>':''}</button></div>`;}).join('');
       const bars=placed.map(({e,c1,c2,contL,contR,lane})=>{
         const multi=c2>c1||contL||contR,place=`grid-column:${c1+1}/${c2+2};grid-row:${lane+2}`;
-        if(e.fixed)return `<button type="button" class="calendar-event-chip calendar-bar calendar-fixed-chip" data-calendar-fixed="${h(e.task.id)}" style="${place}" title="${h(e.title)}">📌 ${h(e.title)}</button>`;
+        if(e.fixed)return `<button type="button" class="calendar-event-chip calendar-bar calendar-fixed-chip" data-calendar-fixed="${h(e.task.id)}" style="${place}" title="${h(e.title)}">${PIN('fixed')} ${h(e.title)}</button>`;
         const type=e.metadata.eventType||'other';
-        return `<button type="button" class="calendar-event-chip calendar-bar ${h(type)}${multi?' multi':''}${contL?' cont-l':''}${contR?' cont-r':''}" data-calendar-event="${h(key(e))}" style="${place}" title="${h(e.title)}"><span>${h(labels[type]||'기타')}</span> ${h(e.title)}${multi&&!contR?` <small>~${Number(end(e).slice(-2))}일</small>`:''}</button>`;
+        return `<button type="button" class="calendar-event-chip calendar-bar ${h(type)}${multi?' multi':''}${contL?' cont-l':''}${contR?' cont-r':''}${e.metadata.important?' important':''}" data-calendar-event="${h(key(e))}" style="${place}" title="${h(e.title)}">${e.metadata.important?PIN('important'):''}<span>${h(labels[type]||'기타')}</span> ${h(e.title)}${multi&&!contR?` <small>~${Number(end(e).slice(-2))}일</small>`:''}</button>`;
       }).join('');
       const more=!ui.loading&&!ui.error?hidden.map((n,i)=>n?`<button type="button" class="calendar-more" data-calendar-more="${week[i]}" style="grid-column:${i+1};grid-row:${LANES+2}">+ ${n}개 더보기</button>`:'').join(''):'';
       return `<div class="calendar-week">${cells}${bars}${more}</div>`;
@@ -192,7 +194,7 @@
       home.querySelector('[data-calendar-agenda]').hidden=ui.view!=='list';home.querySelector('[data-calendar-agenda]').innerHTML=agenda||(!ui.loading&&!ui.error?'<p>조건에 맞는 일정이 없습니다.</p>':'');
       home.querySelector('[data-calendar-list]').hidden=ui.view!=='month';
       home.querySelector('[data-calendar-list]').innerHTML=`<h4>${h(dateLabel(state.calendarSelectedDate))}</h4>`+(rows(selected)||(!ui.loading&&!ui.error?'<p>조건에 맞는 일정이 없습니다.</p>':''));
-      home.querySelector('[data-calendar-status]').innerHTML=!authenticated?'로그인 후 내부 일정을 확인할 수 있습니다.':ui.loading?'불러오는 중... · 전체 조회 완료 전입니다.':ui.error?`${h(ui.error)} <button type="button" data-calendar-retry>다시 시도</button>`:fixedStrip()+`<span class="calendar-status-count">선택한 월 ${monthly.length}건 · 전체 조회 완료</span>`+(ui.fixed?.canCreate?'<button type="button" class="ghost-btn calendar-fixed-manage" data-calendar-fixed-manage>🔒 고정 업무 관리</button>':'');
+      home.querySelector('[data-calendar-status]').innerHTML=!authenticated?'로그인 후 내부 일정을 확인할 수 있습니다.':ui.loading?'불러오는 중... · 전체 조회 완료 전입니다.':ui.error?`${h(ui.error)} <button type="button" data-calendar-retry>다시 시도</button>`:fixedStrip()+`<span class="calendar-status-count">선택한 월 ${monthly.length}건 · 전체 조회 완료</span>`+(ui.fixed?.canCreate?'<button type="button" class="ghost-btn calendar-fixed-manage" data-calendar-fixed-manage>🔒 고정 업무 관리</button>':'')+importantStrip();
       home.querySelector('[data-calendar-add]').classList.toggle('hidden',!canWrite());
     });
     syncTools();renderSummary();
@@ -201,16 +203,26 @@
   function fixedStrip(){
     const tasks=ui.fixed?.tasks||[];if(!tasks.length)return '';
     const today=dateKey(new Date());
-    return '<span class="calendar-fixed-label">📌 고정 업무</span>'+tasks.map(task=>{
+    return `<span class="calendar-fixed-label">${PIN('fixed')} 고정 업무</span>`+tasks.map(task=>{
       const date=task.dates.find(d=>d>=today)||task.dates[0];if(!date)return '';
       const days=Math.round((Date.parse(date)-Date.parse(today))/dayMs);
       return `<button type="button" class="calendar-fixed-item${task.kind==='monthly-report'?' report':''}" data-calendar-fixed="${h(task.id)}"><b>${h(task.title)}</b> ${h(dateLabel(date))}${days>=0?` <span class="calendar-dday">${days===0?'D-day':'D-'+days}</span>`:''} <small>${h(task.campusName)}${task.kind==='monthly-report'&&task.staffCount?` · 제출 ${task.submittedCount}/${task.staffCount}`:''}</small></button>`;
     }).join('');
   }
+  // 중요 업무: events marked important that have not ended yet (KST), soonest first.
+  function importantStrip(){
+    const today=dateKey(new Date()),items=ui.important.filter(e=>(e.metadata.endDate||e.metadata.startDate)>=today).sort((a,b)=>a.metadata.startDate.localeCompare(b.metadata.startDate));
+    if(!items.length)return '';
+    return `<div class="calendar-important-row"><span class="calendar-important-label">${PIN('important')} 중요 업무</span>`+items.map(e=>{
+      const start=e.metadata.startDate,end=e.metadata.endDate||start,days=Math.round((Date.parse(start)-Date.parse(today))/dayMs);
+      const when=start<=today?'<span class="calendar-ongoing">진행 중</span>':`<span class="calendar-dday important">${days===0?'D-day':'D-'+days}</span>`;
+      return `<button type="button" class="calendar-important-item" data-calendar-event="${h(key(e))}"><b>${h(e.title)}</b> ${h(dateLabel(start))}${end!==start?' ~ '+h(dateLabel(end)):''} ${when} <small>${h(e.campusName||'조직 공통')}</small></button>`;
+    }).join('')+'</div>';
+  }
   function openFixed(id){
     const task=(ui.fixed?.tasks||[]).find(t=>t.id===id);if(!task)return;
     ui.detailEpoch++;ui.detailAbort?.abort();ui.detailKey=null;
-    showReader('📌 '+task.title,`<div class="calendar-detail-meta"><span class="calendar-type fixed">고정 업무</span> <span>${h(task.campusName)}</span>${task.dates.map(d=>`<p>${h(dateLabel(d))}</p>`).join('')}<p class="muted">${h(fixedRuleText(task))}</p>${task.kind==='monthly-report'?`<p>제출 ${task.submittedCount}/${task.staffCount}명 · <a href="/data-core/reports">월간 업무보고 열기</a></p>`:''}</div>`,
+    showReader(task.title,`<div class="calendar-detail-meta"><span class="calendar-type fixed">고정 업무</span> <span>${h(task.campusName)}</span>${task.dates.map(d=>`<p>${h(dateLabel(d))}</p>`).join('')}<p class="muted">${h(fixedRuleText(task))}</p>${task.kind==='monthly-report'?`<p>제출 ${task.submittedCount}/${task.staffCount}명 · <a href="/data-core/reports">월간 업무보고 열기</a></p>`:''}</div>`,
       task.canManage?`<button type="button" class="ghost-btn" data-fixed-edit="${h(task.id)}">수정</button>`:'');
   }
   const WEEKDAYS=['일','월','화','수','목','금','토'];
@@ -309,18 +321,19 @@
     const current=state.calendarLoadId,controller=new AbortController();state.calendarAbort=controller;
     ui.loading=true;ui.error='';ui.upcomingLoading=true;ui.upcomingError='';state.calendarEvents=[];ui.upcoming=[];render();
     const visible=range(!ui.q),today=dateKey(new Date());
-    const results=await Promise.allSettled([pages(visible.from,visible.to,controller.signal),pages(today,addDays(today,7),controller.signal,false),api('/api/data-core/calendar/fixed-tasks?month='+monthKey(),{signal:controller.signal})]);
+    const results=await Promise.allSettled([pages(visible.from,visible.to,controller.signal),pages(today,addDays(today,7),controller.signal,false),api('/api/data-core/calendar/fixed-tasks?month='+monthKey(),{signal:controller.signal}),api(`/api/data-core/calendar?from=${today}&to=${addDays(today,365)}&important=1`,{signal:controller.signal})]);
     if(current!==state.calendarLoadId||controller.signal.aborted)return;
     if(results[0].status==='fulfilled')state.calendarEvents=results[0].value;else ui.error='일정을 불러오지 못했습니다. 다시 시도해주세요.';
     if(results[1].status==='fulfilled')ui.upcoming=results[1].value;else ui.upcomingError='가까운 일정을 불러오지 못했습니다.';
     ui.fixed=results[2].status==='fulfilled'?results[2].value:null;
+    ui.important=results[3].status==='fulfilled'?results[3].value.events||[]:[];
     ui.loading=false;ui.upcomingLoading=false;state.calendarAbort=null;render();
   }
   function reset() {
     pendingLoad=null;
     clearTimeout(ui.timer);++state.calendarLoadId;state.calendarAbort?.abort();state.calendarAbort=null;
     ui.detailEpoch++;ui.detailAbort?.abort();ui.detailKey=null;ui.editOrigin=null;ui.editSnapshot='';ui.returnTo=null;
-    ui.identity='';state.calendarEvents=[];ui.upcoming=[];ui.external=[];ui.fixed=null;ui.scope='';ui.q='';ui.type='';ui.loading=false;ui.error='';ui.upcomingLoading=false;ui.upcomingError='';
+    ui.identity='';state.calendarEvents=[];ui.upcoming=[];ui.external=[];ui.fixed=null;ui.important=[];ui.scope='';ui.q='';ui.type='';ui.loading=false;ui.error='';ui.upcomingLoading=false;ui.upcomingError='';
     $('calendarDetail')?.close();$('calendarModal')?.close();$('calendarForm')?.reset();$('calendarDetailBody').replaceChildren();document.body.classList.remove('calendar-dialog-open');render();
   }
   function closeDetail(restore=true) {
@@ -375,7 +388,7 @@
     $('calendarEventId').value=copy?'':event?.id||'';$('calendarTitle').value=event?.title||'';
     $('calendarStartDate').value=copy?'':m.startDate||state.calendarSelectedDate||range().from;
     $('calendarEndDate').value=copy?'':m.endDate||'';$('calendarEventType').value=m.eventType||'other';$('calendarSummary').value=event?.summary||'';
-    $('calendarLocation').value=m.location||'';$('calendarTimeMode').value=copy?'unspecified':m.allDay===true?'allDay':m.startTime?'time':'unspecified';
+    $('calendarLocation').value=m.location||'';$('calendarImportant').checked=m.important===true;$('calendarTimeMode').value=copy?'unspecified':m.allDay===true?'allDay':m.startTime?'time':'unspecified';
     $('calendarStartTime').value=copy?'':m.startTime||'';$('calendarEndTime').value=copy?'':m.endTime||'';$('calendarTimeMode').onchange();
     $('calendarCampus').innerHTML=(isSuperAdmin()?'<option value="">조직 공통</option>':'')+campuses.map(c=>`<option value="${h(c.id)}">${h(campusDisplayName(c))}</option>`).join('');
     $('calendarCampus').value=event&&!copy?event.campusId||'':isSuperAdmin()?'':campuses[0]?.id||'';
@@ -385,6 +398,7 @@
   function replaceEvent(event) {
     state.calendarEvents=state.calendarEvents.filter(item=>item.id!==event.id);state.calendarEvents.push(event);
     ui.upcoming=ui.upcoming.filter(item=>item.id!==event.id);const today=dateKey(new Date());if(overlaps(event,today,addDays(today,7)))ui.upcoming.push(event);
+    ui.important=ui.important.filter(item=>item.id!==event.id);if(event.metadata.important&&(event.metadata.endDate||event.metadata.startDate)>=today)ui.important.push(event);
   }
   async function save(event) {
     event.preventDefault();if(state.calendarSaving)return;const errorLabel=$('calendarFormError');errorLabel.textContent='';
@@ -394,7 +408,7 @@
     if(timed&&(!end||end===start)&&$('calendarEndTime').value&&$('calendarEndTime').value<$('calendarStartTime').value){errorLabel.textContent='종료 시간은 시작 시간과 같거나 이후여야 합니다.';return;}
     const id=$('calendarEventId').value,campusId=$('calendarCampus').value||null;
     const payload={title:$('calendarTitle').value.trim(),summary:$('calendarSummary').value.trim()||null,campusId,visibility:campusId?'campus':'organization',
-      metadata:{startDate:start,endDate:end||'',eventType:$('calendarEventType').value,allDay:$('calendarTimeMode').value==='allDay',startTime:timed?$('calendarStartTime').value:'',endTime:timed?$('calendarEndTime').value:'',location:$('calendarLocation').value.trim()}};
+      metadata:{startDate:start,endDate:end||'',eventType:$('calendarEventType').value,allDay:$('calendarTimeMode').value==='allDay',startTime:timed?$('calendarStartTime').value:'',endTime:timed?$('calendarEndTime').value:'',location:$('calendarLocation').value.trim(),important:$('calendarImportant').checked}};
     const controls=[...$('calendarForm').elements],disabled=controls.map(control=>control.disabled),identity=ui.identity;
     state.calendarSaving=true;controls.forEach(control=>{control.disabled=true;});$('calendarSubmitBtn').textContent='저장 중...';$('calendarForm').setAttribute('aria-busy','true');
     try {

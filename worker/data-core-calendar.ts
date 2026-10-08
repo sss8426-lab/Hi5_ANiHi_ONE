@@ -40,6 +40,8 @@ type CalendarMetadata = {
   sourceRecordId?: string;
   sourceApp?: string;
   holidayOverride?: boolean;
+  // 중요 업무: shown pinned under 고정 업무 until the event has ended.
+  important?: boolean;
 };
 
 function cleanText(value: unknown, maxLength: number): string {
@@ -90,6 +92,8 @@ function calendarMetadata(value: unknown, fallback: Partial<CalendarMetadata> = 
   // day, so 출석부 keeps it as a regular column instead of 휴.
   const holidayOverride = (input.holidayOverride ?? fallback.holidayOverride) === true;
   if (holidayOverride && eventType !== "class") throw new DataCoreAccessError(400, "공휴일 수업 표시는 수업 일정에만 쓸 수 있습니다.");
+  const importantValue = input.important === undefined ? fallback.important : input.important;
+  if (importantValue !== undefined && typeof importantValue !== 'boolean') throw new DataCoreAccessError(400, '중요 업무 여부가 올바르지 않습니다.');
   return {
     schemaVersion: 1,
     startDate,
@@ -102,6 +106,7 @@ function calendarMetadata(value: unknown, fallback: Partial<CalendarMetadata> = 
     ...(sourceRecordId ? { sourceRecordId } : {}),
     ...(sourceApp ? { sourceApp } : {}),
     ...(holidayOverride ? { holidayOverride } : {}),
+    ...(importantValue === true ? { important: true } : {}),
   };
 }
 
@@ -196,7 +201,9 @@ export async function listAcademyCalendar(db: D1Database, context: DataCoreAcces
   await ensureDataCoreDatabase(db);
   const from = parseDate(url.searchParams.get('from'), 'from');
   const to = parseDate(url.searchParams.get('to'), 'to');
-  if (to < from || Date.parse(to) - Date.parse(from) > 62 * 86400000) throw new DataCoreAccessError(400, '조회 기간은 63일 이내여야 합니다.');
+  // The pinned 중요 업무 list looks a year ahead; a normal month view stays within 63 days.
+  const importantOnly = url.searchParams.get('important') === '1';
+  if (to < from || Date.parse(to) - Date.parse(from) > (importantOnly ? 366 : 62) * 86400000) throw new DataCoreAccessError(400, importantOnly ? '중요 업무 조회 기간은 1년 이내여야 합니다.' : '조회 기간은 63일 이내여야 합니다.');
   const campusId = cleanText(url.searchParams.get('campusId'), 120);
   if (campusId && !context.isSuperAdmin && !context.campusIds.includes(campusId)) throw new DataCoreAccessError(403, '해당 캠퍼스의 일정을 볼 권한이 없습니다.');
   const scope = url.searchParams.get('scope') || 'all';
@@ -228,6 +235,7 @@ export async function listAcademyCalendar(db: D1Database, context: DataCoreAcces
   if (scope === 'campus') conditions.push("dr.visibility='campus'");
   if (campusId) { conditions.push("dr.campus_id=?"); bindings.push(campusId); }
   if (type) { conditions.push(`COALESCE(json_extract(${json}, '$.eventType'),'other')=?`); bindings.push(type); }
+  if (importantOnly) conditions.push(`json_extract(${json}, '$.important')=1`);
   if (q) { conditions.push("(instr(lower(dr.title),lower(?))>0 OR instr(lower(COALESCE(dr.summary,'')),lower(?))>0)"); bindings.push(q,q); }
   const cursor = url.searchParams.get('cursor');
   if (cursor) {

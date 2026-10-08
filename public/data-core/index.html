@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="/data-core/design-tokens.css?v=20260913-soft-premium">
   <link rel="stylesheet" href="/data-core/design-system.css?v=20260928-approved-logo&amp;nav=20260929">
   <link rel="stylesheet" href="/data-core/image-gallery.css?v=20260913-fast-images">
-  <link rel="stylesheet" href="/data-core/calendar.css?v=20261008-fixed">
+  <link rel="stylesheet" href="/data-core/calendar.css?v=20261009-important">
 </head>
 <body class="data-core-layout">
   <div class="app-shell">
@@ -453,6 +453,7 @@
         <label><span>종료 시간</span><input id="calendarEndTime" type="time" disabled></label>
         <label><span>유형</span><select id="calendarEventType"><option value="class">수업</option><option value="admission">입시</option><option value="competition">공모전</option><option value="marketing">홍보</option><option value="holiday">휴일</option><option value="meeting">회의</option><option value="other">기타</option></select></label>
         <label><span>공유 범위</span><select id="calendarCampus"></select></label>
+        <label class="span-2 calendar-important-field"><input id="calendarImportant" type="checkbox"><span><b><svg class="calendar-pin important" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg> 중요 업무로 핀 고정</b><small>달력 위 ‘중요 업무’ 줄에 보이고, 일정이 끝나면 자동으로 빠집니다.</small></span></label>
         <label class="span-2"><span>메모</span><textarea id="calendarSummary" rows="4" maxlength="10000"></textarea></label>
         <p class="span-2" id="calendarFormError" role="alert"></p>
         <div class="form-actions span-2"><button class="primary-btn" type="submit" id="calendarSubmitBtn">일정 저장</button></div>
@@ -499,7 +500,7 @@
   <script src="/data-core/curriculum-library.js?v=20260930-start-folder-edit"></script>
   <script src="/data-core/curriculum.js?v=20260930-start-folder-upload"></script>
   <script src="/data-core/brand-home.js?v=20260913-brand-home"></script>
-  <script src="/data-core/calendar.js?v=20261008-double-press"></script>
+  <script src="/data-core/calendar.js?v=20261009-important"></script>
   <script src="/data-core/app.js?v=20261008-drag"></script>
   <script src="/data-core/mode-home-artwork.js?v=20260921-calendar-details"></script>
   <script type="module" src="/data-core/design-shell.js?v=20260912-campus"></script>
