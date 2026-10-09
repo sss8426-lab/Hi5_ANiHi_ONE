@@ -24,6 +24,9 @@
 .photo-folders strong { font-size: inherit; font-weight: 600; min-width: 0; }
 .photo-folders button { display: flex; gap: 10px; align-items: center; text-align: left; padding: 14px; border: 1px solid var(--core-line); border-radius: 6px; background: var(--core-surface); color: var(--core-ink); cursor: pointer; min-width: 0; overflow-wrap: anywhere; }
 .photo-folders svg { flex: 0 0 20px; color: var(--core-brand); }
+.photo-folder-text { display: grid; gap: 2px; min-width: 0; }
+.photo-folder-text small { font-size: 12px; font-weight: 500; color: var(--core-ink-muted); }
+.photo-folder-text small:empty { display: none; }
 #photoPages { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 #photoPages > span { min-width: 24px; text-align: center; }
 .photo-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin: 18px 0; max-height: 340px; overflow-y: auto; overscroll-behavior: contain; padding: 2px; }
