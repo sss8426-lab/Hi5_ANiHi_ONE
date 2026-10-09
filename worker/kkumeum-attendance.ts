@@ -4,6 +4,7 @@ import { getGuardianChild } from "./kkumeum-guardian-feed";
 import { ensureKkumeumGuardianAuthSchema } from "./kkumeum-guardian-auth";
 import { dispatchGuardianDirectPush, type KkumeumPushEnv } from "./kkumeum-push";
 import { listKkumeumStudents } from "./kkumeum-staff";
+import { attendanceScheduleForDay } from "./kkumeum-attendance-roster";
 
 // 출석체크: staff mark 등원·하원·결석·지각·조퇴·보강 and the child's guardians get an alert at once.
 export const ATTENDANCE_STATUSES = {
@@ -102,12 +103,20 @@ export async function listStaffAttendanceDay(familyDb: D1Database, context: Data
   await ensureKkumeumAttendanceSchema(familyDb);
   const date = dateValue ? validDate(dateValue) : kstDate();
   const students = await listKkumeumStudents(familyDb, context, campusId, { classId, status: "active" }) as Record<string, unknown>[];
+  // The month's 출석부 (saved when it was made) decides who has class today and carries the phone numbers.
+  const schedule = await attendanceScheduleForDay(familyDb, context, campusId, date, new Set(students.map((s) => String(s.id))));
+  const ids = new Set(students.map((s) => String(s.id)));
+  for (const group of schedule?.classes || []) for (const entry of group.students) if (entry.studentId) ids.add(entry.studentId);
   const byStudent = new Map<string, ReturnType<typeof eventResponse>[]>();
-  for (const row of await events(familyDb, campusId, students.map((s) => String(s.id)), date, date)) {
+  for (const row of await events(familyDb, campusId, [...ids], date, date)) {
     if (!byStudent.has(row.student_id)) byStudent.set(row.student_id, []);
     byStudent.get(row.student_id)!.push(eventResponse(row));
   }
-  return { date, students: students.map((s) => ({ id: s.id, name: s.display_name || s.name, classId: s.current_class_id || null, events: byStudent.get(String(s.id)) || [] })) };
+  return {
+    date,
+    schedule: schedule && { ...schedule, classes: schedule.classes.map((group) => ({ ...group, students: group.students.map((entry) => ({ ...entry, events: entry.studentId ? byStudent.get(entry.studentId) || [] : [] })) })) },
+    students: students.map((s) => ({ id: s.id, name: s.display_name || s.name, classId: s.current_class_id || null, events: byStudent.get(String(s.id)) || [] })),
+  };
 }
 
 export async function listStaffAttendanceMonth(familyDb: D1Database, context: DataCoreAccessContext, campusId: string, monthValue: unknown, classId?: string) {

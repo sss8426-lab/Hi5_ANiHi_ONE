@@ -7,7 +7,7 @@ import {escapeHtml as h} from './attendance-template.js?v=20260919-sparse-import
 
 const XLSX_TYPE='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 export function mountRosterAttendance(host,{campusId='',campusName=''}={}){
-  let roster=null,result=null,busy=false,disposed=false,ticket=0,controller=null;
+  let roster=null,rosterFile='',linkTicket=0,result=null,busy=false,disposed=false,ticket=0,controller=null;
   let month=null,monthTicket=0,monthController=null,saving=false;
   const urls=new Set(),now=new Date();
   const next=now.getMonth()===11?{year:now.getFullYear()+1,month:1}:{year:now.getFullYear(),month:now.getMonth()+2};
@@ -32,6 +32,7 @@ export function mountRosterAttendance(host,{campusId='',campusName=''}={}){
       <p id="arHolidays"></p>
       <div class="ar-table-wrap"><table class="ar-table"><thead><tr><th>시트(반)</th><th>학생</th><th>날짜칸</th><th>일수</th></tr></thead><tbody id="arSheets"></tbody></table></div>
       <p class="ar-note">A4 가로 · 가로 1페이지 맞춤 · 3~4행 제목 반복 인쇄 · 파란 칸 = 예정 수업</p>
+      <div id="arLink" class="ar-link" role="status" aria-live="polite" hidden></div>
       <div class="at-actions"><button type="button" id="arDownload" class="at-primary">Excel 다운로드</button></div>
     </section>
   </section>`;
@@ -43,7 +44,7 @@ export function mountRosterAttendance(host,{campusId='',campusName=''}={}){
     $('arGenerate').disabled=busy||blocked();$('arGenerate').textContent=busy?'처리 중...':'반별 출석부 Excel 생성';
     $('arDownload').disabled=busy||!result;
   }
-  function invalidate(){result=null;$('arResult').hidden=true;$('arSheets').replaceChildren();for(const url of urls)URL.revokeObjectURL(url);urls.clear();sync();}
+  function invalidate(){result=null;linkTicket++;$('arLink').hidden=true;$('arLink').replaceChildren();$('arResult').hidden=true;$('arSheets').replaceChildren();for(const url of urls)URL.revokeObjectURL(url);urls.clear();sync();}
   function showRoster(fileName){
     const mismatch=campusName&&roster.campus.replace(/\s+/g,'')!==campusName.replace(/\s+/g,'');
     $('arSummary').innerHTML=`<strong>${h(fileName)}</strong>
@@ -65,7 +66,7 @@ export function mountRosterAttendance(host,{campusId='',campusName=''}={}){
       if(!/\.xlsx$/i.test(file.name))throw new RosterError('xlsx 파일만 올릴 수 있습니다. Excel에서 "Excel 통합 문서(*.xlsx)"로 저장해주세요.');
       if(file.size>20*1024*1024)throw new RosterError('Excel 파일은 20MB 이하로 올려주세요.');
       const bytes=await file.arrayBuffer();if(disposed||ticket!==epoch)return;
-      roster=parseRoster(bytes);showRoster(file.name);
+      roster=parseRoster(bytes);rosterFile=file.name;showRoster(file.name);
       status(roster.issues.length?'':`${roster.classes.length}개 반 · 학생 ${roster.studentCount}명을 확인했습니다. 연도와 월을 고른 뒤 생성해주세요.`);
     }catch(error){
       if(disposed||ticket!==epoch)return;roster=null;
@@ -125,11 +126,37 @@ export function mountRosterAttendance(host,{campusId='',campusName=''}={}){
         return `<tr><th scope="row">${h(s.name)}</th><td>${s.students.length}명</td><td>${s.columns.length}칸</td><td>${h(labels.join(' · '))}</td></tr>`;
       }).join('');
       $('arResult').hidden=false;status('');
+      void linkAttendance(year,month);
     }catch(error){
       if(disposed||ticket!==epoch||error?.name==='AbortError')return;
       invalidate();status(`${error?.message||'출석부를 만들지 못했습니다.'} 잠시 후 다시 시도해주세요.`);
     }finally{if(!disposed&&ticket===epoch){busy=false;sync();}}
   };
+  // 출석부 ↔ 출석체크: the same 반·학생·수업요일·전화번호 go to 꿈이음 출석체크 for that month, so each day
+  // it lists the students whose 수업요일 is that day. Missing students are registered there; the Excel is
+  // already made, so a failure here only explains itself.
+  async function linkAttendance(year,month){
+    const box=$('arLink'),epoch=++linkTicket,label=`${month}월`;
+    box.hidden=false;box.className='ar-link';box.textContent=`출석체크에 ${label} 명단을 연동하는 중...`;
+    const classes=roster.classes.map(c=>({name:c.name,students:c.students.map(s=>({no:s.no,name:s.name,school:s.school,grade:s.grade,
+      studentPhone:s.studentPhone,parentPhone:s.parentPhone,slots:s.schedule?.slots||[]}))}));
+    try{
+      const response=await fetch('/api/kkumeum/attendance/roster',{method:'PUT',credentials:'same-origin',headers:{'content-type':'application/json'},
+        body:JSON.stringify({campusId,month:`${year}-${String(month).padStart(2,'0')}`,sourceName:rosterFile,classes})});
+      const body=await response.json().catch(()=>({}));
+      if(disposed||epoch!==linkTicket)return;
+      if(!response.ok)throw Error(body.error||'명단을 저장하지 못했습니다.');
+      const reasons={inactive:'꿈이음에서 휴원·퇴원 상태',ambiguous:'같은 이름 학생이 여러 명'};
+      box.className='ar-link ar-link-ok';
+      box.innerHTML=`<strong>출석체크 연동 완료</strong> ${h(label)} 명단 ${body.students}명을 꿈이음 출석체크에 넣었습니다. 날짜와 요일에 맞춰 그날 수업하는 학생이 자동으로 나옵니다.`
+        +(body.created?.students?` <span>꿈이음에 없던 학생 ${body.created.students}명${body.created.classes?`과 반 ${body.created.classes}개`:''}를 새로 등록했습니다.</span>`:'')
+        +(body.unmatched?.length?`<details><summary>확인이 필요한 학생 ${body.unmatched.length}명</summary><ul>${body.unmatched.map(u=>`<li>${h(u.className)} · ${h(u.name)}: ${h(reasons[u.reason]||'연결하지 못함')}</li>`).join('')}</ul></details>`:'');
+    }catch(error){
+      if(disposed||epoch!==linkTicket)return;
+      box.className='ar-link ar-link-warn';
+      box.textContent=`출석체크 연동은 하지 못했습니다: ${error.message||'잠시 후 다시 시도해 주세요.'} Excel 출석부는 정상적으로 만들어졌습니다.`;
+    }
+  }
   $('arDownload').onclick=()=>{
     if(!result)return;const url=URL.createObjectURL(new Blob([result.bytes],{type:XLSX_TYPE}));urls.add(url);
     const link=document.createElement('a');link.href=url;link.download=result.filename;link.click();

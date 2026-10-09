@@ -59,6 +59,7 @@ import {
 } from "./kkumeum-guardian-admin";
 import { assertKkumeumPilotCampus } from "./kkumeum-pilot";
 import { cancelKkumeumAttendance, listStaffAttendanceDay, listStaffAttendanceMonth, markKkumeumAttendance } from "./kkumeum-attendance";
+import { attendanceRosterStatus, saveKkumeumAttendanceRoster } from "./kkumeum-attendance-roster";
 import { issueKkumeumInviteCode, kkumeumInviteStatus, revokeKkumeumInviteCode } from "./kkumeum-invite-codes";
 import { dispatchGuardianAnnouncementPush, type KkumeumPushEnv } from "./kkumeum-push";
 import { kkumeumGrowthSkillCatalog } from "./kkumeum-growth-skills";
@@ -246,6 +247,21 @@ export async function handleKkumeumApi(
     const campusId = requiredCampusId(url);
     await assertKkumeumPilotCampus(familyDb, campusId);
     return respond(await listStaffAttendanceMonth(familyDb, context, campusId, url.searchParams.get("month"), url.searchParams.get("classId") || undefined));
+  }
+  // 출석부 연동: the 출석부 page saves the month's roster; 출석체크 reads it with the day view.
+  if (url.pathname === "/api/kkumeum/attendance/roster") {
+    if (request.method === "GET") {
+      const campusId = requiredCampusId(url);
+      await assertKkumeumPilotCampus(familyDb, campusId);
+      return respond(await attendanceRosterStatus(familyDb, context, campusId));
+    }
+    if (request.method === "PUT") {
+      assertSameOrigin(request);
+      const input = await readJson(request);
+      await assertKkumeumPilotCampus(familyDb, requiredBodyId(input.campusId, "campusId"));
+      return respond(await saveKkumeumAttendanceRoster(familyDb, context, input));
+    }
+    return respond({ error: "지원하지 않는 출석부 연동 요청입니다." }, { status: 405 });
   }
   const attendanceMatch = url.pathname.match(/^\/api\/kkumeum\/attendance\/([^/]+)$/);
   if (attendanceMatch) {

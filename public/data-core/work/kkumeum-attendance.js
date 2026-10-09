@@ -1,10 +1,17 @@
 // 꿈이음 출석체크 (staff): pick students, press 등원·하원·결석·지각·조퇴·보강 and their guardians get an alert.
-// Mounted by kkumeum-mobile.js when the 출석체크 menu is open; reuses its classes/students for the campus.
+// Mounted by kkumeum-mobile.js when the 출석체크 menu is open.
+// 출석부 연동: when the month's 출석부 was made on the 출석부 page, its roster comes with the day view
+// (schedule). "오늘 수업" then lists exactly the students whose 수업요일 is today, grouped by 출석부 반,
+// with 학생·학부모 전화 buttons; students not marked yet show "미등원" so they can be called right away.
 (() => {
   const STATUS = [['arrive','등원'],['leave','하원'],['absent','결석'],['late','지각'],['early','조퇴'],['makeup','보강']];
   const LABEL = Object.fromEntries(STATUS);
+  const CHECKED = new Set(STATUS.map(([k])=>k));
+  const HOLIDAYS_MODULE = '/data-core/work/attendance-holidays.js?v=20260924-class-days';
+  const ROSTER_PAGE = '/data-core/work/attendance';
   const h = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const att = { tab:'today', date:'', rows:new Map(), selected:new Set(), month:'', monthly:null, busy:false, version:0 };
+  const att = { tab:'today', date:'', rows:new Map(), schedule:null, mode:'', onlyWaiting:false, holiday:'', holidayKey:'',
+    selected:new Set(), month:'', monthly:null, busy:false, version:0 };
   let ctx = null;
   async function api(path, options={}) {
     const res = await fetch(path,{credentials:'include',cache:'no-store',...options});
@@ -14,27 +21,84 @@
   }
   const kstToday = () => new Date(Date.now()+9*3600_000).toISOString().slice(0,10);
   const dayLabel = d => { const [y,m,dd]=d.split('-').map(Number); return `${y}년 ${m}월 ${dd}일 (${'일월화수목금토'[new Date(y,m-1,dd).getDay()]})`; };
+  const monthNo = ym => Number(String(ym).slice(5,7));
   const say = text => { const el=document.getElementById('kmAttFeedback'); if(el) el.textContent=text; };
   const name = s => s.display_name || s.displayName || s.name || '';
+  const PHONE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.6a1 1 0 0 1-.25 1z"/></svg>';
+  const telHref = phone => { const digits=String(phone||'').replace(/[^\d+]/g,''); return digits.replace(/\D/g,'').length>=7?`tel:${digits}`:''; };
 
+  // Rows to show: the 출석부 schedule (today's students or the whole month list) or, without a 출석부,
+  // the 꿈이음 classes. Each row: {id (꿈이음 student or null), name, times, studentPhone, parentPhone, unmatched}.
   function groups() {
+    const s=att.schedule;
+    if(s){
+      const mode=att.mode||'today';
+      const list=s.classes.map((c,i)=>({key:`r${i}`,name:c.name,rows:c.students.filter(e=>mode==='all'||e.today).map(e=>({...e,id:e.studentId}))}));
+      if(mode==='all'){
+        const inRoster=new Set(s.classes.flatMap(c=>c.students.map(e=>e.studentId)).filter(Boolean));
+        const others=ctx.state.students.filter(st=>(st.status||'active')==='active'&&!inRoster.has(st.id)).map(st=>({id:st.id,name:name(st),times:[],studentPhone:'',parentPhone:''}));
+        if(others.length)list.push({key:'r-other',name:'출석부에 없는 꿈이음 학생',rows:others.sort((a,b)=>a.name.localeCompare(b.name,'ko'))});
+      }
+      return list.map(g=>({...g,rows:att.onlyWaiting&&mode==='today'?g.rows.filter(waiting):g.rows})).filter(g=>g.rows.length);
+    }
     const list=[...ctx.state.classes].sort((a,b)=>a.name.localeCompare(b.name,'ko'));
-    const students=ctx.state.students.filter(s=>(s.status||'active')==='active');
-    if(students.some(s=>!(s.current_class_id||s.currentClassId)))list.push({id:'',name:'반 미지정'});
-    return list.map(c=>({cls:c,students:students.filter(s=>(s.current_class_id||s.currentClassId||'')===c.id).sort((a,b)=>name(a).localeCompare(name(b),'ko'))})).filter(g=>g.students.length);
+    const students=ctx.state.students.filter(st=>(st.status||'active')==='active');
+    if(students.some(st=>!(st.current_class_id||st.currentClassId)))list.push({id:'',name:'반 미지정'});
+    return list.map(c=>({key:`c${c.id}`,name:c.name,rows:students.filter(st=>(st.current_class_id||st.currentClassId||'')===c.id)
+      .sort((a,b)=>name(a).localeCompare(name(b),'ko')).map(st=>({id:st.id,name:name(st),times:[],studentPhone:'',parentPhone:''}))})).filter(g=>g.rows.length);
   }
+  const marked = id => (att.rows.get(id)||[]).some(e=>CHECKED.has(e.status));
+  const arrived = id => (att.rows.get(id)||[]).some(e=>['arrive','late','makeup'].includes(e.status));
+  // 미등원: has class today by the 출석부, can be marked, nothing recorded yet, and today is not a day off.
+  const waiting = row => Boolean(att.schedule&&row.today&&row.id&&!att.holiday&&!marked(row.id));
+
   function chips(studentId) {
     return (att.rows.get(studentId)||[]).map(e=>`<span class="km-att-chip km-att-${h(e.status)}" title="${h(e.message)}">${h(e.label)} ${e.status==='absent'?'':h(e.time)}<button type="button" data-att-cancel="${h(e.id)}" aria-label="${h(e.label)} ${h(e.time)} 기록 취소">×</button></span>`).join('');
   }
+  function call(phone,who,student) {
+    const href=telHref(phone);
+    return href
+      ? `<a class="km-att-call km-att-call-${who==='학생'?'student':'parent'}" href="${h(href)}" aria-label="${h(student)} ${who}에게 전화 ${h(phone)}" title="${h(phone)}">${PHONE_ICON}<span>${who}</span></a>`
+      : `<span class="km-att-call km-att-call-none" aria-label="${h(student)} ${who} 번호 없음" title="출석부에 ${who} 번호가 없습니다">${PHONE_ICON}<span>${who}</span></span>`;
+  }
+  function row(r) {
+    const picked=r.id&&att.selected.has(r.id), wait=waiting(r), events=r.id?chips(r.id):'';
+    const slot=r.times?.length&&(att.mode||'today')==='today'?`<em class="km-att-slot">${h(r.times.join('·'))}타임</em>`:'';
+    const note=r.id?'':`<em class="km-att-note">${r.unmatched==='ambiguous'?'동명이인 확인 필요':r.unmatched==='inactive'?'꿈이음 휴원 상태':'꿈이음 미등록'}</em>`;
+    return `<div class="km-att-row${picked?' km-att-picked':''}${wait?' km-att-waiting':''}${r.id?'':' km-att-unlinked'}">
+      <label class="km-att-who"><input type="checkbox" ${r.id?`data-att-student="${h(r.id)}"`:'disabled'} ${picked?'checked':''} aria-label="${h(r.name)} 선택"><span class="km-att-name">${h(r.name)}</span>${slot}${wait?'<em class="km-att-tag">미등원</em>':''}${note}</label>
+      ${att.schedule?`<span class="km-att-calls">${call(r.studentPhone,'학생',r.name)}${call(r.parentPhone,'학부모',r.name)}</span>`:''}
+      ${events?`<span class="km-att-chips">${events}</span>`:''}</div>`;
+  }
+  function header() {
+    const s=att.schedule;
+    if(!s) return `<div class="km-att-roster km-att-roster-missing"><strong>출석부가 아직 연동되지 않았습니다.</strong> 업무의 <a href="${ROSTER_PAGE}">출석부</a>에서 종합 출석부로 이번 달 출석부를 만들면, 날짜와 요일에 맞춰 그날 수업하는 학생과 학생·학부모 전화번호가 여기에 자동으로 나옵니다.</div>`;
+    const today=att.date.slice(0,7);
+    const rows=s.classes.flatMap(c=>c.students.filter(e=>e.today).map(e=>({...e,id:e.studentId})));
+    const waitingCount=rows.filter(waiting).length, arrivedCount=rows.filter(e=>e.studentId&&arrived(e.studentId)).length;
+    return `<div class="km-att-roster"><span><strong>${monthNo(s.month)}월 출석부</strong> 기준 · 오늘(${h(s.weekday)}요일) 수업 <b>${s.todayCount}명</b></span>
+      ${s.todayCount?`<span class="km-att-stats"><span>등원 <b>${arrivedCount}</b></span>${att.holiday?'':`<span class="km-att-wait-count">미등원 <b>${waitingCount}</b></span>`}</span>`:''}
+      ${s.exact?'':`<small>${monthNo(today)}월 출석부가 아직 없어 ${monthNo(s.month)}월 출석부의 수업요일로 보여줍니다. 업무의 <a href="${ROSTER_PAGE}">출석부</a>에서 ${monthNo(today)}월 출석부를 만들면 바로 바뀝니다.</small>`}</div>
+      ${att.holiday?`<p class="km-att-holiday">오늘은 <strong>${h(att.holiday)}</strong>(으)로 출석부상 휴무일입니다. 수업하는 학생이 있으면 그대로 출석체크할 수 있습니다.</p>`:''}
+      <div class="km-att-modes" role="group" aria-label="학생 보기">
+        <button type="button" data-att-mode="today" aria-pressed="${(att.mode||'today')==='today'}">오늘 수업 ${s.todayCount}</button>
+        <button type="button" data-att-mode="all" aria-pressed="${att.mode==='all'}">이 달 명단 전체</button>
+        ${(att.mode||'today')==='today'&&!att.holiday?`<button type="button" data-att-waiting aria-pressed="${att.onlyWaiting}">미등원만</button>`:''}
+      </div>`;
+  }
   function today() {
-    const gs=groups();
-    const body=gs.map(({cls,students})=>{
-      const arrived=students.filter(s=>(att.rows.get(s.id)||[]).some(e=>['arrive','late','makeup'].includes(e.status))).length;
-      const all=students.every(s=>att.selected.has(s.id));
-      return `<section class="km-group km-att-group"><div class="km-att-head"><label class="km-check"><input type="checkbox" data-att-class="${h(cls.id)}" ${all?'checked':''} aria-label="${h(cls.name)} 전체 선택"></label><strong>${h(cls.name)}</strong><small>등원 ${arrived} / ${students.length}</small></div>
-        ${students.map(s=>`<div class="km-att-row${att.selected.has(s.id)?' km-att-picked':''}"><label><input type="checkbox" data-att-student="${h(s.id)}" ${att.selected.has(s.id)?'checked':''}><span>${h(name(s))}</span></label><span class="km-att-chips">${chips(s.id)}</span></div>`).join('')}</section>`;
-    }).join('')||'<p class="km-state">출석체크할 학생이 없습니다. 반과 학생을 먼저 등록해 주세요.</p>';
-    return `<p class="km-meta">${h(dayLabel(att.date))} · 학생을 고르고 아래 버튼을 누르면 보호자에게 바로 알림이 갑니다.</p>${body}
+    const gs=groups(), mode=att.schedule?(att.mode||'today'):'all';
+    const empty=att.schedule
+      ? (mode==='today'?(att.onlyWaiting?'미등원 학생이 없습니다. 오늘 수업 학생 모두 출결이 기록되었습니다.':`오늘(${att.schedule.weekday}요일)은 출석부상 수업하는 학생이 없습니다. "이 달 명단 전체"에서 찾아 출석체크할 수 있습니다.`):'이 달 출석부 명단이 비어 있습니다.')
+      : '출석체크할 학생이 없습니다. 반과 학생을 먼저 등록해 주세요.';
+    const body=gs.map(({key,name:title,rows})=>{
+      const ids=[...new Set(rows.map(r=>r.id).filter(Boolean))];
+      const all=ids.length>0&&ids.every(id=>att.selected.has(id));
+      const came=ids.filter(arrived).length, wait=rows.filter(waiting).length;
+      return `<section class="km-group km-att-group"><div class="km-att-head"><label class="km-check"><input type="checkbox" data-att-class="${h(key)}" ${all?'checked':''} ${ids.length?'':'disabled'} aria-label="${h(title)} 전체 선택"></label><strong>${h(title)}</strong><small>등원 ${came} / ${rows.length}${wait?` · <b>미등원 ${wait}</b>`:''}</small></div>
+        ${rows.map(row).join('')}</section>`;
+    }).join('')||`<p class="km-state">${h(empty)}</p>`;
+    return `<p class="km-meta">${h(dayLabel(att.date))} · 학생을 고르고 아래 버튼을 누르면 보호자에게 바로 알림이 갑니다.</p>${header()}${body}
       <div class="km-att-bar" role="region" aria-label="출결 처리"><div class="km-att-bar-top"><output id="kmAttCount">선택 ${att.selected.size}명</output><input id="kmAttMessage" maxlength="500" placeholder="알림에 덧붙일 말 (선택)" aria-label="알림에 덧붙일 말"></div>
         <div class="km-att-buttons">${STATUS.map(([k,l])=>`<button type="button" class="km-att-${k}" data-att-mark="${k}" ${att.selected.size&&!att.busy?'':'disabled'}>${l}</button>`).join('')}</div></div>`;
   }
@@ -46,15 +110,35 @@
   }
   function paint() {
     const content=document.getElementById('kmContent'); if(!content||ctx.route().view!=='attendance')return;
+    const message=document.getElementById('kmAttMessage')?.value||'';
     content.innerHTML=`<button type="button" class="km-back" data-back>소식으로 돌아가기</button><h2>출석체크</h2>
       <div class="km-att-tabs" role="group" aria-label="출석체크 보기"><button type="button" data-att-tab="today" aria-pressed="${att.tab==='today'}">오늘 출석</button><button type="button" data-att-tab="month" aria-pressed="${att.tab==='month'}">월별 현황</button></div>
       <p id="kmAttFeedback" class="km-att-feedback" role="status"></p>${att.tab==='today'?today():month()}`;
+    const input=document.getElementById('kmAttMessage');if(input&&message)input.value=message;
+  }
+  // 공휴일·휴무 from CORE's calendar (same source as the 출석부): a day off hides 미등원.
+  async function loadHoliday(date) {
+    const key=`${ctx.state.campusId}|${date}`;
+    if(att.holidayKey===key)return;
+    att.holidayKey=key;att.holiday='';
+    try{
+      const {fetchMonthHolidays}=await import(HOLIDAYS_MODULE);
+      const [y,m]=date.split('-').map(Number);
+      const {holidays}=await fetchMonthHolidays({year:y,month:m,campusId:ctx.state.campusId});
+      if(att.holidayKey!==key)return;
+      att.holiday=holidays.get(date)||'';
+      if(att.holiday)paint();
+    }catch{ /* 휴무 확인은 보조 정보라서 실패해도 출석체크는 그대로 쓴다. */ }
   }
   async function loadDay() {
     const v=++att.version;att.date=kstToday();
     const r=await api(`/api/kkumeum/attendance?campusId=${encodeURIComponent(ctx.state.campusId)}`);
     if(v!==att.version)return;
-    att.date=r.date;att.rows=new Map(r.students.map(s=>[s.id,s.events]));paint();
+    att.date=r.date;att.schedule=r.schedule||null;
+    att.rows=new Map(r.students.map(s=>[s.id,s.events]));
+    for(const c of att.schedule?.classes||[])for(const e of c.students)if(e.studentId&&!att.rows.has(e.studentId))att.rows.set(e.studentId,e.events||[]);
+    paint();
+    if(att.schedule)void loadHoliday(att.date);
   }
   async function loadMonth() {
     const v=++att.version;att.monthly=null;paint();
@@ -68,7 +152,9 @@
     document.querySelectorAll('[data-att-mark]').forEach(b=>b.disabled=true);
     try{
       const r=await api('/api/kkumeum/attendance',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({campusId:ctx.state.campusId,status,studentIds:[...att.selected],message})});
-      att.selected.clear();att.busy=false;await loadDay();
+      att.selected.clear();att.busy=false;
+      const input=document.getElementById('kmAttMessage');if(input)input.value='';
+      await loadDay();
       const parents=r.marked.reduce((n,m)=>n+m.guardians,0);
       say(`${r.marked.length}명 ${LABEL[status]} 처리 · ${r.push.sent?`알림 ${r.push.sent}건 보냄`:parents?'알림을 켠 보호자 기기가 아직 없어 기록만 남겼습니다':'연결된 보호자가 없어 기록만 남겼습니다'}`);
     }catch(e){att.busy=false;paint();say(e.message);}
@@ -81,12 +167,14 @@
   }
   function syncSelection() {
     document.querySelectorAll('[data-att-student]').forEach(b=>{b.checked=att.selected.has(b.dataset.attStudent);b.closest('.km-att-row')?.classList.toggle('km-att-picked',b.checked);});
-    document.querySelectorAll('[data-att-class]').forEach(b=>{const ids=groups().find(g=>g.cls.id===b.dataset.attClass)?.students.map(s=>s.id)||[];const n=ids.filter(id=>att.selected.has(id)).length;b.checked=n>0&&n===ids.length;b.indeterminate=n>0&&n<ids.length;});
+    const gs=groups();
+    document.querySelectorAll('[data-att-class]').forEach(b=>{const ids=[...new Set((gs.find(g=>g.key===b.dataset.attClass)?.rows||[]).map(r=>r.id).filter(Boolean))];const n=ids.filter(id=>att.selected.has(id)).length;b.checked=n>0&&n===ids.length;b.indeterminate=n>0&&n<ids.length;});
     const count=document.getElementById('kmAttCount');if(count)count.textContent=`선택 ${att.selected.size}명`;
     document.querySelectorAll('[data-att-mark]').forEach(b=>b.disabled=!att.selected.size||att.busy);
   }
   window.KkumeumAttendance = {
     open(context) {
+      if(ctx?.state?.campusId!==context.state.campusId){att.schedule=null;att.mode='';att.onlyWaiting=false;att.holidayKey='';att.holiday='';}
       ctx=context;att.selected.clear();att.month||=kstToday().slice(0,7);
       paint();
       (att.tab==='today'?loadDay():loadMonth()).catch(e=>{const c=document.getElementById('kmContent');if(c&&ctx.route().view==='attendance')c.innerHTML=`<button type="button" class="km-back" data-back>소식으로 돌아가기</button><p class="km-state">${h(e.status===403?e.message:'출결 정보를 불러오지 못했습니다. 다시 시도해 주세요.')}</p>`;});
@@ -96,6 +184,8 @@
     if(!ctx||ctx.route().view!=='attendance')return;
     const b=e.target.closest('button');if(!b||b.disabled)return;
     if(b.dataset.attTab){att.tab=b.dataset.attTab;att.selected.clear();window.KkumeumAttendance.open(ctx);return;}
+    if(b.dataset.attMode){att.mode=b.dataset.attMode;if(att.mode==='all')att.onlyWaiting=false;paint();return;}
+    if(b.dataset.attWaiting!==undefined){att.onlyWaiting=!att.onlyWaiting;paint();return;}
     if(b.dataset.attMark){void mark(b.dataset.attMark);return;}
     if(b.dataset.attCancel){void cancel(b.dataset.attCancel);}
   });
@@ -103,7 +193,7 @@
     if(!ctx||ctx.route().view!=='attendance')return;
     const el=e.target;
     if(el.dataset.attStudent!==undefined){if(el.checked)att.selected.add(el.dataset.attStudent);else att.selected.delete(el.dataset.attStudent);syncSelection();}
-    else if(el.dataset.attClass!==undefined){const ids=groups().find(g=>g.cls.id===el.dataset.attClass)?.students.map(s=>s.id)||[];ids.forEach(id=>el.checked?att.selected.add(id):att.selected.delete(id));syncSelection();}
+    else if(el.dataset.attClass!==undefined){const ids=(groups().find(g=>g.key===el.dataset.attClass)?.rows||[]).map(r=>r.id).filter(Boolean);ids.forEach(id=>el.checked?att.selected.add(id):att.selected.delete(id));syncSelection();}
     else if(el.id==='kmAttMonth'&&el.value){att.month=el.value;void loadMonth().catch(err=>say(err.message));}
   });
 })();

@@ -56,3 +56,9 @@
 .at-template{display:inline-flex;align-items:center;justify-content:center;gap:6px;box-sizing:border-box;min-height:44px;padding:10px 16px;border:1px solid var(--core-green,#174f44);border-radius:6px;background:var(--core-surface,#fff);color:var(--core-green,#174f44);font-size:14px;font-weight:600;text-decoration:none;white-space:nowrap}
 .at-template:hover{background:var(--core-green,#174f44);color:#fff}.at-template:focus-visible{outline:2px solid var(--core-green,#174f44);outline-offset:3px}
 .at-head .at-template{min-height:40px;padding:8px 16px}
+/* 출석부 → 출석체크 연동 결과 */
+.ar-link{margin:16px 0 0;padding:12px 14px;border:1px solid var(--core-border,#dedcd5);border-radius:6px;background:var(--core-surface,#fff);font-size:14px;line-height:1.6;color:var(--core-text,#171917)}
+.ar-link strong{margin-right:6px}
+.ar-link-ok{border-color:#b9d8cf;background:#f3faf7}.ar-link-ok strong{color:#16614f}
+.ar-link-warn{border-color:#f0d3a8;background:#fff8ee;color:#7a4300}
+.ar-link details{margin-top:6px}.ar-link summary{cursor:pointer;font-weight:600}.ar-link ul{margin:6px 0 0;padding-left:18px}

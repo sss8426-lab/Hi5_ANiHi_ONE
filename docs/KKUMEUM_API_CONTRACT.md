@@ -201,3 +201,9 @@ DB에는 raw session token을 저장하지 않고 hash만 저장한다.
 - `POST /api/kkumeum/guardians`는 새 보호자 연결과 함께 임시 비밀번호를 응답 한 번에만 반환한다. 원문 비밀번호는 FAMILY_DB 또는 감사로그에 저장하지 않는다.
 - `PATCH /api/kkumeum/guardians/:guardianId`, `POST /api/kkumeum/guardians/:guardianId/reset-password`, `POST /api/kkumeum/guardians/:guardianId/unlink`는 same-origin 요청만 허용한다.
 - 꿈이음 API JSON 응답은 성공·실패 모두 `Cache-Control: private, no-store`다.
+
+# 출석부 ↔ 출석체크 연동 (2026-10-09)
+
+- `PUT /api/kkumeum/attendance/roster`는 해당 캠퍼스 원장·관리자 또는 슈퍼관리자만, same-origin 요청으로만 저장한다. 꿈이음에 없는 학생·반은 추가만 하고 기존 학생은 바꾸지 않는다.
+- `GET /api/kkumeum/attendance`의 `schedule`은 원장·관리자에게 그 달 명단 전체를, 교사에게는 볼 수 있는 학생과 연결된 행만(전화번호 포함) 준다.
+- 자세한 규칙: `docs/ATTENDANCE_ROSTER_LINK_2026-10-09.md`.
