@@ -63,7 +63,7 @@
 .lb-recent-text{min-width:0}.lb-recent-text strong{display:block;overflow-wrap:anywhere;font-size:14px}
 #libraryRecentEmpty{color:#64756c;font-size:13px;margin:0;padding:6px}
 @media(max-width:1100px){.lb-heading{align-items:flex-start;flex-direction:column}.lb-file,.lb-recent-item{align-items:flex-start;flex-direction:column;gap:10px}}
-@media(max-width:680px){#libraryBreadcrumb ol{font-size:12px}.lb-folder-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.lb-folder{padding:14px;gap:8px;grid-template-columns:minmax(0,1fr);align-items:start}.lb-folder-editable .lb-folder-text>strong{padding-right:0}.lb-folder strong{font-size:13px}.lb-search label{width:100%}.lb-search input{flex:1;width:auto}.lb-heading{gap:15px}#libraryBrowser h2{font-size:23px}}
+@media(max-width:680px){#libraryBreadcrumb ol{font-size:12px}.lb-folder-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.lb-folder{padding:14px;gap:8px;grid-template-columns:minmax(0,1fr);align-items:start}.lb-folder-editable .lb-folder-text>strong{padding-right:0}.lb-folder strong{font-size:13px}.lb-search label:not(.lb-visually-hidden){width:100%}.lb-search input{flex:1;width:auto}.lb-heading{gap:15px}#libraryBrowser h2{font-size:23px}}
 @media(max-width:360px){.lb-folder-grid{grid-template-columns:minmax(0,1fr)}.lb-file-actions{width:100%}.lb-file-actions .lb-button{flex:1;padding:8px}.lb-toolbar{width:100%}}
 @media(max-width:680px){.lb-file-main:has(.lb-thumbnail){flex-direction:column;align-items:flex-start;gap:10px}.lb-file-main .lb-thumbnail{flex-basis:84px}}
 /* 자료보관함 layout (approved mock): breadcrumb + buttons, then tree | folder contents | 최근 올린 파일 as one

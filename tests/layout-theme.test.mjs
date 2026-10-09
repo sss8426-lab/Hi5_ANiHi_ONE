@@ -9,6 +9,8 @@ test('signed-in DATA CORE staff shells load the shared versioned visual layer af
     const styles=[...html.matchAll(/<link[^>]+rel="stylesheet"[^>]*>/g)].map(match=>match[0]);
     const sharedIndex=styles.findIndex(style=>/layout-theme\.css\?v=20260909-bright-layout/.test(style));
     assert.ok(sharedIndex>0);
+    // The phone shell layer comes last so it can restyle each page under body.mobile-app.
+    if(['index','content','accounts','operations'].includes(file))assert.match(styles.pop(),/mobile-app\.css\?v=/);
     if(file==='content')assert.match(styles.pop(),/blog-workflow\.css\?v=/);
     if(file==='content')assert.match(styles.pop(),/content-text-presets\.css\?v=/);
     if(file==='index')assert.match(styles.pop(),/calendar\.css\?v=/);

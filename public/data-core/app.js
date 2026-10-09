@@ -1525,7 +1525,7 @@ function saveCalendarEvent(event) { return window.AcademyCalendar.save(event); }
 
 function bindEvents() {
   window.AcademyCalendar.configure({state,$,h,api,canWrite,isSuperAdmin,orderedCampuses,campusDisplayName,toast});
-  document.querySelectorAll('.nav-item[data-view], .feature-card[data-view], .at-work-link[data-view], #view-attendance [data-view]').forEach((button) => {
+  document.querySelectorAll('.nav-item[data-view], .feature-card[data-view], .work-app-icon[data-view], .at-work-link[data-view], #view-attendance [data-view]').forEach((button) => {
     button.onclick = () => switchView(button.dataset.view, { resetQuery: button.dataset.view === 'library' });
   });
   $('refreshFilesBtn').onclick = loadFiles;
