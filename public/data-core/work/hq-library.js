@@ -13,7 +13,7 @@
   const remember = (key, value) => { try { localStorage.setItem(key, value); } catch { /* Preference is optional. */ } };
   state.deep = stored('library-deep') !== '0'; state.kind = ''; state.recentCampus = stored('library-recent-campus') || ''; state.recentAll = false; state.campuses = null;
   let enhancements;
-  const sheet = document.createElement('link'); sheet.rel = 'stylesheet'; sheet.href = '/data-core/work/library-browser.css?v=20261009-mock'; document.head.append(sheet);
+  const sheet = document.createElement('link'); sheet.rel = 'stylesheet'; sheet.href = '/data-core/work/library-browser.css?v=20261009-mobile-app'; document.head.append(sheet);
   let imageCache=null, observer=null, recentObserver=null, imageGeneration=0;
   function clearImages() {
     window.DataCoreImageGallery.close('library');

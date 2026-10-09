@@ -16,7 +16,8 @@
   <link rel="stylesheet" href="/data-core/design-tokens.css?v=20260913-soft-premium">
   <link rel="stylesheet" href="/data-core/design-system.css?v=20260928-approved-logo&amp;nav=20260929">
   <link rel="stylesheet" href="/data-core/image-gallery.css?v=20260913-fast-images">
-  <link rel="stylesheet" href="/data-core/calendar.css?v=20261009-important">
+  <link rel="stylesheet" href="/data-core/calendar.css?v=20261009-mobile-app">
+  <link rel="stylesheet" href="/data-core/mobile-app.css?v=20261009-mobile-app">
 </head>
 <body class="data-core-layout">
   <div class="app-shell">
@@ -167,6 +168,22 @@
 
       <section class="view" id="view-curriculum" aria-label="꿈을 향한 커리큘럼"></section>
       <section class="view" id="view-work-home">
+        <div class="work-app" aria-label="업무용 앱 홈">
+          <section class="work-app-today" aria-live="polite" data-work-today>
+            <div><small data-work-today-date></small><strong data-work-today-count>오늘 일정 확인 중</strong></div>
+            <div class="work-app-today-next"><strong data-work-today-first></strong><span data-work-today-next></span></div>
+          </section>
+          <nav class="work-app-grid" aria-label="업무 앱">
+            <button class="work-app-icon" type="button" data-view="library" data-tone="library"><span class="work-app-glyph"><svg class="core-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Folder"></use></svg></span><span class="work-app-label">자료보관함</span></button>
+            <a class="work-app-icon" href="/data-core/content/blog" data-tone="blog"><span class="work-app-glyph"><svg class="core-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#PenLine"></use></svg></span><span class="work-app-label">블로그</span></a>
+            <a class="work-app-icon" href="/data-core/content/instagram" data-tone="instagram"><span class="work-app-glyph"><svg class="core-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Image"></use></svg></span><span class="work-app-label">인스타</span></a>
+            <button class="work-app-icon" type="button" data-view="attendance" data-tone="attendance"><span class="work-app-glyph"><svg class="core-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#BookOpen"></use></svg></span><span class="work-app-label">출석부</span></button>
+            <a class="work-app-icon" href="/data-core/reports" data-tone="reports"><span class="work-app-glyph"><svg class="core-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#ClipboardList"></use></svg></span><span class="work-app-label">업무보고</span></a>
+            <a class="work-app-icon" href="/data-core/kkumeum" data-tone="kkumeum"><span class="work-app-glyph"><svg class="core-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Users"></use></svg></span><span class="work-app-label">꿈이음</span></a>
+            <a class="work-app-icon" href="/data-core/operations" data-work-app-admin hidden data-tone="operations"><span class="work-app-glyph"><svg class="core-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#RotateCcw"></use></svg></span><span class="work-app-lock"><svg class="core-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#ShieldCheck"></use></svg></span><span class="work-app-label">운영관리</span></a>
+            <a class="work-app-icon" href="/data-core/accounts" data-work-app-admin hidden data-tone="accounts"><span class="work-app-glyph"><svg class="core-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Settings"></use></svg></span><span class="work-app-lock"><svg class="core-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#ShieldCheck"></use></svg></span><span class="work-app-badge" data-work-app-signups hidden></span><span class="work-app-label">계정·권한</span></a>
+          </nav>
+        </div>
         <div class="section-head">
           <h2>업무용</h2>
           <p>내부 자료를 정리하고 같은 원본을 블로그와 인스타 작업에 재사용합니다.</p>
@@ -496,12 +513,13 @@
   <script src="/data-core/library-thumbnail.js?v=20260921-performance"></script>
   <script src="/data-core/library-client.js?v=20261009-mock"></script>
   <script src="/data-core/work/library-usage.js?v=20261009-tree"></script>
-  <script src="/data-core/work/hq-library.js?v=20261009-mock"></script>
+  <script src="/data-core/work/hq-library.js?v=20261009-mobile-app"></script>
   <script src="/data-core/curriculum-library.js?v=20260930-start-folder-edit"></script>
   <script src="/data-core/curriculum.js?v=20260930-start-folder-upload"></script>
   <script src="/data-core/brand-home.js?v=20260913-brand-home"></script>
-  <script src="/data-core/calendar.js?v=20261009-important"></script>
-  <script src="/data-core/app.js?v=20261009-attendance-link"></script>
+  <script src="/data-core/calendar.js?v=20261009-mobile-app"></script>
+  <script src="/data-core/app.js?v=20261009-mobile-app"></script>
+  <script src="/data-core/mobile-app.js?v=20261009-mobile-app"></script>
   <script src="/data-core/mode-home-artwork.js?v=20260921-calendar-details"></script>
   <script type="module" src="/data-core/design-shell.js?v=20260912-campus"></script>
 </body>

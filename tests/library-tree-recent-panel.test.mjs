@@ -76,6 +76,6 @@ test('자료보관함 layout: folder tree, recent panel for every folder, select
   assert.match(css, /\.lb-layout\{display:grid;grid-template-columns:250px minmax\(0,1fr\) 360px/);
   assert.match(css, /@container \(max-width:820px\)/);
   const index = read('public/data-core/index.html');
-  assert.match(index, /work\/hq-library\.js\?v=20261009-mock/);
-  assert.match(read('public/data-core/work/kkumeum-nav.js'), /hq-library\.js\?v=20261009-mock/);
+  assert.match(index, /work\/hq-library\.js\?v=20261009-mobile-app/);
+  assert.match(read('public/data-core/work/kkumeum-nav.js'), /hq-library\.js\?v=20261009-mobile-app/);
 });

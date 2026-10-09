@@ -152,6 +152,10 @@
     const events=[...ui.upcoming,...ui.external].filter(event=>overlaps(event,from,to));
     document.querySelectorAll('[data-calendar-upcoming]').forEach(node=>{node.innerHTML=ui.upcomingLoading?'불러오는 중...':ui.upcomingError?`${h(ui.upcomingError)} <button type="button" data-calendar-retry>다시 시도</button>`:rows(events)||'해당 기간 일정이 없습니다.';});
     document.querySelectorAll('[data-calendar-summary]').forEach(select=>{select.value=ui.summary;});
+    // The phone home's 오늘 widget reads today's events and the next one from the same loaded week.
+    const near=[...ui.upcoming,...ui.external].sort((a,b)=>a.metadata.startDate.localeCompare(b.metadata.startDate));
+    document.dispatchEvent(new CustomEvent('academy-calendar:today',{detail:{authenticated:Boolean(state.context?.authenticated),loading:ui.upcomingLoading,error:ui.upcomingError,today,
+      events:near.filter(event=>overlaps(event,today)).map(event=>({title:event.title})),next:near.filter(event=>event.metadata.startDate>today).slice(0,1).map(event=>({title:event.title,startDate:event.metadata.startDate}))[0]||null}}));
   }
   function render() {
     mountRoots();
