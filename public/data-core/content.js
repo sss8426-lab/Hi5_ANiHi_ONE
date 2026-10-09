@@ -277,6 +277,18 @@ async function loadHealthAndContext() {
   }
 }
 
+// Folders render at once without counts; the 사진 수 (same totals as 자료보관함, sub-folders included) fills in after.
+async function fillFolderCounts(id, token, signal) {
+  try {
+    const view = await api(`/api/data-core/library/folders?parentId=${encodeURIComponent(id)}`, { signal });
+    if (token !== state.browseGeneration) return;
+    for (const folder of view.folders || []) {
+      const label = $('photoFolders').querySelector(`[data-folder="${CSS.escape(folder.id)}"] [data-folder-count]`);
+      if (label && folder.totalFiles != null) label.textContent = folder.totalImages ? `사진 ${folder.totalImages}` : '사진 없음';
+    }
+  } catch { /* counts are optional; the folders stay usable without them */ }
+}
+
 async function loadFiles() {
   if (!state.context?.authenticated || state.busy) return;
   const token = ++state.browseGeneration;
@@ -301,8 +313,9 @@ async function loadFiles() {
     }
     $('photoBreadcrumb').innerHTML = (view.breadcrumbs || []).map(item => `<button type="button" data-folder="${h(item.id)}">${h(item.title)}</button>`).join('<span aria-hidden="true">/</span>');
     $('photoFolders').innerHTML = window.DataCoreLibraryClient.folderGroups(view, $('fileSearchInput').value).map(([group, folders]) =>
-      `<section class="photo-folder-group"><h3>${h(group)}</h3><div class="photo-folder-grid">${folders.map(folder => `<button type="button" data-folder="${h(folder.id)}"><svg aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Folder"></use></svg><strong>${window.DataCoreLibraryClient.nameMarkup(folder.title)}</strong></button>`).join('')}</div></section>`).join('');
-    document.querySelectorAll('[data-folder]').forEach(button => { button.onclick = () => { if (state.busy) return; renderedFolder='';state.folderId = button.dataset.folder; state.page = 1; $('fileSearchInput').value = ''; const crumb=document.createElement('span');crumb.textContent=button.textContent.trim();$('photoBreadcrumb').replaceChildren(crumb);void loadFiles(); }; });
+      `<section class="photo-folder-group"><h3>${h(group)}</h3><div class="photo-folder-grid">${folders.map(folder => `<button type="button" data-folder="${h(folder.id)}"><svg aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Folder"></use></svg><span class="photo-folder-text"><strong>${window.DataCoreLibraryClient.nameMarkup(folder.title)}</strong><small data-folder-count></small></span></button>`).join('')}</div></section>`).join('');
+    document.querySelectorAll('[data-folder]').forEach(button => { button.onclick = () => { if (state.busy) return; renderedFolder='';state.folderId = button.dataset.folder; state.page = 1; $('fileSearchInput').value = ''; const crumb=document.createElement('span');crumb.textContent=(button.querySelector('strong')||button).textContent.trim();$('photoBreadcrumb').replaceChildren(crumb);void loadFiles(); }; });
+    void fillFolderCounts(view.folder.id, token, browseController.signal);
     },onListing:listing=>{
     if (token !== state.browseGeneration) return;
     state.files = (listing.files || []).filter(file => state.sourceApp === 'instagram'
