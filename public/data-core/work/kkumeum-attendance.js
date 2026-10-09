@@ -156,13 +156,27 @@
       const input=document.getElementById('kmAttMessage');if(input)input.value='';
       await loadDay();
       const parents=r.marked.reduce((n,m)=>n+m.guardians,0);
-      say(`${r.marked.length}명 ${LABEL[status]} 처리 · ${r.push.sent?`알림 ${r.push.sent}건 보냄`:parents?'알림을 켠 보호자 기기가 아직 없어 기록만 남겼습니다':'연결된 보호자가 없어 기록만 남겼습니다'}`);
+      say(`${r.marked.length}명 ${LABEL[status]} 처리 · ${pushFeedback(r.push,parents,false)}`);
     }catch(e){att.busy=false;paint();say(e.message);}
   }
+  function pushFeedback(push,parents,correction) {
+    const label=correction?'정정 알림':'알림';
+    const accepted=push?.sent?`${label} ${push.sent}건 전송 접수. `:'';
+    if(push?.failed||push?.code)return `${accepted}${label} 전송을 완료하지 못했습니다. 보호자에게 ${correction?'정정 내용을':'출결을'} 직접 안내해 주세요.`;
+    if(push?.sent)return `${accepted}기기 수신 여부는 보호자 확인이 필요합니다.`;
+    return parents?'알림을 켠 보호자 기기가 없어 기록만 저장했습니다.':'연결된 보호자가 없어 기록만 저장했습니다.';
+  }
   async function cancel(id) {
-    if(att.busy||!confirm('이 출결 기록을 취소할까요? 이미 보낸 알림은 취소되지 않습니다.'))return;
+    if(att.busy||!confirm('이 출결 기록을 취소하고 연결된 보호자에게 정정 알림을 보낼까요?'))return;
     att.busy=true;
-    try{await api(`/api/kkumeum/attendance/${encodeURIComponent(id)}`,{method:'DELETE',headers:{'content-type':'application/json'},body:'{}'});att.busy=false;await loadDay();say('기록을 취소했습니다.');}
+    try{
+      const r=await api(`/api/kkumeum/attendance/${encodeURIComponent(id)}`,{method:'DELETE',headers:{'content-type':'application/json'},body:'{}'});
+      att.busy=false;
+      for(const [studentId,events] of att.rows)att.rows.set(studentId,events.filter(e=>e.id!==id));
+      paint();
+      const refreshed=await loadDay().then(()=>true,()=>false);
+      say(`기록을 취소했습니다. ${pushFeedback(r.push,r.guardians,true)}${refreshed?'':' 목록은 새로고침해 주세요.'}`);
+    }
     catch(e){att.busy=false;say(e.message);}
   }
   function syncSelection() {

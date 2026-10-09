@@ -107,6 +107,14 @@ announcementType:
 
 ## 보호자 인증/API
 
+### 출결 등록·취소·정정
+
+- `POST /api/kkumeum/attendance`: 기존 학생/캠퍼스 권한 확인 후 출결 등록, 연결된 활성 보호자 기기에 알림.
+- `DELETE /api/kkumeum/attendance/:id`: 오늘(KST) 기록만 취소. 조건부 변경 성공 요청만 정정 Push를 전송하며 `{ok,id,guardians,push:{sent,failed,code}}` 반환.
+- `GET /api/family/children/:studentId/attendance?month=YYYY-MM`: 기존 유효 `events`와 메모/직원정보를 제외한 `corrections` 반환. 보호자 연결 재검증과 `private, no-store` 유지.
+- 전송 실패는 저장된 취소를 되돌리지 않는다. `sent`는 provider 접수이며 실제 수신 확인이 아니다.
+- 전체 흐름·문구·실패/동시성 계약: `KKUMEUM_ATTENDANCE_CORRECTION_2026-10-09.md`.
+
 ### 인증
 
 - `POST /api/family/auth/login`
