@@ -26,8 +26,9 @@ private JWK와 subscription encryption key는 Git/Issue/로그/스크린샷/명�
 - guardian-authenticated `/api/family/push/status` => `subscriptionReady=true`, `configured=true`.
 - 보호자 PWA는 사용자가 `알림 받기`를 직접 눌렀을 때만 permission prompt.
 - 실제 browser subscription 전에는 push delivery 성공으로 보고하지 않는다.
-- test notification payload는 `꿈이음 새 소식이 도착했습니다.` 등 generic text만 사용한다.
-- 학생/보호자 이름, 학교/반, 평가 전문, 작품 URL, R2 key는 push payload에 넣지 않는다.
+- 공지 test notification payload는 `꿈이음 새 소식이 도착했습니다.` 등 generic text만 사용한다.
+- 기존 출결 알림(PR #308)과 취소 정정 알림만 학생 표시명·기록 날짜/시간·출결 종류를 최소 포함한다. 정정 시 기존 자유입력 메모는 다시 보내지 않는다. 운영 점검에는 승인된 내부 합성 계정/기기를 사용한다.
+- 보호자 이름/연락처, 학교/반, 평가 전문, 작품 URL, R2 key는 push payload에 넣지 않는다. 출결 정정의 운영 적용·실수신 구분은 `KKUMEUM_ATTENDANCE_CORRECTION_2026-10-09.md`를 따른다.
 
 ## 구독 상태 의미
 

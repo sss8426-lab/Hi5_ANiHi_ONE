@@ -5,6 +5,7 @@ import { ensureKkumeumGuardianAuthSchema } from "./kkumeum-guardian-auth";
 import { dispatchGuardianDirectPush, type KkumeumPushEnv } from "./kkumeum-push";
 import { listKkumeumStudents } from "./kkumeum-staff";
 import { attendanceScheduleForDay } from "./kkumeum-attendance-roster";
+import { assertKkumeumPilotCampus } from "./kkumeum-pilot";
 
 // 출석체크: staff mark 등원·하원·결석·지각·조퇴·보강 and the child's guardians get an alert at once.
 export const ATTENDANCE_STATUSES = {
@@ -86,6 +87,31 @@ export function attendanceAlertText(studentName: string, status: AttendanceStatu
   return message ? `${base}\n${message}` : base;
 }
 
+export function attendanceCorrectionText(studentName: string, row: Pick<EventRow, "event_date" | "occurred_at" | "status">): string {
+  return `출결 정정: ${studentName} 학생의 ${row.event_date} ${kstTime(row.occurred_at)} ${ATTENDANCE_STATUSES[row.status]} 기록을 취소했습니다. 해당 기록은 유효하지 않습니다. 현재 출결은 앱에서 확인해 주세요.`;
+}
+
+// Delivery is best effort after saving. Never expose the original free-text note in a correction.
+async function notifyAttendance(familyDb: D1Database, env: KkumeumPushEnv, row: EventRow, canceled: boolean) {
+  try {
+    const student = await familyDb.prepare("SELECT name, display_name FROM family_students WHERE id = ? AND campus_id = ? AND status = 'active'")
+      .bind(row.student_id, row.campus_id).first<{ name: string; display_name: string | null }>();
+    if (!student) return { guardians: 0, push: { sent: 0, failed: 0, code: null } };
+    const guardians = (await familyDb.prepare(`SELECT sg.guardian_id FROM student_guardians sg JOIN family_guardians g ON g.id = sg.guardian_id
+      WHERE sg.student_id = ? AND g.status = 'active'`).bind(row.student_id).all<{ guardian_id: string }>()).results || [];
+    const name = student.display_name || student.name;
+    const push = await dispatchGuardianDirectPush(familyDb, env, guardians.map((g) => g.guardian_id), {
+      kind: "attendance", attendanceAction: canceled ? "canceled" : "marked", eventId: row.id,
+      title: canceled ? `꿈이음 · 출결 정정 (${ATTENDANCE_STATUSES[row.status]} 취소)` : `꿈이음 · ${ATTENDANCE_STATUSES[row.status]}`,
+      body: canceled ? attendanceCorrectionText(name, row) : attendanceAlertText(name, row.status, row.occurred_at, row.message || ""),
+      studentId: row.student_id, route: `/family/?openAttendance=${encodeURIComponent(row.student_id)}`,
+    }, { studentId: row.student_id, campusId: row.campus_id, attendanceEventId: row.id, canceled });
+    return { guardians: guardians.length, push };
+  } catch {
+    return { guardians: 0, push: { sent: 0, failed: 0, code: "push_delivery_unavailable" } };
+  }
+}
+
 async function events(familyDb: D1Database, campusId: string, studentIds: string[], from: string, to: string): Promise<EventRow[]> {
   const rows: EventRow[] = [];
   for (let i = 0; i < studentIds.length; i += 80) {
@@ -159,7 +185,7 @@ export async function markKkumeumAttendance(
     }
   }
 
-  const now = new Date().toISOString(), date = kstDate();
+  const now = new Date().toISOString(), date = kstDate(new Date(now));
   const marked = [];
   let sent = 0, failed = 0, code: string | null = null;
   for (const studentId of studentIds) {
@@ -173,29 +199,35 @@ export async function markKkumeumAttendance(
       familyDb.prepare(`INSERT INTO family_audit_logs (id, campus_id, actor_type, actor_id, action, resource_type, resource_id, metadata_json, created_at)
         VALUES (?, ?, 'staff', ?, 'attendance_mark', 'student', ?, ?, ?)`).bind(crypto.randomUUID(), campusId, context.user?.internalUserId || null, studentId, JSON.stringify({ status }), now),
     ]);
-    const guardians = (await familyDb.prepare(`SELECT sg.guardian_id FROM student_guardians sg JOIN family_guardians g ON g.id = sg.guardian_id
-      WHERE sg.student_id = ? AND g.status = 'active'`).bind(studentId).all<{ guardian_id: string }>()).results || [];
-    const name = student.display_name || student.name;
-    const push = await dispatchGuardianDirectPush(familyDb, env, guardians.map((g) => g.guardian_id), {
-      kind: "attendance", title: `꿈이음 · ${ATTENDANCE_STATUSES[status]}`, body: attendanceAlertText(name, status, now, message),
-      studentId, route: `/family/?openAttendance=${encodeURIComponent(studentId)}`,
-    });
+    const { guardians, push } = await notifyAttendance(familyDb, env, {
+      id, campus_id: campusId, student_id: studentId, class_id: student.current_class_id, event_date: date,
+      status, message, occurred_at: now, created_by: context.user?.internalUserId || null, created_at: now, canceled_at: null,
+    }, false);
     sent += push.sent; failed += push.failed; code ||= push.code;
-    marked.push({ id, studentId, status, time: kstTime(now), guardians: guardians.length });
+    marked.push({ id, studentId, status, time: kstTime(now), guardians });
   }
   return { date, marked, push: { sent, failed, code } };
 }
 
-// A same-day mistake can be undone; the alert already sent stays, the record no longer shows anywhere.
-export async function cancelKkumeumAttendance(familyDb: D1Database, context: DataCoreAccessContext, id: string) {
+// Only the conditional-update winner sends a correction; retries must not send it again.
+export async function cancelKkumeumAttendance(familyDb: D1Database, context: DataCoreAccessContext, env: KkumeumPushEnv, id: string) {
+  requireAuthenticatedAccess(context);
   await ensureKkumeumAttendanceSchema(familyDb);
   const row = await familyDb.prepare("SELECT * FROM family_attendance_events WHERE id = ? AND canceled_at IS NULL").bind(id).first<EventRow>();
   if (!row) throw new DataCoreAccessError(404, "출결 기록을 찾을 수 없습니다.");
   await requireKkumeumStudentAccess(familyDb, context, row.campus_id, row.student_id);
-  if (row.event_date !== kstDate()) throw new DataCoreAccessError(409, "오늘 기록만 취소할 수 있습니다.");
+  await assertKkumeumPilotCampus(familyDb, row.campus_id);
   const now = new Date().toISOString();
-  await familyDb.prepare("UPDATE family_attendance_events SET canceled_at = ? WHERE id = ?").bind(now, id).run();
-  return { ok: true, id };
+  if (row.event_date !== kstDate(new Date(now))) throw new DataCoreAccessError(409, "오늘 기록만 취소할 수 있습니다.");
+  const result = await familyDb.batch([
+    familyDb.prepare("UPDATE family_attendance_events SET canceled_at = ? WHERE id = ? AND canceled_at IS NULL").bind(now, id),
+    familyDb.prepare(`INSERT INTO family_audit_logs (id, campus_id, actor_type, actor_id, action, resource_type, resource_id, metadata_json, created_at)
+      SELECT ?, ?, 'staff', ?, 'attendance_cancel', 'attendance_event', ?, ?, ? WHERE changes() > 0`)
+      .bind(crypto.randomUUID(), row.campus_id, context.user?.internalUserId || null, id, JSON.stringify({ status: row.status }), now),
+  ]);
+  if (Number(result[0].meta?.changes || 0) !== 1) throw new DataCoreAccessError(409, "이미 취소된 출결 기록입니다.");
+  const notification = await notifyAttendance(familyDb, env, row, true);
+  return { ok: true, id, ...notification };
 }
 
 // Guardian: one month of a linked child's marks (only children linked to this guardian).
@@ -204,7 +236,11 @@ export async function listGuardianChildAttendance(familyDb: D1Database, request:
   await ensureKkumeumAttendanceSchema(familyDb);
   const month = validMonth(monthValue || kstDate().slice(0, 7));
   const [from, to] = monthRange(month);
-  const rows = (await familyDb.prepare(`SELECT * FROM family_attendance_events WHERE student_id = ? AND event_date BETWEEN ? AND ? AND canceled_at IS NULL ORDER BY occurred_at`)
+  const rows = (await familyDb.prepare(`SELECT * FROM family_attendance_events WHERE student_id = ? AND event_date BETWEEN ? AND ? ORDER BY occurred_at`)
     .bind(studentId, from, to).all<EventRow>()).results || [];
-  return { month, today: kstDate(), events: rows.map(eventResponse) };
+  const corrections = rows.filter((row) => row.canceled_at).map((row) => ({
+    id: row.id, studentId: row.student_id, date: row.event_date, status: row.status,
+    label: ATTENDANCE_STATUSES[row.status], time: kstTime(row.occurred_at), canceledAt: row.canceled_at,
+  }));
+  return { month, today: kstDate(), events: rows.filter((row) => !row.canceled_at).map(eventResponse), corrections };
 }

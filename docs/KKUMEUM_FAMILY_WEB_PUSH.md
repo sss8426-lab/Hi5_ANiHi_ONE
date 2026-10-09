@@ -11,7 +11,7 @@ It does not read, write, or fall back to DATA CORE `DB` / `FILES`.
 - Subscription endpoint and browser keys are encrypted at rest. Raw values are not returned, logged, or audited.
 - Each newly stored subscription records a non-secret SHA-256 encryption-key identifier. A key-id mismatch is a safe failed delivery (`subscription_key_mismatch`), never a plaintext fallback.
 - Notice publishing is committed before delivery is attempted. Delivery failure never rolls back a notice.
-- The payload is always generic: `꿈이음 새 소식이 도착했습니다.` It contains only an opaque notice id and `/family` route.
+- Announcement payloads are generic: `꿈이음 새 소식이 도착했습니다.` They contain only an opaque notice id and `/family` route. Attendance alerts (PR #308) and their corrections are a separate existing explicit trigger: minimal child display name, event date/time/status and authenticated attendance route. Corrections never repeat the original free-text note. See `KKUMEUM_ATTENDANCE_CORRECTION_2026-10-09.md`.
 - A disabled guardian, a revoked subscription, a guardian without notice visibility, or a guardian blocked by the active consent policy is not a delivery target.
 - No Push permission prompt appears at page load. The guardian explicitly presses `알림 받기` in `/family` > `더보기`.
 
@@ -40,6 +40,6 @@ The Worker validates the complete configuration before `configured=true`: the pu
 - Provider 404/410 records `subscription_gone` and revokes that subscription. A new browser opt-in is required before future notices can reach the device.
 - Other provider rejection records `provider_rejected`; network exceptions record `provider_error`. Neither exposes provider response bodies or subscription material.
 - There is no automatic retry or resend endpoint. Do not republish or create another real notice solely to test a delivery failure. A timeout may mean the provider accepted the message, so blind retries are unsafe.
-- Monthly report sending and artwork upload do not themselves send Push. The current delivery trigger is explicit notice publication.
+- Monthly report sending and artwork upload do not themselves send Push. Delivery triggers are explicit notice publication, attendance registration, and a successful same-day attendance cancellation (correction). Each cancellation dispatches once; failed correction delivery remains visible in the authenticated child's attendance history.
 
 Issue #43 failure tests use isolated Miniflare databases/buckets and an intercepted synthetic provider, never production outages or real guardian endpoints. Artwork tests inject object-write and metadata-write failures, verify rollback/compensation leaves no partial upload, then verify a clean retry while retaining an unrelated object. The existing isolated restore drill verifies synthetic relation/file copying and rejects a production restore target; it is not proof of a full production backup restore.

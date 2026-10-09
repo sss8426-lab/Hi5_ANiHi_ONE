@@ -507,7 +507,9 @@ export async function dispatchGuardianDirectPush(
   env: KkumeumPushEnv,
   guardianIds: string[],
   payload: Record<string, string>,
+  attendanceScope?: { studentId: string; campusId: string; attendanceEventId: string; canceled: boolean },
 ): Promise<{ sent: number; failed: number; code: string | null }> {
+  let sent = 0; let failed = 0; let code: string | null = null;
   try {
     const ids = [...new Set(guardianIds)].slice(0, 200);
     if (!ids.length) return { sent: 0, failed: 0, code: null };
@@ -516,12 +518,24 @@ export async function dispatchGuardianDirectPush(
       FROM push_subscriptions ps INNER JOIN family_guardians g ON g.id = ps.guardian_id
       WHERE ps.active = 1 AND ps.revoked_at IS NULL AND g.status = 'active' AND ps.guardian_id IN (${ids.map(() => "?").join(",")})`).bind(...ids).all<StoredSubscription>();
     const settings = await config(env);
-    let sent = 0; let failed = 0;
+    code = settings.code || (settings.providerConfigured ? null : "push_not_configured");
     for (const subscription of subscriptions.results || []) {
+      // Recheck each device immediately before sending: unlinks, disabled accounts, campus moves,
+      // and a cancellation that overtakes initial delivery must not leak/stale-send an alert.
+      if (attendanceScope && !await familyDb.prepare(`SELECT 1 FROM student_guardians sg
+        JOIN family_students s ON s.id = sg.student_id
+        JOIN family_guardians g ON g.id = sg.guardian_id
+        JOIN push_subscriptions ps ON ps.guardian_id = g.id
+        JOIN family_attendance_events e ON e.student_id = s.id AND e.campus_id = s.campus_id
+        WHERE sg.student_id = ? AND s.campus_id = ? AND s.status = 'active' AND g.status = 'active'
+          AND sg.guardian_id = ? AND ps.id = ? AND ps.active = 1 AND ps.revoked_at IS NULL
+          AND e.id = ? AND ${attendanceScope.canceled ? "e.canceled_at IS NOT NULL" : "e.canceled_at IS NULL"}`)
+        .bind(attendanceScope.studentId, attendanceScope.campusId, subscription.guardian_id, subscription.id, attendanceScope.attendanceEventId).first()) continue;
       const result = await sendPush(subscription, settings, payload);
-      await touchSubscription(familyDb, subscription, result, settings.encryptionKeyId);
       if (result.sent) sent += 1; else failed += 1;
+      code ||= result.errorCode;
+      await touchSubscription(familyDb, subscription, result, settings.encryptionKeyId);
     }
-    return { sent, failed, code: settings.code || (settings.providerConfigured ? null : "push_not_configured") };
-  } catch { return { sent: 0, failed: 0, code: "push_delivery_unavailable" }; }
+    return { sent, failed, code };
+  } catch { return { sent, failed, code: "push_delivery_unavailable" }; }
 }

@@ -267,7 +267,7 @@ export async function handleKkumeumApi(
   if (attendanceMatch) {
     if (request.method !== "DELETE") return respond({ error: "지원하지 않는 출석체크 요청입니다." }, { status: 405 });
     assertSameOrigin(request);
-    return respond(await cancelKkumeumAttendance(familyDb, context, decodeURIComponent(attendanceMatch[1])));
+    return respond(await cancelKkumeumAttendance(familyDb, context, env, decodeURIComponent(attendanceMatch[1])));
   }
 
   // 인증키: status, issue (shown once) and retire, per student.

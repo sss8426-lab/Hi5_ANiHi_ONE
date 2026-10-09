@@ -7,7 +7,7 @@ const state = {
   activeTab: 'home',
   pushStatus: null,
   currentPushSubscription: null,
-  attendance: { month: '', today: '', events: [] },
+  attendance: { month: '', today: '', events: [], corrections: [] },
   pendingOpen: null,
 };
 
@@ -63,7 +63,7 @@ function clearPrivateUi() {
   state.selectedChildId = '';
   state.reports = [];
   state.artworks = [];
-  state.attendance = { month: '', today: '', events: [] };
+  state.attendance = { month: '', today: '', events: [], corrections: [] };
   state.pushStatus = null;
   state.currentPushSubscription = null;
   ['reportList', 'artworkGallery', 'latestReport', 'latestArtworks', 'attendanceToday', 'attendanceList'].forEach((id) => {
@@ -349,26 +349,27 @@ const kstToday = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0
 const kstMonth = () => kstToday().slice(0, 7);
 function attendanceChip(event) {
   const chip = document.createElement('span');
-  chip.className = `attendance-chip attendance-${event.status}`;
-  chip.textContent = event.status === 'absent' ? event.label : `${event.label} ${event.time}`;
+  chip.className = `attendance-chip attendance-${event.canceledAt ? 'canceled' : event.status}`;
+  chip.textContent = event.canceledAt ? `정정 · ${event.label} ${event.time} 취소` : event.status === 'absent' ? event.label : `${event.label} ${event.time}`;
   if (event.message) chip.title = event.message;
   return chip;
 }
 function attendanceNote(event) {
   const p = document.createElement('p');
   p.className = 'attendance-note';
-  p.textContent = `${event.label} · ${event.message}`;
+  p.textContent = event.canceledAt ? `${event.time} ${event.label} 기록을 취소했습니다. 해당 기록은 유효하지 않습니다.` : `${event.label} · ${event.message}`;
   return p;
 }
 function renderAttendance() {
-  const { events, today, month } = state.attendance;
+  const { events, today, month, corrections = [] } = state.attendance;
+  const all = [...events, ...corrections].sort((a,b)=>a.time.localeCompare(b.time));
   const todayBox = $('attendanceToday');
   if (todayBox) {
     todayBox.replaceChildren();
-    const todays = events.filter((event) => event.date === (today || kstToday()));
+    const todays = all.filter((event) => event.date === (today || kstToday()));
     if (todays.length) todays.forEach((event) => todayBox.append(attendanceChip(event)));
     else todayBox.append(emptyInline('오늘은 아직 출결 기록이 없습니다.'));
-    todays.filter((event) => event.message).forEach((event) => todayBox.append(attendanceNote(event)));
+    todays.filter((event) => event.message || event.canceledAt).forEach((event) => todayBox.append(attendanceNote(event)));
   }
   const label = $('attendanceMonthLabel');
   if (label && month) { const [y, m] = month.split('-').map(Number); label.textContent = `${y}년 ${m}월`; }
@@ -377,7 +378,7 @@ function renderAttendance() {
   if (!list) return;
   list.replaceChildren();
   const days = new Map();
-  events.forEach((event) => { if (!days.has(event.date)) days.set(event.date, []); days.get(event.date).push(event); });
+  all.forEach((event) => { if (!days.has(event.date)) days.set(event.date, []); days.get(event.date).push(event); });
   if (!days.size) { list.append(emptyInline('이 달에는 출결 기록이 없습니다.')); return; }
   [...days.entries()].sort((a, b) => b[0].localeCompare(a[0])).forEach(([date, items]) => {
     const row = document.createElement('article');
@@ -389,17 +390,17 @@ function renderAttendance() {
     chips.className = 'attendance-chips';
     items.forEach((event) => chips.append(attendanceChip(event)));
     row.append(title, chips);
-    items.filter((event) => event.message).forEach((event) => row.append(attendanceNote(event)));
+    items.filter((event) => event.message || event.canceledAt).forEach((event) => row.append(attendanceNote(event)));
     list.append(row);
   });
 }
 async function loadAttendance(studentId, month = kstMonth()) {
-  state.attendance = { month, today: kstToday(), events: [] };
+  state.attendance = { month, today: kstToday(), events: [], corrections: [] };
   renderAttendance();
   try {
     const result = await api(`/api/family/children/${encodeURIComponent(studentId)}/attendance?month=${encodeURIComponent(month)}`);
     if (state.selectedChildId !== studentId || state.attendance.month !== month) return;
-    state.attendance = { month: result.month, today: result.today, events: Array.isArray(result.events) ? result.events : [] };
+    state.attendance = { month: result.month, today: result.today, events: Array.isArray(result.events) ? result.events : [], corrections: Array.isArray(result.corrections) ? result.corrections : [] };
     renderAttendance();
   } catch (error) {
     if (state.selectedChildId === studentId) genericAccessMessage(error);
