@@ -23,6 +23,7 @@ import {
 } from "./kkumeum-report-read-receipts";
 import { listGuardianChildAttendance } from "./kkumeum-attendance";
 import { redeemKkumeumInviteCode } from "./kkumeum-invite-codes";
+import { kioskCheckin, kioskSession, pairKiosk, unpairKiosk } from "./kkumeum-checkin";
 import {
   guardianPushStatus,
   subscribeGuardianPush,
@@ -239,9 +240,32 @@ async function handleFamilyGuardianFeedApi(request: Request, env: Env): Promise<
   );
 }
 
+// 출결기 tablet: paired once with a 연결번호 (cookie), then only 등원/하원 by 등하원 번호. No staff session.
+async function handleKioskApi(request: Request, env: Env): Promise<Response | null> {
+  const url = new URL(request.url);
+  if (!url.pathname.startsWith("/api/kiosk/")) return null;
+  if (!env.FAMILY_DB) throw new DataCoreAccessError(503, "꿈이음 FAMILY_DB 연결이 필요합니다.");
+  if (url.pathname === "/api/kiosk/session" && request.method === "GET") return privateJsonResponse(await kioskSession(env.FAMILY_DB, request));
+  if (url.pathname === "/api/kiosk/pair" && request.method === "POST") {
+    const { setCookie, ...body } = await pairKiosk(env.FAMILY_DB, request, await readJson<Record<string, unknown>>(request));
+    return privateJsonResponse(body, { headers: { "set-cookie": setCookie } });
+  }
+  if (url.pathname === "/api/kiosk/unpair" && request.method === "POST") {
+    const { setCookie, ...body } = await unpairKiosk(env.FAMILY_DB, request);
+    return privateJsonResponse(body, { headers: { "set-cookie": setCookie } });
+  }
+  if (url.pathname === "/api/kiosk/checkin" && request.method === "POST") {
+    return privateJsonResponse(await kioskCheckin(env.FAMILY_DB, env, request, await readJson<Record<string, unknown>>(request)));
+  }
+  return privateJsonResponse({ error: "지원하지 않는 출결기 요청입니다." }, { status: 405 });
+}
+
 const worker = {
   async fetch(request: Request, env: Env): Promise<Response> {
     try {
+      const kioskResponse = await handleKioskApi(request, env);
+      if (kioskResponse) return kioskResponse;
+
       const familyAuthResponse = await handleFamilyGuardianAuthApi(request, env);
       if (familyAuthResponse) return familyAuthResponse;
 

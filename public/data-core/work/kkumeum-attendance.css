@@ -77,3 +77,53 @@
 #kkInviteBox,#kkInviteBox .kk-invite-head div{text-align:left}
 #kkInviteBox .kk-invite-code{font-size:30px!important;line-height:1.3;font-weight:800!important;letter-spacing:.12em;color:#16614f!important;text-align:left}
 #kkInviteBox .kk-invite-head strong{font-size:15px!important}
+
+/* 한 번 눌러 등원·하원, 등하원 번호, 보호자 미연결, 찾기, 타임 모두 하원 */
+.km-frame .km-att-one{flex:none;min-width:72px;min-height:44px;border:0;border-radius:11px;font-size:15px;font-weight:800;color:#fff;margin-left:6px}
+.km-frame .km-att-one-arrive{background:#1a8a4f}.km-frame .km-att-one-leave{background:#2c5cc5}.km-frame .km-att-one-done{background:#eef2f0;color:#9aa69f}
+.km-frame .km-att-one:disabled{opacity:.6}
+.km-att-no{flex:none;font-size:11.5px;font-weight:800;color:#167d79;background:#e6f4f1;border-radius:6px;padding:2px 6px;font-variant-numeric:tabular-nums}
+.km-att-ng{font-style:normal;font-size:11px;font-weight:700;color:#7a5a12;background:#fff6dd;border-radius:999px;padding:1px 7px}
+.km-att-kiosk{font-size:11px}
+.km-att-times{font-size:12px;font-weight:600;color:#167d79;margin-left:4px}
+.km-att-search{display:block;margin:8px 0}.km-att-search input{width:100%;min-height:44px;border:1px solid var(--km-line,#e5eceb);border-radius:10px;padding:0 12px;font:inherit;font-size:16px}
+.km-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.km-att-bulks{display:grid;gap:8px;margin:12px 0}
+.km-frame .km-att-bulk{min-height:48px;border:0;border-radius:12px;background:#2c5cc5;color:#fff;font-size:15px;font-weight:800}
+.km-frame .km-att-settings{width:100%;min-height:42px;margin:4px 0 8px;border:1px dashed #9fc7b8;border-radius:10px;background:#f7fbfa;color:#16614f;font-weight:700}
+.km-att-bar[hidden]{display:none}
+/* 출결 설정 */
+.ka-panel{background:#fff;border:1px solid var(--km-line,#e5eceb);border-radius:14px;padding:14px 16px;margin:12px 0}
+.ka-panel h3{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:16px;color:#16614f;margin-bottom:10px}
+.ka-panel h3 small{font-size:12px;font-weight:500;color:#8a978f}
+.ka-roster p{font-size:14px;line-height:1.7}.ka-roster a{color:#167d79;font-weight:700;margin-left:6px}
+.ka-dev{display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid var(--km-line,#e5eceb);border-radius:11px;padding:10px 12px;margin-bottom:8px}
+.ka-dev small{display:block;font-size:12px;color:#6b7a75;margin-top:2px}
+.ka-panel button,.ka-sms{min-height:40px;padding:6px 12px;border-radius:9px;border:1px solid #cfe0da;background:#fff;color:#16614f;font-weight:700;font-size:13px;text-decoration:none;display:inline-flex;align-items:center}
+.ka-panel .ka-primary,.ka-sms{background:#167d79;border-color:#167d79;color:#fff}
+.ka-panel button:disabled{opacity:.45}
+.ka-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.ka-row input[type=search],.ka-row input:not([type]){flex:1;min-width:160px;min-height:42px;border:1px solid var(--km-line,#e5eceb);border-radius:9px;padding:0 10px;font:inherit;font-size:16px}
+.ka-pair-code{margin-top:10px;border:2px dashed #9fc7b1;border-radius:12px;padding:12px;text-align:center}
+.ka-pair-code .ka-pair-num{display:block;font-size:40px;letter-spacing:.2em;color:#16614f;margin:4px 0}
+.ka-pair-code small{display:block;font-size:12.5px;color:#5b6c66;line-height:1.6}
+.ka-help{margin-top:10px;font-size:13px;color:#33443e}.ka-help summary{cursor:pointer;font-weight:700;color:#167d79}
+.ka-help ol{margin:8px 0 6px 20px;line-height:1.8}.ka-help small{color:#6b7a75}
+.ka-times{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}.ka-times>b{width:44px;font-size:13px}
+.ka-times label{display:flex;align-items:center;gap:4px;font-size:13px;color:#5b6c66}
+.ka-times input,.ka-late input{min-height:40px;border:1px solid var(--km-line,#e5eceb);border-radius:8px;padding:0 8px;font:inherit;font-size:16px}
+.ka-late{font-size:13.5px;flex:1}.ka-late input{width:64px}
+.ka-class{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid #f0f4f3}.ka-class>b{flex:none;width:110px;font-size:14px;padding-top:6px}
+.ka-class>span{display:flex;flex-wrap:wrap;gap:6px}
+.ka-chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--km-line,#e5eceb);border-radius:999px;padding:5px 11px;font-size:13px;cursor:pointer}
+.ka-chip:has(input:checked){background:#e6f4f1;border-color:#9fc7b8;color:#16614f;font-weight:700}
+.ka-chip input{accent-color:#167d79}
+.ka-note{margin-top:8px;font-size:12.5px;color:#9a5200;line-height:1.6}
+.ka-table-wrap{overflow-x:auto;margin-top:10px}
+.ka-table{width:100%;border-collapse:collapse;font-size:13.5px}
+.ka-table th{background:#f4f8f7;color:#475a55;font-size:12.5px;text-align:left;padding:8px 6px}
+.ka-table td{padding:6px;border-bottom:1px solid #eef2f1;vertical-align:middle}
+.ka-table td:last-child{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.ka-table code{font-size:13px;font-weight:800;color:#16614f;letter-spacing:.06em}
+.ka-code{width:78px;min-height:38px;border:1px solid var(--km-line,#e5eceb);border-radius:8px;padding:0 8px;font:inherit;font-size:16px;font-weight:800;color:#167d79;font-variant-numeric:tabular-nums}
+.ka-ok{color:#17703f;font-weight:700}.ka-ng{color:#9a5200;font-weight:700}

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+  <meta name="theme-color" content="#16614f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="꿈이음 출결기">
+  <meta name="robots" content="noindex">
+  <title>꿈이음 출결기</title>
+  <link rel="manifest" href="/kiosk/manifest.webmanifest">
+  <link rel="icon" href="/family/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/family/apple-touch-icon.png">
+  <link rel="stylesheet" href="/kiosk/kiosk.css?v=20261010-kiosk">
+</head>
+<body>
+  <main id="kiosk" class="kiosk" aria-live="polite">
+    <header class="k-top">
+      <button type="button" id="kLabel" class="k-label" aria-label="출결기 메뉴 (길게 누르기)">꿈이음 출결기</button>
+      <span id="kCampus" class="k-campus"></span>
+    </header>
+    <p id="kNet" class="k-net" role="status" hidden></p>
+    <section id="kPair" class="k-pair" hidden>
+      <h1>출결기 연결</h1>
+      <p>원장님 화면 <b>꿈이음 › 출결 설정 › 출결기</b>에서 받은<br><b>6자리 연결번호</b>를 눌러 주세요.</p>
+    </section>
+    <section id="kMain" class="k-main">
+      <div class="k-clock"><span id="kDate"></span><b id="kTime">--:--</b></div>
+      <div id="kDisplay" class="k-display" aria-label="입력한 번호"></div>
+      <div class="k-pad" role="group" aria-label="숫자판">
+        <button type="button" data-key="1">1</button><button type="button" data-key="2">2</button><button type="button" data-key="3">3</button>
+        <button type="button" data-key="4">4</button><button type="button" data-key="5">5</button><button type="button" data-key="6">6</button>
+        <button type="button" data-key="7">7</button><button type="button" data-key="8">8</button><button type="button" data-key="9">9</button>
+        <button type="button" data-key="clear" class="k-fn">지우기</button><button type="button" data-key="0">0</button><button type="button" data-key="back" class="k-fn" aria-label="한 글자 지우기">←</button>
+      </div>
+      <div id="kGo" class="k-go">
+        <button type="button" data-action="arrive" class="k-arrive">등원</button>
+        <button type="button" data-action="leave" class="k-leave">하원</button>
+      </div>
+      <button type="button" id="kPairGo" class="k-pair-go" hidden>연결하기</button>
+    </section>
+    <section id="kResult" class="k-result" hidden role="alert"></section>
+    <dialog id="kMenu" class="k-menu" aria-label="출결기 메뉴">
+      <h2>출결기 메뉴</h2>
+      <p id="kMenuInfo"></p>
+      <button type="button" data-menu="fullscreen">전체 화면</button>
+      <button type="button" data-menu="reload">새로고침</button>
+      <button type="button" data-menu="unpair" class="k-danger">이 태블릿 연결 해제</button>
+      <button type="button" data-menu="close">닫기</button>
+    </dialog>
+  </main>
+  <script src="/kiosk/kiosk.js?v=20261010-kiosk" defer></script>
+</body>
+</html>

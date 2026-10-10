@@ -60,11 +60,15 @@ import {
 import { assertKkumeumPilotCampus } from "./kkumeum-pilot";
 import { cancelKkumeumAttendance, listStaffAttendanceDay, listStaffAttendanceMonth, markKkumeumAttendance } from "./kkumeum-attendance";
 import { attendanceRosterStatus, saveKkumeumAttendanceRoster } from "./kkumeum-attendance-roster";
+import {
+  augmentAttendanceDay, autoLateStatus, createKioskPairing, fillCheckinCodes, issueInvitesForUnlinked, listCheckinStudents, listClassTeachers, staffDirectoryDb,
+  listKiosks, readAttendanceSettings, revokeKiosk, saveAttendanceSettings, setCheckinCode, setClassTeachers,
+} from "./kkumeum-checkin";
 import { issueKkumeumInviteCode, kkumeumInviteStatus, revokeKkumeumInviteCode } from "./kkumeum-invite-codes";
 import { dispatchGuardianAnnouncementPush, type KkumeumPushEnv } from "./kkumeum-push";
 import { kkumeumGrowthSkillCatalog } from "./kkumeum-growth-skills";
 
-export type KkumeumRouterEnv = KkumeumBindings & KkumeumPushEnv;
+export type KkumeumRouterEnv = KkumeumBindings & KkumeumPushEnv & { DB?: D1Database };
 
 type JsonResponder = (value: unknown, init?: ResponseInit) => Response;
 
@@ -233,12 +237,20 @@ export async function handleKkumeumApi(
     if (request.method === "GET") {
       const campusId = requiredCampusId(url);
       await assertKkumeumPilotCampus(familyDb, campusId);
-      return respond(await listStaffAttendanceDay(familyDb, context, campusId, url.searchParams.get("date"), url.searchParams.get("classId") || undefined));
+      const day = await listStaffAttendanceDay(familyDb, context, campusId, url.searchParams.get("date"), url.searchParams.get("classId") || undefined);
+      return respond(await augmentAttendanceDay(familyDb, staffDirectoryDb(env), context, campusId, day));
     }
     if (request.method === "POST") {
       assertSameOrigin(request);
       const input = await readJson(request);
-      await assertKkumeumPilotCampus(familyDb, requiredBodyId(input.campusId, "campusId"));
+      const campusId = requiredBodyId(input.campusId, "campusId");
+      await assertKkumeumPilotCampus(familyDb, campusId);
+      // 한 번 눌러 등원: a single 등원 after the 타임 start (+지각 기준) is recorded as 지각.
+      if (input.auto === true && input.status === "arrive" && Array.isArray(input.studentIds) && input.studentIds.length === 1) {
+        const student = await familyDb.prepare("SELECT id, name, display_name, current_class_id FROM family_students WHERE id = ? AND campus_id = ?")
+          .bind(String(input.studentIds[0]), campusId).first<{ id: string; name: string; display_name: string | null; current_class_id: string | null }>();
+        if (student) input.status = (await autoLateStatus(familyDb, campusId, student, new Date().toISOString())).status;
+      }
       return respond(await markKkumeumAttendance(familyDb, context, env, input), { status: 201 });
     }
     return respond({ error: "지원하지 않는 출석체크 요청입니다." }, { status: 405 });
@@ -259,10 +271,60 @@ export async function handleKkumeumApi(
       assertSameOrigin(request);
       const input = await readJson(request);
       await assertKkumeumPilotCampus(familyDb, requiredBodyId(input.campusId, "campusId"));
-      return respond(await saveKkumeumAttendanceRoster(familyDb, context, input));
+      const saved = await saveKkumeumAttendanceRoster(familyDb, context, input);
+      // New students get their 등하원 번호 right away; existing numbers never change.
+      return respond({ ...saved, codesAssigned: await fillCheckinCodes(familyDb, String(input.campusId)) });
     }
     return respond({ error: "지원하지 않는 출석부 연동 요청입니다." }, { status: 405 });
   }
+  // 출결 설정 (원장·관리자): 타임 시간, 등하원 번호, 담당 선생님, 출결기, 인증키 한꺼번에.
+  if (url.pathname === "/api/kkumeum/attendance/settings") {
+    const campusId = request.method === "GET" ? requiredCampusId(url) : "";
+    if (request.method === "GET") { await assertKkumeumPilotCampus(familyDb, campusId); return respond(await readAttendanceSettings(familyDb, context, campusId)); }
+    if (request.method === "PUT") {
+      assertSameOrigin(request); const input = await readJson(request); const id = requiredBodyId(input.campusId, "campusId");
+      await assertKkumeumPilotCampus(familyDb, id); return respond(await saveAttendanceSettings(familyDb, context, id, input.settings));
+    }
+    return respond({ error: "지원하지 않는 출결 설정 요청입니다." }, { status: 405 });
+  }
+  if (url.pathname === "/api/kkumeum/attendance/students" && request.method === "GET") {
+    const campusId = requiredCampusId(url); await assertKkumeumPilotCampus(familyDb, campusId);
+    return respond(await listCheckinStudents(familyDb, context, campusId));
+  }
+  const codeMatch = url.pathname.match(/^\/api\/kkumeum\/attendance\/students\/([^/]+)\/code$/);
+  if (codeMatch && request.method === "PUT") {
+    assertSameOrigin(request); const input = await readJson(request); const campusId = requiredBodyId(input.campusId, "campusId");
+    await assertKkumeumPilotCampus(familyDb, campusId);
+    return respond(await setCheckinCode(familyDb, context, campusId, decodeURIComponent(codeMatch[1]), input.code));
+  }
+  if (url.pathname === "/api/kkumeum/attendance/invites" && request.method === "POST") {
+    assertSameOrigin(request); const input = await readJson(request); const campusId = requiredBodyId(input.campusId, "campusId");
+    await assertKkumeumPilotCampus(familyDb, campusId);
+    return respond(await issueInvitesForUnlinked(familyDb, context, campusId, input.studentIds), { status: 201 });
+  }
+  if (url.pathname === "/api/kkumeum/attendance/teachers") {
+    if (request.method === "GET") { const campusId = requiredCampusId(url); await assertKkumeumPilotCampus(familyDb, campusId); return respond(await listClassTeachers(familyDb, staffDirectoryDb(env), context, campusId)); }
+    if (request.method === "PUT") {
+      assertSameOrigin(request); const input = await readJson(request); const campusId = requiredBodyId(input.campusId, "campusId");
+      await assertKkumeumPilotCampus(familyDb, campusId);
+      return respond(await setClassTeachers(familyDb, staffDirectoryDb(env), context, campusId, String(input.classId || ""), input.teacherIds));
+    }
+    return respond({ error: "지원하지 않는 담당 선생님 요청입니다." }, { status: 405 });
+  }
+  if (url.pathname === "/api/kkumeum/attendance/kiosks") {
+    if (request.method === "GET") { const campusId = requiredCampusId(url); await assertKkumeumPilotCampus(familyDb, campusId); return respond(await listKiosks(familyDb, context, campusId)); }
+    if (request.method === "POST") {
+      assertSameOrigin(request); const input = await readJson(request); const campusId = requiredBodyId(input.campusId, "campusId");
+      await assertKkumeumPilotCampus(familyDb, campusId); return respond(await createKioskPairing(familyDb, context, campusId, input.label), { status: 201 });
+    }
+    return respond({ error: "지원하지 않는 출결기 요청입니다." }, { status: 405 });
+  }
+  const kioskMatch = url.pathname.match(/^\/api\/kkumeum\/attendance\/kiosks\/([^/]+)$/);
+  if (kioskMatch && request.method === "DELETE") {
+    assertSameOrigin(request); const input = await readJson(request); const campusId = requiredBodyId(input.campusId, "campusId");
+    return respond(await revokeKiosk(familyDb, context, campusId, decodeURIComponent(kioskMatch[1])));
+  }
+
   const attendanceMatch = url.pathname.match(/^\/api\/kkumeum\/attendance\/([^/]+)$/);
   if (attendanceMatch) {
     if (request.method !== "DELETE") return respond({ error: "지원하지 않는 출석체크 요청입니다." }, { status: 405 });

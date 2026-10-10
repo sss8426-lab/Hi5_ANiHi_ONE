@@ -149,6 +149,8 @@ export function mountRosterAttendance(host,{campusId='',campusName=''}={}){
       const reasons={inactive:'꿈이음에서 휴원·퇴원 상태',ambiguous:'같은 이름 학생이 여러 명'};
       box.className='ar-link ar-link-ok';
       box.innerHTML=`<strong>출석체크 연동 완료</strong> ${h(label)} 명단 ${body.students}명을 꿈이음 출석체크에 넣었습니다. 날짜와 요일에 맞춰 그날 수업하는 학생이 자동으로 나옵니다.`
+        +(body.codesAssigned?` <span>출결기 등하원 번호 ${body.codesAssigned}명 새로 부여.</span>`:'')
+        +` <a href="/data-core/kkumeum?tab=kids-news&view=attendance-settings">출결 설정 · 등하원 번호 · 보호자 연결 열기</a>`
         +(body.created?.students?` <span>꿈이음에 없던 학생 ${body.created.students}명${body.created.classes?`과 반 ${body.created.classes}개`:''}를 새로 등록했습니다.</span>`:'')
         +(body.unmatched?.length?`<details><summary>확인이 필요한 학생 ${body.unmatched.length}명</summary><ul>${body.unmatched.map(u=>`<li>${h(u.className)} · ${h(u.name)}: ${h(reasons[u.reason]||'연결하지 못함')}</li>`).join('')}</ul></details>`:'');
     }catch(error){

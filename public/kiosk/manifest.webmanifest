@@ -1,0 +1,18 @@
+{
+  "name": "꿈이음 출결기 | HI5·ANiHi",
+  "short_name": "꿈이음 출결기",
+  "description": "학원 입구 태블릿에서 등하원 번호로 등원·하원을 기록합니다.",
+  "lang": "ko-KR",
+  "id": "/kiosk/",
+  "start_url": "/kiosk/",
+  "scope": "/kiosk/",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#eef2f0",
+  "theme_color": "#16614f",
+  "icons": [
+    { "src": "/family/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/family/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/family/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

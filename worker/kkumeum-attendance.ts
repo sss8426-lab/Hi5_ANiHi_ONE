@@ -15,7 +15,7 @@ export const ATTENDANCE_STATUSES = {
   early: "조퇴",
   makeup: "보강",
 } as const;
-type AttendanceStatus = keyof typeof ATTENDANCE_STATUSES;
+export type AttendanceStatus = keyof typeof ATTENDANCE_STATUSES;
 const MAX_STUDENTS_PER_MARK = 60;
 
 type EventRow = {
@@ -70,7 +70,8 @@ function monthRange(month: string): [string, string] {
 }
 function eventResponse(row: EventRow) {
   return { id: row.id, studentId: row.student_id, date: row.event_date, status: row.status, label: ATTENDANCE_STATUSES[row.status] || row.status,
-    time: kstTime(row.occurred_at), occurredAt: row.occurred_at, message: row.message || "" };
+    time: kstTime(row.occurred_at), occurredAt: row.occurred_at, message: row.message || "",
+    source: String(row.created_by || "").startsWith("kiosk:") ? "kiosk" : "staff" };
 }
 
 export function attendanceAlertText(studentName: string, status: AttendanceStatus, occurredAt: string, message = ""): string {
@@ -164,26 +165,50 @@ export async function markKkumeumAttendance(
   let sent = 0, failed = 0, code: string | null = null;
   for (const studentId of studentIds) {
     const student = await familyDb.prepare("SELECT id, name, display_name, current_class_id FROM family_students WHERE id = ? AND campus_id = ?")
-      .bind(studentId, campusId).first<{ id: string; name: string; display_name: string | null; current_class_id: string | null }>();
+      .bind(studentId, campusId).first<AttendanceStudent>();
     if (!student) continue;
-    const id = crypto.randomUUID();
-    await familyDb.batch([
-      familyDb.prepare(`INSERT INTO family_attendance_events (id, campus_id, student_id, class_id, event_date, status, message, occurred_at, created_by, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(id, campusId, studentId, student.current_class_id, date, status, message || null, now, context.user?.internalUserId || null, now),
-      familyDb.prepare(`INSERT INTO family_audit_logs (id, campus_id, actor_type, actor_id, action, resource_type, resource_id, metadata_json, created_at)
-        VALUES (?, ?, 'staff', ?, 'attendance_mark', 'student', ?, ?, ?)`).bind(crypto.randomUUID(), campusId, context.user?.internalUserId || null, studentId, JSON.stringify({ status }), now),
-    ]);
-    const guardians = (await familyDb.prepare(`SELECT sg.guardian_id FROM student_guardians sg JOIN family_guardians g ON g.id = sg.guardian_id
-      WHERE sg.student_id = ? AND g.status = 'active'`).bind(studentId).all<{ guardian_id: string }>()).results || [];
-    const name = student.display_name || student.name;
-    const push = await dispatchGuardianDirectPush(familyDb, env, guardians.map((g) => g.guardian_id), {
-      kind: "attendance", title: `꿈이음 · ${ATTENDANCE_STATUSES[status]}`, body: attendanceAlertText(name, status, now, message),
-      studentId, route: `/family/?openAttendance=${encodeURIComponent(studentId)}`,
-    });
-    sent += push.sent; failed += push.failed; code ||= push.code;
-    marked.push({ id, studentId, status, time: kstTime(now), guardians: guardians.length });
+    const result = await recordAttendanceEvent(familyDb, env, { campusId, student, status, message, now, actorType: "staff", actorId: context.user?.internalUserId || null });
+    sent += result.push.sent; failed += result.push.failed; code ||= result.push.code;
+    marked.push({ id: result.id, studentId, status, time: kstTime(now), guardians: result.guardians });
   }
   return { date, marked, push: { sent, failed, code } };
+}
+
+export type AttendanceStudent = { id: string; name: string; display_name: string | null; current_class_id: string | null };
+
+// One mark: the record, the audit line and one alert to each linked guardian. Shared by 출석체크 (staff)
+// and the 출결기 tablet, whose records carry created_by "kiosk:<device>" so staff can tell them apart.
+export async function recordAttendanceEvent(
+  familyDb: D1Database,
+  env: KkumeumPushEnv,
+  input: { campusId: string; student: AttendanceStudent; status: AttendanceStatus; message?: string; now?: string; actorType: "staff" | "kiosk"; actorId: string | null },
+) {
+  await ensureKkumeumAttendanceSchema(familyDb);
+  const { campusId, student, status } = input;
+  const now = input.now || new Date().toISOString(), date = kstDate(new Date(now)), message = input.message || "";
+  const id = crypto.randomUUID();
+  const createdBy = input.actorType === "kiosk" ? `kiosk:${input.actorId}` : input.actorId;
+  await familyDb.batch([
+    familyDb.prepare(`INSERT INTO family_attendance_events (id, campus_id, student_id, class_id, event_date, status, message, occurred_at, created_by, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(id, campusId, student.id, student.current_class_id, date, status, message || null, now, createdBy, now),
+    familyDb.prepare(`INSERT INTO family_audit_logs (id, campus_id, actor_type, actor_id, action, resource_type, resource_id, metadata_json, created_at)
+      VALUES (?, ?, ?, ?, 'attendance_mark', 'student', ?, ?, ?)`).bind(crypto.randomUUID(), campusId, input.actorType, input.actorId, student.id, JSON.stringify({ status }), now),
+  ]);
+  const guardians = (await familyDb.prepare(`SELECT sg.guardian_id FROM student_guardians sg JOIN family_guardians g ON g.id = sg.guardian_id
+    WHERE sg.student_id = ? AND g.status = 'active'`).bind(student.id).all<{ guardian_id: string }>()).results || [];
+  const name = student.display_name || student.name;
+  const push = await dispatchGuardianDirectPush(familyDb, env, guardians.map((g) => g.guardian_id), {
+    kind: "attendance", title: `꿈이음 · ${ATTENDANCE_STATUSES[status]}`, body: attendanceAlertText(name, status, now, message),
+    studentId: student.id, route: `/family/?openAttendance=${encodeURIComponent(student.id)}`,
+  });
+  return { id, date, time: kstTime(now), guardians: guardians.length, push };
+}
+
+/** The latest uncanceled mark of a student today (출결기 uses it to ignore a double press). */
+export async function latestAttendanceToday(familyDb: D1Database, studentId: string) {
+  await ensureKkumeumAttendanceSchema(familyDb);
+  return familyDb.prepare(`SELECT status, occurred_at FROM family_attendance_events WHERE student_id = ? AND event_date = ? AND canceled_at IS NULL
+    ORDER BY occurred_at DESC LIMIT 1`).bind(studentId, kstDate()).first<{ status: AttendanceStatus; occurred_at: string }>();
 }
 
 // A same-day mistake can be undone; the alert already sent stays, the record no longer shows anywhere.
