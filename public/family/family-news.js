@@ -146,7 +146,16 @@
     });
     button.setAttribute('aria-expanded', 'false');
 
-    article.append(meta, button, body);
+    // 선생님께 답변 남기기 (family-talk.js): only this guardian and the 학원 see it.
+    const replies = document.createElement('div');
+    replies.className = 'news-replies hidden';
+    button.addEventListener('click', () => {
+      const open = !body.classList.contains('hidden');
+      replies.classList.toggle('hidden', !open);
+      if (open) void window.FamilyTalk?.mountNoticeReply(notice.announcementId, replies);
+    });
+
+    article.append(meta, button, body, replies);
     return article;
   }
 

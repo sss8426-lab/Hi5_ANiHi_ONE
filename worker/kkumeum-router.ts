@@ -69,6 +69,10 @@ import { dispatchGuardianAnnouncementPush, type KkumeumPushEnv } from "./kkumeum
 import { kkumeumGrowthSkillCatalog } from "./kkumeum-growth-skills";
 
 import { applyAttendanceRosterReview, attendanceSheet, reviewAttendanceRoster } from "./kkumeum-roster-tools";
+import {
+  createSnippet, deleteSnippet, getStaffThread, listSnippets, listStaffThreads, readStaffTalkFile, readTalkSettings, saveTalkSettings,
+  setStaffThreadStatus, staffThreadMessage, staffThreadSummary,
+} from "./kkumeum-talk";
 export type KkumeumRouterEnv = KkumeumBindings & KkumeumPushEnv & { DB?: D1Database };
 
 type JsonResponder = (value: unknown, init?: ResponseInit) => Response;
@@ -278,6 +282,49 @@ export async function handleKkumeumApi(
     }
     return respond({ error: "지원하지 않는 출석부 연동 요청입니다." }, { status: 405 });
   }
+  // 답변모음 · 문의모음: guardian answers to 소식 and 1:1 문의, staff replies, 운영시간, 자주 쓰는 글.
+  if (url.pathname === "/api/kkumeum/threads" && request.method === "GET") {
+    const campusId = requiredCampusId(url); await assertKkumeumPilotCampus(familyDb, campusId);
+    return respond(await listStaffThreads(familyDb, context, campusId, url.searchParams.get("kind"), url.searchParams.get("filter")));
+  }
+  if (url.pathname === "/api/kkumeum/threads/summary" && request.method === "GET") {
+    const campusId = requiredCampusId(url); await assertKkumeumPilotCampus(familyDb, campusId);
+    return respond(await staffThreadSummary(familyDb, context, campusId));
+  }
+  const threadMessageMatch = url.pathname.match(/^\/api\/kkumeum\/threads\/([^/]+)\/messages$/);
+  if (threadMessageMatch && request.method === "POST") {
+    assertSameOrigin(request);
+    return respond(await staffThreadMessage(familyDb, env.FAMILY_FILES, context, env, request, decodeURIComponent(threadMessageMatch[1])), { status: 201 });
+  }
+  const threadMatch = url.pathname.match(/^\/api\/kkumeum\/threads\/([^/]+)$/);
+  if (threadMatch) {
+    const threadId = decodeURIComponent(threadMatch[1]);
+    if (request.method === "GET") return respond(await getStaffThread(familyDb, context, threadId));
+    if (request.method === "PATCH") { assertSameOrigin(request); const input = await readJson(request); return respond(await setStaffThreadStatus(familyDb, context, threadId, input.status)); }
+    return respond({ error: "지원하지 않는 대화 요청입니다." }, { status: 405 });
+  }
+  const talkFileMatch = url.pathname.match(/^\/api\/kkumeum\/talk-files\/([^/]+)$/);
+  if (talkFileMatch && request.method === "GET") {
+    return readStaffTalkFile(familyDb, requireFamilyFiles(context, env.FAMILY_FILES), context, decodeURIComponent(talkFileMatch[1]));
+  }
+  if (url.pathname === "/api/kkumeum/talk-settings") {
+    if (request.method === "GET") { const campusId = requiredCampusId(url); await assertKkumeumPilotCampus(familyDb, campusId); return respond(await readTalkSettings(familyDb, context, campusId)); }
+    if (request.method === "PUT") {
+      assertSameOrigin(request); const input = await readJson(request); const campusId = requiredBodyId(input.campusId, "campusId");
+      await assertKkumeumPilotCampus(familyDb, campusId); return respond(await saveTalkSettings(familyDb, context, campusId, input.settings));
+    }
+    return respond({ error: "지원하지 않는 문의 운영시간 요청입니다." }, { status: 405 });
+  }
+  if (url.pathname === "/api/kkumeum/snippets") {
+    if (request.method === "GET") { const campusId = requiredCampusId(url); await assertKkumeumPilotCampus(familyDb, campusId); return respond(await listSnippets(familyDb, context, campusId)); }
+    if (request.method === "POST") {
+      assertSameOrigin(request); const input = await readJson(request); const campusId = requiredBodyId(input.campusId, "campusId");
+      await assertKkumeumPilotCampus(familyDb, campusId); return respond(await createSnippet(familyDb, context, campusId, input), { status: 201 });
+    }
+    return respond({ error: "지원하지 않는 자주 쓰는 글 요청입니다." }, { status: 405 });
+  }
+  const snippetMatch = url.pathname.match(/^\/api\/kkumeum\/snippets\/([^/]+)$/);
+  if (snippetMatch && request.method === "DELETE") { assertSameOrigin(request); return respond(await deleteSnippet(familyDb, context, decodeURIComponent(snippetMatch[1]))); }
   // 명단 정리 (원장·관리자): 동명이인 연결, 새 학생 등록, 반 이동·수업요일, 재원·휴원·퇴원.
   if (url.pathname === "/api/kkumeum/attendance/roster-review") {
     if (request.method === "GET") {

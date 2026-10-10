@@ -37,6 +37,7 @@
     content.setAttribute('aria-labelledby',`kmTab-${tab}`);
     const menus=[['attendance','ShieldCheck','출석체크'],['news','BookOpen','아이소식 글모음'],['answers','BookOpen','답변모음'],['inquiries','PenLine','문의모음'],['more','Menu','더보기']];
     $('kmBottom').innerHTML=menus.map(([key,img,label])=>`<button type="button" data-menu="${key}" ${key==='more'?'aria-haspopup="dialog" aria-controls="kmMore" aria-expanded="false"':''} ${view===key || (!view&&key==='news')?'aria-current="page"':''}>${icon(img)}<span>${label}</span></button>`).join('');
+    window.KkumeumTalk?.paintBadges();
   }
   function search() { return `<label class="km-search">${icon('Search')}<input id="kmSearch" aria-label="반·학생·제목 검색" placeholder="반·학생·제목 검색" value="${h(state.q)}"></label>`; }
   const studentsFor = id => state.students.filter(s=>(s.current_class_id || s.currentClassId || '')===id);
@@ -158,19 +159,22 @@
   }
   function render() {
     renderNav();content.hidden=false;$('kmLegacy').hidden=true;
+    if(!state.loading)window.KkumeumTalk?.refresh({state,route,go});
     if(state.loading){content.innerHTML=empty('불러오는 중...');return;}
     if(state.error){content.innerHTML=empty(state.error)+'<button type="button" class="km-primary" data-retry>다시 시도</button>';return;}
     const {view,id}=route();
     if(['members','student','analytics'].includes(view)){if(view!=='student'&&!manager()){content.innerHTML=empty('관리 권한이 없습니다.');return;}void showLegacy(view,id);return;}
     if(view==='attendance'){if(!writer()){content.innerHTML=empty('출석체크는 담당 반이 있는 교직원만 할 수 있습니다.');return;}window.KkumeumAttendance?.open({state,route});return;}
     if(view==='attendance-settings'){if(!manager()){content.innerHTML=empty('출결 설정은 원장·관리자만 할 수 있습니다.');return;}window.KkumeumAttendanceAdmin?.open({state,route});return;}
+    // 답변모음 · 문의모음 · 대화 · 문의 운영시간 (kkumeum-talk.js); the server limits teachers to their class students.
+    if(['answers','inquiries','thread','talk-settings'].includes(view)){window.KkumeumTalk?.open({state,route,go});return;}
     if(view==='notice'){void detail(id);return;}
     if(view==='calendar'){void calendar();return;}
     if(view){auxiliary(view);return;}
     rootView();
   }
   function openMore() {
-    const menus=[['attendance-settings','ShieldCheck','출결 설정 · 출결기',manager()],['settings','Settings','설정',manager()],['help','BookOpen','도움말',true],['suggest','PenLine','비트에게 건의/문의',true],['consents','ShieldCheck','신청/동의서',true],['payments','BookOpen','수납관리',manager()],['members','Users','회원등록',manager()],['members','Folder','반관리',manager()],['teachers','Users','선생님 관리',manager()],['calendar','CalendarDays','일정관리',writer()]];
+    const menus=[['attendance-settings','ShieldCheck','출결 설정 · 출결기',manager()],['talk-settings','PenLine','문의 운영시간 · 자주 쓰는 글',writer()],['settings','Settings','설정',manager()],['help','BookOpen','도움말',true],['suggest','PenLine','비트에게 건의/문의',true],['consents','ShieldCheck','신청/동의서',true],['payments','BookOpen','수납관리',manager()],['members','Users','회원등록',manager()],['members','Folder','반관리',manager()],['teachers','Users','선생님 관리',manager()],['calendar','CalendarDays','일정관리',writer()]];
     $('kmMoreItems').innerHTML=menus.filter(m=>m[3]).map(([view,img,title])=>`<button type="button" data-view="${view}">${icon(img)}<span>${title}</span></button>`).join('');
     $('kmMore').showModal();document.querySelector('[data-menu=more]')?.setAttribute('aria-expanded','true');
   }

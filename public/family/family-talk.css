@@ -1,0 +1,40 @@
+/* 꿈이음 보호자: 소식 답변 · 답변모음 · 문의모음 (family-talk.js) */
+.ft-wrap{display:grid;gap:12px}
+.ft-wrap h2{font-size:22px;margin:0}
+.ft-intro{color:#5b6c66;font-size:14px;line-height:1.6;margin:0}
+.ft-hours{background:#fff8e6;border:1px solid #f1d48a;border-radius:12px;padding:9px 12px;font-size:13.5px;line-height:1.6;margin:0;color:#6b4a00}
+.ft-status{font-size:14px;color:#16614f;background:#eef7f2;border-radius:10px;padding:8px 12px;margin:0}
+.ft-new{width:100%}
+.ft-back{justify-self:start}
+.ft-list{display:grid;gap:8px}
+.ft-item{display:grid;gap:4px;width:100%;text-align:left;border:1px solid #e1e8e5;border-radius:16px;background:#fff;padding:13px 14px;font:inherit;color:inherit;cursor:pointer}
+.ft-item.ft-unread{border-color:#167d79;box-shadow:inset 4px 0 0 #167d79}
+.ft-item-top{display:flex;align-items:center;gap:8px}.ft-item-top b{font-size:15.5px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ft-item-sub{font-size:12.5px;color:#7a8a83}
+.ft-item-preview{font-size:14px;color:#475a55;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ft-status.ft-open,.ft-status.ft-answered,.ft-status.ft-closed,.ft-item .ft-status{font-style:normal;font-size:12px;font-weight:800;border-radius:999px;padding:2px 9px;background:#eef2f1;color:#5b6c66}
+.ft-item.ft-unread .ft-status,.ft-item .ft-answered{background:#e2f2ee;color:#16614f}
+.ft-thread{display:flex;flex-direction:column;gap:10px;max-height:58vh;overflow-y:auto;padding:4px}
+.ft-thread.ft-inline{max-height:none;margin-top:10px}
+.ft-msg{max-width:86%;border-radius:18px;padding:10px 13px;background:#f1f4f3}
+.ft-msg small{display:block;font-size:11.5px;color:#6b7b74;margin-bottom:3px}
+.ft-msg p{margin:0;white-space:pre-wrap;word-break:break-word;font-size:15px;line-height:1.6}
+.ft-me{align-self:flex-end;background:#e2f2ee}.ft-them{align-self:flex-start;background:#fff;border:1px solid #e1e8e5}
+.ft-auto{align-self:center;background:#fff8e6;border:1px dashed #f1d48a;max-width:96%}
+.ft-files{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.ft-files img{width:104px;height:104px;object-fit:cover;border-radius:12px;display:block}
+.ft-compose{display:grid;gap:10px}
+.ft-compose label{display:grid;gap:6px;font-weight:700;font-size:14px}
+.ft-compose textarea,.ft-compose input:not([type=file]),.ft-compose select{width:100%;box-sizing:border-box;border:1px solid #cfdcd8;border-radius:14px;padding:11px 13px;font:inherit;font-size:16px;background:#fff}
+.ft-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.ft-compose .ft-photo{display:inline-flex;align-items:center;min-height:44px;border:1px dashed #9fc7b8;border-radius:12px;padding:0 14px;color:#16614f;cursor:pointer;position:relative}
+.ft-photo input{position:absolute;width:1px;height:1px;opacity:0}
+.ft-chip{display:inline-flex;align-items:center;gap:4px;background:#eef4f1;border-radius:999px;padding:3px 4px 3px 10px;font-size:12.5px;max-width:180px;overflow:hidden}
+.ft-chip button{border:0;background:none;font-size:16px;padding:0 6px;cursor:pointer}
+.ft-picked{font-size:13px;color:#16614f}
+.news-replies{border-top:1px dashed #dfe7e3;margin-top:10px;padding-top:6px}
+.ft-reply summary{cursor:pointer;font-weight:800;color:#167d79;padding:8px 0;min-height:44px;display:flex;align-items:center}
+.ft-badge{position:absolute;top:4px;right:calc(50% - 22px);min-width:18px;height:18px;border-radius:999px;background:#d93025;color:#fff;font-style:normal;font-size:11px;font-weight:800;line-height:18px;padding:0 5px;text-align:center}
+.km-bottom button{position:relative}
+.ft-wrap .primary-button,.news-replies .primary-button{min-height:48px;border:0;border-radius:13px;background:#167d79!important;color:#fff!important;font-size:16px;font-weight:800;padding:0 18px;cursor:pointer}
+.ft-wrap .primary-button:disabled,.news-replies .primary-button:disabled{opacity:.5}
+.ft-wrap .secondary-button{min-height:40px;border:0;border-radius:12px;background:#eef4f1!important;color:#16614f!important;font-weight:800;padding:0 14px;cursor:pointer}
