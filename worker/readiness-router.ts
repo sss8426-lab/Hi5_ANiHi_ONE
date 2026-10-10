@@ -25,6 +25,9 @@ import { listGuardianChildAttendance } from "./kkumeum-attendance";
 import { redeemKkumeumInviteCode } from "./kkumeum-invite-codes";
 import { kioskCheckin, kioskSession, pairKiosk, unpairKiosk } from "./kkumeum-checkin";
 import {
+  createGuardianInquiry, getGuardianThread, guardianNoticeReplies, guardianThreadMessage, listGuardianThreads, readGuardianTalkFile, replyToNotice,
+} from "./kkumeum-talk";
+import {
   guardianPushStatus,
   subscribeGuardianPush,
   unsubscribeGuardianPush,
@@ -155,6 +158,29 @@ async function handleFamilyGuardianFeedApi(request: Request, env: Env): Promise<
 
   if (url.pathname === "/api/family/notices" && request.method === "GET") {
     return privateJsonResponse(await listGuardianNotices(env.FAMILY_DB, request));
+  }
+
+  // 소식 답변 · 1:1 문의 (꿈이음 2단계).
+  const noticeReplyMatch = url.pathname.match(/^\/api\/family\/notices\/([^/]+)\/replies$/);
+  if (noticeReplyMatch) {
+    const id = decodeURIComponent(noticeReplyMatch[1]);
+    if (request.method === "GET") return privateJsonResponse(await guardianNoticeReplies(env.FAMILY_DB, request, id));
+    if (request.method === "POST") return privateJsonResponse(await replyToNotice(env.FAMILY_DB, env.FAMILY_FILES, request, id), { status: 201 });
+  }
+  if (url.pathname === "/api/family/threads") {
+    if (request.method === "GET") return privateJsonResponse(await listGuardianThreads(env.FAMILY_DB, request, url.searchParams.get("kind")));
+    if (request.method === "POST") return privateJsonResponse(await createGuardianInquiry(env.FAMILY_DB, env.FAMILY_FILES, request), { status: 201 });
+  }
+  const threadMessageMatch = url.pathname.match(/^\/api\/family\/threads\/([^/]+)\/messages$/);
+  if (threadMessageMatch && request.method === "POST") {
+    return privateJsonResponse(await guardianThreadMessage(env.FAMILY_DB, env.FAMILY_FILES, request, decodeURIComponent(threadMessageMatch[1])), { status: 201 });
+  }
+  const threadMatch = url.pathname.match(/^\/api\/family\/threads\/([^/]+)$/);
+  if (threadMatch && request.method === "GET") return privateJsonResponse(await getGuardianThread(env.FAMILY_DB, request, decodeURIComponent(threadMatch[1])));
+  const talkFileMatch = url.pathname.match(/^\/api\/family\/talk-files\/([^/]+)$/);
+  if (talkFileMatch && request.method === "GET") {
+    if (!env.FAMILY_FILES) throw new DataCoreAccessError(503, "꿈이음 보호자 전용 FAMILY_FILES 연결이 필요합니다.");
+    return readGuardianTalkFile(env.FAMILY_DB, env.FAMILY_FILES, request, decodeURIComponent(talkFileMatch[1]));
   }
 
   const noticeReadMatch = url.pathname.match(/^\/api\/family\/notices\/([^/]+)\/read$/);

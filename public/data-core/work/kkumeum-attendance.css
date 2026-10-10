@@ -151,3 +151,48 @@
 .ka-slot-day{display:flex;align-items:center;gap:4px;border:1px solid #dbe4e0;border-radius:10px;padding:4px 8px;background:#fff}
 .ka-slot-day b{font-size:13px;margin-right:2px}.ka-slot-day label{display:flex;align-items:center;gap:2px;font-size:13px}
 .ka-slot-day input{width:18px;height:18px;accent-color:#167d79}
+/* 답변모음 · 문의모음 (kkumeum-talk.js) */
+.kt-badge{position:absolute;top:4px;right:calc(50% - 22px);min-width:18px;height:18px;border-radius:999px;background:#d93025;color:#fff;font-style:normal;font-size:11px;font-weight:800;line-height:18px;padding:0 5px;text-align:center}
+#kmBottom button{position:relative}
+.kt-filter{display:flex;gap:6px;margin:10px 0}
+.km-frame .kt-filter button{min-height:38px;border:1px solid #cfdcd8;border-radius:999px;background:#fff;padding:0 14px;font-weight:700;color:#475a55}
+.km-frame .kt-filter button[aria-pressed=true]{background:#167d79;border-color:#167d79;color:#fff}
+.kt-hours{font-size:13px;color:#475a55;background:#f4f8f7;border-radius:10px;padding:8px 12px;margin:8px 0}
+.km-frame .kt-link{border:0;background:none;color:#167d79;font-weight:800;padding:0 4px;min-height:0}
+.kt-list{display:grid;gap:8px}
+.km-frame .kt-item{display:grid;gap:3px;text-align:left;width:100%;border:1px solid #e5eceb;border-radius:14px;background:#fff;padding:12px 14px;position:relative}
+.km-frame .kt-item.kt-unread{border-color:#167d79;box-shadow:inset 4px 0 0 #167d79}
+.kt-item-top{display:flex;align-items:center;gap:8px}.kt-item-top b{font-size:15px}.kt-item-top small{color:#5b6c66;font-size:12.5px}
+.kt-item-title{font-weight:700;font-size:14px;color:#1f2a24}
+.kt-item-preview{color:#5b6c66;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kt-item time{color:#8a978f;font-size:12px}
+.kt-status{font-style:normal;font-size:11.5px;font-weight:800;border-radius:999px;padding:2px 8px;margin-left:auto}
+.kt-open{background:#fff1dc;color:#8a4b00}.kt-answered{background:#e6f4f1;color:#16614f}.kt-closed{background:#eef2f1;color:#5b6c66}
+.km-meta .kt-status{margin-left:4px}
+.kt-sub{font-size:14px;color:#5b6c66;font-weight:600}
+.kt-notice{border:1px solid #e5eceb;border-radius:12px;padding:8px 12px;margin:8px 0;background:#fafcfb}
+.kt-notice summary{font-weight:700;font-size:13.5px;cursor:pointer}.kt-notice p{white-space:pre-wrap;font-size:13.5px;color:#475a55;margin-top:6px}
+.kt-thread{display:flex;flex-direction:column;gap:10px;margin:12px 0;max-height:60vh;overflow-y:auto;padding:4px}
+.kt-msg{max-width:85%;border-radius:16px;padding:9px 12px;background:#f1f4f3}
+.kt-msg small{display:block;font-size:11.5px;color:#5b6c66;margin-bottom:3px}
+.kt-msg p{white-space:pre-wrap;font-size:14.5px;line-height:1.6;word-break:break-word}
+.kt-me{align-self:flex-end;background:#e2f2ee}.kt-them{align-self:flex-start}
+.kt-auto{align-self:center;background:#fff8e6;border:1px dashed #f1d48a;max-width:95%}
+.kt-files{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.kt-files img{width:110px;height:110px;object-fit:cover;border-radius:10px;display:block}
+.kt-compose{display:grid;gap:8px;border-top:1px solid #e5eceb;padding-top:10px}
+.kt-compose textarea,.kt-snippet-form textarea,.kt-auto textarea{width:100%;border:1px solid #cfdcd8;border-radius:12px;padding:10px 12px;font:inherit;font-size:15px;resize:vertical}
+.kt-compose-tools,.kt-compose-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.kt-compose-tools select{min-height:40px;border:1px solid #cfdcd8;border-radius:10px;padding:0 10px;font:inherit;max-width:100%}
+.km-frame .kt-compose button:not(.km-primary),.km-frame .kt-snippets button{min-height:40px;border:1px solid #cfdcd8;border-radius:10px;background:#fff;font-weight:700;padding:0 12px;color:#1f2a24}
+.kt-photo{display:inline-flex;align-items:center;min-height:40px;border:1px dashed #9fc7b8;border-radius:10px;padding:0 12px;font-weight:700;color:#16614f;cursor:pointer}
+.kt-photo input{position:absolute;width:1px;height:1px;opacity:0}
+.kt-chip{display:inline-flex;align-items:center;gap:4px;background:#eef4f1;border-radius:999px;padding:3px 4px 3px 10px;font-size:12.5px;max-width:180px;overflow:hidden}
+.km-frame .kt-chip button{border:0;background:none;min-height:0;font-size:15px;padding:0 6px}
+.kt-day{display:flex;align-items:center;gap:8px;margin:8px 0}.kt-day b{width:56px;font-size:14px}
+.kt-day input{min-height:40px;border:1px solid #cfdcd8;border-radius:10px;padding:0 8px;font:inherit}
+.kt-switch{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;margin:4px 0 8px}.kt-switch input{width:20px;height:20px;accent-color:#167d79}
+.kt-auto{display:grid;gap:6px;font-weight:700;font-size:14px;margin-top:8px}
+.kt-snippets{list-style:none;margin:0 0 10px;padding:0;display:grid;gap:6px}
+.kt-snippets li{display:flex;justify-content:space-between;gap:8px;border:1px solid #e5eceb;border-radius:10px;padding:8px 12px}
+.kt-snippets small{display:block;color:#5b6c66;font-size:12.5px;white-space:pre-wrap;margin-top:2px}
+.kt-snippet-form{display:grid;gap:8px}.kt-snippet-form input{min-height:40px;border:1px solid #cfdcd8;border-radius:10px;padding:0 12px;font:inherit}

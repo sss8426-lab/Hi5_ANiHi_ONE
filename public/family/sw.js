@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'kkumeum-family-shell-';
-const CACHE_NAME = `${CACHE_PREFIX}v8`;
+const CACHE_NAME = `${CACHE_PREFIX}v9`;
 const STATIC_SHELL = [
   '/family/',
   '/family/index.html',
@@ -17,6 +17,8 @@ const STATIC_SHELL = [
   '/family/family.js',
   '/family/family-growth-labels.js',
   '/family/family-news.js',
+  '/family/family-talk.js',
+  '/family/family-talk.css',
   '/family/manifest.webmanifest',
   '/family/icon.svg',
   '/family/icon-192.png',
@@ -83,6 +85,18 @@ self.addEventListener('push', (event) => {
     event.waitUntil(self.registration.showNotification(String(payload.title || '꿈이음').slice(0, 60), {
       body: String(payload.body || '출결 알림이 도착했습니다.').slice(0, 300),
       tag: `kkumeum-attendance-${studentId || 'latest'}`,
+      renotify: true,
+      icon: '/family/icon-192.png',
+      data: { route: route.startsWith('/family/') ? route : '/family/' },
+    }));
+    return;
+  }
+  // 학원 답장 (소식 답변 · 1:1 문의): say who answered; the tap opens that conversation.
+  if (payload?.kind === 'talk') {
+    const route = String(payload.route || '');
+    event.waitUntil(self.registration.showNotification(String(payload.title || '꿈이음 · 답장').slice(0, 60), {
+      body: String(payload.body || '학원에서 답장이 왔습니다.').slice(0, 160),
+      tag: `kkumeum-talk-${route.slice(-40) || 'latest'}`,
       renotify: true,
       icon: '/family/icon-192.png',
       data: { route: route.startsWith('/family/') ? route : '/family/' },
