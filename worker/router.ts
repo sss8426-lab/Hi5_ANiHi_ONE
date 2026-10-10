@@ -110,6 +110,9 @@ function loginPageResponse(request: Request, env: Env, nextPath: string) {
 
 function isProtectedDataCoreUiPath(pathname: string) {
   return (
+    // 모드 선택(첫 화면)도 로그인 후에만: 처음 접속하면 로그인 화면부터 보인다.
+    pathname === "/data-core" ||
+    pathname === "/data-core/" ||
     pathname === "/data-core/work" ||
     pathname.startsWith("/data-core/work/") ||
     pathname === "/data-core/kkumeum" ||
