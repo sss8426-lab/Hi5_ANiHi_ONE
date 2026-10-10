@@ -11,7 +11,12 @@
   const ROSTER_PAGE = '/data-core/work/attendance';
   const h = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const att = { tab:'today', date:'', rows:new Map(), schedule:null, mode:'', onlyWaiting:false, holiday:'', holidayKey:'',
-    selected:new Set(), month:'', monthly:null, busy:false, version:0 };
+    selected:new Set(), month:'', monthly:null, busy:false, version:0, contacts:{}, teachers:{}, slotStarts:{}, canManage:false, q:'' };
+  const normName = v => String(v||'').normalize('NFC').replace(/\s+/g,'');
+  const ARRIVED = ['arrive','late','makeup'];
+  // 출결기·한 번 누르기: 등원 → 하원 → 완료. The one button follows the student's records of the day.
+  const nextAction = id => { const ev=att.rows.get(id)||[]; return ev.some(e=>e.status==='leave')?'done':ev.some(e=>ARRIVED.includes(e.status))?'leave':'arrive'; };
+  const codeOf = id => att.contacts[id]?.code || '';
   let ctx = null;
   async function api(path, options={}) {
     const res = await fetch(path,{credentials:'include',cache:'no-store',...options});
@@ -30,6 +35,13 @@
   // Rows to show: the 출석부 schedule (today's students or the whole month list) or, without a 출석부,
   // the 꿈이음 classes. Each row: {id (꿈이음 student or null), name, times, studentPhone, parentPhone, unmatched}.
   function groups() {
+    const q=normName(att.q);
+    if(q){
+      // 이름·번호 찾기 looks through the whole month (보강 students too), not only today's list.
+      const saved=[att.mode,att.onlyWaiting];att.mode='all';att.onlyWaiting=false;att.q='';
+      const all=groups();[att.mode,att.onlyWaiting]=saved;att.q=q;
+      return all.map(g=>({...g,rows:g.rows.filter(r=>normName(r.name).includes(q)||(r.id&&codeOf(r.id).startsWith(q)))})).filter(g=>g.rows.length);
+    }
     const s=att.schedule;
     if(s){
       const mode=att.mode||'today';
@@ -53,7 +65,7 @@
   const waiting = row => Boolean(att.schedule&&row.today&&row.id&&!att.holiday&&!marked(row.id));
 
   function chips(studentId) {
-    return (att.rows.get(studentId)||[]).map(e=>`<span class="km-att-chip km-att-${h(e.status)}" title="${h(e.message)}">${h(e.label)} ${e.status==='absent'?'':h(e.time)}<button type="button" data-att-cancel="${h(e.id)}" aria-label="${h(e.label)} ${h(e.time)} 기록 취소">×</button></span>`).join('');
+    return (att.rows.get(studentId)||[]).map(e=>`<span class="km-att-chip km-att-${h(e.status)}" title="${h(e.message)}">${h(e.label)} ${e.status==='absent'?'':h(e.time)}${e.source==='kiosk'?' <span class="km-att-kiosk" title="출결기로 기록">📟</span>':''}<button type="button" data-att-cancel="${h(e.id)}" aria-label="${h(e.label)} ${h(e.time)} 기록 취소">×</button></span>`).join('');
   }
   function call(phone,who,student) {
     const href=telHref(phone);
@@ -61,13 +73,20 @@
       ? `<a class="km-att-call km-att-call-${who==='학생'?'student':'parent'}" href="${h(href)}" aria-label="${h(student)} ${who}에게 전화 ${h(phone)}" title="${h(phone)}">${PHONE_ICON}<span>${who}</span></a>`
       : `<span class="km-att-call km-att-call-none" aria-label="${h(student)} ${who} 번호 없음" title="출석부에 ${who} 번호가 없습니다">${PHONE_ICON}<span>${who}</span></span>`;
   }
+  function oneButton(r) {
+    if(!r.id)return '';
+    const next=nextAction(r.id);
+    return next==='done'?'<button type="button" class="km-att-one km-att-one-done" disabled>완료</button>'
+      :`<button type="button" class="km-att-one km-att-one-${next}" data-att-one="${next}" data-id="${h(r.id)}" data-name="${h(r.name)}" ${att.busy?'disabled':''}>${next==='arrive'?'등원':'하원'}</button>`;
+  }
   function row(r) {
     const picked=r.id&&att.selected.has(r.id), wait=waiting(r), events=r.id?chips(r.id):'';
+    const code=r.id?codeOf(r.id):'', unlinked=r.id&&att.contacts[r.id]&&!att.contacts[r.id].guardians;
     const slot=r.times?.length&&(att.mode||'today')==='today'?`<em class="km-att-slot">${h(r.times.join('·'))}타임</em>`:'';
     const note=r.id?'':`<em class="km-att-note">${r.unmatched==='ambiguous'?'동명이인 확인 필요':r.unmatched==='inactive'?'꿈이음 휴원 상태':'꿈이음 미등록'}</em>`;
     return `<div class="km-att-row${picked?' km-att-picked':''}${wait?' km-att-waiting':''}${r.id?'':' km-att-unlinked'}">
-      <label class="km-att-who"><input type="checkbox" ${r.id?`data-att-student="${h(r.id)}"`:'disabled'} ${picked?'checked':''} aria-label="${h(r.name)} 선택"><span class="km-att-name">${h(r.name)}</span>${slot}${wait?'<em class="km-att-tag">미등원</em>':''}${note}</label>
-      ${att.schedule?`<span class="km-att-calls">${call(r.studentPhone,'학생',r.name)}${call(r.parentPhone,'학부모',r.name)}</span>`:''}
+      <label class="km-att-who"><input type="checkbox" ${r.id?`data-att-student="${h(r.id)}"`:'disabled'} ${picked?'checked':''} aria-label="${h(r.name)} 선택">${code?`<span class="km-att-no" title="등하원 번호">${h(code)}</span>`:''}<span class="km-att-name">${h(r.name)}</span>${slot}${wait?'<em class="km-att-tag">미등원</em>':''}${unlinked?'<em class="km-att-ng" title="이 학생은 알림을 받을 보호자가 연결되지 않았습니다">보호자 미연결</em>':''}${note}</label>
+      <span class="km-att-calls">${att.schedule?`${call(r.studentPhone,'학생',r.name)}${call(r.parentPhone,'학부모',r.name)}`:''}${oneButton(r)}</span>
       ${events?`<span class="km-att-chips">${events}</span>`:''}</div>`;
   }
   function header() {
@@ -95,11 +114,21 @@
       const ids=[...new Set(rows.map(r=>r.id).filter(Boolean))];
       const all=ids.length>0&&ids.every(id=>att.selected.has(id));
       const came=ids.filter(arrived).length, wait=rows.filter(waiting).length;
-      return `<section class="km-group km-att-group"><div class="km-att-head"><label class="km-check"><input type="checkbox" data-att-class="${h(key)}" ${all?'checked':''} ${ids.length?'':'disabled'} aria-label="${h(title)} 전체 선택"></label><strong>${h(title)}</strong><small>등원 ${came} / ${rows.length}${wait?` · <b>미등원 ${wait}</b>`:''}</small></div>
+      const times=[...new Set(rows.flatMap(r=>r.times||[]))].sort().map(t=>`${t}타임${att.slotStarts[t]?` ${att.slotStarts[t]}`:''}`).join(' · ');
+      const teachers=(att.teachers[normName(title)]||[]).join(', ');
+      return `<section class="km-group km-att-group"><div class="km-att-head"><label class="km-check"><input type="checkbox" data-att-class="${h(key)}" ${all?'checked':''} ${ids.length?'':'disabled'} aria-label="${h(title)} 전체 선택"></label><strong>${h(title)}${times&&(att.mode||'today')==='today'&&!att.q?` <span class="km-att-times">${h(times)}</span>`:''}</strong><small>${teachers?`담당 ${h(teachers)} · `:''}등원 ${came} / ${rows.length}${wait?` · <b>미등원 ${wait}</b>`:''}</small></div>
         ${rows.map(row).join('')}</section>`;
     }).join('')||`<p class="km-state">${h(empty)}</p>`;
-    return `<p class="km-meta">${h(dayLabel(att.date))} · 학생을 고르고 아래 버튼을 누르면 보호자에게 바로 알림이 갑니다.</p>${header()}${body}
-      <div class="km-att-bar" role="region" aria-label="출결 처리"><div class="km-att-bar-top"><output id="kmAttCount">선택 ${att.selected.size}명</output><input id="kmAttMessage" maxlength="500" placeholder="알림에 덧붙일 말 (선택)" aria-label="알림에 덧붙일 말"></div>
+    // 수업이 끝나면 한 번에: per 타임 (출석부) or for everyone still in.
+    const scheduleRows=att.schedule?att.schedule.classes.flatMap(c=>c.students.filter(e=>e.today&&e.studentId)):[];
+    const leaveGroups=att.schedule
+      ? [...new Set(scheduleRows.flatMap(e=>e.times||[]))].sort().map(t=>({t,ids:[...new Set(scheduleRows.filter(e=>(e.times||[]).includes(t)&&nextAction(e.studentId)==='leave').map(e=>e.studentId))]}))
+      : [{t:'',ids:[...att.rows.keys()].filter(id=>nextAction(id)==='leave')}];
+    const bulk=leaveGroups.filter(g=>g.ids.length).map(g=>`<button type="button" class="km-att-bulk" data-att-bulk="${h(g.ids.join(','))}" ${att.busy?'disabled':''}>${g.t?`${h(g.t)}타임 `:''}등원 학생 ${g.ids.length}명 모두 하원</button>`).join('');
+    return `<p class="km-meta">${h(dayLabel(att.date))} · 학생 줄의 버튼을 누르면 바로 등원·하원되고 보호자에게 알림이 갑니다. 출결기 기록은 30초마다 새로 보입니다.</p>
+      ${att.canManage?'<button type="button" class="km-att-settings" data-view="attendance-settings">출결 설정 · 출결기 · 등하원 번호</button>':''}
+      ${header()}<label class="km-att-search"><span class="km-sr">학생 찾기</span><input id="kmAttSearch" type="search" value="${h(att.q)}" placeholder="이름·등하원 번호로 찾기 (보강 학생도)" autocomplete="off"></label>${body}${bulk?`<div class="km-att-bulks">${bulk}</div>`:''}
+      <div class="km-att-bar" role="region" aria-label="선택한 학생 출결 처리" ${att.selected.size?'':'hidden'}><div class="km-att-bar-top"><output id="kmAttCount">선택 ${att.selected.size}명</output><input id="kmAttMessage" maxlength="500" placeholder="알림에 덧붙일 말 (선택)" aria-label="알림에 덧붙일 말"></div>
         <div class="km-att-buttons">${STATUS.map(([k,l])=>`<button type="button" class="km-att-${k}" data-att-mark="${k}" ${att.selected.size&&!att.busy?'':'disabled'}>${l}</button>`).join('')}</div></div>`;
   }
   function month() {
@@ -110,11 +139,13 @@
   }
   function paint() {
     const content=document.getElementById('kmContent'); if(!content||ctx.route().view!=='attendance')return;
+    const focusSearch=document.activeElement?.id==='kmAttSearch';
     const message=document.getElementById('kmAttMessage')?.value||'';
     content.innerHTML=`<button type="button" class="km-back" data-back>소식으로 돌아가기</button><h2>출석체크</h2>
       <div class="km-att-tabs" role="group" aria-label="출석체크 보기"><button type="button" data-att-tab="today" aria-pressed="${att.tab==='today'}">오늘 출석</button><button type="button" data-att-tab="month" aria-pressed="${att.tab==='month'}">월별 현황</button></div>
       <p id="kmAttFeedback" class="km-att-feedback" role="status"></p>${att.tab==='today'?today():month()}`;
     const input=document.getElementById('kmAttMessage');if(input&&message)input.value=message;
+    if(focusSearch){const box=document.getElementById('kmAttSearch');if(box){box.focus();box.setSelectionRange(box.value.length,box.value.length);}}
   }
   // 공휴일·휴무 from CORE's calendar (same source as the 출석부): a day off hides 미등원.
   async function loadHoliday(date) {
@@ -135,6 +166,7 @@
     const r=await api(`/api/kkumeum/attendance?campusId=${encodeURIComponent(ctx.state.campusId)}`);
     if(v!==att.version)return;
     att.date=r.date;att.schedule=r.schedule||null;
+    att.contacts=r.contacts||{};att.teachers=r.teachers||{};att.slotStarts=r.slotStarts||{};att.canManage=Boolean(r.canManage);
     att.rows=new Map(r.students.map(s=>[s.id,s.events]));
     for(const c of att.schedule?.classes||[])for(const e of c.students)if(e.studentId&&!att.rows.has(e.studentId))att.rows.set(e.studentId,e.events||[]);
     paint();
@@ -171,7 +203,24 @@
     document.querySelectorAll('[data-att-class]').forEach(b=>{const ids=[...new Set((gs.find(g=>g.key===b.dataset.attClass)?.rows||[]).map(r=>r.id).filter(Boolean))];const n=ids.filter(id=>att.selected.has(id)).length;b.checked=n>0&&n===ids.length;b.indeterminate=n>0&&n<ids.length;});
     const count=document.getElementById('kmAttCount');if(count)count.textContent=`선택 ${att.selected.size}명`;
     document.querySelectorAll('[data-att-mark]').forEach(b=>b.disabled=!att.selected.size||att.busy);
+    const bar=document.querySelector('.km-att-bar');if(bar)bar.hidden=!att.selected.size;
   }
+  async function quick(status,ids,label) {
+    if(att.busy||!ids.length)return;
+    att.busy=true;paint();
+    try{
+      const r=await api('/api/kkumeum/attendance',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({campusId:ctx.state.campusId,status,studentIds:ids,auto:status==='arrive'&&ids.length===1})});
+      att.busy=false;await loadDay();
+      const got=r.marked[0]?.status, word=got==='late'?'지각 등원':LABEL[got]||LABEL[status];
+      say(`${label||`${r.marked.length}명`} ${word} 처리 · ${r.push.sent?`보호자 알림 ${r.push.sent}건`:r.marked.some(m=>m.guardians)?'알림을 켠 보호자 기기가 없어 기록만 남김':'연결된 보호자가 없어 기록만 남김'}`);
+    }catch(e){att.busy=false;paint();say(e.message);}
+  }
+  // 출결기 records show up without touching the screen: refresh every 30 s while nothing is being picked or typed.
+  setInterval(()=>{
+    if(!ctx||ctx.route().view!=='attendance'||att.tab!=='today'||att.busy||att.selected.size||document.visibilityState!=='visible')return;
+    if(['kmAttMessage','kmAttSearch'].includes(document.activeElement?.id))return;
+    void loadDay().catch(()=>{});
+  },30000);
   window.KkumeumAttendance = {
     open(context) {
       if(ctx?.state?.campusId!==context.state.campusId){att.schedule=null;att.mode='';att.onlyWaiting=false;att.holidayKey='';att.holiday='';}
@@ -187,8 +236,17 @@
     if(b.dataset.attMode){att.mode=b.dataset.attMode;if(att.mode==='all')att.onlyWaiting=false;paint();return;}
     if(b.dataset.attWaiting!==undefined){att.onlyWaiting=!att.onlyWaiting;paint();return;}
     if(b.dataset.attMark){void mark(b.dataset.attMark);return;}
+    if(b.dataset.attOne){void quick(b.dataset.attOne,[b.dataset.id],b.dataset.name);return;}
+    if(b.dataset.attBulk){const ids=b.dataset.attBulk.split(',').filter(Boolean);if(confirm(`${ids.length}명을 모두 하원 처리하고 보호자에게 알릴까요?`))void quick('leave',ids);return;}
     if(b.dataset.attCancel){void cancel(b.dataset.attCancel);}
   });
+  document.addEventListener('input',e=>{
+    if(!ctx||ctx.route().view!=='attendance'||e.target.id!=='kmAttSearch')return;
+    if(e.isComposing)return;
+    att.q=e.target.value;paint();
+  });
+  // Korean input: update after each finished syllable, never mid-composition.
+  document.addEventListener('compositionend',e=>{if(ctx&&ctx.route().view==='attendance'&&e.target.id==='kmAttSearch'){att.q=e.target.value;paint();}});
   document.addEventListener('change',e=>{
     if(!ctx||ctx.route().view!=='attendance')return;
     const el=e.target;

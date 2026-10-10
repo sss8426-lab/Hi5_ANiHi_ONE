@@ -96,5 +96,5 @@ test('출석부 연동 UI: 출석부 page saves the roster; 출석체크 shows �
   const att = fs.readFileSync('public/data-core/work/kkumeum-attendance.js', 'utf8');
   for (const text of ['오늘 수업', '이 달 명단 전체', '미등원', '학부모', 'tel:', '출석부가 아직 연동되지 않았습니다']) assert.ok(att.includes(text), text);
   assert.match(att, /fetchMonthHolidays/, 'days off come from the same calendar as the 출석부');
-  assert.match(fs.readFileSync('public/data-core/work/kkumeum.html', 'utf8'), /kkumeum-attendance\.js\?v=20261009-roster-link/);
+  assert.match(fs.readFileSync('public/data-core/work/kkumeum.html', 'utf8'), /kkumeum-attendance\.js\?v=20261010-kiosk/);
 });

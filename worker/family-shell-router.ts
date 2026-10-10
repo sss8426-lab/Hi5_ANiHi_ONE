@@ -21,9 +21,12 @@ interface Env {
 async function familyShell(request: Request, env: Env): Promise<Response | null> {
   if (request.method !== "GET") return null;
   const url = new URL(request.url);
-  if (url.pathname !== "/family" && url.pathname !== "/family/") return null;
+  // /kiosk is the 출결기 tablet page; /family the guardian app. Both always load fresh.
+  const kiosk = url.pathname === "/kiosk" || url.pathname === "/kiosk/";
+  if (url.pathname !== "/family" && url.pathname !== "/family/" && !kiosk) return null;
   if (!env.ASSETS) return new Response("Not found", { status: 404 });
   url.pathname = "/family/index.html";
+  if (kiosk) url.pathname = "/kiosk/index.html";
   const response = await env.ASSETS.fetch(new Request(url.toString(), { headers: request.headers }));
   if (!response.ok) return response;
   const headers = new Headers(response.headers);
