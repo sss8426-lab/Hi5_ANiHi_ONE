@@ -9,7 +9,7 @@ import {
 } from "./kkumeum-core";
 import { ensureKkumeumPhase1Schema } from "./kkumeum-schema";
 
-const STUDENT_STATUSES = new Set(["active", "leave", "moved", "graduated"]);
+const STUDENT_STATUSES = new Set(["active", "leave", "withdrawn", "moved", "graduated"]);
 
 function cleanText(value: unknown, maxLength = 160): string {
   return String(value ?? "").trim().slice(0, maxLength);

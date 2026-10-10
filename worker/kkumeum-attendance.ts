@@ -87,7 +87,7 @@ export function attendanceAlertText(studentName: string, status: AttendanceStatu
   return message ? `${base}\n${message}` : base;
 }
 
-async function events(familyDb: D1Database, campusId: string, studentIds: string[], from: string, to: string): Promise<EventRow[]> {
+export async function attendanceEventsBetween(familyDb: D1Database, campusId: string, studentIds: string[], from: string, to: string): Promise<EventRow[]> {
   const rows: EventRow[] = [];
   for (let i = 0; i < studentIds.length; i += 80) {
     const ids = studentIds.slice(i, i + 80);
@@ -109,7 +109,7 @@ export async function listStaffAttendanceDay(familyDb: D1Database, context: Data
   const ids = new Set(students.map((s) => String(s.id)));
   for (const group of schedule?.classes || []) for (const entry of group.students) if (entry.studentId) ids.add(entry.studentId);
   const byStudent = new Map<string, ReturnType<typeof eventResponse>[]>();
-  for (const row of await events(familyDb, campusId, [...ids], date, date)) {
+  for (const row of await attendanceEventsBetween(familyDb, campusId, [...ids], date, date)) {
     if (!byStudent.has(row.student_id)) byStudent.set(row.student_id, []);
     byStudent.get(row.student_id)!.push(eventResponse(row));
   }
@@ -125,7 +125,7 @@ export async function listStaffAttendanceMonth(familyDb: D1Database, context: Da
   const month = validMonth(monthValue || kstDate().slice(0, 7));
   const [from, to] = monthRange(month);
   const students = await listKkumeumStudents(familyDb, context, campusId, { classId }) as Record<string, unknown>[];
-  const rows = await events(familyDb, campusId, students.map((s) => String(s.id)), from, to);
+  const rows = await attendanceEventsBetween(familyDb, campusId, students.map((s) => String(s.id)), from, to);
   return { month, students: students.map((s) => {
     const own = rows.filter((r) => r.student_id === s.id);
     const days: Record<string, string[]> = {};
@@ -157,6 +157,9 @@ export async function markKkumeumAttendance(
     // Super admins skip the campus check above; a student of another campus is still refused, not skipped.
     if (!await familyDb.prepare("SELECT 1 FROM family_students WHERE id = ? AND campus_id = ?").bind(id, campusId).first()) {
       throw new DataCoreAccessError(403, "선택한 캠퍼스의 학생만 출석체크할 수 있습니다.");
+    }
+    if (!await familyDb.prepare("SELECT 1 FROM family_students WHERE id = ? AND campus_id = ? AND status = 'active'").bind(id, campusId).first()) {
+      throw new DataCoreAccessError(409, "휴원·퇴원 학생은 출석체크할 수 없습니다. 출결 설정 › 명단 정리에서 재원으로 바꿔 주세요.");
     }
   }
 

@@ -8,7 +8,7 @@ import { ensureKkumeumPhase1Schema } from "./kkumeum-schema";
 // Saving also registers roster students that 꿈이음 does not have yet (additive only: nothing is
 // renamed, moved or deactivated), so they can be marked and their guardians alerted.
 
-const SLOT = /^[월화수목금토일][123]$/;
+export const SLOT = /^[월화수목금토일][123]$/;
 const WEEKDAY = "일월화수목금토";
 const MAX_CLASSES = 80;
 const MAX_STUDENTS = 1000;
@@ -21,14 +21,15 @@ export type RosterEntry = {
   studentPhone: string;
   parentPhone: string;
   slots: string[];
+  registered?: { serial: number | null; text: string } | null;
   studentId?: string | null;
 };
 export type RosterClass = { name: string; students: RosterEntry[] };
-type StudentRow = { id: string; name: string; display_name: string | null; status: string; current_class_id: string | null; class_name: string | null };
+export type StudentRow = { id: string; name: string; display_name: string | null; status: string; current_class_id: string | null; class_name: string | null };
 type ClassRow = { id: string; name: string; active: number; sort_order: number };
 type Match = { studentId: string | null; reason: "matched" | "missing" | "inactive" | "ambiguous" };
 
-const norm = (value: unknown) => String(value ?? "").normalize("NFC").replace(/\s+/g, "");
+export const norm = (value: unknown) => String(value ?? "").normalize("NFC").replace(/\s+/g, "");
 const clean = (value: unknown, max: number) => String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
 // Phone numbers stay as typed (010-1234-5678) but only digits, +, - and spaces survive.
 export function cleanPhone(value: unknown): string {
@@ -36,7 +37,7 @@ export function cleanPhone(value: unknown): string {
   return /\d{3,}/.test(text) ? text : "";
 }
 
-function isManager(context: DataCoreAccessContext, campusId: string): boolean {
+export function isManager(context: DataCoreAccessContext, campusId: string): boolean {
   return context.isSuperAdmin || context.memberships.some(
     (m) => m.campusId === campusId && (m.role === "CAMPUS_DIRECTOR" || m.role === "CAMPUS_ADMIN"),
   );
@@ -61,6 +62,8 @@ export function normalizeRoster(input: unknown): RosterClass[] {
       const s = (rawStudent && typeof rawStudent === "object" ? rawStudent : {}) as Record<string, unknown>;
       const slots = [...new Set((Array.isArray(s.slots) ? s.slots : []).map((slot) => String(slot)).filter((slot) => SLOT.test(slot)))];
       const no = Number(s.no);
+      const reg = (s.registered && typeof s.registered === "object" ? s.registered : null) as Record<string, unknown> | null;
+      const serial = Number(reg?.serial);
       return {
         no: Number.isInteger(no) ? no : null,
         name: clean(s.name, 100),
@@ -69,6 +72,8 @@ export function normalizeRoster(input: unknown): RosterClass[] {
         studentPhone: cleanPhone(s.studentPhone),
         parentPhone: cleanPhone(s.parentPhone),
         slots,
+        // 등록일 rides along so 출결 반영 출석부 can print the same 등록일 column.
+        registered: reg ? { serial: Number.isInteger(serial) && serial > 20000 && serial < 80000 ? serial : null, text: clean(reg.text, 20) } : null,
       };
     }).filter((s) => s.name);
     total += students.length;
@@ -114,7 +119,7 @@ export async function ensureKkumeumAttendanceRosterSchema(familyDb: D1Database):
   ]);
 }
 
-async function campusStudents(familyDb: D1Database, campusId: string): Promise<StudentRow[]> {
+export async function campusStudents(familyDb: D1Database, campusId: string): Promise<StudentRow[]> {
   const result = await familyDb.prepare(`SELECT s.id, s.name, s.display_name, s.status, s.current_class_id, c.name AS class_name
     FROM family_students s LEFT JOIN family_classes c ON c.id = s.current_class_id AND c.campus_id = s.campus_id
     WHERE s.campus_id = ? LIMIT 3000`).bind(campusId).all<StudentRow>();
@@ -236,9 +241,11 @@ export async function attendanceScheduleForDay(
   const manager = isManager(context, campusId);
   const weekday = weekdayOf(date);
   let today = 0;
+  // 명단 정리에서 휴원·퇴원 처리한 학생 rows leave 출석체크 (they stay in the saved 출석부).
+  const left = new Set(students.filter((s) => s.status !== "active").map((s) => s.id));
   const out = classes.map((group) => ({
     name: group.name,
-    students: group.students.map((entry, index) => {
+    students: group.students.filter((entry) => !entry.studentId || !left.has(entry.studentId)).map((entry, index) => {
       const match = matchRosterStudent(students, group.name, entry.name, entry.studentId);
       const times = (entry.slots || []).filter((slot) => slot[0] === weekday).map((slot) => slot.slice(1));
       return {

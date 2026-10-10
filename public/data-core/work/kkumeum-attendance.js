@@ -8,6 +8,7 @@
   const LABEL = Object.fromEntries(STATUS);
   const CHECKED = new Set(STATUS.map(([k])=>k));
   const HOLIDAYS_MODULE = '/data-core/work/attendance-holidays.js?v=20260924-class-days';
+  const SHEET_MODULE = '/data-core/work/kkumeum-attendance-sheet.js?v=20261010-marks';
   const ROSTER_PAGE = '/data-core/work/attendance';
   const h = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const att = { tab:'today', date:'', rows:new Map(), schedule:null, mode:'', onlyWaiting:false, holiday:'', holidayKey:'',
@@ -134,7 +135,8 @@
   function month() {
     const m=att.monthly;
     const rows=m?m.students.map(s=>`<tr><th scope="row">${h(s.name)}</th>${STATUS.map(([k])=>`<td>${s.counts[k]||''}</td>`).join('')}</tr>`).join(''):'';
-    return `<label class="km-att-month">기준 월 <input type="month" id="kmAttMonth" value="${h(att.month)}"></label>
+    return `<div class="km-att-month-row"><label class="km-att-month">기준 월 <input type="month" id="kmAttMonth" value="${h(att.month)}"></label>
+      <button type="button" class="km-att-sheet" data-att-sheet>출결 반영 출석부 (Excel)</button></div>
       ${m?(m.students.length?`<div class="km-att-table-wrap"><table class="km-att-table"><thead><tr><th scope="col">학생</th>${STATUS.map(([,l])=>`<th scope="col">${l}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`:'<p class="km-state">이 달 출결 기록이 없습니다.</p>'):'<p class="km-state">불러오는 중...</p>'}`;
   }
   function paint() {
@@ -239,6 +241,12 @@
     if(b.dataset.attOne){void quick(b.dataset.attOne,[b.dataset.id],b.dataset.name);return;}
     if(b.dataset.attBulk){const ids=b.dataset.attBulk.split(',').filter(Boolean);if(confirm(`${ids.length}명을 모두 하원 처리하고 보호자에게 알릴까요?`))void quick('leave',ids);return;}
     if(b.dataset.attCancel){void cancel(b.dataset.attCancel);}
+    // 출결 반영 출석부: the 출석부 Excel of 기준 월 with each day's 출석체크 result in its date cell.
+    if(b.hasAttribute('data-att-sheet')){
+      const campusName=ctx.state.campuses?.find(c=>c.id===ctx.state.campusId)?.name||'';b.disabled=true;
+      import(SHEET_MODULE).then(m=>m.downloadAttendanceSheet({campusId:ctx.state.campusId,campusName,month:att.month}))
+        .then(r=>say(`${r.filename} 를 받았습니다.`),err=>say(err.message)).finally(()=>{b.disabled=false;});
+    }
   });
   document.addEventListener('input',e=>{
     if(!ctx||ctx.route().view!=='attendance'||e.target.id!=='kmAttSearch')return;

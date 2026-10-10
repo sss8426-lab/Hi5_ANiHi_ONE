@@ -102,7 +102,7 @@
     toolbar.innerHTML = `
       <label><span>캠퍼스</span><select id="kkCampus"></select></label>
       <label><span>반</span><select id="kkClass"><option value="">전체 반</option></select></label>
-      <label><span>상태</span><select id="kkStatus"><option value="active">재원</option><option value="leave">휴원</option><option value="moved">이동</option><option value="graduated">졸업</option><option value="">전체</option></select></label>
+      <label><span>상태</span><select id="kkStatus"><option value="active">재원</option><option value="leave">휴원</option><option value="withdrawn">퇴원</option><option value="moved">이동</option><option value="graduated">졸업</option><option value="">전체</option></select></label>
       <label class="kk-search"><span>학생 검색</span><input id="kkSearch" placeholder="이름·학교 검색"></label>
       <button id="kkSearchBtn" type="button">검색</button>`;
     grid.parentNode.insertBefore(toolbar, grid);
@@ -279,7 +279,7 @@
       { name: 'grade', label: '학년' },
       { name: 'schoolName', label: '학교' },
       { name: 'classId', label: '반', type: 'select', options: [{ value: '', label: '반 미지정' }, ...state.classes.map((item) => ({ value: item.id, label: item.name }))] },
-      { name: 'status', label: '상태', type: 'select', options: [{ value: 'active', label: '재원' }, { value: 'leave', label: '휴원' }, { value: 'moved', label: '이동' }, { value: 'graduated', label: '졸업' }] },
+      { name: 'status', label: '상태', type: 'select', options: [{ value: 'active', label: '재원' }, { value: 'leave', label: '휴원' }, { value: 'withdrawn', label: '퇴원' }, { value: 'moved', label: '이동' }, { value: 'graduated', label: '졸업' }] },
     ], async (data) => {
       await api('/api/kkumeum/students', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ campusId: state.campusId, ...data, classId: data.classId || null }) });
       await loadStudents();
