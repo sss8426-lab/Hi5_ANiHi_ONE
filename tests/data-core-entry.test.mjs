@@ -24,11 +24,16 @@ test('처음 접속: 로그인 전 /data-core는 로그인 화면, 로그인 후
       const html = await r.text();
       return { status: r.status, title: (/<title>([^<]*)<\/title>/.exec(html) || [])[1] || '' };
     };
-    for (const path of ['/data-core', '/data-core/']) {
+    for (const path of ['/data-core', '/data-core/', '/data-core/index.html']) {
       assert.deepEqual(await page(path), { status: 200, title: 'DATA CORE 로그인' }, `${path} before login`);
       assert.deepEqual(await page(path, ADMIN), { status: 200, title: 'HI5·ANiHi DATA CORE' }, `${path} after login`);
     }
   } finally { await mf.dispose(); }
+});
+
+test('the 모드 선택 page itself always goes through the worker (never served as a bare static file)', () => {
+  const config = JSON.parse(fs.readFileSync('wrangler.jsonc', 'utf8').replace(/^\s*\/\/.*$/gm, ''));
+  for (const route of ['/data-core', '/data-core/', '/data-core/index.html']) assert.ok(config.assets.run_worker_first.includes(route), route);
 });
 
 test('휴대폰으로 새로 열면 모드 선택에서 시작 (앱 안 이동·새로고침·대상 있는 링크·PC는 그대로)', () => {
