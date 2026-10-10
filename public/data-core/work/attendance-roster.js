@@ -1,7 +1,7 @@
 // 종합 출석부 업로드 → 반별 출석부 Excel. One official 종합입력 file becomes one workbook with a sheet
 // per class (input order), in the official blue A4-landscape design. 공휴일·휴무 come from CORE's calendar.
 import {parseRoster,RosterError} from './attendance-roster-parser.js?v=20260928-dist';
-import {buildRosterWorkbook} from './attendance-roster-export.js?v=20260928-output-format';
+import {buildRosterWorkbook} from './attendance-roster-export.js?v=20261010-marks';
 import {fetchMonthHolidays,addHolidayClass,removeHolidayClass,holidaySummary} from './attendance-holidays.js?v=20260924-class-days';
 import {escapeHtml as h} from './attendance-template.js?v=20260919-sparse-import';
 
@@ -139,7 +139,8 @@ export function mountRosterAttendance(host,{campusId='',campusName=''}={}){
     const box=$('arLink'),epoch=++linkTicket,label=`${month}월`;
     box.hidden=false;box.className='ar-link';box.textContent=`출석체크에 ${label} 명단을 연동하는 중...`;
     const classes=roster.classes.map(c=>({name:c.name,students:c.students.map(s=>({no:s.no,name:s.name,school:s.school,grade:s.grade,
-      studentPhone:s.studentPhone,parentPhone:s.parentPhone,slots:s.schedule?.slots||[]}))}));
+      studentPhone:s.studentPhone,parentPhone:s.parentPhone,slots:s.schedule?.slots||[],
+      registered:s.registered?{serial:s.registered.serial||null,text:s.registered.text||''}:null}))}));
     try{
       const response=await fetch('/api/kkumeum/attendance/roster',{method:'PUT',credentials:'same-origin',headers:{'content-type':'application/json'},
         body:JSON.stringify({campusId,month:`${year}-${String(month).padStart(2,'0')}`,sourceName:rosterFile,classes})});

@@ -10,6 +10,11 @@ export const OUTPUT_HEADERS=['No','이름','학교','학년','학생연락처','
 const INFO_WIDTHS=[3.5,6.5,7.5,3.5,8.5,9,6.5,10,4.5],DATE_WIDTH=2;
 export const COLORS={title:'1F4E78',header:'5B9BD5',dateHeader:'D9EAF7',weekendHeader:'BDD7EE',planned:'B7CCE3',holiday:'8497B0',holidayBody:'D5DDE7',weekendBody:'F1F6FB',subtitle:'EAF2F8',text:'17365D',headerLine:'2F4A63',bodyLine:'8FA3B8',strongLine:'1F4E78',white:'FFFFFF',note:'4F6D8C'};
 export const PRINT={paperSize:9,orientation:'landscape',fitToWidth:1,fitToHeight:0,margins:{left:0.15,right:0.15,top:0.22,bottom:0.22,header:0.1,footer:0.1},titleRows:[3,4]};
+// 출결 반영 출석부: a day's 꿈이음 출석체크 result shown in its date cell. The cell keeps its value (1 = 예정
+// 수업, still counted by 일수) and only the number format shows the symbol.
+export const MARKS={present:{text:'○',color:'17365D',label:'출석'},late:{text:'지',color:'B45F06',label:'지각'},early:{text:'조',color:'7B3FA0',label:'조퇴'},
+  absent:{text:'결',color:'C0392B',label:'결석'},makeup:{text:'보',color:'1A7F4B',label:'보강'}};
+const EXTRA_FILL='E2F0D9';
 const FIRST_DATE_COLUMN=10,HEADER_ROWS=[3,4],FIRST_STUDENT_ROW=5;
 // XML 1.0 forbids C0 control characters; drop them rather than write an unreadable workbook.
 // eslint-disable-next-line no-control-regex
@@ -29,7 +34,7 @@ export function sheetNames(names){
 }
 
 /** Everything a sheet shows, shared by the Excel writer and the on-screen preview. */
-export function planRosterWorkbook(roster,{year,month,holidays=new Map(),classDays=new Map()}){
+export function planRosterWorkbook(roster,{year,month,holidays=new Map(),classDays=new Map(),attendance=null}){
   const names=sheetNames(roster.classes.map(c=>c.name));
   const sheets=roster.classes.map((group,i)=>{
     const used=new Set(group.students.flatMap(s=>s.schedule?.slots||[]));
@@ -37,14 +42,15 @@ export function planRosterWorkbook(roster,{year,month,holidays=new Map(),classDa
     const students=group.students.map(s=>{const planned=plannedColumns(s.schedule,columns);return {...s,planned,count:lessonCount(s.schedule,planned)};});
     return {name:names[i],className:group.name,columns,students};
   });
-  return {campus:roster.campus,year,month,holidays,sheets,holidayNote:holidaySummary(holidays),classDayNote:holidaySummary(classDays)};
+  return {campus:roster.campus,year,month,holidays,sheets,attendance,holidayNote:holidaySummary(holidays),classDayNote:holidaySummary(classDays)};
 }
 
 function styleBook(){
   const fonts=['<font><sz val="10"/><name val="맑은 고딕"/><family val="3"/><charset val="129"/></font>'],fills=['<fill><patternFill patternType="none"/></fill>','<fill><patternFill patternType="gray125"/></fill>'];
   const borders=['<border><left/><right/><top/><bottom/><diagonal/></border>'],xfs=['<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'];
   const index=(list,xml)=>{let i=list.indexOf(xml);if(i<0){list.push(xml);i=list.length-1;}return i;};
-  const cache=new Map();
+  const cache=new Map(),formats=new Map([['yy\\-mm\\-dd',176],[';;;',177]]);
+  const formatId=code=>{if(typeof code==='number')return code;if(!formats.has(code))formats.set(code,176+formats.size);return formats.get(code);};
   function style({size=7,bold=false,italic=false,color=COLORS.text,fill=null,border=null,numFmt=0,h='center',wrap=false,shrink=false}={}){
     const key=JSON.stringify([size,bold,italic,color,fill,border,numFmt,h,wrap,shrink]);
     if(cache.has(key))return cache.get(key);
@@ -53,11 +59,11 @@ function styleBook(){
     const side=(name,s)=>s?`<${name} style="${s[0]}"><color rgb="FF${s[1]}"/></${name}>`:`<${name}/>`;
     const borderId=border?index(borders,`<border>${side('left',border.l)}${side('right',border.r)}${side('top',border.t)}${side('bottom',border.b)}<diagonal/></border>`):0;
     const align=`<alignment horizontal="${h}" vertical="center"${wrap?' wrapText="1"':''}${shrink?' shrinkToFit="1"':''}/>`;
-    xfs.push(`<xf numFmtId="${numFmt}" fontId="${font}" fillId="${fillId}" borderId="${borderId}" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1">${align}</xf>`);
+    xfs.push(`<xf numFmtId="${formatId(numFmt)}" fontId="${font}" fillId="${fillId}" borderId="${borderId}" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1">${align}</xf>`);
     cache.set(key,xfs.length-1);return xfs.length-1;
   }
   function xml(){
-    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="2"><numFmt numFmtId="176" formatCode="yy\\-mm\\-dd"/><numFmt numFmtId="177" formatCode=";;;"/></numFmts><fonts count="${fonts.length}">${fonts.join('')}</fonts><fills count="${fills.length}">${fills.join('')}</fills><borders count="${borders.length}">${borders.join('')}</borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="${xfs.length}">${xfs.join('')}</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles><dxfs count="1"><dxf><fill><patternFill patternType="solid"><fgColor rgb="FF${COLORS.planned}"/><bgColor rgb="FF${COLORS.planned}"/></patternFill></fill></dxf></dxfs></styleSheet>`;
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="${formats.size}">${[...formats].map(([code,id])=>`<numFmt numFmtId="${id}" formatCode="${esc(code)}"/>`).join('')}</numFmts><fonts count="${fonts.length}">${fonts.join('')}</fonts><fills count="${fills.length}">${fills.join('')}</fills><borders count="${borders.length}">${borders.join('')}</borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="${xfs.length}">${xfs.join('')}</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles><dxfs count="1"><dxf><fill><patternFill patternType="solid"><fgColor rgb="FF${COLORS.planned}"/><bgColor rgb="FF${COLORS.planned}"/></patternFill></fill></dxf></dxfs></styleSheet>`;
   }
   return {style,xml};
 }
@@ -82,9 +88,9 @@ function sheetXml(sheet,plan,styles,sheetIndex){
   const row=(r,height,cells)=>rows.push(`<row r="${r}" ht="${height}" customHeight="1">${cells.join('')}</row>`);
   const span=(r,value,s)=>Array.from({length:lastColumn},(_,i)=>cell(i+1,r,i?null:value,s));
   const titleStyle=styles.style({size:15,bold:true,color:COLORS.white,fill:COLORS.title,border:{l:['medium',COLORS.strongLine],r:['medium',COLORS.strongLine],t:['medium',COLORS.strongLine],b:['medium',COLORS.strongLine]}});
-  row(1,24,span(1,`${plan.year}년 ${plan.month}월 ${sheet.className} 출석부`,titleStyle));merges.push(`A1:${last}1`);
+  row(1,24,span(1,`${plan.year}년 ${plan.month}월 ${sheet.className} 출석부${plan.attendance?' (출결 반영)':''}`,titleStyle));merges.push(`A1:${last}1`);
   const subStyle=styles.style({size:8,bold:true,fill:COLORS.subtitle,h:'left',border:{l:['thin',COLORS.headerLine],r:['thin',COLORS.headerLine],t:['thin',COLORS.headerLine],b:['thin',COLORS.headerLine]}});
-  row(2,14,span(2,`${plan.campus}  |  학생 ${students.length}명`,subStyle));merges.push(`A2:${last}2`);
+  row(2,14,span(2,`${plan.campus}  |  학생 ${students.length}명${plan.attendance?`  |  꿈이음 출석체크 ${plan.attendance.asOf} 기준`:''}`,subStyle));merges.push(`A2:${last}2`);
   for(const r of HEADER_ROWS){
     const cells=[];
     OUTPUT_HEADERS.forEach((title,i)=>cells.push(cell(i+1,r,r===HEADER_ROWS[0]?title:null,styles.style({size:7,bold:true,color:COLORS.white,fill:COLORS.header,wrap:true,border:borderFor(i+1,r,{lastColumn,lastRow})}))));
@@ -111,8 +117,12 @@ function sheetXml(sheet,plan,styles,sheetIndex){
       reg?.serial?cell(7,r,reg.serial,styles.style({size:7,numFmt:176,shrink:true,border:b(7)})):cell(7,r,reg?.text||'',text(7)),
       cell(8,r,s.schedule?scheduleLabel(s.schedule):s.scheduleText,text(8)),
       cell(9,r,{formula,cached:s.count.label},styles.style({size:7,bold:true,color:COLORS.title,shrink:true,border:b(9)}),'formula')];
+    // 출결 반영: a day the child came without a planned lesson (보강 등) is marked in that date's first column.
+    const plannedDates=new Set(columns.filter((_,i)=>s.planned[i]).map(col=>col.date));
     columns.forEach((col,i)=>{
-      const c=FIRST_DATE_COLUMN+i;
+      const c=FIRST_DATE_COLUMN+i,mark=plan.attendance?MARKS[s.marks?.[col.date]]:null;
+      if(mark&&s.planned[i]){cells.push(cell(c,r,1,styles.style({size:6.5,bold:true,color:mark.color,numFmt:`"${mark.text}";;;`,fill:COLORS.planned,border:b(c)})));return;}
+      if(mark&&!plannedDates.has(col.date)&&columns.findIndex(x=>x.date===col.date)===i){cells.push(cell(c,r,2,styles.style({size:6.5,bold:true,color:mark.color,numFmt:`"${mark.text}";;;`,fill:EXTRA_FILL,border:b(c)})));return;}
       // A planned lesson: value 1 (counted by 일수) hidden by the ";;;" format — only the blue shows.
       if(s.planned[i])cells.push(cell(c,r,1,styles.style({size:6,numFmt:177,fill:COLORS.planned,border:b(c)})));
       else cells.push(cell(c,r,null,styles.style({size:6,fill:col.holiday?COLORS.holidayBody:col.weekend?COLORS.weekendBody:null,border:b(c)})));
@@ -123,6 +133,7 @@ function sheetXml(sheet,plan,styles,sheetIndex){
   const noteStyle=styles.style({size:6.5,italic:true,color:COLORS.note,h:'left'});
   let noteRow=lastRow+1;
   row(noteRow,11,span(noteRow,'파란색 = 예정 수업 · 일수 = 4주 기준 수업수 ± 이 달 실제 예정 수업 차이 · A4 가로 1페이지 폭, 학생이 많으면 세로 다음 장',noteStyle));merges.push(`A${noteRow}:${last}${noteRow}`);
+  if(plan.attendance){noteRow++;row(noteRow,11,span(noteRow,`출결: ${Object.values(MARKS).map(m=>`${m.text} ${m.label}`).join(' · ')} · 연두 칸 = 예정 외 날 출석 · 빈 파란 칸 = 기록 없음`,noteStyle));merges.push(`A${noteRow}:${last}${noteRow}`);}
   if(plan.holidayNote){noteRow++;row(noteRow,11,span(noteRow,`공휴일·휴무: ${plan.holidayNote}`,noteStyle));merges.push(`A${noteRow}:${last}${noteRow}`);}
   if(plan.classDayNote){noteRow++;row(noteRow,11,span(noteRow,`공휴일 수업(정상 수업): ${plan.classDayNote}`,noteStyle));merges.push(`A${noteRow}:${last}${noteRow}`);}
   // 수업요일 grows with the longest schedule in the class ("화1.2.3 수1.2.3 … 일1.2.3") so it stays
@@ -158,5 +169,5 @@ export function buildRosterWorkbook(roster,options){
   sheets.forEach((s,i)=>{files[`xl/worksheets/sheet${i+1}.xml`]=s.xml;});
   const bytes=zipSync(Object.fromEntries(Object.entries(files).map(([k,v])=>[k,strToU8(v)])),{level:6});
   const safeCampus=String(plan.campus).replace(/[\\/:*?"<>|]/g,'').trim()||'캠퍼스';
-  return {bytes,filename:`${safeCampus}_${plan.year}년${String(plan.month).padStart(2,'0')}월_반별출석부.xlsx`,plan};
+  return {bytes,filename:`${safeCampus}_${plan.year}년${String(plan.month).padStart(2,'0')}월_반별출석부${plan.attendance?'_출결반영':''}.xlsx`,plan};
 }

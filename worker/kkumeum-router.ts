@@ -68,6 +68,7 @@ import { issueKkumeumInviteCode, kkumeumInviteStatus, revokeKkumeumInviteCode } 
 import { dispatchGuardianAnnouncementPush, type KkumeumPushEnv } from "./kkumeum-push";
 import { kkumeumGrowthSkillCatalog } from "./kkumeum-growth-skills";
 
+import { applyAttendanceRosterReview, attendanceSheet, reviewAttendanceRoster } from "./kkumeum-roster-tools";
 export type KkumeumRouterEnv = KkumeumBindings & KkumeumPushEnv & { DB?: D1Database };
 
 type JsonResponder = (value: unknown, init?: ResponseInit) => Response;
@@ -276,6 +277,24 @@ export async function handleKkumeumApi(
       return respond({ ...saved, codesAssigned: await fillCheckinCodes(familyDb, String(input.campusId)) });
     }
     return respond({ error: "지원하지 않는 출석부 연동 요청입니다." }, { status: 405 });
+  }
+  // 명단 정리 (원장·관리자): 동명이인 연결, 새 학생 등록, 반 이동·수업요일, 재원·휴원·퇴원.
+  if (url.pathname === "/api/kkumeum/attendance/roster-review") {
+    if (request.method === "GET") {
+      const campusId = requiredCampusId(url); await assertKkumeumPilotCampus(familyDb, campusId);
+      return respond(await reviewAttendanceRoster(familyDb, context, campusId, url.searchParams.get("month")));
+    }
+    if (request.method === "POST") {
+      assertSameOrigin(request); const input = await readJson(request);
+      await assertKkumeumPilotCampus(familyDb, requiredBodyId(input.campusId, "campusId"));
+      return respond(await applyAttendanceRosterReview(familyDb, context, input));
+    }
+    return respond({ error: "지원하지 않는 명단 정리 요청입니다." }, { status: 405 });
+  }
+  // 출결 반영 출석부: the month's 출석부 rows with day-by-day marks for the Excel download.
+  if (url.pathname === "/api/kkumeum/attendance/sheet" && request.method === "GET") {
+    const campusId = requiredCampusId(url); await assertKkumeumPilotCampus(familyDb, campusId);
+    return respond(await attendanceSheet(familyDb, context, campusId, url.searchParams.get("month")));
   }
   // 출결 설정 (원장·관리자): 타임 시간, 등하원 번호, 담당 선생님, 출결기, 인증키 한꺼번에.
   if (url.pathname === "/api/kkumeum/attendance/settings") {
