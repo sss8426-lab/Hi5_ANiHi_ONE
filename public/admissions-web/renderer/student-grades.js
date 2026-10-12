@@ -22,8 +22,7 @@
 
   // Header names teachers commonly use, mapped to student fields.
   const HEADERS = [
-    ['name', ['이름', '학생명', '성명', '학생']], ['gpa', ['내신', '평균등급', '내신등급', '등급']], ['skill', ['실기점수', '실기 점수']],
-    ['skillLevel', ['실기능력', '실기 능력', '실기수준']], ['track', ['희망계열', '희망 계열', '실기계열', '실기 계열', '실기유형', '실기 유형']], ['division', ['전공계열', '전공 계열', '계열', '구분']],
+    ['name', ['이름', '학생명', '성명', '학생']], ['gpa', ['내신', '평균등급', '내신등급', '등급']], ['skillLevel', ['실기능력', '실기 능력', '실기수준']], ['track', ['희망계열', '희망 계열', '실기계열', '실기 계열', '실기유형', '실기 유형']], ['division', ['전공계열', '전공 계열', '계열', '구분']],
     ['school', ['학교', '고등학교', '학교명']], ['targetUniversities', ['희망대학', '희망 대학', '목표대학']], ['consultMemo', ['메모', '상담메모', '비고']],
   ];
   const normal = text => String(text || '').replace(/\s+/g, '').toLowerCase();
@@ -38,7 +37,7 @@
         const value = String(row[index] ?? '').trim();
         if (!value) continue;
         if (field === 'division') { student.division = value.includes('디자인') ? 'design' : 'anim'; continue; }
-        student[field] = ['gpa', 'skill'].includes(field) && Number.isFinite(Number(value)) ? Number(value) : value;
+        student[field] = field === 'gpa' && Number.isFinite(Number(value)) ? Number(value) : value;
       }
       return student;
     }).filter(student => student.name);

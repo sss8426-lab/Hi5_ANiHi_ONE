@@ -103,5 +103,8 @@ test('로드맵 홈 first, 지원 전략 removed, 학생 관리 tabs by 학년 w
   assert.match(app, /data-row-field="division"/); assert.match(app, /data-row-field="track"/); assert.match(app, /data-row-field="skillLevel"/);
   assert.match(app, />수정<\/button><button class="btn mini primary" type="button" \$\{editorOpen \? 'data-editor-save' : `data-row-save=/);
   assert.doesNotMatch(app, /track: trackLabelOf/, '전공 계열 never overwrites 희망 계열');
+  // 실기 점수 is gone everywhere; 실기능력 is A+ · A0 · A- · B+ · B0 · B- · C.
+  assert.match(app, /const SKILL_LEVELS = \['A\+','A0','A-','B\+','B0','B-','C'\];/);
+  assert.doesNotMatch(app, /<th>실기점수<\/th>|id="editStudentSkill"|<dt>실기점수<\/dt>/);
   assert.match(app, /const deleteButton = manager \?/);
 });
