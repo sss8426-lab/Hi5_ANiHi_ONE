@@ -1,0 +1,45 @@
+/* 로드맵 홈 (대학 합격 로드맵 첫 화면) and 학생 관리 학년별 · 추천 대학 */
+.roadmap-home { display: grid; gap: 20px; }
+.roadmap-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.roadmap-card { position: relative; display: block; padding: 0; border: 1px solid #e1e3df; border-radius: 16px; background: #fff; overflow: hidden; text-align: left; cursor: pointer; font: inherit; color: inherit; }
+.roadmap-card:hover { border-color: #1f5a4c; box-shadow: 0 6px 18px rgb(0 0 0 / 8%); }
+.roadmap-card:focus-visible { outline: 2px solid #1f5a4c; outline-offset: 2px; }
+.admissions-counseling .roadmap-card img { display: block; width: 100%; height: 170px; max-height: none; object-fit: cover; }
+.roadmap-card > span { display: grid; gap: 4px; padding: 14px 48px 16px 18px; }
+.roadmap-card strong { font-size: 17px; font-weight: 900; }
+.roadmap-card small { font-size: 13px; color: #56606a; }
+.roadmap-card i { position: absolute; right: 18px; bottom: 18px; font-style: normal; font-size: 20px; color: #1f5a4c; }
+@media (max-width: 1100px) { .roadmap-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 680px) { .roadmap-cards { grid-template-columns: minmax(0, 1fr); } }
+
+.student-type-tabs button.final b, .student-type-tabs button.final { color: #174e9f; }
+.student-year-note { margin: 0 0 12px; padding: 9px 12px; border-radius: 10px; background: #e3f1e8; color: #1b6054; font-size: 13px; font-weight: 700; }
+.rec-chip { display: inline-block; margin: 0 4px 2px 0; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 800; white-space: nowrap; }
+.rec-chip.safe { background: #e3f1e8; color: #1b6054; }
+.rec-chip.fit { background: #fff4dc; color: #8a5a00; }
+.rec-chip.reach { background: #fde8e8; color: #b42318; }
+.rec-empty { font-size: 12.5px; }
+.grade-chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 800; }
+.grade-chip.warn { background: #fff4dc; color: #8a5a00; }
+.grade-chip.grad { background: #eef3fc; color: #174e9f; }
+.student-rec-panel { border: 1px solid #cfe3d6; background: #f6faf7; }
+.student-rec-panel .student-detail-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+.rec-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.rec-col { background: #fff; border: 1px solid #e1e3df; border-radius: 12px; padding: 10px 12px; }
+.rec-col h4 { margin: 0 0 6px; font-size: 14px; font-weight: 900; }
+.rec-col.safe h4 { color: #1b6054; } .rec-col.fit h4 { color: #8a5a00; } .rec-col.reach h4 { color: #b42318; }
+.rec-col ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.rec-col li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; font-size: 13px; }
+.rec-col li span { grid-column: 1; color: #56606a; font-size: 12px; }
+.rec-col li em { grid-column: 2; grid-row: 1 / span 2; align-self: center; font-style: normal; font-weight: 800; color: #43516a; }
+.rec-note { margin: 8px 0 0; font-size: 12px; }
+@media (max-width: 760px) { .rec-columns { grid-template-columns: minmax(0, 1fr); } }
+.student-upload-card h3 { margin: 0 0 10px; }
+.student-upload-preview { min-height: 1em; font-weight: 700; color: #1b6054; }
+
+/* 학생 관리 구분: 디자인 | 애니, each with its own 학년 tabs */
+.student-divisions { display: flex; flex-wrap: wrap; gap: 14px 28px; align-items: center; margin-bottom: 14px; }
+.student-division { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.student-division-label { font-size: 16px; font-weight: 900; color: #1d232b; white-space: nowrap; }
+.student-divisions .student-type-tabs { margin: 0; }
+.student-type-tabs b { font-weight: 800; }

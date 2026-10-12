@@ -8,7 +8,7 @@ test('대학 합격 로드맵: 대학합격 재현작 및 공개우수작 menu s
   const html = read('public/admissions-web/renderer/index.html'), app = read('public/admissions-web/renderer/app.js');
   assert.match(html, /<button data-page="works">대학합격 재현작 및 공개우수작<\/button>/);
   assert.match(html, /<section id="works" class="page hidden"><\/section>/);
-  assert.match(app, /'cases','works','strategy'/, 'the page can be opened from the address (#page=works)');
+  assert.match(app, /'home','students','cases','works'/, 'the page can be opened from the address (#page=works)');
   assert.match(app, /src="\/data-core\/counseling\/works\?embed=1"/);
   assert.match(app, /event\.origin !== location\.origin \|\| event\.data\?\.type !== 'data-core-embed-height'/, 'only same-site height messages');
 });

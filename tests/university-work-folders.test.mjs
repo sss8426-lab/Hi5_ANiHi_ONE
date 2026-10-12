@@ -55,5 +55,5 @@ test('roadmap removes dashboard and duplicate counseling nav, retaining legacy d
   assert.doesNotMatch(roadmap,/data-page="dashboard"|id="dashboard"/);
   assert.doesNotMatch(home,/data-view="works"/);
   assert.match(roadmap,/대학합격 재현작 및 공개우수작/);
-  assert.match(app,/if\(page === 'dashboard'\) page = 'students'/);
+  assert.match(app,/if\(page === 'dashboard' \|\| page === 'strategy'\) page = 'students'/);
 });
