@@ -79,7 +79,10 @@ test('로드맵 홈 first, 지원 전략 removed, 학생 관리 tabs by 학년 w
   assert.match(html, /<button class="active" data-page="home">로드맵 홈<\/button>/);
   assert.doesNotMatch(html, /data-page="strategy"|id="strategy"/);
   assert.match(app, /const ADMISSIONS_HOME = 'home';/);
-  assert.match(app, /tabButton\('g1','고1',counts\.g1\)\}\$\{tabButton\('g2','고2',counts\.g2\)\}\$\{tabButton\('g3','고3',counts\.g3\)\}/);
+  assert.match(app, /\$\{tab\('g1','고1',c\.g1\)\}\$\{tab\('g2','고2',c\.g2\)\}\$\{tab\('g3','고3',c\.g3\)\}/);
+  assert.match(app, /STUDENT_DIVISIONS = \[\['design','디자인'\],\['anim','애니'\]\]/);
+  assert.match(app, /\$\{text\} <b>\(\$\{count\}\)<\/b>/);
+  assert.doesNotMatch(app, /roadmap-stat/);
   assert.match(app, /합격자 데이터로 넘기기/);
   assert.match(app, /dashboardUniversitiesForTrack\(track\)\.map\(u => \(\{ u, p: scoreUniversity\(u, gpa, skill\) \}\)\)/);
   assert.match(app, /const deleteButton = manager \?/);

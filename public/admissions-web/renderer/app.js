@@ -366,6 +366,7 @@ function syncStudentEditorDraft(){
     ...state.studentEditor.student,
     studentType: $('editStudentType')?.value || state.studentEditor.student.studentType || (state.studentTypeTab === 'result' ? 'result' : 'current'),
     name: $('editStudentName').value,
+    division: $('editStudentDivision')?.value || studentDivision(state.studentEditor.student),
     gpa: $('editStudentGpa').value,
     skill: $('editStudentSkill').value,
     skillLevel: $('editStudentSkillLevel').value,
@@ -945,6 +946,7 @@ function studentEditorMarkup(editor, editorArtworks, universityOptions, studentT
     <div class="top compact"><div><h2>${editor.mode === 'edit' ? '학생 정보 수정' : '학생 추가'}</h2><p>상담에 필요한 기본 성적, 학기별 과목 성적, 그림 이미지, 실기능력을 입력합니다.</p></div></div>
     <div class="admin-grid">
       <div class="field"><label>학생 구분</label><select id="editStudentType"><option value="current" ${currentMode?'selected':''}>현재 재원생</option><option value="result" ${!currentMode?'selected':''}>입시 결과 데이터</option></select></div>
+      <div class="field"><label>구분</label><select id="editStudentDivision">${STUDENT_DIVISIONS.map(([key,label]) => `<option value="${key}" ${key===studentDivision(editor.student)?'selected':''}>${label}</option>`).join('')}</select></div>
       <div class="field"><label>학생명</label><input id="editStudentName" value="${h(editor.student.name || '')}" placeholder="예: 김학생"></div>
       <div class="field"><label>내신 평균</label><input id="editStudentGpa" type="number" step="0.1" value="${h(editor.student.gpa || '')}" placeholder="3.2"></div>
       <div class="field"><label>실기 점수</label><input id="editStudentSkill" type="number" value="${h(editor.student.skill || '')}" placeholder="82"></div>
@@ -1558,9 +1560,20 @@ const ROADMAP_CARDS = [
   ['susi','미대 수시 입시요강','수시 전형 한눈에','design-v1'],
   ['jungsi','미대 정시 입시요강','정시 전형 한눈에','story-v1'],
 ];
-function studentGradeCounts(){
+// 학생 관리 구분: 디자인 / 애니. A saved choice wins; otherwise the campus (디자인 입시관 · 애니 입시본원),
+// otherwise 희망 계열 (디자인 → 디자인, 웹툰·애니메이션·게임 → 애니).
+const STUDENT_DIVISIONS = [['design','디자인'],['anim','애니']];
+function studentDivision(student){
+  if(student?.division === 'design' || student?.division === 'anim') return student.division;
+  const campus = String(student?.campusId || '');
+  if(campus.includes('design')) return 'design';
+  if(campus.includes('anihi')) return 'anim';
+  return String(student?.track || '').includes('디자인') ? 'design' : 'anim';
+}
+function studentGradeCounts(division){
   const counts = { g1: 0, g2: 0, g3: 0, result: 0, unknown: 0 };
   for(const student of state.data.students || []){
+    if(division && studentDivision(student) !== division) continue;
     if(!isCurrentStudent(student)) { counts.result++; continue; }
     const info = window.AdmissionsStudentGrades.gradeOf(student);
     counts[info.grade ? `g${info.grade}` : 'unknown']++;
@@ -1568,16 +1581,12 @@ function studentGradeCounts(){
   return counts;
 }
 function renderRoadmapHome(){
-  const counts = studentGradeCounts();
-  const stat = (tab,label,value) => `<button type="button" class="roadmap-stat" data-roadmap-tab="${tab}"><b>${value}</b><span>${label}</span></button>`;
   $('home').innerHTML = `<div class="roadmap-home">
-    <div class="roadmap-stats" aria-label="학년별 학생 수">${stat('g1','고1',counts.g1)}${stat('g2','고2',counts.g2)}${stat('g3','고3',counts.g3)}${stat('result','합격자 데이터',counts.result)}</div>
     <div class="roadmap-cards">${ROADMAP_CARDS.map(([page,title,text,image]) => `<button type="button" class="roadmap-card" data-roadmap-page="${page}">
       <img src="/data-core/assets/work-visuals/${image}.webp" alt="" width="1440" height="960" loading="lazy" decoding="async">
       <span><strong>${h(title)}</strong><small>${h(text)}</small></span><i aria-hidden="true">→</i></button>`).join('')}</div>
   </div>`;
   document.querySelectorAll('[data-roadmap-page]').forEach(button => button.onclick = () => showPage(button.dataset.roadmapPage));
-  document.querySelectorAll('[data-roadmap-tab]').forEach(button => button.onclick = () => { state.studentTypeTab = button.dataset.roadmapTab; showPage('students'); });
 }
 const canManageStudents = () => Boolean(state.data?._students?.canManage);
 // 추천 대학: the same scoring the old 지원 전략 used (내신 · 실기 · 희망 계열), shown inside 학생 관리.
@@ -1613,6 +1622,7 @@ function studentUploadPanel(){
   return `<div class="card student-upload-card">
     <h3>학생 명단 올리기</h3>
     <div class="admin-grid">
+      <div class="field"><label>구분</label><select id="studentUploadDivision">${STUDENT_DIVISIONS.map(([key,label]) => `<option value="${key}" ${key===(state.studentDivision||'design')?'selected':''}>${label}</option>`).join('')}</select></div>
       <div class="field"><label>학년</label><select id="studentUploadGrade">${[1,2,3].map(g => `<option value="${g}" ${String(g)===tabGrade?'selected':''}>고${g}</option>`).join('')}</select></div>
       <div class="field"><label>몇 년도 학년인가요?</label><input id="studentUploadYear" type="number" min="2000" max="2100" value="${grades.schoolYear()}"></div>
       <div class="field wide"><label>엑셀(.xlsx)·CSV 파일</label><input id="studentUploadFile" type="file" accept=".xlsx,.csv,.json"></div>
@@ -1659,7 +1669,8 @@ function renderStudents(){
   const yearFilter = state.studentYearFilter || '';
   const roundFilter = state.studentRoundFilter || '';
   const grades = window.AdmissionsStudentGrades;
-  const counts = studentGradeCounts();
+  const division = state.studentDivision === 'anim' ? 'anim' : 'design';
+  const counts = studentGradeCounts(division);
   if(state.studentTypeTab === 'current') state.studentTypeTab = 'g1';
   if(state.studentTypeTab === 'unknown' && !counts.unknown) state.studentTypeTab = 'g1';
   const activeStudentTab = ['g1','g2','g3','unknown','result'].includes(state.studentTypeTab) ? state.studentTypeTab : 'g1';
@@ -1669,6 +1680,7 @@ function renderStudents(){
   const roundOptions = admissionRoundOptions();
   const allStudents = state.data.students || [];
   const inTab = s => {
+    if(studentDivision(s) !== division) return false;
     if(activeStudentTab === 'result') return !isCurrentStudent(s);
     if(!isCurrentStudent(s)) return false;
     const info = grades.gradeOf(s);
@@ -1736,14 +1748,16 @@ function renderStudents(){
       <td><div class="row-actions">${convertButton}<button class="btn mini" data-edit-student="${s.id}">수정</button>${deleteButton}</div></td>
     </tr>${editorDetailRow}${expandedDetailRow}`;
   };
-  const tabButton = (tab,label,count,extra='') => `<button class="${activeStudentTab===tab?'active':''} ${extra}" type="button" data-student-tab="${tab}">${label} <b>${count}</b></button>`;
+  const divisionTabs = ([key,label]) => {
+    const c = studentGradeCounts(key);
+    const tab = (id,text,count,extra='') => `<button class="${key===division&&activeStudentTab===id?'active':''} ${extra}" type="button" data-student-division="${key}" data-student-tab="${id}">${text} <b>(${count})</b></button>`;
+    return `<div class="student-division"><span class="student-division-label">${label}</span><div class="student-type-tabs">${tab('g1','고1',c.g1)}${tab('g2','고2',c.g2)}${tab('g3','고3',c.g3)}${c.unknown ? tab('unknown','학년 미지정',c.unknown) : ''}${tab('result','합격자 데이터',c.result,'final')}</div></div>`;
+  };
   replaceArtworkContent($('students'),`<div class="top"><div><h1>학생 관리</h1><p>학년별로 학생을 관리하고, 정보를 입력하면 추천 대학이 바로 나옵니다. 고3은 마지막에 합격자 데이터로 넘깁니다.</p></div></div>
   ${editor?.mode === 'add' ? `<div class="card student-add-card">${studentEditorMarkup(editor, editorArtworks, universityOptions, studentTrackOptions)}</div>` : ''}
   ${state.studentUploadOpen ? studentUploadPanel() : ''}
   <div class="card">
-    <div class="student-type-tabs">
-      ${tabButton('g1','고1',counts.g1)}${tabButton('g2','고2',counts.g2)}${tabButton('g3','고3',counts.g3)}${counts.unknown ? tabButton('unknown','학년 미지정',counts.unknown) : ''}${tabButton('result','합격자 데이터',counts.result,'final')}
-    </div>
+    <div class="student-divisions">${STUDENT_DIVISIONS.map(divisionTabs).join('')}</div>
     ${gradeTab ? `<div class="student-year-note">${grades.schoolYear()}학년도 기준 · 고1 연도로 학년이 매년 3월에 자동으로 올라갑니다${activeStudentTab === 'g3' ? ' · 고3은 마지막에 합격자 데이터로 넘깁니다' : ''}</div>` : ''}
     <div class="student-toolbar">
       <div class="search-box"><input id="studentSearchInput" placeholder="학생명, 전공 계열, 실기능력, 합격 대학 검색" value="${h(state.studentSearch)}"><button class="btn" id="studentSearchBtn">학생 검색</button></div>
@@ -1762,6 +1776,7 @@ function renderStudents(){
   document.querySelectorAll('[data-student-tab]').forEach(btn=>btn.onclick=()=>{
     syncStudentEditorDraft();
     state.studentTypeTab=btn.dataset.studentTab;
+    state.studentDivision=btn.dataset.studentDivision;
     state.studentYearFilter='';
     state.studentRoundFilter='';
     state.studentEditor=null;
@@ -1776,7 +1791,7 @@ function renderStudents(){
   if($('studentFilterClearBtn')) $('studentFilterClearBtn').onclick=()=>{syncStudentEditorDraft(); state.studentYearFilter=''; state.studentRoundFilter=''; renderStudents();};
   if($('studentUploadBtn')) $('studentUploadBtn').onclick=()=>{state.studentUploadOpen=!state.studentUploadOpen; renderStudents();};
   if(state.studentUploadOpen) bindStudentUpload();
-  $('studentAddBtn').onclick=()=>{state.studentDetailId=null; const tabGrade=/^g([123])$/.exec(activeStudentTab)?.[1]; state.studentEditor={mode:'add',student:{studentType:gradeTab?'current':'result',...(tabGrade?{entryYear:grades.entryYearFor(tabGrade,grades.schoolYear())}:{}),name:'',gpa:'',skill:'',skillLevel:'중',track:'웹툰',practiceExperience:'',gradeLevel:'고3',enrollmentStatus:'재원중',preparationStage:'방향 설정',nextConsultationDate:'',targetUniversities:'',consultMemo:'',admissionResults:[],artworkImage:'',artworks:[],termGrades:{},detailedTranscript:[]}}; renderStudents(); requestAnimationFrame(()=>document.querySelector('.student-add-card')?.scrollIntoView({block:'start'}));};
+  $('studentAddBtn').onclick=()=>{state.studentDetailId=null; const tabGrade=/^g([123])$/.exec(activeStudentTab)?.[1]; state.studentEditor={mode:'add',student:{division,studentType:gradeTab?'current':'result',...(tabGrade?{entryYear:grades.entryYearFor(tabGrade,grades.schoolYear())}:{}),name:'',gpa:'',skill:'',skillLevel:'중',track:'웹툰',practiceExperience:'',gradeLevel:'고3',enrollmentStatus:'재원중',preparationStage:'방향 설정',nextConsultationDate:'',targetUniversities:'',consultMemo:'',admissionResults:[],artworkImage:'',artworks:[],termGrades:{},detailedTranscript:[]}}; renderStudents(); requestAnimationFrame(()=>document.querySelector('.student-add-card')?.scrollIntoView({block:'start'}));};
   document.querySelectorAll('[data-student-row]').forEach(row=>row.onclick=(event)=>{
     if(event.target.closest('button,input,select,textarea,label,a')) return;
     syncStudentEditorDraft();
@@ -1876,10 +1891,11 @@ function bindStudentUpload(){
     $('studentUploadSave').disabled = true;
     try {
       for(let i = 0; i < rows.length; i += 500){
-        await window.desktopAPI.addStudents(rows.slice(i, i + 500).map(row => ({ skillLevel: '중', enrollmentStatus: '재원중', preparationStage: '방향 설정', ...row, studentType: 'current', gradeLevel: `고${grade}`, entryYear })));
+        await window.desktopAPI.addStudents(rows.slice(i, i + 500).map(row => ({ skillLevel: '중', enrollmentStatus: '재원중', preparationStage: '방향 설정', ...row, studentType: 'current', gradeLevel: `고${grade}`, entryYear, division: $('studentUploadDivision').value })));
       }
       setStateData(await window.desktopAPI.getAll());
       state.studentUploadOpen = false;
+      state.studentDivision = $('studentUploadDivision')?.value || state.studentDivision;
       state.studentTypeTab = `g${window.AdmissionsStudentGrades.gradeOf({ entryYear }).grade}`;
       renderStudents();
     } catch(error){ preview.textContent = error.message; $('studentUploadSave').disabled = false; }
@@ -1896,7 +1912,7 @@ async function saveStudentFromEditor(){
   const firstAdmission = admissionResults[0] || {};
   const studentTypeValue = $('editStudentType')?.value || editor.student.studentType || (state.studentTypeTab === 'result' ? 'result' : 'current');
   const entryYear = studentTypeValue === 'current' ? entryYearFromEditor() : (editor.student.entryYear ?? null);
-  const student={...editor.student,entryYear,studentType:studentTypeValue,name,gpa:parseFloat($('editStudentGpa').value||'0'),skill:parseFloat($('editStudentSkill').value||'0'),skillLevel:$('editStudentSkillLevel').value,track:$('editStudentTrack').value.trim(),practiceExperience:$('editStudentPracticeExperience').value.trim(),gradeLevel:$('editStudentGradeLevel')?.value || '',enrollmentStatus:$('editStudentEnrollmentStatus')?.value || '',preparationStage:$('editStudentPreparationStage')?.value || '',nextConsultationDate:$('editStudentNextConsultationDate')?.value || '',targetUniversities:$('editStudentTargetUniversities')?.value?.trim() || '',consultMemo:$('editStudentConsultMemo')?.value?.trim() || '',admissionResults,admissionResult:firstAdmission.result||'미정',admissionUniversity:firstAdmission.universityName||'',admissionCompetition:firstAdmission.competition||'',admissionYear:firstAdmission.year||'',admissionRound:firstAdmission.round||'',artworks,artworkImage:artworks[0]?.path||'',termGrades:readTermGradesFromEditor(),detailedTranscript:readDetailedTranscriptFromEditor()};
+  const student={...editor.student,division:$('editStudentDivision')?.value || studentDivision(editor.student),entryYear,studentType:studentTypeValue,name,gpa:parseFloat($('editStudentGpa').value||'0'),skill:parseFloat($('editStudentSkill').value||'0'),skillLevel:$('editStudentSkillLevel').value,track:$('editStudentTrack').value.trim(),practiceExperience:$('editStudentPracticeExperience').value.trim(),gradeLevel:$('editStudentGradeLevel')?.value || '',enrollmentStatus:$('editStudentEnrollmentStatus')?.value || '',preparationStage:$('editStudentPreparationStage')?.value || '',nextConsultationDate:$('editStudentNextConsultationDate')?.value || '',targetUniversities:$('editStudentTargetUniversities')?.value?.trim() || '',consultMemo:$('editStudentConsultMemo')?.value?.trim() || '',admissionResults,admissionResult:firstAdmission.result||'미정',admissionUniversity:firstAdmission.universityName||'',admissionCompetition:firstAdmission.competition||'',admissionYear:firstAdmission.year||'',admissionRound:firstAdmission.round||'',artworks,artworkImage:artworks[0]?.path||'',termGrades:readTermGradesFromEditor(),detailedTranscript:readDetailedTranscriptFromEditor()};
   delete student._gradeYear;
   if(student.entryYear === null) delete student.entryYear;
   try {
@@ -1906,6 +1922,7 @@ async function saveStudentFromEditor(){
   setStateData(await window.desktopAPI.getAll());
   state.studentSearch=name;
   const savedGrade = window.AdmissionsStudentGrades.gradeOf(student).grade;
+  state.studentDivision = studentDivision(student);
   state.studentTypeTab = studentTypeValue === 'result' ? 'result' : savedGrade ? `g${savedGrade}` : 'unknown';
   state.studentEditor=null;
   renderStudents();
