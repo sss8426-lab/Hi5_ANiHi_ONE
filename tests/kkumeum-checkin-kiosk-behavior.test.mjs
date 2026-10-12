@@ -102,7 +102,9 @@ test('출결기: too many wrong numbers pause the tablet; a queued offline press
     const code = (await h.request('/api/kkumeum/attendance/kiosks', { method: 'POST', body: { campusId: CAMPUS, label: '예비반' } })).body.pairingCode;
     const kiosk = (await h.request('/api/kiosk/pair', { user: null, method: 'POST', body: { code } })).cookie;
     const list = (await h.request(`/api/kkumeum/attendance/students?campusId=${CAMPUS}`)).body.students;
-    const at = new Date(Date.now() - 20 * 60_000).toISOString();
+    // 20 minutes ago, but never before today's KST midnight (the attendance list shows today only).
+    const kstMidnight = Date.parse(new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10) + 'T00:00:00+09:00');
+    const at = new Date(Math.max(Date.now() - 20 * 60_000, kstMidnight + 1000)).toISOString();
     const queued = await h.request('/api/kiosk/checkin', { user: null, cookie: kiosk, method: 'POST', body: { code: list[0].code, action: 'leave', at } });
     const ev = (await h.request(`/api/kkumeum/attendance?campusId=${CAMPUS}`)).body.students.find(s => s.id === list[0].id).events[0];
     assert.equal(ev.occurredAt, at, 'the press time from the tablet is kept');
