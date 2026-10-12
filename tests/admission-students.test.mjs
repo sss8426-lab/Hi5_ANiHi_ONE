@@ -67,8 +67,8 @@ test('학년 follows the 고1 year and the March school year; uploads map header
   assert.equal(g.gradeOf({ entryYear: 2023 }, at).graduated, true);
   assert.deepEqual(JSON.parse(JSON.stringify(g.gradeOf({ gradeLevel: '고2' }, at))), { grade: 2, graduated: false, entryYear: null, fromYear: false });
   assert.equal(g.gradeOf({}, at).grade, null);
-  const rows = g.parseCsv('﻿번호,학생명,내신,희망 계열,메모\r\n1,"가상, 하나",3.2,웹툰,"메모 ""인용"""\n2,가상 둘,,애니메이션,\n');
-  assert.deepEqual(JSON.parse(JSON.stringify(g.mapRows(rows.map(r => r.map(c => c.replace(/^﻿/, '')))))), [
+  const rows = g.parseCsv('\uFEFF번호,학생명,내신,희망 계열,메모\r\n1,"가상, 하나",3.2,웹툰,"메모 ""인용"""\n2,가상 둘,,애니메이션,\n');
+  assert.deepEqual(JSON.parse(JSON.stringify(g.mapRows(rows.map(r => r.map(c => c.replace(/^\uFEFF/, '')))))), [
     { name: '가상, 하나', gpa: 3.2, track: '웹툰', consultMemo: '메모 "인용"' }, { name: '가상 둘', track: '애니메이션' }]);
   assert.throws(() => g.mapRows([['번호', '점수']]), /이름/);
 });

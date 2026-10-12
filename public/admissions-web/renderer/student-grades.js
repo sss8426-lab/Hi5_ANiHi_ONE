@@ -75,9 +75,9 @@
       const parsed = JSON.parse(await file.text());
       const list = Array.isArray(parsed) ? parsed : parsed?.students;
       if (!Array.isArray(list)) throw new Error('학생 목록이 들어 있는 JSON 파일이 아닙니다.');
-      return list.filter(s => s && typeof s === 'object' && s.name).map(({ id, createdAt, updatedAt, ...rest }) => rest);
+      return list.filter(s => s && typeof s === 'object' && s.name).map(s => { const rest = { ...s }; for (const key of ['id', 'createdAt', 'updatedAt', '_revision']) delete rest[key]; return rest; });
     }
-    if (name.endsWith('.csv')) return mapRows(parseCsv((await file.text()).replace(/^﻿/, '')));
+    if (name.endsWith('.csv')) return mapRows(parseCsv((await file.text()).replace(/^\uFEFF/, '')));
     if (name.endsWith('.xlsx')) return mapRows(await readXlsx(file));
     throw new Error('엑셀(.xlsx), CSV, JSON 파일을 올려주세요.');
   }
