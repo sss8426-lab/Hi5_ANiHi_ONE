@@ -67,6 +67,9 @@ jobs:
           node --check public/data-core/blog-download.js
           node --check public/data-core/ai-usage.js
           node --check public/data-core/work-navigation.js
+          node --check public/data-core/marketing.js
+          node --check scripts/marketing-collector.mjs
+          node --check scripts/render-marketing-report.mjs
           node --check public/data-core/content-caption.js
           node --check public/data-core/content-preset-catalog.js
           node --check public/data-core/content-text-presets.js

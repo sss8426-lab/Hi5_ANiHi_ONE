@@ -4,6 +4,8 @@ import { handleKkumeumRetentionApi } from "./kkumeum-retention-router";
 import { handleKkumeumFamilyBackupApi } from "./kkumeum-family-backup-router";
 import { handleKkumeumPilotApi } from "./kkumeum-pilot-router";
 import { syncPublicHolidays } from "./data-core-public-holidays";
+import { handleMarketingApi } from "./data-core-marketing";
+import { DataCoreAccessError } from "./data-core-access";
 
 interface Env {
   ASSETS?: Fetcher;
@@ -12,6 +14,7 @@ interface Env {
   FAMILY_DB?: D1Database;
   FAMILY_FILES?: R2Bucket;
   DATA_CORE_SUPER_ADMIN_EMAILS?: string;
+  MARKETING_INGEST_TOKEN?: string;
   PUSH_VAPID_PUBLIC_KEY?: string;
   PUSH_VAPID_PRIVATE_JWK?: string;
   PUSH_VAPID_SUBJECT?: string;
@@ -39,6 +42,17 @@ const worker = {
   async fetch(request: Request, env: Env): Promise<Response> {
     const shell = await familyShell(request, env);
     if (shell) return shell;
+    if (new URL(request.url).pathname.startsWith('/api/data-core/marketing/')) {
+      try {
+        const marketing = await handleMarketingApi(request, env);
+        if (marketing) return marketing;
+      } catch (error) {
+        return Response.json({ error: error instanceof DataCoreAccessError ? error.message : '마케팅 모니터링 요청을 처리하지 못했습니다.' }, {
+          status: error instanceof DataCoreAccessError ? error.status : 503,
+          headers: { 'cache-control': 'private, no-store' },
+        });
+      }
+    }
     const backup = await handleKkumeumFamilyBackupApi(request, env);
     if (backup) return backup;
     const pilot = await handleKkumeumPilotApi(request, env);

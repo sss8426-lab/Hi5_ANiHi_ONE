@@ -1,5 +1,17 @@
 (() => {
+  function installMarketingNavigation() {
+    const nav = document.querySelector('.sidebar .nav');
+    if (!nav || nav.querySelector('[data-work-menu="marketing"]')) return;
+    const instagram = nav.querySelector('[data-content-nav="instagram"], a[href="/data-core/content/instagram"]');
+    if (!instagram) return;
+    const item = document.createElement('a'); item.className = 'nav-item';
+    item.href = '/data-core/work/marketing'; item.dataset.workMenu = 'marketing';
+    const label = document.createElement('span'); label.textContent = 'AI 마케팅 모니터링'; item.append(label);
+    instagram.after(item);
+  }
+
   function installKkumeumNavigation() {
+    installMarketingNavigation();
     const nav = document.querySelector('.sidebar .nav');
     if (!nav || nav.querySelector('[data-kkumeum-nav]')) return;
     const adminLink = nav.querySelector('[data-super-admin-nav]');

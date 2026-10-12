@@ -136,7 +136,7 @@ test('고정 업무: 업무보고 마감이 기본으로 있고, 캠퍼스 관�
 
 test('screens: 월간 업무보고 menu, page ids, calendar bars and 고정 업무 줄 are wired', () => {
   const nav = fs.readFileSync('public/data-core/work-navigation.js', 'utf8');
-  assert.match(nav, /\['instagram','인스타 자동화',[^\]]+\],\r?\n\s+\['reports','월간 업무보고','\/data-core\/reports','ClipboardList'\]/);
+  assert.match(nav, /\['instagram','인스타 자동화',[^\]]+\],\r?\n\s+\['marketing','AI 마케팅 모니터링','\/data-core\/work\/marketing','ClipboardList'\],\r?\n\s+\['reports','월간 업무보고','\/data-core\/reports','ClipboardList'\]/);
   const html = fs.readFileSync('public/data-core/reports.html', 'utf8'), js = fs.readFileSync('public/data-core/reports.js', 'utf8');
   const ids = new Set([...html.matchAll(/id="([\w-]+)"/g)].map(m => m[1]));
   const missing = [...js.matchAll(/\$\('([\w-]+)'\)/g)].map(m => m[1]).filter(id => !ids.has(id));

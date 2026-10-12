@@ -9,7 +9,7 @@ test('블로그·인스타 photo folders show the same 사진 totals as 자료�
   assert.match(content, /counts:false,skipEmptyRoot:true/);
   assert.match(content, /void fillFolderCounts\(view\.folder\.id, token, browseController\.signal\);/);
   assert.match(content, /api\(`\/api\/data-core\/library\/folders\?parentId=\$\{encodeURIComponent\(id\)\}`, \{ signal \}\)/);
-  assert.match(content, /if \(token !== state\.browseGeneration\) return;\n {4}for \(const folder of view\.folders/);
+  assert.match(content, /if \(token !== state\.browseGeneration\) return;\r?\n {4}for \(const folder of view\.folders/);
   assert.match(content, /folder\.totalImages \? `사진 \$\{folder\.totalImages\}` : '사진 없음'/);
   assert.match(content, /<small data-folder-count><\/small>/);
   // The breadcrumb placeholder keeps the folder name only, not the count.

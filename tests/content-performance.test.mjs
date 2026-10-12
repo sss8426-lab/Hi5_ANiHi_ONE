@@ -6,10 +6,10 @@ import {libraryHarness,users,A} from './support/library-harness.mjs';
 
 test('shared navigation executes the same role-filtered menu for work, blog and Instagram',async()=>{
   const source=await fs.readFile('public/data-core/work-navigation.js','utf8');
-  const expected=['work-home','library','blog','instagram','reports','kkumeum','attendance'];
+  const expected=['work-home','library','blog','instagram','marketing','reports','kkumeum','attendance'];
   for(const role of ['STAFF','TEACHER','CAMPUS_ADMIN','MASTER','SUPER_ADMIN']){
     let previous;
-    for(const path of ['/data-core/work','/data-core/content/blog','/data-core/content/instagram']){
+    for(const path of ['/data-core/work','/data-core/content/blog','/data-core/content/instagram','/data-core/work/marketing']){
       const element=()=>({dataset:{},children:[],attrs:{},classList:{toggle(key,value){this[key]=value;}},append(child){this.children.push(child);},setAttribute(key,value){this.attrs[key]=value;},removeAttribute(key){delete this.attrs[key];}});
       const mounts=['work','admin'].map(type=>Object.assign(element(),{dataset:{workNavigation:type}}));
       const nodes=()=>mounts.flatMap(m=>m.children),window={};

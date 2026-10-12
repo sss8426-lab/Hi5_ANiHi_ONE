@@ -7,6 +7,7 @@
     ['library','자료보관함','/data-core/work/library','Folder'],
     ['blog','블로그 자동화','/data-core/content/blog','PenLine'],
     ['instagram','인스타 자동화','/data-core/content/instagram','Image'],
+    ['marketing','AI 마케팅 모니터링','/data-core/work/marketing','ClipboardList'],
     ['attendance','출석부','/data-core/work/attendance','BookOpen'],
     ['reports','월간 업무보고','/data-core/reports','ClipboardList'],
     ['kkumeum','꿈이음','/data-core/kkumeum','Users'],

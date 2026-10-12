@@ -186,6 +186,7 @@ function hasMembership(context: DataCoreAccessContext) {
 }
 
 export function canReadRow(context: DataCoreAccessContext, row: Record<string, unknown>) {
+  if (['marketing-report','marketing-channel-profile','marketing-internal-config'].includes(String(row.record_type))) return false;
   if (['content-text-presets','admissions-management-archive'].includes(String(row.record_type))) return false;
   if (isAwardFolder(row) && row.visibility !== 'private') return awardMember(context);
   if (row.record_type === LIBRARY_FOLDER) return false;

@@ -12,6 +12,7 @@ export const DERIVATIVE_CATEGORY = 'instagram-derived';
 export const THUMBNAIL_RECORD_TYPE = 'image-thumbnail';
 export const THUMBNAIL_CATEGORY = 'image-thumbnail';
 export function assertMutableRecordType(type: unknown) {
+  if (['marketing-report','marketing-channel-profile','marketing-internal-config'].includes(String(type).trim())) throw new DataCoreAccessError(403, '마케팅 전용 API를 사용하세요.');
   if (String(type).trim() === 'admissions-management-archive') throw new DataCoreAccessError(403, '대학 관리 삭제 기록은 일반 자료 API로 변경할 수 없습니다.');
   if(type==='blog-derived-file')throw new DataCoreAccessError(403,'블로그 이미지 전용 기능을 사용하세요.');
   if (['library-upload-session','library-write-lease','library-upload-request'].includes(String(type).trim())) throw new DataCoreAccessError(403, '업로드 전용 기능을 사용하세요.');
@@ -77,6 +78,12 @@ export async function derivativeMetadata(db: D1Database, row: Record<string, unk
 }
 
 export async function canReadRegisteredFile(db: D1Database, context: DataCoreAccessContext, row: Record<string, unknown>): Promise<boolean> {
+  if (row.source_app === 'marketing-monitoring' || row.category === 'marketing-report') {
+    if (row.organization_id !== DEFAULT_ORGANIZATION_ID) return false;
+    if (!context.isSuperAdmin && !context.memberships.some(m => m.organizationId === DEFAULT_ORGANIZATION_ID && m.role === 'CAMPUS_ADMIN' && m.campusId === row.campus_id)) return false;
+    const report = await db.prepare('SELECT id FROM data_records WHERE id=? AND organization_id=? AND campus_id=? AND record_type=? AND deleted_at IS NULL').bind(row.data_record_id, DEFAULT_ORGANIZATION_ID, row.campus_id, 'marketing-report').first();
+    return Boolean(report && row.visibility === 'campus');
+  }
   if(row.category==='blog-derived'){
     if(!canReadBaseFile(context,row))return false;
     const source=await blogDerivativeSource(db,row);

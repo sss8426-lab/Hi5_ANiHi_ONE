@@ -103,6 +103,7 @@ function libraryFileProfile(category: string, campusId: string | null) {
 }
 
 function canMutateFileRow(context: DataCoreAccessContext, row: Record<string, unknown>) {
+  if (row.source_app === 'marketing-monitoring' || row.category === 'marketing-report') return false;
   if (context.isSuperAdmin) return true;
   if (curriculumFile(row)) return false;
   if (isCampusAdmin(context)) return managesCampus(context, row.campus_id);
@@ -153,6 +154,7 @@ async function assertRecordLinkAllowed(
     )
     .bind(recordId, DEFAULT_ORGANIZATION_ID)
     .first<{ id: string; campus_id: string | null; created_by_user_id: string | null; record_type: string; source_app: string; title: string }>();
+  if (record && ['marketing-report','marketing-channel-profile','marketing-internal-config'].includes(record.record_type)) throw new DataCoreAccessError(403, '마케팅 파일 연결은 전용 수집 API만 허용됩니다.');
   if (!record) throw new DataCoreAccessError(400, "연결할 DATA CORE 레코드를 찾을 수 없습니다.");
   if ([DERIVATIVE_RECORD_TYPE,THUMBNAIL_RECORD_TYPE].includes(record.record_type)) throw new DataCoreAccessError(403, '파생 이미지 원본 관계는 직접 연결할 수 없습니다.');
   if (record.record_type === 'competition-award-folder' && record.campus_id) requireCampusAccess(context, record.campus_id);
@@ -258,6 +260,7 @@ export async function uploadDataCoreFile(
   }
 
   let campusId = cleanText(form.get("campusId"), 120) || null;
+  if (String(form.get('sourceApp') || '').trim() === 'marketing-monitoring' || String(form.get('category') || form.get('purpose') || '').trim() === 'marketing-report') throw new DataCoreAccessError(403, '마케팅 전용 수집 API를 사용하세요.');
   const category = cleanText(form.get("category") || form.get("purpose") || "general", 80) || "general";
   if ([DERIVATIVE_CATEGORY,THUMBNAIL_CATEGORY,'blog-derived'].includes(category)) throw new DataCoreAccessError(400, '파생 이미지 저장 기능을 사용하세요.');
   const recordId = cleanText(form.get("recordId"), 120) || null;

@@ -713,6 +713,26 @@ async function handleContentApi(request: Request, env: Env) {
 const worker = {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    // Marketing aliases and the direct HTML asset share the same session guard.
+    // The ingestion service credential never grants access to UI or ordinary APIs.
+    let marketingPath = url.pathname;
+    try { marketingPath = decodeURIComponent(marketingPath); } catch { /* Invalid encoded paths cannot match a marketing page. */ }
+    if (/^\/data-core\/(?:work\/marketing(?:\/)?|marketing(?:\.html|\/)?)$/.test(marketingPath)) {
+      const headers = { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'private, no-store' };
+      if (!env.DB) return new Response('DATA CORE 인증 데이터베이스 연결이 필요합니다.', { status: 503, headers });
+      const context = await resolveDataCoreAccess(request, env.DB, env.DATA_CORE_SUPER_ADMIN_EMAILS);
+      if (!context.authenticated || context.mustChangePassword) {
+        if (request.method === 'GET') return loginPageResponse(request, env, '/data-core/work/marketing' + url.search);
+        return new Response(null, { status: 401, headers });
+      }
+      if (!['GET', 'HEAD'].includes(request.method)) return new Response(null, { status: 405, headers });
+      const marketingUrl = new URL(url);
+      marketingUrl.pathname = '/data-core/marketing.html';
+      const result = await baseWorker.fetch(new Request(marketingUrl.toString(), { method: request.method, headers: request.headers }), env);
+      const response = new Response(request.method === 'HEAD' ? null : result.body, result);
+      response.headers.set('cache-control', 'private, no-store');
+      return response;
+    }
     // Guard aliases and direct assets, including HEAD, before static asset handling.
     let reviewPath = url.pathname;
     try { reviewPath = decodeURIComponent(reviewPath); } catch { /* Invalid paths cannot match a review asset. */ }
