@@ -54,6 +54,6 @@ test('roadmap removes dashboard and duplicate counseling nav, retaining legacy d
   const app=fs.readFileSync('public/admissions-web/renderer/app.js','utf8');
   assert.doesNotMatch(roadmap,/data-page="dashboard"|id="dashboard"/);
   assert.doesNotMatch(home,/data-view="works"/);
-  assert.match(roadmap,/대학합격 우수작·우수작/);
+  assert.match(roadmap,/대학합격 재현작 및 공개우수작/);
   assert.match(app,/if\(page === 'dashboard'\) page = 'students'/);
 });
