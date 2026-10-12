@@ -1518,6 +1518,7 @@ function showPage(page, updateHistory=true){
   const target = $(page);
   if(!target) return;
   if(updateHistory) pushAdmissionsPage(page);
+  if(page !== activePageId()) resetStudentView();
   pageRenderToken += 1;
   const token = pageRenderToken;
   document.querySelectorAll('.page').forEach(p=>p.classList.add('hidden'));
@@ -1589,6 +1590,12 @@ function renderRoadmapHome(){
   document.querySelectorAll('[data-roadmap-page]').forEach(button => button.onclick = () => showPage(button.dataset.roadmapPage));
 }
 const canManageStudents = () => Boolean(state.data?._students?.canManage);
+// 학생 관리 목록의 첫 화면: 검색어 · 열린 수정창 · 펼친 학생 · 업로드 창을 모두 닫는다.
+// 탭을 바꾸거나, 저장·삭제·업로드를 마치거나, 다른 메뉴로 갈 때 이전 이름이 남지 않게 한다.
+function resetStudentView(){
+  Object.assign(state, { studentSearch: '', studentEditor: null, studentDetailId: null, studentResultExpandedId: null,
+    studentGalleryId: null, studentGradeId: null, studentYearFilter: '', studentRoundFilter: '', studentUploadOpen: false });
+}
 // 추천 대학: the same scoring the old 지원 전략 used (내신 · 실기 · 희망 계열), shown inside 학생 관리.
 function studentRecommendations(student){
   const gpa = Number(student?.gpa), track = String(student?.track || '').trim();
@@ -1781,14 +1788,9 @@ function renderStudents(){
   </div>
   `);
   document.querySelectorAll('[data-student-tab]').forEach(btn=>btn.onclick=()=>{
-    syncStudentEditorDraft();
+    resetStudentView();
     state.studentTypeTab=btn.dataset.studentTab;
     state.studentDivision=btn.dataset.studentDivision;
-    state.studentYearFilter='';
-    state.studentRoundFilter='';
-    state.studentEditor=null;
-    state.studentDetailId=null;
-    state.studentResultExpandedId=null;
     renderStudents();
   });
   $('studentSearchBtn').onclick=()=>{syncStudentEditorDraft(); state.studentSearch=$('studentSearchInput').value.trim(); renderStudents();};
@@ -1835,6 +1837,7 @@ function renderStudents(){
     catch(error){ alert(error.message); return; }
     state.data.students = state.data.students.map(item => item.id === updated.id ? updated : item);
     clearComputedCaches();
+    resetStudentView();
     state.studentTypeTab='result';
     state.studentEditor={mode:'edit',student:{...updated}};
     state.studentDetailId=null;
@@ -1857,7 +1860,7 @@ function renderStudents(){
       alert('실기능력 저장에 실패했습니다.');
     }
   });
-  document.querySelectorAll('[data-delete-student]').forEach(btn=>btn.onclick=async(event)=>{event.stopPropagation(); const s=state.data.students.find(x=>x.id===Number(btn.dataset.deleteStudent)); if(!s || !confirm(`${s.name} 학생 정보를 삭제할까요?`))return; await window.desktopAPI.deleteStudent(s.id); setStateData(await window.desktopAPI.getAll()); state.studentEditor=null; state.studentDetailId=null; renderStudents();});
+  document.querySelectorAll('[data-delete-student]').forEach(btn=>btn.onclick=async(event)=>{event.stopPropagation(); const s=state.data.students.find(x=>x.id===Number(btn.dataset.deleteStudent)); if(!s || !confirm(`${s.name} 학생 정보를 삭제할까요?`))return; try { await window.desktopAPI.deleteStudent(s.id); } catch(error){ alert(error.message); return; } setStateData(await window.desktopAPI.getAll()); resetStudentView(); renderStudents();});
   document.querySelectorAll('[data-grade-student]').forEach(btn=>btn.onclick=()=>{syncStudentEditorDraft(); const id=Number(btn.dataset.gradeStudent); state.studentGradeId=state.studentGradeId===id?null:id; renderStudents();});
   document.querySelectorAll('[data-gallery-student]').forEach(btn=>btn.onclick=()=>{syncStudentEditorDraft(); const id=Number(btn.dataset.galleryStudent); state.studentGalleryId=state.studentGalleryId===id?null:id; renderStudents();});
   if(editor){
@@ -1901,7 +1904,7 @@ function bindStudentUpload(){
         await window.desktopAPI.addStudents(rows.slice(i, i + 500).map(row => ({ skillLevel: '중', enrollmentStatus: '재원중', preparationStage: '방향 설정', ...row, studentType: 'current', gradeLevel: `고${grade}`, entryYear, division: $('studentUploadDivision').value })));
       }
       setStateData(await window.desktopAPI.getAll());
-      state.studentUploadOpen = false;
+      resetStudentView();
       state.studentDivision = $('studentUploadDivision')?.value || state.studentDivision;
       state.studentTypeTab = `g${window.AdmissionsStudentGrades.gradeOf({ entryYear }).grade}`;
       renderStudents();
@@ -1927,12 +1930,12 @@ async function saveStudentFromEditor(){
     else await window.desktopAPI.addStudent(student);
   } catch(error){ alert(error.message); return; }
   setStateData(await window.desktopAPI.getAll());
-  state.studentSearch=name;
+  resetStudentView();
   const savedGrade = window.AdmissionsStudentGrades.gradeOf(student).grade;
   state.studentDivision = studentDivision(student);
   state.studentTypeTab = studentTypeValue === 'result' ? 'result' : savedGrade ? `g${savedGrade}` : 'unknown';
-  state.studentEditor=null;
   renderStudents();
+  $('students')?.querySelector('.student-divisions')?.scrollIntoView({ block: 'start' });
 }
 function renderCases(){
   const query = state.caseSearch.trim().toLowerCase();
