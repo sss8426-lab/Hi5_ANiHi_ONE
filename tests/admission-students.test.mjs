@@ -83,6 +83,7 @@ test('로드맵 홈 first, 지원 전략 removed, 학생 관리 tabs by 학년 w
   assert.match(app, /STUDENT_DIVISIONS = \[\['design','디자인'\],\['anim','애니'\]\]/);
   assert.match(app, /\$\{text\} <b>\(\$\{count\}\)<\/b>/);
   assert.doesNotMatch(app, /roadmap-stat/);
+  assert.match(app, /const first = order\.find\(\(\[key, tab\]\) => studentGradeCounts\(key\)\[tab\] > 0\);/, '학생 관리 opens on a tab that has students');
   assert.match(app, /합격자 데이터로 넘기기/);
   assert.match(app, /dashboardUniversitiesForTrack\(track\)\.map\(u => \(\{ u, p: scoreUniversity\(u, gpa, skill\) \}\)\)/);
   assert.match(app, /const deleteButton = manager \?/);

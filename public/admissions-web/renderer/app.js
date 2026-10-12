@@ -1669,6 +1669,13 @@ function renderStudents(){
   const yearFilter = state.studentYearFilter || '';
   const roundFilter = state.studentRoundFilter || '';
   const grades = window.AdmissionsStudentGrades;
+  // First visit: open the first tab that has students (재원생 학년 first), never an empty tab.
+  if(!state.studentTabChosen){
+    state.studentTabChosen = true;
+    const order = ['g1','g2','g3','unknown'].flatMap(tab => STUDENT_DIVISIONS.map(([key]) => [key, tab])).concat(STUDENT_DIVISIONS.map(([key]) => [key, 'result']));
+    const first = order.find(([key, tab]) => studentGradeCounts(key)[tab] > 0);
+    if(first) [state.studentDivision, state.studentTypeTab] = first;
+  }
   const division = state.studentDivision === 'anim' ? 'anim' : 'design';
   const counts = studentGradeCounts(division);
   if(state.studentTypeTab === 'current') state.studentTypeTab = 'g1';
