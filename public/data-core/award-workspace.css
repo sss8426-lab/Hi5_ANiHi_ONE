@@ -97,3 +97,71 @@ body.data-core-embed .app-shell { display:block; min-height:0; }
 body.data-core-embed .main { min-height:0; padding:0 4px 24px; margin:0; max-width:none; }
 body.data-core-embed .works-intro { display:none; }
 body.data-core-embed { background:transparent; min-height:0; }
+
+/* AI 수정 방향: 현재 그림 → 대학 · 실기 유형 · 작품 체크 → 고칠 곳 3가지 */
+.award-ai { padding:18px 0 4px; }
+.award-ai-hint { margin:0 0 14px; font-size:13px; color:#586c60; }
+.award-ai-top { display:grid; grid-template-columns:minmax(200px,280px) minmax(0,1fr); gap:18px; align-items:start; }
+.award-ai-label { display:flex; align-items:center; gap:6px; margin:0 0 8px; font-size:13px; font-weight:800; color:#455a4f; }
+.award-ai-step { display:inline-grid; place-items:center; width:22px; height:22px; border-radius:50%; background:#215ab7; color:#fff; font-size:12px; font-weight:900; }
+.award-ai-drop { position:relative; display:grid; place-items:center; min-height:220px; border:1.5px dashed #9fb6dd; border-radius:12px; background:#f5f8fe; color:#215ab7; font-weight:800; text-align:center; cursor:pointer; overflow:hidden; }
+.award-ai-drop.is-over { background:#e4eeff; border-color:#215ab7; }
+.award-ai-drop:focus-within { outline:2px solid #215ab7; outline-offset:2px; }
+.award-ai-drop input { position:absolute; inset:0; opacity:0; cursor:pointer; }
+.award-ai-drop small { display:block; margin-top:4px; font-size:12px; font-weight:600; color:#586c60; }
+.award-ai-drop img { display:block; width:100%; max-height:360px; object-fit:contain; background:#fff; }
+.award-ai-drop img[hidden], .award-ai-drop span[hidden], .award-ai-change[hidden], .award-ai-result[hidden], #awardAiTypesWrap[hidden] { display:none!important; }
+body.data-core-layout .award-ai-change { margin-top:8px; min-height:36px; font-size:13px; }
+.award-ai-pick { min-width:0; border:1px solid var(--core-border,#dedcd5); border-radius:12px; padding:14px; background:#fcfcfb; }
+.award-ai-pick select { width:100%; max-width:none; min-height:44px; margin-bottom:12px; }
+.award-ai-sublabel { margin:0 0 6px; font-size:12.5px; font-weight:700; color:#586c60; }
+.award-ai-types { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+.award-ai-chip { display:inline-flex; align-items:center; gap:7px; min-height:38px; padding:0 14px; border:1px solid #cfd5d1; border-radius:999px; background:#fff; font-size:14px; font-weight:800; cursor:pointer; }
+.award-ai-chip input { width:17px; height:17px; margin:0; accent-color:#215ab7; }
+.award-ai-chip small { font-size:12px; font-weight:600; color:#6b7280; }
+.award-ai-chip.is-on { border-color:#215ab7; background:#eef3fc; color:#174e9f; }
+.award-ai-chip:focus-within { outline:2px solid #215ab7; outline-offset:2px; }
+.award-ai-bar { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:8px; font-size:13px; color:#455a4f; }
+.award-ai-bar p { margin:0; } .award-ai-bar b { color:#174e9f; }
+body.data-core-layout .award-ai-link { border:0; background:none; padding:4px 2px; min-height:32px; color:#174e9f; font-weight:800; font-size:13px; cursor:pointer; box-shadow:none; }
+.award-ai-scroll { max-height:320px; overflow-y:auto; overscroll-behavior:contain; border:1px solid #e6e8e5; border-radius:10px; padding:10px; background:#fff; }
+.award-ai-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(118px,1fr)); gap:10px; }
+.award-ai-work { position:relative; display:block; border:2px solid transparent; border-radius:10px; overflow:hidden; cursor:pointer; background:#f1f2f0; }
+.award-ai-work input { position:absolute; top:7px; left:7px; z-index:1; width:20px; height:20px; margin:0; accent-color:#215ab7; }
+.award-ai-work.is-on { border-color:#215ab7; }
+.award-ai-work:not(.is-on) .award-ai-thumb { opacity:.45; }
+.award-ai-work.is-full { cursor:not-allowed; }
+.award-ai-work:focus-within { outline:2px solid #215ab7; outline-offset:2px; }
+.award-ai-thumb { display:block; aspect-ratio:1; }
+.award-ai-thumb img { display:block; width:100%; height:100%; object-fit:cover; }
+.award-ai-thumb img:not([src]) { visibility:hidden; }
+.award-ai-tag { position:absolute; left:6px; right:6px; bottom:6px; padding:2px 7px; border-radius:999px; background:#ffffffe6; font-size:11.5px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.award-ai-empty { margin:6px 0; font-size:13px; color:#6b7280; }
+body.data-core-layout .award-ai-go { width:100%; min-height:50px; margin-top:12px; font-size:16px; }
+.award-ai-status { margin:8px 0 0; min-height:1em; font-size:13px; color:#455a4f; }
+.award-ai-status.is-error { color:#b42318; }
+.award-ai-result { display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,1fr); gap:22px; margin-top:20px; padding-top:18px; border-top:1px solid var(--core-border,#dedcd5); }
+.award-ai-canvas { position:relative; width:fit-content; max-width:100%; margin:0 auto; }
+.award-ai-canvas img { display:block; max-width:100%; max-height:520px; border-radius:10px; }
+#awardAiMarks { position:absolute; inset:0; pointer-events:none; }
+.award-ai-mark { position:absolute; border:3px solid var(--mark); border-radius:8px; background:color-mix(in srgb,var(--mark) 14%,transparent); box-shadow:0 0 0 1px #fff8; }
+.award-ai-mark b { position:absolute; top:-13px; left:-13px; display:grid; place-items:center; width:26px; height:26px; border-radius:50%; background:var(--mark); color:#fff; font-size:14px; font-weight:900; box-shadow:0 0 0 2px #fff; }
+.award-ai .m1 { --mark:#ef4444; } .award-ai .m2 { --mark:#f59e0b; } .award-ai .m3 { --mark:#3b82f6; }
+.award-ai-cap { margin:8px 0 0; font-size:12.5px; color:#6b7280; text-align:center; }
+.award-ai-directions h5 { margin:0 0 6px; font-size:17px; font-weight:900; }
+.award-ai-directions ol { list-style:none; margin:0; padding:0; }
+.award-ai-directions li { display:grid; grid-template-columns:32px minmax(0,1fr); gap:10px; padding:12px 0; border-bottom:1px solid #eef0f2; }
+.award-ai-directions li:last-child { border-bottom:0; }
+.award-ai-directions li b { display:grid; place-items:center; width:28px; height:28px; border-radius:50%; background:var(--mark); color:#fff; font-weight:900; }
+.award-ai-directions li p { margin:0; font-size:15px; line-height:1.6; overflow-wrap:anywhere; }
+.award-ai-directions li strong { display:block; font-size:16px; }
+.award-ai-refs { margin-top:12px; }
+.award-ai-refs small { display:block; margin-bottom:6px; font-size:12.5px; color:#6b7280; }
+#awardAiRefs { display:flex; flex-wrap:wrap; gap:6px; }
+#awardAiRefs img { width:64px; height:64px; object-fit:cover; border-radius:6px; background:#f1f2f0; }
+@media(max-width:760px) {
+  .award-ai-top, .award-ai-result { grid-template-columns:minmax(0,1fr); }
+  .award-ai-drop { min-height:160px; }
+  .award-ai-grid { grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); }
+  .award-ai-scroll { max-height:300px; }
+}

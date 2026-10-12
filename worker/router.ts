@@ -852,6 +852,12 @@ const worker = {
         if (staffResponse) return staffResponse;
       }
 
+      if (env.DB && env.FILES && url.pathname.startsWith('/api/data-core/awards/ai-direction/')) {
+        const context = await resolveDataCoreAccess(request, env.DB, env.DATA_CORE_SUPER_ADMIN_EMAILS);
+        const { handleAwardAiDirection } = await import('./award-ai-direction');
+        return await handleAwardAiDirection(request, env, env.DB, env.FILES, context);
+      }
+
       const contentResponse = await handleContentApi(request, env);
       if (contentResponse) return contentResponse;
     } catch (error) {

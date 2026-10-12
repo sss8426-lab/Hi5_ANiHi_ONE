@@ -283,7 +283,7 @@ function parseBlogResult(texts: { type?: string; text?: string }[]) {
   return { strategy, titles, selectedTitleKind, lead, body, hashtags, cta, nextTopics, photoCaptions: captions, missingInfo: missing } as const;
 }
 
-async function responsesCall(env: OpenAiEnv, instructions: string, content: unknown[], schema: object, schemaName: string, signal?: AbortSignal) {
+export async function responsesCall(env: OpenAiEnv, instructions: string, content: unknown[], schema: object, schemaName: string, signal?: AbortSignal) {
   const response = await callOpenAi(env, 'responses', JSON.stringify({
     model: aiModels(env).text, store: false, max_output_tokens: 4000, instructions,
     input: [{ role: 'user', content }],
