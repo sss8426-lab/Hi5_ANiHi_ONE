@@ -55,6 +55,17 @@
       return data;
   }
 
+  async function studentRequest(path, method, body) {
+    const response = await fetch('/api/admissions/students' + path, {
+      method, credentials: 'same-origin', cache: 'no-store',
+      headers: body ? { 'content-type': 'application/json' } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || '학생 정보를 저장하지 못했습니다.');
+    return result;
+  }
+
   function nextId(items) {
     return (items || []).reduce((max, item) => Math.max(max, Number(item?.id) || 0), nextIdBase) + 1;
   }
@@ -479,30 +490,21 @@
       return readData();
     },
 
+    // 학생 관리: each student is saved on its own (shared by every teacher), never by rewriting the whole data.
     async addStudent(student) {
-      const data = await readData();
-      const item = { ...student, id: nextId(data.students), createdAt: new Date().toISOString() };
-      data.students.push(item);
-      await writeData(data);
-      return item;
+      return (await studentRequest('', 'POST', { student })).students[0];
+    },
+
+    async addStudents(students) {
+      return (await studentRequest('', 'POST', { students })).students;
     },
 
     async updateStudent(student) {
-      const data = await readData();
-      const index = data.students.findIndex((item) => Number(item.id) === Number(student.id));
-      if (index < 0) throw new Error('학생 정보를 찾을 수 없습니다.');
-      data.students[index] = { ...data.students[index], ...student, updatedAt: new Date().toISOString() };
-      await writeData(data);
-      return data.students[index];
+      return (await studentRequest(`/${encodeURIComponent(student.id)}`, 'PATCH', { student })).student;
     },
 
     async deleteStudent(studentId) {
-      const data = await readData();
-      const index = data.students.findIndex((item) => Number(item.id) === Number(studentId));
-      if (index < 0) throw new Error('학생 정보를 찾을 수 없습니다.');
-      const removed = data.students.splice(index, 1)[0];
-      await writeData(data);
-      return removed;
+      return studentRequest(`/${encodeURIComponent(studentId)}`, 'DELETE');
     },
 
     async importStudentArtwork() {
@@ -602,6 +604,7 @@
       const filesByName = buildDirectoryFileIndex(files);
       const stats = { totalRefs: 0, missing: 0, uploaded: 0, reused: 0, updated: 0 };
       const uploadCache = new Map();
+      const before = new Map((data.students || []).map((student) => [String(student.id), JSON.stringify(student)]));
       const jobs = collectLegacyImageJobs(data, filesByName, uploadCache, stats);
       if (!jobs.length) {
         return { ok: true, ...stats, message: '이전할 기존 PC 그림 경로가 없습니다.' };
@@ -618,6 +621,10 @@
         after: stats,
       });
       await writeData(data);
+      // Students are stored one by one; save the ones whose pictures moved.
+      for (const student of data.students || []) {
+        if (before.get(String(student.id)) !== JSON.stringify(student)) await studentRequest(`/${encodeURIComponent(student.id)}`, 'PATCH', { student });
+      }
       postMigrationProgress({ status: 'done', ...stats });
       return { ok: true, ...stats };
     },
@@ -786,12 +793,9 @@
       const files = await pickFiles('application/json,.json', false);
       if (!files.length) return { ok: false };
       const imported = normalizeImportItems(await parseJsonFile(files[0]), 'students');
-      const data = await readData();
-      let id = nextId(data.students);
       const now = new Date().toISOString();
-      const added = imported.map((item) => ({ ...item, id: id++, importedAt: now }));
-      data.students.push(...added);
-      await writeData(data);
+      const added = imported.map(({ id, createdAt, updatedAt, _revision, ...item }) => ({ ...item, importedAt: now }));
+      for (let i = 0; i < added.length; i += 500) await studentRequest('', 'POST', { students: added.slice(i, i + 500) });
       return { ok: true, count: added.length };
     },
 

@@ -57,6 +57,15 @@ export async function readCampusAdmissions(db: D1Database, context: DataCoreAcce
   return result;
 }
 
+// Every student the old whole-document state holds (legacy document + campus overlays), as the master
+// 전체 view merges them. Source for the one-time copy into admission_students.
+export async function allLegacyStudents(db: D1Database, legacy: Document) {
+  await ensureCampusAdmissions(db);
+  const rows = (await db.prepare('SELECT campus_id, payload_json FROM campus_admissions_state').all<{campus_id:string;payload_json:string}>()).results || [];
+  const replaced = new Set(rows.map(r => r.campus_id));
+  return [...records(legacy,'students').filter(r => !replaced.has(campusOf(r)!)), ...rows.flatMap(row => records(JSON.parse(row.payload_json),'students'))];
+}
+
 export async function saveCampusAdmissions(db: D1Database, context: DataCoreAccessContext, url: URL, legacy: Document, input: Document) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new DataCoreAccessError(400,'데이터 형식이 올바르지 않습니다.');
   const current = await readCampusAdmissions(db,context,url,legacy);

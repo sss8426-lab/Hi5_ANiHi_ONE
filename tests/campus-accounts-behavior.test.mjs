@@ -67,15 +67,17 @@ test('ten campus accounts: normalized login, forced change, own CRUD, cross-camp
       assert.equal((await request('/admissions-web/data/default-data.json',{cookie})).status,403);
       for(const path of ['/data-core/work','/data-core/counseling','/data-core/curriculum','/data-core/roadmap','/data-core/work/library']) assert.equal((await request(path,{cookie})).status,200,path);
       for(const path of ['/api/auth/accounts','/api/auth/campuses','/api/data-core/admin/users','/api/data-core/admin/backups','/data-core/accounts','/data-core/operations','/data-core/readiness']) assert.equal((await request(path,{cookie})).status,403,path);
-      const own=await request('/api/data',{cookie});assert.equal(own.status,200);assert.equal(own.body.students.length,0);
-      own.body.students.push({id:own.body._campus.nextIdBase+1,name:'synthetic campus student'});
+      const own=await request('/api/data',{cookie});assert.equal(own.status,200);assert.equal(own.body.cases.length,0);
+      // 학생 관리 is one shared list for every teacher; campus overlays still isolate the other collections.
+      assert.deepEqual(own.body.students.map(s=>s.id),[7]);
+      own.body.cases.push({id:own.body._campus.nextIdBase+1,name:'synthetic campus case'});
       assert.equal((await request('/api/data',{cookie,method:'PUT',body:own.body})).status,200);
       assert.equal((await request('/api/data',{cookie,method:'PUT',body:own.body})).status,409,'stale write');
       let updated=(await request('/api/data',{cookie})).body;
-      assert.equal(updated.students[0].campusId,campus);
-      updated.students[0].name='synthetic updated';
+      assert.equal(updated.cases[0].campusId,campus);
+      updated.cases[0].name='synthetic updated';
       assert.equal((await request('/api/data',{cookie,method:'PUT',body:updated})).status,200);
-      updated=(await request('/api/data',{cookie})).body;updated.students[0].campusId=campuses.find(c=>c[2]!==campus)[2];
+      updated=(await request('/api/data',{cookie})).body;updated.cases[0].campusId=campuses.find(c=>c[2]!==campus)[2];
       assert.equal((await request('/api/data',{cookie,method:'PUT',body:updated})).status,403);
       updated=(await request('/api/data',{cookie})).body;updated.universities=[];
       assert.equal((await request('/api/data',{cookie,method:'PUT',body:updated})).status,403);
@@ -100,8 +102,8 @@ test('ten campus accounts: normalized login, forced change, own CRUD, cross-camp
       assert.equal(folder.status,201,JSON.stringify(folder.body));
       assert.equal((await request(`/api/data-core/library/folders/${folder.body.folder.id}`,{cookie,method:'DELETE'})).status,200);
       const masterScoped=(await request(`/api/data?campusId=${code}`,{admin:true})).body;
-      assert.equal(masterScoped.students.length,1);
-      masterScoped.students[0].name='Synthetic master edit';
+      assert.equal(masterScoped.cases.length,1);
+      masterScoped.cases[0].name='Synthetic master edit';
       assert.equal((await request(`/api/data?campusId=${code}`,{admin:true,method:'PUT',body:masterScoped})).status,200);
       const all=(await request('/api/data',{admin:true})).body;
       assert.ok(all.students.some(s=>s.id===7),'master original remains visible');
@@ -119,7 +121,7 @@ test('ten campus accounts: normalized login, forced change, own CRUD, cross-camp
       assert.equal((await request(`/api/data-core/records/${own.record}`,{cookie:own.cookie,method:'DELETE'})).status,200);
       assert.equal((await request(`/api/data-core/files/${own.file}`,{cookie:own.cookie,method:'DELETE'})).status,200);
       const row=await DB.prepare('SELECT r2_key,deleted_at FROM file_objects WHERE id=?').bind(own.file).first();assert.ok(row.deleted_at);assert.ok(await FILES.head(row.r2_key));
-      const state=(await request('/api/data',{cookie:own.cookie})).body;state.students=[];
+      const state=(await request('/api/data',{cookie:own.cookie})).body;state.cases=[];
       assert.equal((await request('/api/data',{cookie:own.cookie,method:'PUT',body:state})).status,200);
     }
     assert.deepEqual(await (await FILES.get('state/admissions-data.json')).json(),h.legacy);

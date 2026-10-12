@@ -1,6 +1,7 @@
 import {DataCoreAccessError, requireAuthenticatedAccess, requireCampusAccess, resolveDataCoreAccess} from './data-core-access';
 import {DEFAULT_ORGANIZATION_ID} from './data-core';
 import {readAdmissionsState} from './data-core-admissions-knowledge-sync';
+import {studentById} from './admission-students';
 import {legacyArtworkThumbnail,legacyThumbnailIdentity,registeredArtworkThumbnail} from './admissions-thumbnails';
 
 type Env = {DB?:D1Database;FILES?:R2Bucket;DATA_CORE_SUPER_ADMIN_EMAILS?:string};
@@ -37,12 +38,14 @@ export async function handleAdmissionsArtworks(request:Request,env:Env):Promise<
     if(!match)throw new DataCoreAccessError(404,'그림을 찾을 수 없습니다.');
     if(request.method==='POST'&&!match[3])return new Response(null,{status:405,headers});
     const id=decodeURIComponent(match[1]);
-    const state=await readAdmissionsState(env.DB,env.FILES);
-    const students=Array.isArray(state.students)?state.students:[];
+    // 학생 관리 is shared by every teacher: a student in admission_students is visible to any academy member.
+    const shared=await studentById(env.DB,id);
+    const state=shared?null:await readAdmissionsState(env.DB,env.FILES);
+    const students:Record<string,any>[]=shared?[shared]:Array.isArray(state?.students)?state.students as Record<string,any>[]:[];
     const matches=students.filter(s=>s&&typeof s==='object'&&String(s.id)===id);
     if(matches.length!==1)throw new DataCoreAccessError(404,'그림을 찾을 수 없습니다.');
     const student=matches[0];
-    if(!context.isSuperAdmin){
+    if(!context.isSuperAdmin&&!shared){
       if(typeof student.campusId!=='string'||!student.campusId)throw new DataCoreAccessError(403,'학생 캠퍼스 권한 확인이 필요합니다.');
       requireCampusAccess(context,student.campusId);
     }
@@ -64,8 +67,9 @@ export async function handleAdmissionsArtworks(request:Request,env:Env):Promise<
     if(match[3]) {
       const identity=await legacyThumbnailIdentity(id,slot,student.campusId,key,object.httpEtag);
       const response=await legacyArtworkThumbnail(request,env.DB,env.FILES,context,identity,typeof student.campusId==='string'?student.campusId:null,object,async()=>{
-        const fresh=await readAdmissionsState(env.DB!,env.FILES!);
-        const rows=(Array.isArray(fresh.students)?fresh.students:[]).filter(s=>s&&typeof s==='object'&&String(s.id)===id);
+        const again=await studentById(env.DB!,id);
+        const fresh=again?{students:[again]}:await readAdmissionsState(env.DB!,env.FILES!);
+        const rows=(Array.isArray(fresh.students)?fresh.students as Record<string,any>[]:[]).filter(s=>s&&typeof s==='object'&&String(s.id)===id);
         const current=rows[0],currentArtwork=/^\d+$/.test(slot)?current?.artworks?.[Number(slot)]:current?.[slot];
         return rows.length===1 && current.campusId===student.campusId && JSON.stringify(currentArtwork)===JSON.stringify(artwork)
           && JSON.stringify((await env.FILES!.head(key))?.etag)===object.httpEtag;
