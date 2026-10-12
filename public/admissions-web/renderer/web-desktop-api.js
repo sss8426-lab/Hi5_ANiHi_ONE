@@ -503,6 +503,10 @@
       return (await studentRequest(`/${encodeURIComponent(student.id)}`, 'PATCH', { student })).student;
     },
 
+    async addTrackOption(label) {
+      return (await studentRequest('/track-options', 'POST', { label })).trackOptions;
+    },
+
     async deleteStudent(studentId) {
       return studentRequest(`/${encodeURIComponent(studentId)}`, 'DELETE');
     },

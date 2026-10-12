@@ -1,0 +1,49 @@
+/* 업무용 홈 가운데 (자료보관함 · 블로그 · 인스타 · 꿈이음 · 출석부): image cards like the 대학 합격 로드맵 home —
+   a work photo on top, then the title, one line of purpose and an arrow. Desktop and tablet only; phones keep
+   the app-style home (work-app). */
+#view-work-home { --wh-ink: #10231d; --wh-sub: #586a63; --wh-line: #e2e7e4; --wh-brand: #1f5a4c; }
+body.data-core-layout.data-core-layout #view-work-home > .section-head { position: relative; margin: 6px 0 18px; padding-left: 16px; border-left: 4px solid var(--wh-brand); }
+body.data-core-layout.data-core-layout #view-work-home > .section-head::before { content: 'HI5·ANiHi WORKSPACE'; display: block; margin-bottom: 4px; font-size: 11.5px; font-weight: 800; letter-spacing: .14em; color: var(--wh-brand); }
+body.data-core-layout.data-core-layout #view-work-home > .section-head h2 { margin: 0 0 4px; font-size: 26px; font-weight: 900; letter-spacing: -.01em; color: var(--wh-ink); }
+body.data-core-layout.data-core-layout #view-work-home > .section-head p { margin: 0; font-size: 14px; color: var(--wh-sub); }
+
+body.data-core-layout.data-core-layout #view-work-home .menu-card-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
+body.data-core-layout.data-core-layout #view-work-home .menu-card-grid.exact-three:not(.work-four) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+body.data-core-layout.data-core-layout #view-work-home .feature-card {
+  position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 4px;
+  min-height: 0; padding: 0 0 18px; overflow: hidden;
+  border: 1px solid var(--wh-line); border-radius: 16px; background: #fff;
+  box-shadow: 0 1px 2px rgb(16 24 40 / 4%); text-align: left; text-decoration: none; color: var(--wh-ink);
+  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+body.data-core-layout.data-core-layout #view-work-home .feature-card .work-card-image {
+  display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; margin: 0 0 12px; object-fit: cover; border-radius: 0;
+  transition: transform .3s ease;
+}
+body.data-core-layout.data-core-layout #view-work-home .feature-card .feature-icon { display: none !important; }
+body.data-core-layout.data-core-layout #view-work-home .feature-card > strong { padding: 0 52px 0 20px; font-size: 18px; font-weight: 900; color: var(--wh-ink); }
+body.data-core-layout.data-core-layout #view-work-home .feature-card small { padding: 0 52px 0 20px; font-size: 13.5px; line-height: 1.6; color: var(--wh-sub); }
+body.data-core-layout.data-core-layout #view-work-home .feature-card::after {
+  content: '→'; position: absolute; right: 20px; bottom: 20px; font-size: 20px; font-weight: 700; color: var(--wh-brand);
+  transition: transform .18s ease;
+}
+body.data-core-layout.data-core-layout #view-work-home .feature-card:hover { border-color: #b9cbc3; box-shadow: 0 14px 30px rgb(16 24 40 / 10%); transform: translateY(-2px); }
+body.data-core-layout.data-core-layout #view-work-home .feature-card:hover .work-card-image { transform: scale(1.03); }
+body.data-core-layout.data-core-layout #view-work-home .feature-card:hover::after { transform: translateX(3px); }
+body.data-core-layout.data-core-layout #view-work-home .feature-card:focus-visible { outline: 2px solid var(--wh-brand); outline-offset: 2px; }
+
+body.data-core-layout.data-core-layout #view-work-home .at-work-link {
+  display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; align-items: center; gap: 14px;
+  width: 100%; margin-top: 18px; padding: 16px 20px; border: 1px solid var(--wh-line); border-left: 4px solid var(--wh-brand);
+  border-radius: 14px; background: #fff; box-shadow: 0 1px 2px rgb(16 24 40 / 4%); text-align: left; color: var(--wh-ink); cursor: pointer;
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+body.data-core-layout.data-core-layout #view-work-home .at-work-link:hover { box-shadow: 0 10px 24px rgb(16 24 40 / 8%); border-color: #c9d6d0; border-left-color: var(--wh-brand); }
+body.data-core-layout.data-core-layout #view-work-home .at-work-link > .at-icon:first-child { width: 46px; height: 46px; padding: 12px; border-radius: 12px; background: #e6f1ec; color: var(--wh-brand); }
+body.data-core-layout.data-core-layout #view-work-home .at-work-link strong { display: block; font-size: 17px; font-weight: 900; }
+body.data-core-layout.data-core-layout #view-work-home .at-work-link .at-work-copy small { display: block; margin-top: 2px; font-size: 13px; font-weight: 500; color: var(--wh-sub); }
+body.data-core-layout.data-core-layout #view-work-home .at-work-link > .at-icon:last-child { width: 34px; height: 34px; padding: 8px; border-radius: 50%; background: #f1f4f2; color: var(--wh-brand); }
+
+@media (max-width: 1100px) { body.data-core-layout.data-core-layout #view-work-home .menu-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; } }
+@media (max-width: 600px) { body.data-core-layout.data-core-layout #view-work-home .menu-card-grid { grid-template-columns: minmax(0, 1fr) !important; } }
+@media (prefers-reduced-motion: reduce) { body.data-core-layout.data-core-layout #view-work-home :is(.feature-card, .at-work-link, .work-card-image) { transition: none; } body.data-core-layout.data-core-layout #view-work-home .feature-card:hover { transform: none; } body.data-core-layout.data-core-layout #view-work-home .feature-card:hover .work-card-image { transform: none; } }

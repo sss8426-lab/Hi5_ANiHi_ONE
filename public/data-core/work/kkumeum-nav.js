@@ -25,6 +25,7 @@
     card.href = KKUMEUM_HREF;
     card.dataset.kkumeumCard = 'true';
     card.innerHTML = [
+      '<img class="work-card-image" src="/data-core/assets/counseling/university-success-family-v1.webp" alt="자녀 소식을 함께 읽는 보호자" width="1440" height="960" loading="lazy" decoding="async">',
       '<span class="feature-icon">↗</span>',
       '<strong>꿈이음</strong>',
       '<small>학생 작품·월간 평가·보호자 소식을 한곳에서 관리합니다.</small>',
