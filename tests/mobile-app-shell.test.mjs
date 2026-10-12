@@ -28,7 +28,7 @@ test('the phone shell loads on every 업무용 page except 꿈이음, which has 
   for (const page of ['index.html', 'content.html', 'reports.html', 'operations.html', 'accounts.html']) {
     const html = read(`public/data-core/${page}`);
     assert.match(html, /mobile-app\.css\?v=20261009-mobile-app/, page);
-    assert.match(html, /mobile-app\.js\?v=20261009-mobile-app/, page);
+    assert.match(html, /mobile-app\.js\?v=20261012-mode-switch/, page);
   }
   assert.doesNotMatch(read('public/data-core/work/kkumeum.html'), /mobile-app\.js/);
   assert.match(shell, /classList\.contains\('kk-mobile'\)/);

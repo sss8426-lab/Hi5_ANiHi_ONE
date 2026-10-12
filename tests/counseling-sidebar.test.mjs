@@ -1,20 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
+import {existsSync, readFileSync} from 'node:fs';
 
-const css = readFileSync('public/data-core/counseling-sidebar.css', 'utf8');
-
-test('counseling pages hide the dark menu until the mouse reaches the left edge', () => {
+// 상담용 화면도 업무용처럼 왼쪽 메뉴가 항상 보인다 (마우스를 왼쪽 끝에 대야 열리던 숨김 기능 없음).
+test('counseling pages keep the menu visible like 업무용', () => {
+  assert.equal(existsSync('public/data-core/counseling-sidebar.css'), false);
   for (const file of ['public/data-core/index.html', 'public/admissions-web/renderer/index.html']) {
     const html = readFileSync(file, 'utf8');
-    assert.match(html, /<div class="sidebar-peek" aria-hidden="true"><span><\/span><\/div>\s*<aside class="sidebar">/, file);
-    assert.ok(html.indexOf('counseling-sidebar.css') < html.indexOf('design-tokens.css'), file);
+    assert.doesNotMatch(html, /counseling-sidebar\.css|sidebar-peek/, file);
+    assert.match(html, /<aside class="sidebar">/, file);
   }
-  // Only counseling views (body.counseling-header) and the admissions page, desktop widths only.
-  assert.match(css, /@media \(min-width: 1101px\)/);
-  assert.match(css, /counseling-header \.app-shell,[\s\S]*?grid-template-columns: 0px minmax\(0, 1fr\)/);
-  assert.match(css, /:has\(\.sidebar-peek:hover, \.sidebar:hover, \.sidebar:focus-within\)\s*\{ grid-template-columns: 232px minmax\(0, 1fr\); \}/);
-  assert.doesNotMatch(css, /body\.data-core-layout(?!\.counseling-header|\.data-core-layout\.counseling-header)[^,{]*\.sidebar\s*\{/);
-  const app = readFileSync('public/data-core/app.js', 'utf8');
-  assert.match(app, /classList\.toggle\('counseling-header', state\.currentMode === 'counseling'\)/);
 });
