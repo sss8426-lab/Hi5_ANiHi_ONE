@@ -1,5 +1,6 @@
 import { DEFAULT_ORGANIZATION_ID as ORG } from './data-core';
 import { DATA_CORE_ROLES, DataCoreAccessError, requireAuthenticatedAccess, requireCampusAccess, type DataCoreAccessContext } from './data-core-access';
+import { seedUniversityWorkFolders } from './university-work-folders';
 import { campusDisplayName } from './campus-directory';
 
 export const AWARD_FOLDER = 'competition-award-folder';
@@ -193,6 +194,7 @@ export async function handleAwardApi(request: Request, db: D1Database, files: R2
   const url = new URL(request.url), path = url.pathname.slice('/api/data-core/awards'.length);
   if (!['GET','HEAD'].includes(request.method) && request.headers.get('origin') !== url.origin) throw new DataCoreAccessError(403,'동일 출처 요청만 허용됩니다.');
   const json = (body: unknown, status=200) => Response.json(body,{status,headers:{'cache-control':'private, no-store'}});
+  if (path==='/university-folders' && request.method==='POST') return json(await seedUniversityWorkFolders(db,context));
   if (path==='/activity' && request.method==='GET') return json(await listAwardActivity(db,context,url));
   if (path==='/folders' && request.method==='GET') return json(await listAwardFolders(db,context,url));
   if (path==='/folders' && request.method==='POST') {
