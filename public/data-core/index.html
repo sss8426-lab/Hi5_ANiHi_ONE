@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="/data-core/curriculum.css?v=20260930-stages">
   <link rel="stylesheet" href="/data-core/curriculum-library.css?v=20261001-edit">
   <link rel="stylesheet" href="/data-core/work/attendance.css?v=20261009-attendance-link">
-  <link rel="stylesheet" href="/data-core/award-workspace.css?v=20261012-competition-search">
+  <link rel="stylesheet" href="/data-core/award-workspace.css?v=20261012-ai-direction">
   <link rel="stylesheet" href="/data-core/counseling-home.css?v=20260930-cards3">
   <link rel="stylesheet" href="/data-core/counseling-sidebar.css?v=20260930-1">
   <link rel="stylesheet" href="/data-core/design-tokens.css?v=20260913-soft-premium">
@@ -379,6 +379,33 @@
             <div class="award-selection-bar hidden" id="awardSelectionBar"><span id="awardSelectionCount">선택 0개</span><button class="ghost-btn" id="selectAllAwardsBtn" type="button">전체선택</button><button class="danger-btn" id="deleteSelectedAwardsBtn" type="button" disabled>선택 삭제</button></div>
             <div class="award-library-grid" id="awardLibraryFiles"></div>
             </div>
+            <section class="award-ai" id="awardAiDirection" aria-labelledby="awardAiTitle">
+              <div class="award-collection-head"><h4 id="awardAiTitle">AI 수정 방향</h4></div>
+              <p class="award-ai-hint">지금 그리는 그림을 올리고 같은 대학 작품과 비교하면, 먼저 고칠 곳 3가지를 알려 줍니다.</p>
+              <div class="award-ai-top">
+                <div class="award-ai-mine">
+                  <p class="award-ai-label"><span class="award-ai-step">1</span>현재 그림</p>
+                  <label class="award-ai-drop" id="awardAiDrop"><input type="file" id="awardAiFile" accept="image/jpeg,image/png,image/webp" aria-label="현재 그림 올리기"><span id="awardAiDropText">+ 그림 올리기<small>JPG·PNG · 끌어다 놓아도 돼요</small></span><img id="awardAiPreview" alt="올린 현재 그림" hidden></label>
+                  <button type="button" class="ghost-btn award-ai-change" id="awardAiChange" hidden>다른 그림으로 바꾸기</button>
+                </div>
+                <div class="award-ai-pick">
+                  <p class="award-ai-label"><span class="award-ai-step">2</span>비교할 대학 · 실기 유형 · 작품</p>
+                  <select id="awardAiUniversity" aria-label="비교할 대학"><option value="">불러오는 중...</option></select>
+                  <div id="awardAiTypesWrap" hidden>
+                    <p class="award-ai-sublabel">실기 유형 (여러 개 고를 수 있어요)</p>
+                    <div class="award-ai-types" id="awardAiTypes" role="group" aria-label="실기 유형"></div>
+                    <div class="award-ai-bar"><p id="awardAiCount"></p><span><button type="button" class="award-ai-link" id="awardAiAll">전체 선택</button> · <button type="button" class="award-ai-link" id="awardAiNone">전체 해제</button></span></div>
+                    <div class="award-ai-scroll" id="awardAiWorks" role="group" aria-label="비교할 작품"></div>
+                  </div>
+                  <button type="button" class="primary-btn award-ai-go" id="awardAiGo" disabled>분석하기</button>
+                  <p class="award-ai-status" id="awardAiStatus" role="status" aria-live="polite"></p>
+                </div>
+              </div>
+              <div class="award-ai-result" id="awardAiResult" hidden>
+                <div><div class="award-ai-canvas"><img id="awardAiResultImage" alt="고칠 곳이 표시된 현재 그림"><div id="awardAiMarks" aria-hidden="true"></div></div><p class="award-ai-cap">올린 그림 위에 고칠 곳을 번호로 표시했습니다. 그림과 결과는 저장되지 않습니다.</p></div>
+                <div class="award-ai-directions"><h5>수정 방향</h5><ol id="awardAiDirections"></ol><div class="award-ai-refs"><small id="awardAiRefsLabel"></small><div id="awardAiRefs"></div></div></div>
+              </div>
+            </section>
           </aside>
           <section class="panel competition-news" id="competitionNewsPanel">
             <div class="competition-news-heading">
@@ -546,6 +573,7 @@
   <script src="/data-core/brand-home.js?v=20260913-brand-home"></script>
   <script src="/data-core/calendar.js?v=20261009-mobile-app"></script>
   <script src="/data-core/app.js?v=20261012-competition-search"></script>
+  <script src="/data-core/award-ai-direction.js?v=20261012-ai-direction"></script>
   <script src="/data-core/mobile-app.js?v=20261009-mobile-app"></script>
   <script src="/data-core/mode-home-artwork.js?v=20260921-calendar-details"></script>
   <script type="module" src="/data-core/design-shell.js?v=20260912-campus"></script>
