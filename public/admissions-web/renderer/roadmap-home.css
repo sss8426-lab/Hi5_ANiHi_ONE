@@ -43,3 +43,10 @@
 .student-division-label { font-size: 16px; font-weight: 900; color: #1d232b; white-space: nowrap; }
 .student-divisions .student-type-tabs { margin: 0; }
 .student-type-tabs b { font-weight: 800; }
+
+/* 학생 수정창: 저장 · 취소 · 삭제 at the top and the bottom, on the right */
+.student-editor .editor-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.student-editor .editor-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-left: auto; }
+.student-editor .editor-actions-bottom { margin-top: 16px; }
+.student-editor .editor-actions .btn { min-width: 84px; }
+.track-select { min-width: 84px; }

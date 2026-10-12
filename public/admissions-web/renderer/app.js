@@ -366,11 +366,11 @@ function syncStudentEditorDraft(){
     ...state.studentEditor.student,
     studentType: $('editStudentType')?.value || state.studentEditor.student.studentType || (state.studentTypeTab === 'result' ? 'result' : 'current'),
     name: $('editStudentName').value,
-    division: $('editStudentDivision')?.value || studentDivision(state.studentEditor.student),
+    division: $('editStudentTrack')?.value || studentDivision(state.studentEditor.student),
     gpa: $('editStudentGpa').value,
     skill: $('editStudentSkill').value,
     skillLevel: $('editStudentSkillLevel').value,
-    track: $('editStudentTrack').value,
+    track: trackLabelOf($('editStudentTrack')?.value || studentDivision(state.studentEditor.student)),
     practiceExperience: $('editStudentPracticeExperience')?.value || '',
     gradeLevel: $('editStudentGradeLevel')?.value || state.studentEditor.student.gradeLevel || '',
     _gradeYear: $('editStudentGradeYear')?.value || state.studentEditor.student._gradeYear || '',
@@ -940,18 +940,21 @@ function entryYearFromEditor(){
   const year = Number($('editStudentGradeYear')?.value);
   return grade && Number.isInteger(year) && year >= 2000 && year <= 2100 ? window.AdmissionsStudentGrades.entryYearFor(grade, year) : null;
 }
+function studentEditorActions(editor, place='top'){
+  const remove = editor.mode === 'edit' && canManageStudents() ? `<button class="btn danger" type="button" data-editor-delete>삭제</button>` : '';
+  return `<div class="actions editor-actions editor-actions-${place}"><button class="btn primary" type="button" data-editor-save${place==='bottom'?' id="saveStudentBtn"':''}>저장</button><button class="btn" type="button" data-editor-cancel${place==='bottom'?' id="cancelStudentBtn"':''}>취소</button>${remove}</div>`;
+}
 function studentEditorMarkup(editor, editorArtworks, universityOptions, studentTrackOptions){
   const currentMode = (editor.student.studentType || (state.studentTypeTab === 'result' ? 'result' : 'current')) === 'current';
   return `<div class="student-editor inline-editor">
-    <div class="top compact"><div><h2>${editor.mode === 'edit' ? '학생 정보 수정' : '학생 추가'}</h2><p>상담에 필요한 기본 성적, 학기별 과목 성적, 그림 이미지, 실기능력을 입력합니다.</p></div></div>
+    <div class="top compact editor-head"><div><h2>${editor.mode === 'edit' ? '학생 정보 수정' : '학생 추가'}</h2><p>상담에 필요한 기본 성적, 학기별 과목 성적, 그림 이미지, 실기능력을 입력합니다.</p></div>${studentEditorActions(editor)}</div>
     <div class="admin-grid">
       <div class="field"><label>학생 구분</label><select id="editStudentType"><option value="current" ${currentMode?'selected':''}>현재 재원생</option><option value="result" ${!currentMode?'selected':''}>합격자 데이터</option></select></div>
-      <div class="field"><label>구분</label><select id="editStudentDivision">${STUDENT_DIVISIONS.map(([key,label]) => `<option value="${key}" ${key===studentDivision(editor.student)?'selected':''}>${label}</option>`).join('')}</select></div>
       <div class="field"><label>학생명</label><input id="editStudentName" value="${h(editor.student.name || '')}" placeholder="예: 김학생"></div>
       <div class="field"><label>내신 평균</label><input id="editStudentGpa" type="number" step="0.1" value="${h(editor.student.gpa || '')}" placeholder="3.2"></div>
       <div class="field"><label>실기 점수</label><input id="editStudentSkill" type="number" value="${h(editor.student.skill || '')}" placeholder="82"></div>
       <div class="field"><label>실기능력</label><select id="editStudentSkillLevel"><option ${editor.student.skillLevel==='상'?'selected':''}>상</option><option ${(!editor.student.skillLevel||editor.student.skillLevel==='중')?'selected':''}>중</option><option ${editor.student.skillLevel==='하'?'selected':''}>하</option></select></div>
-      <div class="field"><label>전공 계열</label><select id="editStudentTrack">${studentTrackOptions}</select></div>
+      <div class="field"><label>전공 계열</label><select id="editStudentTrack">${STUDENT_DIVISIONS.map(([key,label]) => `<option value="${key}" ${key===studentDivision(editor.student)?'selected':''}>${label}</option>`).join('')}</select></div>
       <div class="field"><label>실기경력</label><input id="editStudentPracticeExperience" value="${h(editor.student.practiceExperience || '')}" placeholder="예: 입시반 2년 / 공모전 경험"></div>
       <div class="field current-student-field ${currentMode?'':'hidden'}"><label>학년</label><select id="editStudentGradeLevel">${studentGradeLevelOptions(editorGradeLevel(editor.student))}</select></div>
       <div class="field current-student-field ${currentMode?'':'hidden'}"><label>몇 년도 학년인가요?</label><input id="editStudentGradeYear" type="number" min="2000" max="2100" value="${h(editor.student._gradeYear || window.AdmissionsStudentGrades.schoolYear())}"></div>
@@ -967,7 +970,7 @@ function studentEditorMarkup(editor, editorArtworks, universityOptions, studentT
     </div>
     ${studentGradeInputTabsMarkup(editor.student)}
     <div class="artwork-preview"><div class="student-gallery edit-gallery">${artworkGalleryMarkup(editorArtworks,'edit')}</div></div>
-    <div class="actions editor-actions"><button class="btn primary" id="saveStudentBtn">저장</button><button class="btn" id="cancelStudentBtn">취소</button></div>
+    ${studentEditorActions(editor, 'bottom')}
   </div>`;
 }
 function caseRowsFromStudents(){
@@ -1332,6 +1335,7 @@ function displayPracticalType(university){
 function universityMatchesTrack(university, track){
   const value = `${university.name || ''} ${university.major || ''} ${university.admission || ''} ${university.subjects || ''}`.toLowerCase();
   const rules = {
+    '애니': ['웹툰', '만화', '카툰', 'comic', 'comics', 'cartoon', '애니', 'animation', 'anime', '게임', '일러스트', 'illustration', 'game'],
     '웹툰': ['웹툰', '만화', '카툰', 'comic', 'comics', 'cartoon'],
     '애니메이션': ['애니', 'animation', 'anime'],
     '게임일러스트': ['게임', '일러스트', 'illustration', 'game'],
@@ -1571,6 +1575,14 @@ function studentDivision(student){
   if(campus.includes('anihi')) return 'anim';
   return String(student?.track || '').includes('디자인') ? 'design' : 'anim';
 }
+// 학생 전공 계열은 디자인 / 애니 두 가지뿐이다 (구분과 같은 값). 예전 값(웹툰·애니메이션·게임 등)은 애니로 본다.
+const trackLabelOf = division => division === 'design' ? '디자인' : '애니';
+function studentTrackSelectMarkup(student){
+  const division = studentDivision(student);
+  return `<select class="skill-level-select track-select" data-track-student="${h(student.id)}" aria-label="전공 계열 선택">
+    ${STUDENT_DIVISIONS.map(([key,label]) => `<option value="${key}" ${key===division?'selected':''}>${label}</option>`).join('')}
+  </select>`;
+}
 function studentGradeCounts(division){
   const counts = { g1: 0, g2: 0, g3: 0, result: 0, unknown: 0 };
   for(const student of state.data.students || []){
@@ -1598,7 +1610,7 @@ function resetStudentView(){
 }
 // 추천 대학: the same scoring the old 지원 전략 used (내신 · 실기 · 희망 계열), shown inside 학생 관리.
 function studentRecommendations(student){
-  const gpa = Number(student?.gpa), track = String(student?.track || '').trim();
+  const gpa = Number(student?.gpa), track = trackLabelOf(studentDivision(student));
   if(!Number.isFinite(gpa) || gpa <= 0 || !track) return null;
   const skill = Number.isFinite(Number(student.skill)) && Number(student.skill) > 0 ? Number(student.skill) : skillScoreFromLevel(student.skillLevel || '중');
   const scored = dashboardUniversitiesForTrack(track).map(u => ({ u, p: scoreUniversity(u, gpa, skill) })).sort((a,b) => b.p - a.p);
@@ -1615,7 +1627,7 @@ function studentRecommendationPanel(student){
   const rec = studentRecommendations(student);
   const list = (items) => items.length ? items.slice(0,4).map(({u,p}) => `<li><b>${universityNameMarkup(u)}</b><span>${h(u.major || '')}${u.admission ? ` · ${h(u.admission)}` : ''}</span><em>${p}%</em></li>`).join('') : '<li class="muted">해당 없음</li>';
   return `<section class="student-detail-section student-rec-panel">
-    <div class="student-detail-head"><h3>추천 대학</h3><span class="muted">내신 ${h(student.gpa || '-')} · 실기 ${h(student.skillLevel || student.skill || '-')} · 희망 계열 ${h(student.track || '-')} 기준, 자동</span></div>
+    <div class="student-detail-head"><h3>추천 대학</h3><span class="muted">내신 ${h(student.gpa || '-')} · 실기 ${h(student.skillLevel || student.skill || '-')} · 전공 계열 ${h(trackLabelOf(studentDivision(student)))} 기준, 자동</span></div>
     ${rec ? `<div class="rec-columns">
       <div class="rec-col safe"><h4>안정</h4><ul>${list(rec.safe)}</ul></div>
       <div class="rec-col fit"><h4>적정</h4><ul>${list(rec.fit)}</ul></div>
@@ -1629,7 +1641,7 @@ function studentUploadPanel(){
   return `<div class="card student-upload-card">
     <h3>학생 명단 올리기</h3>
     <div class="admin-grid">
-      <div class="field"><label>구분</label><select id="studentUploadDivision">${STUDENT_DIVISIONS.map(([key,label]) => `<option value="${key}" ${key===(state.studentDivision||'design')?'selected':''}>${label}</option>`).join('')}</select></div>
+      <div class="field"><label>전공 계열</label><select id="studentUploadDivision">${STUDENT_DIVISIONS.map(([key,label]) => `<option value="${key}" ${key===(state.studentDivision||'design')?'selected':''}>${label}</option>`).join('')}</select></div>
       <div class="field"><label>학년</label><select id="studentUploadGrade">${[1,2,3].map(g => `<option value="${g}" ${String(g)===tabGrade?'selected':''}>고${g}</option>`).join('')}</select></div>
       <div class="field"><label>몇 년도 학년인가요?</label><input id="studentUploadYear" type="number" min="2000" max="2100" value="${grades.schoolYear()}"></div>
       <div class="field wide"><label>엑셀(.xlsx)·CSV 파일</label><input id="studentUploadFile" type="file" accept=".xlsx,.csv,.json"></div>
@@ -1756,10 +1768,10 @@ function renderStudents(){
       <td>${h(studentOverallGrade(s))}</td>
       <td>${h(s.skill)}</td>
       <td>${skillLevelSelectMarkup(s)}</td>
-      <td>${h(s.track||'-')}</td>
+      <td>${studentTrackSelectMarkup(s)}</td>
       <td>${isCurrentStudent(s) ? recommendationChips(s) : resultText}</td>
       <td>${isCurrentStudent(s) ? gradeCell : (s.createdAt ? new Date(s.createdAt).toLocaleDateString('ko-KR') : '-')}</td>
-      <td><div class="row-actions">${convertButton}<button class="btn mini" data-edit-student="${s.id}">수정</button>${deleteButton}</div></td>
+      <td><div class="row-actions">${convertButton}${editorOpen ? `<button class="btn mini primary" type="button" data-editor-save>저장</button><button class="btn mini" type="button" data-editor-cancel>취소</button>` : `<button class="btn mini" data-edit-student="${s.id}">수정</button>`}${deleteButton}</div></td>
     </tr>${editorDetailRow}${expandedDetailRow}`;
   };
   const divisionTabs = ([key,label]) => {
@@ -1784,7 +1796,7 @@ function renderStudents(){
       <button class="btn" id="studentFilterClearBtn" type="button">분류 초기화</button>
     </div>` : ''}
     ${(query || (activeStudentTab === 'result' && (yearFilter || roundFilter))) ? `<div class="search-summary">${query ? `검색어 <b>${h(state.studentSearch)}</b> · ` : ''}${activeStudentTab === 'result' && (yearFilter || roundFilter) ? `분류 <b>${h([yearFilter, roundFilter].filter(Boolean).join(' · '))}</b> · ` : ''}${students.length}명</div>` : ''}
-    <div class="student-table-scroll"><table><thead><tr><th>그림</th><th>학생명</th><th>내신</th><th>실기점수</th><th>실기능력</th><th>${gradeTab?'희망 계열':'전공 계열'}</th><th>${gradeTab?'추천 대학':'결과'}</th><th>${gradeTab?'학년 (고1 연도)':'등록일'}</th><th>관리</th></tr></thead><tbody>${students.length?students.map(renderStudentRow).join(''):`<tr><td colspan="9" class="muted">${query ? '검색 결과가 없습니다.' : '등록된 학생이 없습니다.'}</td></tr>`}</tbody></table></div>
+    <div class="student-table-scroll"><table><thead><tr><th>그림</th><th>학생명</th><th>내신</th><th>실기점수</th><th>실기능력</th><th>전공 계열</th><th>${gradeTab?'추천 대학':'결과'}</th><th>${gradeTab?'학년 (고1 연도)':'등록일'}</th><th>관리</th></tr></thead><tbody>${students.length?students.map(renderStudentRow).join(''):`<tr><td colspan="9" class="muted">${query ? '검색 결과가 없습니다.' : '등록된 학생이 없습니다.'}</td></tr>`}</tbody></table></div>
   </div>
   `);
   document.querySelectorAll('[data-student-tab]').forEach(btn=>btn.onclick=()=>{
@@ -1843,6 +1855,20 @@ function renderStudents(){
     state.studentDetailId=null;
     renderStudents();
   });
+  document.querySelectorAll('[data-track-student]').forEach(select=>select.onchange=async()=>{
+    const student = state.data.students.find(x=>x.id===Number(select.dataset.trackStudent));
+    if(!student) return;
+    const division = select.value;
+    try {
+      const updated = await window.desktopAPI.updateStudent({ ...student, division, track: trackLabelOf(division) });
+      state.data.students = state.data.students.map(item => item.id === updated.id ? updated : item);
+      clearComputedCaches();
+      renderStudents();
+    } catch (error) {
+      select.value = studentDivision(student);
+      alert(error.message || '전공 계열 저장에 실패했습니다.');
+    }
+  });
   document.querySelectorAll('[data-skill-student]').forEach(select=>select.onchange=async()=>{
     const studentId = Number(select.dataset.skillStudent);
     const student = state.data.students.find(x=>x.id===studentId);
@@ -1860,12 +1886,13 @@ function renderStudents(){
       alert('실기능력 저장에 실패했습니다.');
     }
   });
-  document.querySelectorAll('[data-delete-student]').forEach(btn=>btn.onclick=async(event)=>{event.stopPropagation(); const s=state.data.students.find(x=>x.id===Number(btn.dataset.deleteStudent)); if(!s || !confirm(`${s.name} 학생 정보를 삭제할까요?`))return; try { await window.desktopAPI.deleteStudent(s.id); } catch(error){ alert(error.message); return; } setStateData(await window.desktopAPI.getAll()); resetStudentView(); renderStudents();});
+  document.querySelectorAll('[data-delete-student]').forEach(btn=>btn.onclick=(event)=>{event.stopPropagation(); deleteStudentWithConfirm(btn.dataset.deleteStudent);});
   document.querySelectorAll('[data-grade-student]').forEach(btn=>btn.onclick=()=>{syncStudentEditorDraft(); const id=Number(btn.dataset.gradeStudent); state.studentGradeId=state.studentGradeId===id?null:id; renderStudents();});
   document.querySelectorAll('[data-gallery-student]').forEach(btn=>btn.onclick=()=>{syncStudentEditorDraft(); const id=Number(btn.dataset.galleryStudent); state.studentGalleryId=state.studentGalleryId===id?null:id; renderStudents();});
   if(editor){
-    $('cancelStudentBtn').onclick=()=>{state.studentEditor=null; renderStudents();};
-    $('saveStudentBtn').onclick=saveStudentFromEditor;
+    document.querySelectorAll('[data-editor-cancel]').forEach(btn=>btn.onclick=()=>{state.studentEditor=null; renderStudents();});
+    document.querySelectorAll('[data-editor-save]').forEach(btn=>btn.onclick=saveStudentFromEditor);
+    document.querySelectorAll('[data-editor-delete]').forEach(btn=>btn.onclick=()=>deleteStudentWithConfirm(state.studentEditor?.student?.id));
     if($('editStudentType')) $('editStudentType').onchange=()=>{syncStudentEditorDraft(); renderStudents();};
     bindTermGradeAutoCalc();
     bindDetailedTranscriptEditor();
@@ -1877,6 +1904,14 @@ function renderStudents(){
   bindArtworkViewer();
 }
 
+async function deleteStudentWithConfirm(id){
+  const s = state.data.students.find(x => x.id === Number(id));
+  if(!s || !confirm(`${s.name} 학생 정보를 삭제할까요?`)) return;
+  try { await window.desktopAPI.deleteStudent(s.id); } catch(error){ alert(error.message); return; }
+  setStateData(await window.desktopAPI.getAll());
+  resetStudentView();
+  renderStudents();
+}
 function bindStudentUpload(){
   let rows = [];
   const preview = $('studentUploadPreview');
@@ -1901,7 +1936,7 @@ function bindStudentUpload(){
     $('studentUploadSave').disabled = true;
     try {
       for(let i = 0; i < rows.length; i += 500){
-        await window.desktopAPI.addStudents(rows.slice(i, i + 500).map(row => ({ skillLevel: '중', enrollmentStatus: '재원중', preparationStage: '방향 설정', ...row, studentType: 'current', gradeLevel: `고${grade}`, entryYear, division: $('studentUploadDivision').value })));
+        await window.desktopAPI.addStudents(rows.slice(i, i + 500).map(row => ({ skillLevel: '중', enrollmentStatus: '재원중', preparationStage: '방향 설정', ...row, studentType: 'current', gradeLevel: `고${grade}`, entryYear, division: $('studentUploadDivision').value, track: trackLabelOf($('studentUploadDivision').value) })));
       }
       setStateData(await window.desktopAPI.getAll());
       resetStudentView();
@@ -1922,7 +1957,8 @@ async function saveStudentFromEditor(){
   const firstAdmission = admissionResults[0] || {};
   const studentTypeValue = $('editStudentType')?.value || editor.student.studentType || (state.studentTypeTab === 'result' ? 'result' : 'current');
   const entryYear = studentTypeValue === 'current' ? entryYearFromEditor() : (editor.student.entryYear ?? null);
-  const student={...editor.student,division:$('editStudentDivision')?.value || studentDivision(editor.student),entryYear,studentType:studentTypeValue,name,gpa:parseFloat($('editStudentGpa').value||'0'),skill:parseFloat($('editStudentSkill').value||'0'),skillLevel:$('editStudentSkillLevel').value,track:$('editStudentTrack').value.trim(),practiceExperience:$('editStudentPracticeExperience').value.trim(),gradeLevel:$('editStudentGradeLevel')?.value || '',enrollmentStatus:$('editStudentEnrollmentStatus')?.value || '',preparationStage:$('editStudentPreparationStage')?.value || '',nextConsultationDate:$('editStudentNextConsultationDate')?.value || '',targetUniversities:$('editStudentTargetUniversities')?.value?.trim() || '',consultMemo:$('editStudentConsultMemo')?.value?.trim() || '',admissionResults,admissionResult:firstAdmission.result||'미정',admissionUniversity:firstAdmission.universityName||'',admissionCompetition:firstAdmission.competition||'',admissionYear:firstAdmission.year||'',admissionRound:firstAdmission.round||'',artworks,artworkImage:artworks[0]?.path||'',termGrades:readTermGradesFromEditor(),detailedTranscript:readDetailedTranscriptFromEditor()};
+  const division = $('editStudentTrack')?.value || studentDivision(editor.student);
+  const student={...editor.student,division,entryYear,studentType:studentTypeValue,name,gpa:parseFloat($('editStudentGpa').value||'0'),skill:parseFloat($('editStudentSkill').value||'0'),skillLevel:$('editStudentSkillLevel').value,track:trackLabelOf(division),practiceExperience:$('editStudentPracticeExperience').value.trim(),gradeLevel:$('editStudentGradeLevel')?.value || '',enrollmentStatus:$('editStudentEnrollmentStatus')?.value || '',preparationStage:$('editStudentPreparationStage')?.value || '',nextConsultationDate:$('editStudentNextConsultationDate')?.value || '',targetUniversities:$('editStudentTargetUniversities')?.value?.trim() || '',consultMemo:$('editStudentConsultMemo')?.value?.trim() || '',admissionResults,admissionResult:firstAdmission.result||'미정',admissionUniversity:firstAdmission.universityName||'',admissionCompetition:firstAdmission.competition||'',admissionYear:firstAdmission.year||'',admissionRound:firstAdmission.round||'',artworks,artworkImage:artworks[0]?.path||'',termGrades:readTermGradesFromEditor(),detailedTranscript:readDetailedTranscriptFromEditor()};
   delete student._gradeYear;
   if(student.entryYear === null) delete student.entryYear;
   try {
