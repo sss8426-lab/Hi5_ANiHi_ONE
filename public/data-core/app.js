@@ -185,6 +185,8 @@ function switchView(view, options = {}) {
   if (view === 'admin') { location.replace('/data-core/accounts?tab=roles'); return; }
   state.currentView = view;
   state.currentMode = modeForView(view);
+  document.documentElement.classList.remove('core-mode-direct');
+  window.DataCoreModeSwitch?.sync(state.currentMode === 'mode' ? null : state.currentMode);
   document.body.classList.toggle('mode-home-artwork-active', view === 'mode-home');
   document.body.classList.toggle('counseling-header', state.currentMode === 'counseling');
   document.body.classList.toggle('brand-home', view === 'counseling-home');
@@ -232,6 +234,14 @@ function switchView(view, options = {}) {
   if (view === 'works' && state.context?.authenticated) loadAwardFolders();
   if (view === 'counseling-home' || view === 'work-home') loadCalendar();
 }
+
+// 업무용 | 상담용 스위치 (mode-switch.js): the other mode's home appears in place, nothing in between.
+window.DataCoreSwitchMode = (mode) => {
+  if (!['work', 'counseling'].includes(mode)) return false;
+  switchView(mode === 'counseling' ? 'counseling-home' : 'work-home');
+  window.scrollTo(0, 0);
+  return true;
+};
 
 function initialViewFromPath() {
   const path = location.pathname.replace(/\/+$/, '');

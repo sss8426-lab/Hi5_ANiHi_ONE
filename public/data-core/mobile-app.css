@@ -58,7 +58,6 @@ dialog.ma-sheet::backdrop { background: rgb(10 20 15 / 45%); }
 .ma-row.active { background: var(--core-brand-soft, #e8f0ec); }
 [data-ma-admin] .ma-row > .ma-icon:first-child { color: #61675f; }
 .ma-badge { font-size: 11px; font-weight: 700; color: #fff; background: #d64545; border-radius: 9px; padding: 2px 8px; }
-.ma-mode { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 16px; min-height: 44px; color: #61675f; font-size: 14px; font-weight: 600; text-decoration: none; }
 
 /* ── 업무용 홈: phone home screen ─────────────────────────────────── */
 body.mobile-app-home #view-work-home > :is(.section-head, .menu-card-grid, .at-work-link) { display: none; }

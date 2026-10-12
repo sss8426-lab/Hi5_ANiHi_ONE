@@ -7,7 +7,6 @@
     ['reports','월간 업무보고','/data-core/reports','ClipboardList'],
     ['kkumeum','꿈이음','/data-core/kkumeum','Users'],
     ['attendance','출석부','/data-core/work/attendance','BookOpen'],
-    ['mode-home','모드 선택으로 돌아가기','/data-core','ArrowLeft'],
     ['operations','운영관리','/data-core/operations','RotateCcw',true],
     ['accounts','계정·권한 관리','/data-core/accounts','Settings',true],
   ];
@@ -15,7 +14,7 @@
   for (const mount of document.querySelectorAll('[data-work-navigation]')) {
     const admin = mount.dataset.workNavigation === 'admin';
     for (const [id,label,href,icon,privileged] of entries.filter(item=>Boolean(item[4])===admin)) {
-      const local=embedded&&['work-home','library','attendance','mode-home'].includes(id);
+      const local=embedded&&['work-home','library','attendance'].includes(id);
       const node=document.createElement(local?'button':'a');
       node.className='nav-item';node.dataset.workMenu=id;
       if(local){node.type='button';node.dataset.view=id;}else node.href=href;

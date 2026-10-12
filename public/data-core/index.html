@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <script src="/data-core/phone-entry.js?v=20261010-entry"></script>
   <script src="/data-core/up-history.js?v=20261012-up"></script>
+  <script src="/data-core/mode-switch.js?v=20261012-mode-switch"></script>
   <title>HI5·ANiHi DATA CORE</title>
   <link rel="stylesheet" href="/data-core/styles.css?v=20260928-signup">
   <link rel="stylesheet" href="/data-core/layout-theme.css?v=20260909-bright-layout">
@@ -14,7 +15,6 @@
   <link rel="stylesheet" href="/data-core/work/attendance.css?v=20261009-attendance-link">
   <link rel="stylesheet" href="/data-core/award-workspace.css?v=20261012-ai-revise">
   <link rel="stylesheet" href="/data-core/counseling-home.css?v=20260930-cards3">
-  <link rel="stylesheet" href="/data-core/counseling-sidebar.css?v=20260930-1">
   <link rel="stylesheet" href="/data-core/design-tokens.css?v=20260913-soft-premium">
   <link rel="stylesheet" href="/data-core/design-system.css?v=20260928-approved-logo&amp;nav=20260929">
   <link rel="stylesheet" href="/data-core/image-gallery.css?v=20260913-fast-images">
@@ -23,7 +23,6 @@
 </head>
 <body class="data-core-layout">
   <div class="app-shell">
-    <div class="sidebar-peek" aria-hidden="true"><span></span></div>
     <aside class="sidebar">
       <div class="brand">
         <img class="core-logo" src="/data-core/assets/hi5-data-core-approved-v1.png" alt="Hi5·ANiHi DATA CORE" width="48" height="48">
@@ -59,16 +58,12 @@
             <span>대학합격 로드맵</span>
           </a>
           <button class="nav-item" data-view="curriculum"><span class="nav-icon">◫</span><span>꿈을 향한 커리큘럼</span></button>
-          <button class="nav-item" data-view="mode-home">
-            <span class="nav-icon">←</span>
-            <span>모드 선택</span>
-          </button>
         </div>
 
         <div class="nav-group hidden" data-nav-scope="work" data-work-navigation="work"></div>
         <div class="nav-group nav-admin hidden" data-nav-scope="admin" data-work-navigation="admin"></div>
       </nav>
-      <script src="/data-core/work-navigation.js?v=20261008-reports"></script>
+      <script src="/data-core/work-navigation.js?v=20261012-mode-switch"></script>
 
       <div class="sidebar-bottom">
         <div class="connection-card" id="connectionCard">
@@ -585,9 +580,9 @@
   <script src="/data-core/curriculum.js?v=20260930-start-folder-upload"></script>
   <script src="/data-core/brand-home.js?v=20260913-brand-home"></script>
   <script src="/data-core/calendar.js?v=20261009-mobile-app"></script>
-  <script src="/data-core/app.js?v=20261012-competition-search"></script>
+  <script src="/data-core/app.js?v=20261012-mode-switch"></script>
   <script src="/data-core/award-ai-direction.js?v=20261012-ai-revise"></script>
-  <script src="/data-core/mobile-app.js?v=20261009-mobile-app"></script>
+  <script src="/data-core/mobile-app.js?v=20261012-mode-switch"></script>
   <script src="/data-core/mode-home-artwork.js?v=20260921-calendar-details"></script>
   <script type="module" src="/data-core/design-shell.js?v=20260912-campus"></script>
 </body>

@@ -15,7 +15,7 @@
     ['operations','운영관리','/data-core/operations','RotateCcw'],
     ['accounts','계정·권한 관리','/data-core/accounts','Settings'],
   ];
-  const all = [['work-home','업무용 홈','/data-core/work','House'], ...work, ...admin, ['mode-home','모드 선택','/data-core','ArrowLeft']];
+  const all = [['work-home','업무용 홈','/data-core/work','House'], ...work, ...admin];
   const svg = name => `<svg class="ma-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#${name}"></use></svg>`;
   const state = { context: null, signups: 0, listeners: new Set() };
 
@@ -59,8 +59,10 @@
     <div class="ma-profile"><span class="ma-avatar big" data-ma-avatar>S</span><div><strong data-ma-name>사용자 확인 중</strong><small data-ma-role></small></div>
       <button type="button" class="ma-logout" data-ma-logout data-logout hidden>로그아웃</button></div>
     <p class="ma-group">업무</p><div class="ma-list">${row(all[0])}${work.map(row).join('')}</div>
-    <div data-ma-admin hidden><p class="ma-group">관리자</p><div class="ma-list">${admin.map(row).join('')}</div></div>
-    <a class="ma-mode" href="/data-core" data-ma-go="mode-home">${svg('ArrowLeft')}모드 선택으로 돌아가기</a>`;
+    <div data-ma-admin hidden><p class="ma-group">관리자</p><div class="ma-list">${admin.map(row).join('')}</div></div>`;
+  // 업무용 | 상담용 스위치 (mode-switch.js) right under the profile; it replaces the old back-to-mode link.
+  const modeSwitch = window.DataCoreModeSwitch?.build(true);
+  if (modeSwitch) { modeSwitch.addEventListener('click', () => sheet.close()); sheet.querySelector('.ma-profile').after(modeSwitch); }
 
   bar.querySelector('.ma-back').addEventListener('click', () => go('work-home'));
   bar.querySelector('.ma-avatar').addEventListener('click', () => sheet.showModal());
