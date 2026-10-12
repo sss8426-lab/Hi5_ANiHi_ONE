@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="/data-core/curriculum.css?v=20260930-stages">
   <link rel="stylesheet" href="/data-core/curriculum-library.css?v=20261001-edit">
   <link rel="stylesheet" href="/data-core/work/attendance.css?v=20261009-attendance-link">
-  <link rel="stylesheet" href="/data-core/award-workspace.css?v=20261012-university-search">
+  <link rel="stylesheet" href="/data-core/award-workspace.css?v=20261012-competition-search">
   <link rel="stylesheet" href="/data-core/counseling-home.css?v=20260930-cards3">
   <link rel="stylesheet" href="/data-core/counseling-sidebar.css?v=20260930-1">
   <link rel="stylesheet" href="/data-core/design-tokens.css?v=20260913-soft-premium">
@@ -347,7 +347,7 @@
               </div>
             </div>
             <section class="award-collection" id="awardEnrolledCollection" data-award-collection="enrolled">
-              <div class="award-collection-head"><h4>재원생 수상작 모음</h4><select id="awardSortEnrolled" aria-label="재원생 폴더 정렬"><option value="asc">이름 오름차순</option><option value="desc">이름 내림차순</option></select></div>
+              <div class="award-collection-head"><h4>재원생 수상작 모음</h4><div class="university-folder-controls"><select id="awardSortEnrolled" aria-label="재원생 폴더 정렬"><option value="asc">이름 오름차순</option><option value="desc">이름 내림차순</option></select><label class="university-folder-search"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Search"/></svg><input id="awardSearchEnrolled" type="search" aria-label="재원생 수상작 모음 폴더 검색" placeholder="대학·공모전명 검색" autocomplete="off"><button id="awardClearEnrolled" class="university-search-clear" type="button" aria-label="재원생 수상작 모음 검색어 지우기" hidden>×</button></label></div></div>
             <div class="award-folder-navigation" aria-label="재원생 수상작 폴더">
               <button class="icon-btn award-folder-arrow" id="awardFolderPrev" type="button" aria-label="이전 폴더" title="이전 폴더" disabled><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#ArrowLeft"/></svg></button>
               <div class="award-folder-list" id="awardFolderTrack">
@@ -356,15 +356,15 @@
               </div>
               <button class="icon-btn award-folder-arrow" id="awardFolderNext" type="button" aria-label="다음 폴더" title="다음 폴더" disabled><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" style="transform:rotate(180deg)" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#ArrowLeft"/></svg></button>
             </div>
-            </section>
+            <p class="university-search-status" id="awardSearchStatusEnrolled" role="status" aria-live="polite"></p></section>
             <section class="award-collection" id="awardPublicCollection" data-award-collection="public">
-              <div class="award-collection-head"><h4>공개 수상작 모음</h4><select id="awardSortPublic" aria-label="공개 폴더 정렬"><option value="asc">이름 오름차순</option><option value="desc">이름 내림차순</option></select></div>
+              <div class="award-collection-head"><h4>공개 수상작 모음</h4><div class="university-folder-controls"><select id="awardSortPublic" aria-label="공개 폴더 정렬"><option value="asc">이름 오름차순</option><option value="desc">이름 내림차순</option></select><label class="university-folder-search"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Search"/></svg><input id="awardSearchPublic" type="search" aria-label="공개 수상작 모음 폴더 검색" placeholder="대학·공모전명 검색" autocomplete="off"><button id="awardClearPublic" class="university-search-clear" type="button" aria-label="공개 수상작 모음 검색어 지우기" hidden>×</button></label></div></div>
               <div class="award-folder-navigation" aria-label="공개 수상작 폴더">
                 <button class="icon-btn award-folder-arrow" id="publicAwardFolderPrev" type="button" aria-label="이전 폴더" title="이전 폴더" disabled><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#ArrowLeft"/></svg></button>
                 <div class="award-folder-list award-public-track" id="publicAwardFolderTrack"><button class="secondary-btn" id="openPublicAwardFolderBtn" type="button">+ 새 폴더</button><div id="publicAwardFolderList"></div></div>
                 <button class="icon-btn award-folder-arrow" id="publicAwardFolderNext" type="button" aria-label="다음 폴더" title="다음 폴더" disabled><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" style="transform:rotate(180deg)" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#ArrowLeft"/></svg></button>
               </div>
-            </section>
+            <p class="university-search-status" id="awardSearchStatusPublic" role="status" aria-live="polite"></p></section>
             <div class="award-folder-detail" id="awardFolderDetail" hidden>
             <nav class="award-breadcrumb" id="awardBreadcrumb" aria-label="수상작 폴더 경로"></nav>
             <div class="award-folder-toolbar">
@@ -545,7 +545,7 @@
   <script src="/data-core/curriculum.js?v=20260930-start-folder-upload"></script>
   <script src="/data-core/brand-home.js?v=20260913-brand-home"></script>
   <script src="/data-core/calendar.js?v=20261009-mobile-app"></script>
-  <script src="/data-core/app.js?v=20261012-university-search"></script>
+  <script src="/data-core/app.js?v=20261012-competition-search"></script>
   <script src="/data-core/mobile-app.js?v=20261009-mobile-app"></script>
   <script src="/data-core/mode-home-artwork.js?v=20260921-calendar-details"></script>
   <script type="module" src="/data-core/design-shell.js?v=20260912-campus"></script>

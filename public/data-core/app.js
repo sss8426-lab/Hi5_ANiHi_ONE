@@ -828,8 +828,8 @@ function renderCompetitionAwardFiles(files = []) {
 // 수상작 자료실 모음. 공모전·실기대회 화면: 재원생 · 공개 수상작, 합격 재현작·우수작 화면: 합격생 재현작 · 대학 공개 우수작.
 // prefix names the folder row (…FolderList/Track/Prev/Next), detail the id prefix of the cloned folder detail.
 const AWARD_TYPES={
-  enrolled:{label:'재원생 수상작 모음',host:'awardEnrolledCollection',prefix:'award',detail:'',create:'openAwardFolderBtn',sort:'awardSortEnrolled'},
-  public:{label:'공개 수상작 모음',host:'awardPublicCollection',prefix:'publicAward',detail:'public-',create:'openPublicAwardFolderBtn',sort:'awardSortPublic'},
+  enrolled:{label:'재원생 수상작 모음',host:'awardEnrolledCollection',prefix:'award',detail:'',create:'openAwardFolderBtn',sort:'awardSortEnrolled',search:'awardSearchEnrolled',clear:'awardClearEnrolled',status:'awardSearchStatusEnrolled'},
+  public:{label:'공개 수상작 모음',host:'awardPublicCollection',prefix:'publicAward',detail:'public-',create:'openPublicAwardFolderBtn',sort:'awardSortPublic',search:'awardSearchPublic',clear:'awardClearPublic',status:'awardSearchStatusPublic'},
   admitted:{label:'대학합격 재현작',host:'awardAdmittedCollection',prefix:'admittedAward',detail:'admitted-',create:'openAdmittedAwardFolderBtn',sort:'awardSortAdmitted',search:'awardSearchAdmitted',clear:'awardClearAdmitted',status:'awardSearchStatusAdmitted'},
   university:{label:'대학발표 우수작',host:'awardUniversityCollection',prefix:'universityAward',detail:'university-',create:'openUniversityAwardFolderBtn',sort:'awardSortUniversity',search:'awardSearchUniversity',clear:'awardClearUniversity',status:'awardSearchStatusUniversity'},
 };
@@ -912,7 +912,7 @@ function createAwardCollection(type, collectionState) {
     const rootId = state.awardBreadcrumbs?.[0]?.id || selected?.id;
     const folder = !query || matches.some(item=>item.id===rootId) ? selected : null;
     if (config.status) {
-      $(config.status).textContent = query ? '검색 결과 '+matches.length+'개 · 전체 '+roots.length+'개' : '전체 '+roots.length+'개 대학·기관';
+      $(config.status).textContent = query ? '검색 결과 '+matches.length+'개 · 전체 '+roots.length+'개' : '전체 '+roots.length+'개 '+(['admitted','university'].includes(type) ? '대학·기관' : '폴더');
       $(config.clear).hidden = !$(config.search).value;
     }
     const typeOf = item => item.collectionType || item.metadata?.collectionType;
@@ -928,7 +928,7 @@ function createAwardCollection(type, collectionState) {
       const current=item.id===state.selectedAwardFolderId, through=!current&&onPath.has(item.id);
       return `<button type="button" title="${h(item.title)}" class="award-folder-tab ${current||(!child&&through)?'active':''} ${child&&through?'in-path':''}" aria-pressed="${current}" data-award-folder-id="${h(item.id)}">${child?'<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Folder"/></svg>':''}<strong>${h(item.title)}</strong></button>`;
     }).join('') || '<span class="empty-state compact">폴더가 없습니다.</span>';
-    list.innerHTML = query && !matches.length ? '<span class="empty-state compact">검색된 대학이 없습니다.</span>' : buttons(sort(matches,type));
+    list.innerHTML = query && !matches.length ? '<span class="empty-state compact">'+(['admitted','university'].includes(type) ? '검색된 대학이 없습니다.' : '검색된 폴더가 없습니다.')+'</span>' : buttons(sort(matches,type));
     if (query) list.closest('.award-folder-list')?.scrollTo({left:0});
     const levels = path.map(node=>({node,items:state.awardFolders.filter(item=>parentOf(item)===node.id)})).filter(level=>level.items.length);
     $('awardChildFolders').innerHTML = folder ? (levels.length?levels.map(level=>`<div class="award-level" role="group" aria-label="${h(level.node.title)} 폴더"><span class="award-level-label" title="${h(level.node.title)}">${h(level.node.title)}</span><div class="award-level-items">${buttons(sort(level.items,typeOf(folder)||'enrolled'),true)}</div></div>`).join(''):'<span class="empty-state compact">하위 폴더가 없습니다.</span>') : '';
