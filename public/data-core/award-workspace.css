@@ -4,6 +4,22 @@
 .award-collection-head { display:grid; gap:12px; margin-bottom:8px; }
 .award-collection-head h4 { font-size:14px; margin:0; }
 .award-collection-head select { width:100%; max-width:none; min-height:40px; }
+.university-folder-controls { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.award-collection-head .university-folder-controls select { width:190px; max-width:190px; flex:0 0 190px; }
+.university-folder-search { display:flex; align-items:center; gap:10px; width:420px; max-width:100%; min-width:0; min-height:40px; padding:0 12px; background:#fff; border:1px solid var(--core-border,#bbc9c0); border-radius:8px; }
+.university-folder-search:focus-within { outline:2px solid #19584c; outline-offset:2px; }
+.university-folder-search svg { flex-shrink:0; color:#63756b; }
+.university-folder-search input { flex:1; min-width:0; width:100%; border:0; border-radius:0; background:transparent; padding:8px 0; box-shadow:none; outline:0; font-size:16px; }
+body.data-core-layout .university-folder-search input { border:0!important; border-radius:0!important; background:transparent!important; padding:8px 0!important; box-shadow:none!important; outline:0!important; }
+.university-folder-search input[type=search]::-webkit-search-cancel-button { display:none; }
+.university-search-clear { border:0; background:transparent; color:#52635a; padding:4px; min-width:28px; min-height:32px; font-size:22px; cursor:pointer; }
+.university-search-clear[hidden] { display:none!important; }
+.university-search-status { margin:10px 0 0; font-size:13px; color:#586c60; }
+@media(max-width:600px) {
+  .university-folder-controls { gap:10px; }
+  .award-collection-head .university-folder-controls select { flex-basis:146px; width:146px; max-width:146px; font-size:13px; padding-inline:8px; }
+  .university-folder-search { flex:1; width:auto; gap:6px; padding-inline:8px; }
+}
 .award-child-list { display:flex; align-items:center; flex-wrap:wrap; gap:8px; min-width:0; }
 #publicAwardFolderList { display:contents; }
 .award-child-list>button { flex:0 1 auto; }
