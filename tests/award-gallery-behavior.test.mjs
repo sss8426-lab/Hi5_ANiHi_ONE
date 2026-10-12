@@ -218,3 +218,40 @@ test('selection deletion snapshots folder, checks ownership, preserves unselecte
   await h.run('awards.deleteSelectedAwards()');
   assert.equal(calls.filter(([,method])=>method==='DELETE').length, 2);
 });
+
+test('단계별 줄: every folder on the open path keeps its row, so another 연도 or 상 is one tap away', async () => {
+  const h = harness();
+  const F = (id, title, parentFolderId) => ({id, title, collectionType: 'enrolled', ...(parentFolderId ? {parentFolderId} : {})});
+  const uni = F('u', '서울여대'), y24 = F('y24', '2024', 'u'), y25 = F('y25', '2025', 'u'), y26 = F('y26', '2026', 'u');
+  const gold = F('gold', '금상', 'y25'), grand = F('grand', '대상', 'y25');
+  h.context.data = {all: [uni, F('other', '연세대'), y24, y25, y26, gold, grand], path: [uni, y25, grand]};
+  h.run("state.awardFolders=data.all;state.awardBreadcrumbs=data.path;state.selectedAwardFolderId='grand';awards.renderAwardFolders()");
+  const rows = h.element('awardChildFolders').innerHTML.split('class="award-level"').slice(1);
+  assert.equal(rows.length, 2, 'a row for 서울여대 (연도) and one for 2025 (상)');
+  assert.match(rows[0], /award-level-label[^>]*>서울여대</); assert.match(rows[0], />2024<.*>2025<.*>2026</s);
+  assert.match(rows[0], /class="award-folder-tab  in-path"[^>]*data-award-folder-id="y25"/, '2025 is marked as the way in');
+  assert.match(rows[1], /award-level-label[^>]*>2025</); assert.match(rows[1], /class="award-folder-tab active "[^>]*aria-pressed="true" data-award-folder-id="grand"/);
+  assert.match(h.element('awardFolderList').innerHTML, /class="award-folder-tab active "[^>]*data-award-folder-id="u"/, 'the 대학 stays selected on the top row');
+
+  // A 연도 without 하위 폴더: one row of 연도, the open one filled.
+  h.context.data = {all: [uni, y24, y25, y26], path: [uni, y25]};
+  h.run("state.awardFolders=data.all;state.awardBreadcrumbs=data.path;state.selectedAwardFolderId='y25';awards.renderAwardFolders()");
+  const one = h.element('awardChildFolders').innerHTML;
+  assert.equal(one.split('class="award-level"').length - 1, 1);
+  assert.match(one, /class="award-folder-tab active "[^>]*data-award-folder-id="y25"/);
+  assert.doesNotMatch(one, /하위 폴더가 없습니다/);
+
+  // Opening a 연도 also loads the other 연도 of the 대학.
+  const asked = [];
+  h.context.api = async (url) => {
+    asked.push(url);
+    if (url.includes('collectionType=enrolled')) return {folders: [uni]};
+    if (url.startsWith('/api/data-core/awards/folders/y25')) return {record: y25, breadcrumbs: [uni, y25]};
+    if (url.includes('parentId=u')) return {folders: [y24, y25, y26]};
+    return {folders: [], files: [], events: []};
+  };
+  await h.run("awards.loadAwardFolders('y25', true)");
+  assert.ok(asked.some((u) => u.includes('parentId=u')), 'siblings of the open 연도 are requested');
+  assert.equal(h.run("JSON.stringify(state.awardFolders.map(f=>f.id).sort())"), '["u","y24","y25","y26"]');
+  assert.match(h.element('awardChildFolders').innerHTML, /data-award-folder-id="y24".*data-award-folder-id="y26"/s);
+});
