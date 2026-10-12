@@ -895,10 +895,17 @@ function createAwardCollection(type, collectionState) {
     detail.hidden = !folder;
     const parentOf = item => item.parentFolderId || item.metadata?.parentFolderId;
     const sort = (items,type) => [...items].sort((a,b)=>(a.title || '').localeCompare(b.title || '', 'ko-KR',{numeric:true}) * (awardSort[type]==='desc'?-1:1));
-    const buttons = (items, child = false) => items.map(item=>`<button type="button" title="${h(item.title)}" class="award-folder-tab ${item.id===state.selectedAwardFolderId?'active':''}" aria-pressed="${item.id===state.selectedAwardFolderId}" data-award-folder-id="${h(item.id)}">${child?'<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Folder"/></svg>':''}<strong>${h(item.title)}</strong></button>`).join('') || '<span class="empty-state compact">폴더가 없습니다.</span>';
+    // The open folder's path (대학 › 연도 › …). Every folder on it keeps its row of choices below, so another
+    // 연도 or 상 is one tap away without going back.
+    const path = folder ? ((state.awardBreadcrumbs||[]).length ? state.awardBreadcrumbs : [folder]) : [];
+    const onPath = new Set(path.map(item=>item.id));
+    const buttons = (items, child = false) => items.map(item=>{
+      const current=item.id===state.selectedAwardFolderId, through=!current&&onPath.has(item.id);
+      return `<button type="button" title="${h(item.title)}" class="award-folder-tab ${current||(!child&&through)?'active':''} ${child&&through?'in-path':''}" aria-pressed="${current}" data-award-folder-id="${h(item.id)}">${child?'<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><use href="/data-core/assets/core-icons.svg#Folder"/></svg>':''}<strong>${h(item.title)}</strong></button>`;
+    }).join('') || '<span class="empty-state compact">폴더가 없습니다.</span>';
     list.innerHTML = buttons(sort(state.awardFolders.filter(item=>!parentOf(item)),type));
-    const children=state.awardFolders.filter(item=>parentOf(item)===folder?.id);
-    $('awardChildFolders').innerHTML = folder ? (children.length?buttons(sort(children,typeOf(folder)||'enrolled'),true):'<span class="empty-state compact">하위 폴더가 없습니다.</span>') : '';
+    const levels = path.map(node=>({node,items:state.awardFolders.filter(item=>parentOf(item)===node.id)})).filter(level=>level.items.length);
+    $('awardChildFolders').innerHTML = folder ? (levels.length?levels.map(level=>`<div class="award-level" role="group" aria-label="${h(level.node.title)} 폴더"><span class="award-level-label" title="${h(level.node.title)}">${h(level.node.title)}</span><div class="award-level-items">${buttons(sort(level.items,typeOf(folder)||'enrolled'),true)}</div></div>`).join(''):'<span class="empty-state compact">하위 폴더가 없습니다.</span>') : '';
     host.querySelectorAll('[data-award-folder-id]').forEach((button) => {
       button.onclick = async () => {
         await navigateAwardFolder(button.dataset.awardFolderId);
@@ -1178,6 +1185,9 @@ function createAwardCollection(type, collectionState) {
       if(selectedId) {
         try { [detail,children]=await Promise.all([api('/api/data-core/awards/folders/'+encodeURIComponent(selectedId)),pages('parentId='+encodeURIComponent(selectedId))]); }
         catch(error) { if(error.status!==404)throw error; }
+        // The other folders beside each step of the path (e.g. every 연도 of the 대학) for the rows under the path.
+        const above=(detail?.breadcrumbs||[]).slice(0,-1);
+        if(above.length) children=[...children,...(await Promise.all(above.map(item=>pages('parentId='+encodeURIComponent(item.id))))).flat()];
       }
       if(token!==view.folderRequest)return;
       if (detail?.record && (detail.record.collectionType || detail.record.metadata?.collectionType || 'enrolled') !== type) {
