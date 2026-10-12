@@ -1339,6 +1339,21 @@ function mountAwardCollectionDetails() {
 mountAwardCollectionDetails();
 const awardCollections = Object.fromEntries(Object.entries(AWARD_TYPES).filter(([,config])=>$(config.host)).map(([type])=>[type,
   createAwardCollection(type, type==='enrolled' ? state : Object.assign(Object.create(state), {awardFolders:[],awardFiles:[],awardBreadcrumbs:[],selectedAwardFolderId:null}))]));
+// 뒤로가기 = 상위 폴더 (up-history.js): an opened 수상작 folder goes back to its parent folder.
+window.DataCoreUpHistory?.resolve(url => {
+  const id = url.searchParams.get('awardFolder');
+  if (!id || !/^\/data-core\/counseling\/(competitions|works)\/?$/.test(url.pathname)) return undefined;
+  for (const [type, pane] of Object.entries(awardCollections)) {
+    const folder = pane.state.awardFolders.find(item => item.id === id);
+    if (!folder) continue;
+    const parentId = folder.parentFolderId || folder.metadata?.parentFolderId || null, next = new URL(url);
+    next.hash = '';
+    if (parentId) { next.searchParams.set(type+'AwardFolder', parentId); next.searchParams.set('awardFolder', parentId); }
+    else { next.searchParams.delete(type+'AwardFolder'); next.searchParams.delete('awardFolder'); }
+    return next.pathname + next.search;
+  }
+  return undefined;
+});
 let awardNavigationRequest = 0;
 let universityFoldersReady = null;
 async function prepareUniversityWorkFolders() {

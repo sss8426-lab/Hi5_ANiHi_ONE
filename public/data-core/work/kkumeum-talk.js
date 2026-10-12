@@ -135,6 +135,16 @@
     finally{ st.busy=false; }
   }
 
+  // 뒤로가기 = 상위 화면 (up-history.js): a 대화 goes back to its own 답변모음 / 문의모음.
+  window.DataCoreUpHistory?.resolve(url => {
+    if (!/\/data-core\/kkumeum\/?$/.test(url.pathname) || url.searchParams.get('view') !== 'thread') return undefined;
+    const thread = st.thread?.thread;
+    if (!thread || thread.id !== url.searchParams.get('item')) return undefined;
+    const next = new URL('/data-core/kkumeum', location.origin);
+    if (url.searchParams.get('tab')) next.searchParams.set('tab', url.searchParams.get('tab'));
+    next.searchParams.set('view', VIEW[thread.kind] || 'answers');
+    return next.pathname + next.search;
+  });
   window.KkumeumTalk = {
     open(context) {
       ctx=context; const {view,id}=ctx.route();

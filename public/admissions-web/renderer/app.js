@@ -1466,7 +1466,24 @@ async function boot(){
   }
 }
 function admissionsHistoryWindow(){ try { return window.top.location.origin === location.origin ? window.top : window; } catch { return window; } }
+// 뒤로가기 = 한 단계 위로: 학생 관리 (the first page) is the parent of every other page, so the browser's back button
+// goes 페이지 → 학생 관리 → the screen that opened the roadmap. Moving between pages replaces the entry instead of adding one.
+const ADMISSIONS_HOME = 'students';
+function pushAdmissionsPage(page){
+  const w = admissionsHistoryWindow(), hash = `#page=${encodeURIComponent(page)}`;
+  const current = new URLSearchParams(w.location.hash.slice(1)).get('page') || ADMISSIONS_HOME;
+  if(page === ADMISSIONS_HOME || current !== ADMISSIONS_HOME) w.history.replaceState({admissionsUp:1},'',hash);
+  else w.history.pushState({admissionsUp:1},'',hash);
+}
+function settleAdmissionsPage(){
+  const w = admissionsHistoryWindow(), page = new URLSearchParams(w.location.hash.slice(1)).get('page') || ADMISSIONS_HOME;
+  if(page === ADMISSIONS_HOME || page === 'dashboard' || w.history.state?.admissionsUp) return;
+  const hash = w.location.hash;
+  w.history.replaceState(null,'',`#page=${ADMISSIONS_HOME}`);
+  w.history.pushState({admissionsUp:1},'',hash);
+}
 function routeAdmissions(){
+  settleAdmissionsPage();
   const params = new URLSearchParams(admissionsHistoryWindow().location.hash.slice(1));
   const page = ['students','cases','works','strategy','admin','awards','settings','susi','jungsi'].includes(params.get('page')) ? params.get('page') : 'students';
   const university = params.get('university');
@@ -1483,7 +1500,7 @@ function showPage(page, updateHistory=true){
   closeArtworkViewer?.();
   const target = $(page);
   if(!target) return;
-  if(updateHistory) admissionsHistoryWindow().history.pushState(null,'',`#page=${encodeURIComponent(page)}`);
+  if(updateHistory) pushAdmissionsPage(page);
   pageRenderToken += 1;
   const token = pageRenderToken;
   document.querySelectorAll('.page').forEach(p=>p.classList.add('hidden'));
