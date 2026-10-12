@@ -1466,9 +1466,25 @@ async function boot(){
   }
 }
 function admissionsHistoryWindow(){ try { return window.top.location.origin === location.origin ? window.top : window; } catch { return window; } }
+// 뒤로가기 = 한 단계 위로: 대시보드 is the parent of every other page, so the browser's back button goes
+// 페이지 → 대시보드 → the screen that opened the roadmap. Moving between pages replaces the entry instead of adding one.
+function pushAdmissionsPage(page){
+  const w = admissionsHistoryWindow(), hash = `#page=${encodeURIComponent(page)}`;
+  const current = new URLSearchParams(w.location.hash.slice(1)).get('page') || 'dashboard';
+  if(page === 'dashboard' || current !== 'dashboard') w.history.replaceState({admissionsUp:1},'',hash);
+  else w.history.pushState({admissionsUp:1},'',hash);
+}
+function settleAdmissionsPage(){
+  const w = admissionsHistoryWindow(), page = new URLSearchParams(w.location.hash.slice(1)).get('page') || 'dashboard';
+  if(page === 'dashboard' || w.history.state?.admissionsUp) return;
+  const hash = w.location.hash;
+  w.history.replaceState(null,'','#page=dashboard');
+  w.history.pushState({admissionsUp:1},'',hash);
+}
 function routeAdmissions(){
+  settleAdmissionsPage();
   const params = new URLSearchParams(admissionsHistoryWindow().location.hash.slice(1));
-  const page = ['dashboard','students','cases','works','strategy','admin','awards','settings','susi','jungsi'].includes(params.get('page')) ? params.get('page') : 'dashboard';
+  const page = ['students','cases','works','strategy','admin','awards','settings','susi','jungsi'].includes(params.get('page')) ? params.get('page') : 'students';
   const university = params.get('university');
   if(page === 'admin' && university && state.data.universities.some(u=>String(u.id)===university)) state.selectedUniversityId = state.data.universities.find(u=>String(u.id)===university).id;
   showPage(page, false);
@@ -1479,10 +1495,11 @@ function bindNav(){
   admissionsHistoryWindow().addEventListener('hashchange',routeAdmissions);
 }
 function showPage(page, updateHistory=true){
+  if(page === 'dashboard') page = 'students';
   closeArtworkViewer?.();
   const target = $(page);
   if(!target) return;
-  if(updateHistory) admissionsHistoryWindow().history.pushState(null,'',`#page=${encodeURIComponent(page)}`);
+  if(updateHistory) pushAdmissionsPage(page);
   pageRenderToken += 1;
   const token = pageRenderToken;
   document.querySelectorAll('.page').forEach(p=>p.classList.add('hidden'));
@@ -1496,7 +1513,6 @@ function showPage(page, updateHistory=true){
 function renderAll(){ renderPage(activePageId()); }
 function renderPage(page){
   try{
-    if(page==='dashboard') renderDashboard();
     if(page==='students') renderStudents();
     if(page==='cases') renderCases();
     if(page==='strategy') renderStrategy();
@@ -1509,13 +1525,13 @@ function renderPage(page){
     renderAppError(error, page);
   }
 }
-function renderAppError(error, page='dashboard'){
-  const target = $(page) || $('dashboard');
+function renderAppError(error, page='students'){
+  const target = $(page) || $('students');
   if(!target) return;
   target.innerHTML = `<div class="top"><div><h1>화면을 여는 중 문제가 발생했습니다</h1><p>프로그램을 다시 실행해도 반복되면 아래 오류 내용을 알려주세요.</p></div></div><section class="card"><pre class="error-box">${h(error?.stack || error?.message || error || '알 수 없는 오류')}</pre></section>`;
   console.error(error);
 }
-function activePageId(){ return document.querySelector('.page:not(.hidden)')?.id || 'dashboard'; }
+function activePageId(){ return document.querySelector('.page:not(.hidden)')?.id || 'students'; }
 
 let verifiedGradeDraft = null;
 let gradeMountToken = 0;
@@ -1546,7 +1562,7 @@ function renderVerifiedGradePage(page) {
     });
   }).catch(error => { if(current()) renderAppError(error,page); });
 }
-function renderDashboard(){ renderVerifiedGradePage('dashboard'); }
+function renderDashboard(){ if($('dashboard')) renderVerifiedGradePage('dashboard'); }
 
 function renderStudents(){
   const query = state.studentSearch.trim().toLowerCase();
@@ -2391,8 +2407,8 @@ function bindAwards(){
 function renderWorks(){
   const page = $('works');
   if(page.querySelector('#worksFrame')) return;
-  page.innerHTML = `<div class="top"><div><h1>합격 재현작 · 대학 우수작</h1><p>합격생이 다시 그린 재현작과 대학이 공개한 우수작을 대학·연도별 폴더로 모아 봅니다.</p></div></div>
-    <iframe id="worksFrame" class="works-frame" src="/data-core/counseling/works?embed=1" title="합격 재현작·대학 우수작 폴더" style="display:block;width:100%;min-height:640px;border:0;background:transparent"></iframe>`;
+  page.innerHTML = `<div class="top"><div><h1>대학합격 우수작 · 우수작</h1><p>대학합격 우수작과 공개 우수작을 대학·연도별 폴더로 모아 봅니다.</p></div></div>
+    <iframe id="worksFrame" class="works-frame" src="/data-core/counseling/works?embed=1" title="대학합격 우수작·우수작 폴더" style="display:block;width:100%;min-height:640px;border:0;background:transparent"></iframe>`;
 }
 window.addEventListener('message', event => {
   if(event.origin !== location.origin || event.data?.type !== 'data-core-embed-height') return;
@@ -2404,14 +2420,14 @@ function renderSettings(){
   const consultantOptionsMarkup = consultantNameOptions().map(name => `<option value="${h(name)}" ${consultantName()===name?'selected':''}>${h(name)}</option>`).join('');
   $('settings').innerHTML=`<div class="top"><div><h1>설정 / 백업</h1><p>기존 데이터를 덮어쓰지 않고 학생·대학 데이터를 추가하거나 내보낼 수 있습니다.</p></div></div>
   <div class="settings-grid">
-    <section class="card"><h2>컨설턴트 이름</h2><p class="muted">대시보드 상단에 표시할 학원명을 선택합니다.</p><div class="field"><label>표시 이름</label><select id="consultantNameInput">${consultantOptionsMarkup}</select></div><button class="btn primary settings-save-btn" id="saveConsultantNameBtn">이름 저장</button></section>
+    <section class="card"><h2>컨설턴트 이름</h2><p class="muted">로드맵에 표시할 학원명을 선택합니다.</p><div class="field"><label>표시 이름</label><select id="consultantNameInput">${consultantOptionsMarkup}</select></div><button class="btn primary settings-save-btn" id="saveConsultantNameBtn">이름 저장</button></section>
     <section class="card"><h2>데이터 추가 가져오기</h2><p class="muted">다른 PC에서 받은 JSON 데이터를 현재 데이터 뒤에 추가합니다.</p><div class="actions wrap"><button class="btn primary" id="importStudentsBtn">학생 데이터 추가</button><button class="btn primary" id="importUniversitiesBtn">대학 데이터 추가</button></div></section>
     <section class="card"><h2>데이터 내보내기</h2><p class="muted">학생 또는 대학 데이터만 따로 저장해 다른 PC와 공유합니다.</p><div class="actions wrap"><button class="btn" id="exportStudentsBtn">학생데이터 내보내기</button><button class="btn" id="exportUniversitiesBtn">대학데이터 내보내기</button></div></section>
     <section class="card"><h2>기존 그림 웹 저장소 이전</h2><p class="muted">설치형 프로그램에서 쓰던 그림 폴더를 선택하면 웹에서도 보이도록 이미지 주소를 바꿉니다.</p><div class="actions wrap"><button class="btn primary" id="migrateLegacyImagesBtn">기존 그림 폴더 선택해서 이전</button></div><div id="legacyImageMigrationStatus" class="notice compact">권장 선택 위치: %APPDATA%\\admissions-consulting-desktop</div></section>
     <section class="card"><h2>전체 백업</h2><p class="muted">전체 백업/복원은 비상용입니다. 복원은 현재 데이터를 교체합니다.</p><div class="actions wrap"><button class="btn" id="backupBtn">전체 데이터 백업</button><button class="btn danger" id="restoreBtn">전체 백업 복원</button><button class="btn" id="pathBtn">데이터 위치 확인</button></div></section>
   </div>
   <div id="settingsMsg" class="notice">추천 방향: 학원 PC끼리는 학생 데이터와 대학 데이터를 분리해서 주고받으면 충돌이 적고 관리가 쉽습니다.</div>`;
-  $('saveConsultantNameBtn').onclick=async()=>{const selectedName=$('consultantNameInput').value; const consultantName=consultantNameOptions().includes(selectedName)?selectedName:consultantNameOptions()[0]; await window.desktopAPI.updateSettings({consultantName}); setStateData(await window.desktopAPI.getAll()); $('settingsMsg').textContent=`대시보드 이름을 ${consultantName}(으)로 저장했습니다.`; renderDashboard();};
+  $('saveConsultantNameBtn').onclick=async()=>{const selectedName=$('consultantNameInput').value; const consultantName=consultantNameOptions().includes(selectedName)?selectedName:consultantNameOptions()[0]; await window.desktopAPI.updateSettings({consultantName}); setStateData(await window.desktopAPI.getAll()); $('settingsMsg').textContent=`로드맵 이름을 ${consultantName}(으)로 저장했습니다.`; renderDashboard();};
   $('importStudentsBtn').onclick=async()=>{const r=await window.desktopAPI.importStudentsAppend(); if(r.ok){setStateData(await window.desktopAPI.getAll()); $('settingsMsg').textContent=`학생 데이터 ${r.count}건을 추가했습니다.`;}};
   $('importUniversitiesBtn').onclick=async()=>{const r=await window.desktopAPI.importUniversitiesAppend(); if(r.ok){setStateData(await window.desktopAPI.getAll()); $('settingsMsg').textContent=`대학 데이터 ${r.count}건을 추가했습니다.`;}};
   $('exportStudentsBtn').onclick=async()=>{const r=await window.desktopAPI.exportStudents(); if(r.ok)$('settingsMsg').textContent=`학생 데이터 ${r.count}건을 내보냈습니다: ${r.filePath}`;};

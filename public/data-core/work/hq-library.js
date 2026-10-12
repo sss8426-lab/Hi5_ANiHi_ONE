@@ -114,6 +114,17 @@
     const params = new URLSearchParams(location.search);
     return { id: params.get('folder') || 'root', q: params.get('q') || '', page: Math.max(1, Number(params.get('page')) || 1), sort:params.get('sort')||'newest', focusId:params.get('focusId')||'' };
   }
+  // 뒤로가기 = 상위 폴더 (up-history.js).
+  window.DataCoreUpHistory?.resolve(url => {
+    if (url.pathname.replace(/\/+$/, '') !== '/data-core/work/library') return undefined;
+    const id = url.searchParams.get('folder') || 'root';
+    if (url.searchParams.get('q')) return href(id);
+    if (id === 'root') return undefined;
+    const trail = state.breadcrumbs || [], at = trail.findIndex(item => item.id === id);
+    if (at > 0) return href(trail[at - 1].id);
+    const known = [state.folder, ...(state.folders || [])].find(item => item?.id === id);
+    return known ? href(known.parentId || 'root') : undefined;
+  });
   function navigate(id, q = '', page = 1, focusId = '', sort = locationState().sort) {
     if (id !== locationState().id) state.kind = '';
     history.replaceState({...history.state,scrollY:window.scrollY},'');
