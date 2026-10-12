@@ -43,8 +43,8 @@ try {
     assert.equal(await frame.locator('#admittedAwardFolderList [data-award-folder-id]').count(),68);
     assert.equal(await frame.locator('#universityAwardFolderList [data-award-folder-id]').count(),68);
     assert.equal(await frame.locator('#nav [data-view=works]').count(),0);
-    assert.equal(await frame.locator('#awardAdmittedCollection h4').innerText(),'대학합격 우수작');
-    assert.equal(await frame.locator('#awardUniversityCollection h4').innerText(),'우수작');
+    assert.equal(await frame.locator('#awardAdmittedCollection h4').innerText(),'대학합격 재현작');
+    assert.equal(await frame.locator('#awardUniversityCollection h4').innerText(),'대학발표 우수작');
     await frame.locator('#admittedAwardFolderList button').filter({hasText:'건국대학교 (글로컬캠퍼스)'}).click();
     await frame.locator('#admitted-openAwardChildBtn').click();
     await frame.locator('#awardFolderTitle').fill('합성 검증 연도 '+width);
