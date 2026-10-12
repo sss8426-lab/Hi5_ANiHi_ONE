@@ -38,7 +38,7 @@ export async function boundedJson(response: Response, maxBytes: number) {
   finally { reader.releaseLock(); }
 }
 
-async function callOpenAi(env: OpenAiEnv, endpoint: 'responses' | 'images/edits', body: string | FormData, signal?: AbortSignal) {
+export async function callOpenAi(env: OpenAiEnv, endpoint: 'responses' | 'images/edits', body: string | FormData, signal?: AbortSignal) {
   if (!env.OPENAI_API_KEY) throw unavailable();
   const callId=crypto.randomUUID();
   const meter=async(status:string,usage?:unknown)=>{try{await env.meter?.(callId,status,usage);}catch{console.error('[openai]',{code:'usage_record_unavailable'});}};
