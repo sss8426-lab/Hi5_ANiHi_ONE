@@ -68,3 +68,16 @@ body.data-core-layout.data-core-layout .award-library .award-level .award-folder
 body.data-core-layout.data-core-layout .award-library .award-level .award-folder-tab.active svg { color:#fff; }
 body.data-core-layout.data-core-layout .award-library .award-level .award-folder-tab.in-path { color:#174e9f; background:#eef3fc; border-color:#215ab7; box-shadow:inset 0 0 0 1px #215ab7; }
 @media (max-width:640px) { .award-level { flex-wrap:wrap; gap:6px; } .award-level-label { width:100%; text-align:left; } }
+/* 합격 재현작 · 대학 우수작 (view-works) */
+.works-intro { margin:8px 0 18px; }
+.works-intro h2 { font-size:28px; line-height:1.3; margin:4px 0 8px; }
+.works-intro p:last-child { color:var(--core-text-secondary, #5b6570); margin:0; }
+.works-library { display:grid; gap:4px; }
+.works-library.award-library { position:static; max-height:none; overflow:visible; }
+#admittedAwardFolderList, #universityAwardFolderList { display:contents; }
+/* ?embed=1 inside 대학 합격 로드맵: content only, no DATA CORE frame around it. */
+body.data-core-embed :is(.sidebar, .topbar, .core-menu-toggle, .core-nav-dialog) { display:none !important; }
+body.data-core-embed .app-shell { display:block; min-height:0; }
+body.data-core-embed .main { min-height:0; padding:0 4px 24px; margin:0; max-width:none; }
+body.data-core-embed .works-intro { display:none; }
+body.data-core-embed { background:transparent; min-height:0; }

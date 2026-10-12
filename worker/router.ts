@@ -763,6 +763,8 @@ const worker = {
         url.pathname === "/data-core/counseling/" ||
         url.pathname === "/data-core/counseling/competitions" ||
         url.pathname === "/data-core/counseling/competitions/" ||
+        url.pathname === "/data-core/counseling/works" ||
+        url.pathname === "/data-core/counseling/works/" ||
         /^\/data-core\/curriculum(?:\/(?:start(?:\/(?:drawing|comics|design))?|(content|design)(?:\/(basic|advanced|admission))?))?\/?$/.test(url.pathname) ||
         url.pathname === "/data-core/work" ||
         url.pathname === "/data-core/work/" ||

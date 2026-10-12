@@ -1468,7 +1468,7 @@ async function boot(){
 function admissionsHistoryWindow(){ try { return window.top.location.origin === location.origin ? window.top : window; } catch { return window; } }
 function routeAdmissions(){
   const params = new URLSearchParams(admissionsHistoryWindow().location.hash.slice(1));
-  const page = ['dashboard','students','cases','strategy','admin','awards','settings','susi','jungsi'].includes(params.get('page')) ? params.get('page') : 'dashboard';
+  const page = ['dashboard','students','cases','works','strategy','admin','awards','settings','susi','jungsi'].includes(params.get('page')) ? params.get('page') : 'dashboard';
   const university = params.get('university');
   if(page === 'admin' && university && state.data.universities.some(u=>String(u.id)===university)) state.selectedUniversityId = state.data.universities.find(u=>String(u.id)===university).id;
   showPage(page, false);
@@ -1502,6 +1502,7 @@ function renderPage(page){
     if(page==='strategy') renderStrategy();
     if(page==='admin') renderAdmin();
     if(page==='awards') renderAwards();
+    if(page==='works') renderWorks();
     if(page==='settings') renderSettings();
     if(page==='susi' || page==='jungsi') import('./guidelines.js?v=20260929-links').then(m=>m.renderGuidelines(page)).catch(()=>{ $(page).textContent='입시요강 화면을 불러오지 못했습니다. 새로고침해주세요.'; });
   }catch(error){
@@ -2384,6 +2385,20 @@ function bindAwards(){
     };
   });
 }
+
+// 합격 재현작·대학 우수작: DATA CORE의 같은 폴더 화면(대학·연도 폴더, 단계별 줄, 이미지 보기·업로드)을 로드맵 안에 보여 준다.
+// 권한은 DATA CORE 서버가 그대로 확인한다.
+function renderWorks(){
+  const page = $('works');
+  if(page.querySelector('#worksFrame')) return;
+  page.innerHTML = `<div class="top"><div><h1>합격 재현작 · 대학 우수작</h1><p>합격생이 다시 그린 재현작과 대학이 공개한 우수작을 대학·연도별 폴더로 모아 봅니다.</p></div></div>
+    <iframe id="worksFrame" class="works-frame" src="/data-core/counseling/works?embed=1" title="합격 재현작·대학 우수작 폴더" style="display:block;width:100%;min-height:640px;border:0;background:transparent"></iframe>`;
+}
+window.addEventListener('message', event => {
+  if(event.origin !== location.origin || event.data?.type !== 'data-core-embed-height') return;
+  const frame = $('worksFrame');
+  if(frame && event.source === frame.contentWindow) frame.style.height = `${Math.max(640, Number(event.data.height) || 0)}px`;
+});
 
 function renderSettings(){
   const consultantOptionsMarkup = consultantNameOptions().map(name => `<option value="${h(name)}" ${consultantName()===name?'selected':''}>${h(name)}</option>`).join('');

@@ -15,7 +15,10 @@ export function requireAwardMember(context: DataCoreAccessContext) {
   requireAuthenticatedAccess(context);
   if (!awardMember(context)) throw new DataCoreAccessError(403, '업무용 계정만 수상작 자료실을 사용할 수 있습니다.');
 }
-function collection(value: unknown) { return value === 'enrolled' || value === 'public' ? value : null; }
+// 모음: 재원생 수상작(enrolled) · 공개 수상작(public) · 합격생 재현작(admitted) · 대학 공개 우수작(university).
+// Folders made before typing existed have no collectionType and belong to 재원생.
+const COLLECTIONS = ['enrolled', 'public', 'admitted', 'university'] as const;
+function collection(value: unknown) { return (COLLECTIONS as readonly unknown[]).includes(value) ? value as typeof COLLECTIONS[number] : null; }
 export async function awardRow(db: D1Database, id: string) {
   return db.prepare('SELECT * FROM data_records WHERE id=? AND organization_id=? AND record_type=? AND source_app=?')
     .bind(id, ORG, AWARD_FOLDER, 'competition').first<Row>();
@@ -151,8 +154,9 @@ export async function listAwardFolders(db: D1Database, context: DataCoreAccessCo
   if (!trash) {
     clauses.push("COALESCE(json_extract(CASE WHEN json_valid(metadata_json) THEN metadata_json ELSE '{}' END,'$.parentFolderId'),'')=?"); values.push(parentId || '');
     if (!parentId && type) {
-      clauses.push(type === 'public' ? "json_extract(CASE WHEN json_valid(metadata_json) THEN metadata_json ELSE '{}' END,'$.collectionType')='public'" :
-        "COALESCE(json_extract(CASE WHEN json_valid(metadata_json) THEN metadata_json ELSE '{}' END,'$.collectionType'),'')<>'public'");
+      const typeSql = "COALESCE(json_extract(CASE WHEN json_valid(metadata_json) THEN metadata_json ELSE '{}' END,'$.collectionType'),'')";
+      if (type === 'enrolled') clauses.push(`${typeSql} NOT IN ('public','admitted','university')`);
+      else { clauses.push(`${typeSql}=?`); values.push(type); }
     }
   }
   const offset = cursor(url), limit = 100;
