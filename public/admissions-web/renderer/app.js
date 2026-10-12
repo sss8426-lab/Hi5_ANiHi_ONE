@@ -2408,8 +2408,8 @@ function bindAwards(){
 function renderWorks(){
   const page = $('works');
   if(page.querySelector('#worksFrame')) return;
-  page.innerHTML = `<div class="top"><div><h1>대학합격 우수작 · 우수작</h1><p>대학합격 우수작과 공개 우수작을 대학·연도별 폴더로 모아 봅니다.</p></div></div>
-    <iframe id="worksFrame" class="works-frame" src="/data-core/counseling/works?embed=1" title="대학합격 우수작·우수작 폴더" style="display:block;width:100%;min-height:640px;border:0;background:transparent"></iframe>`;
+  page.innerHTML = `<div class="top"><div><h1>대학합격 재현작 및 공개우수작</h1><p>대학합격 재현작과 대학발표 우수작을 대학·연도별 폴더로 모아 봅니다.</p></div></div>
+    <iframe id="worksFrame" class="works-frame" src="/data-core/counseling/works?embed=1" title="대학합격 재현작 및 공개우수작 폴더" style="display:block;width:100%;min-height:640px;border:0;background:transparent"></iframe>`;
 }
 window.addEventListener('message', event => {
   if(event.origin !== location.origin || event.data?.type !== 'data-core-embed-height') return;

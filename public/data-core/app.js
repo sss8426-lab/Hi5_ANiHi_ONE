@@ -163,7 +163,7 @@ function titleForView(view) {
     library: '자료보관함',
     attendance: '출석부',
     competitions: '공모전·실기대회',
-    works: '대학합격 우수작·우수작',
+    works: '대학합격 재현작 및 공개우수작',
     curriculum: '꿈을 향한 커리큘럼',
     admin: '권한관리',
   })[view] || 'DATA CORE';
@@ -830,8 +830,8 @@ function renderCompetitionAwardFiles(files = []) {
 const AWARD_TYPES={
   enrolled:{label:'재원생 수상작 모음',host:'awardEnrolledCollection',prefix:'award',detail:'',create:'openAwardFolderBtn',sort:'awardSortEnrolled'},
   public:{label:'공개 수상작 모음',host:'awardPublicCollection',prefix:'publicAward',detail:'public-',create:'openPublicAwardFolderBtn',sort:'awardSortPublic'},
-  admitted:{label:'대학합격 우수작',host:'awardAdmittedCollection',prefix:'admittedAward',detail:'admitted-',create:'openAdmittedAwardFolderBtn',sort:'awardSortAdmitted'},
-  university:{label:'우수작',host:'awardUniversityCollection',prefix:'universityAward',detail:'university-',create:'openUniversityAwardFolderBtn',sort:'awardSortUniversity'},
+  admitted:{label:'대학합격 재현작',host:'awardAdmittedCollection',prefix:'admittedAward',detail:'admitted-',create:'openAdmittedAwardFolderBtn',sort:'awardSortAdmitted'},
+  university:{label:'대학발표 우수작',host:'awardUniversityCollection',prefix:'universityAward',detail:'university-',create:'openUniversityAwardFolderBtn',sort:'awardSortUniversity'},
 };
 const awardListId = type => AWARD_TYPES[type].prefix==='award' ? 'awardFolderList' : AWARD_TYPES[type].prefix+'FolderList';
 const awardSort=Object.fromEntries(Object.keys(AWARD_TYPES).map(type=>[type,'asc']));
