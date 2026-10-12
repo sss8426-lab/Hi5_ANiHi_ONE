@@ -945,7 +945,7 @@ function studentEditorMarkup(editor, editorArtworks, universityOptions, studentT
   return `<div class="student-editor inline-editor">
     <div class="top compact"><div><h2>${editor.mode === 'edit' ? '학생 정보 수정' : '학생 추가'}</h2><p>상담에 필요한 기본 성적, 학기별 과목 성적, 그림 이미지, 실기능력을 입력합니다.</p></div></div>
     <div class="admin-grid">
-      <div class="field"><label>학생 구분</label><select id="editStudentType"><option value="current" ${currentMode?'selected':''}>현재 재원생</option><option value="result" ${!currentMode?'selected':''}>입시 결과 데이터</option></select></div>
+      <div class="field"><label>학생 구분</label><select id="editStudentType"><option value="current" ${currentMode?'selected':''}>현재 재원생</option><option value="result" ${!currentMode?'selected':''}>합격자 데이터</option></select></div>
       <div class="field"><label>구분</label><select id="editStudentDivision">${STUDENT_DIVISIONS.map(([key,label]) => `<option value="${key}" ${key===studentDivision(editor.student)?'selected':''}>${label}</option>`).join('')}</select></div>
       <div class="field"><label>학생명</label><input id="editStudentName" value="${h(editor.student.name || '')}" placeholder="예: 김학생"></div>
       <div class="field"><label>내신 평균</label><input id="editStudentGpa" type="number" step="0.1" value="${h(editor.student.gpa || '')}" placeholder="3.2"></div>
