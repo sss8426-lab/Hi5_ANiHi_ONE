@@ -120,13 +120,74 @@ test('analyze sends the picture and checked works only, returns three marked dir
 test('screen: upload → university → type chips → scrollable check list (max 8) → marked result', async () => {
   const [html, js, css] = await Promise.all(['index.html', 'award-ai-direction.js', 'award-workspace.css'].map(name => readFile(new URL('../public/data-core/' + name, import.meta.url), 'utf8')));
   const section = html.slice(html.indexOf('id="awardAiDirection"'), html.indexOf('</aside>', html.indexOf('id="awardAiDirection"')));
-  for (const id of ['awardAiFile', 'awardAiUniversity', 'awardAiTypes', 'awardAiWorks', 'awardAiAll', 'awardAiNone', 'awardAiGo', 'awardAiMarks', 'awardAiDirections', 'awardAiRefs']) assert.ok(section.includes(`id="${id}"`), id);
+  for (const id of ['awardAiFile', 'awardAiUniversity', 'awardAiTypes', 'awardAiWorks', 'awardAiAll', 'awardAiNone', 'awardAiGo', 'awardAiMarks', 'awardAiDirections', 'awardAiRefs', 'awardAiAfterImage', 'awardAiAgain', 'awardAiSave', 'awardAiSaved']) assert.ok(section.includes(`id="${id}"`), id);
   assert.ok(html.indexOf('id="awardAiDirection"') > html.indexOf('id="awardFolderDetail"'));
   assert.ok(html.indexOf('award-ai-direction.js') > html.indexOf('award-image-cache.js'));
-  for (const removed of ['점수', '보호자', '인쇄', '저장하기', '연습 과제']) assert.ok(!section.includes(removed), removed);
+  for (const removed of ['점수', '보호자', '인쇄', '연습 과제']) assert.ok(!section.includes(removed), removed);
   assert.match(js, /분석하기 · 체크한 \$\{n\}장과 비교/);
   assert.match(js, /st\.picked\.size >= st\.limit/);
   assert.match(js, /'image\/jpeg', 0\.88/);
   assert.match(css, /\.award-ai-scroll \{ max-height:320px; overflow-y:auto;/);
   assert.match(css, /\.award-ai \.m1 \{ --mark:#ef4444; \} \.award-ai \.m2 \{ --mark:#f59e0b; \} \.award-ai \.m3 \{ --mark:#3b82f6; \}/);
+});
+
+test('수정 후 그림: the picture is redrawn with the directions; results save per campus, open, and delete with their pictures', async () => {
+  const h = await libraryHarness(), originalFetch = globalThis.fetch;
+  try {
+    const sharp = (await import('sharp')).default;
+    const jpeg = await sharp({ create: { width: 64, height: 96, channels: 3, background: '#88aacc' } }).jpeg().toBuffer();
+    const directions = [{ title: '명암 대비 키우기', detail: '인물은 밝게, 배경은 어둡게.', box: { x: 0.2, y: 0.2, w: 0.3, h: 0.3 } }, { title: '선 정리', detail: '겹친 선을 정리하세요.', box: { x: 0, y: 0, w: 1, h: 1 } }];
+    const reviseForm = (list = directions) => { const body = new FormData(); body.set('image', new File([png(60)], 'SYNTHETIC_student.png', { type: 'image/png' })); body.set('directions', JSON.stringify(list)); return body; };
+    assert.equal((await h.request('POST', ai + '/revise', users.teacher, reviseForm())).status, 503);
+    h.env.OPENAI_API_KEY = 'synthetic-test-only';
+    let calls = 0;
+    globalThis.fetch = async (url, options) => {
+      if (!String(url).startsWith('https://api.openai.com/')) return originalFetch(url, options);
+      calls++;
+      assert.equal(String(url), 'https://api.openai.com/v1/images/edits');
+      const body = options.body;
+      assert.equal(body.get('size'), '1024x1536'); assert.equal(body.get('output_format'), 'jpeg'); assert.equal(body.get('n'), '1');
+      assert.match(body.get('prompt'), /1\. 명암 대비 키우기 — 인물은 밝게, 배경은 어둡게\.\n2\. 선 정리/);
+      assert.ok(!body.get('prompt').includes('SYNTHETIC_student'));
+      return Response.json({ data: [{ b64_json: jpeg.toString('base64') }] });
+    };
+    const revised = await h.raw('POST', ai + '/revise', users.teacher, reviseForm());
+    assert.equal(revised.status, 200); assert.equal(revised.headers.get('content-type'), 'image/jpeg');
+    const after = Buffer.from(await revised.arrayBuffer());
+    assert.equal(after.subarray(0, 2).toString('hex'), 'ffd8');
+    for (const list of [[], Array(4).fill(directions[0])]) assert.equal((await h.request('POST', ai + '/revise', users.teacher, reviseForm(list))).status, 400);
+    assert.equal((await h.request('POST', ai + '/revise', users.teacher, reviseForm(), 'https://attacker.invalid')).status, 403);
+    assert.equal(calls, 1);
+
+    const saveForm = (withAfter = true) => {
+      const body = new FormData();
+      body.set('before', new File([png(60)], 'before.png', { type: 'image/png' }));
+      if (withAfter) body.set('after', new File([after], 'after.jpg', { type: 'image/jpeg' }));
+      body.set('result', JSON.stringify({ title: '가상 결과', university: 'SYNTHETIC 가상예술대학교', directions, compared: ['id-1'] }));
+      return body;
+    };
+    const objects = (await h.env.FILES.list()).objects.length;
+    const saved = await h.request('POST', ai + '/results', users.teacher, saveForm());
+    assert.equal(saved.status, 201, JSON.stringify(saved.body));
+    assert.deepEqual([saved.body.result.title, saved.body.result.hasAfter, saved.body.result.directions.length, saved.body.result.canDelete], ['가상 결과', true, 2, true]);
+    assert.equal((await h.env.FILES.list()).objects.length, objects + 2);
+    const id = saved.body.result.id;
+    assert.equal((await h.request('POST', ai + '/results', users.foreign, saveForm(false))).status, 201);
+    const seen = async user => (await h.request('GET', ai + '/results', user)).body.results.map(item => item.title);
+    assert.deepEqual(await seen(users.staff), ['가상 결과']);
+    assert.equal((await seen(users.foreign)).length, 1);
+    assert.equal((await seen(users.admin)).length, 2);
+    const picture = await h.raw('GET', `${ai}/results/${id}/after`, users.staff);
+    assert.equal(picture.status, 200); assert.deepEqual(Buffer.from(await picture.arrayBuffer()), after);
+    assert.equal((await h.raw('GET', `${ai}/results/${id}/before`, users.foreign)).status, 404);
+    assert.equal((await h.raw('GET', `${ai}/results/${id}/before`, users.outsider)).status, 403);
+    const generic = await h.request('GET', '/api/data-core/records?recordType=award-ai-direction-result', users.admin);
+    assert.equal(generic.body.records.length, 0);
+    assert.equal((await h.request('DELETE', `${ai}/results/${id}`, users.staff)).status, 403);
+    assert.equal((await h.request('DELETE', `${ai}/results/${id}`, users.teacher)).status, 200);
+    assert.deepEqual(await seen(users.staff), []);
+    assert.equal(await h.env.FILES.get(`award-ai-direction/${id}/before`), null);
+    assert.equal(await h.env.FILES.get(`award-ai-direction/${id}/after`), null);
+    assert.equal((await h.request('POST', ai + '/results', users.teacher, saveForm(), 'https://attacker.invalid')).status, 403);
+  } finally { globalThis.fetch = originalFetch; await h.mf.dispose(); }
 });

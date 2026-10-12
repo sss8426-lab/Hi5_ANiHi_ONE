@@ -140,8 +140,30 @@ body.data-core-layout .award-ai-link { border:0; background:none; padding:4px 2p
 body.data-core-layout .award-ai-go { width:100%; min-height:50px; margin-top:12px; font-size:16px; }
 .award-ai-status { margin:8px 0 0; min-height:1em; font-size:13px; color:#455a4f; }
 .award-ai-status.is-error { color:#b42318; }
-.award-ai-result { display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,1fr); gap:22px; margin-top:20px; padding-top:18px; border-top:1px solid var(--core-border,#dedcd5); }
-.award-ai-canvas { position:relative; width:fit-content; max-width:100%; margin:0 auto; }
+.award-ai-result { margin-top:20px; padding-top:18px; border-top:1px solid var(--core-border,#dedcd5); }
+.award-ai-saved-label { margin:0 0 10px; font-size:13px; font-weight:800; color:#174e9f; }
+.award-ai-saved-label[hidden], .award-ai-saved[hidden], #awardAiRedraw[hidden], .award-ai-actions [hidden], #awardAiAfterStatus[hidden] { display:none!important; }
+.award-ai-pair { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; align-items:start; }
+.award-ai-pair figure { margin:0; min-width:0; }
+.award-ai-pair figcaption { margin:0 0 8px; font-size:16px; font-weight:900; }
+.award-ai-pair figcaption small { margin-left:6px; font-size:12.5px; font-weight:700; color:#6b7280; }
+.award-ai-after { display:grid; place-items:center; gap:10px; min-height:220px; border-radius:10px; }
+.award-ai-after.is-waiting { border:1.5px dashed #c9d3e3; background:#f5f8fe; padding:20px; text-align:center; }
+.award-ai-after img { display:block; max-width:100%; max-height:520px; border-radius:10px; }
+.award-ai-after p { margin:0; font-size:13.5px; font-weight:700; color:#455a4f; }
+.award-ai-directions { margin-top:18px; }
+.award-ai-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; align-items:center; gap:10px; margin-top:16px; }
+.award-ai-actions input { flex:1 1 220px; max-width:320px; min-height:44px; }
+body.data-core-layout .award-ai-actions button { min-height:46px; min-width:120px; }
+.award-ai-saved { margin-top:22px; padding-top:16px; border-top:1px solid var(--core-border,#dedcd5); }
+.award-ai-saved h5 { margin:0 0 10px; font-size:15px; font-weight:900; }
+.award-ai-saved-list { display:flex; gap:10px; overflow-x:auto; padding-bottom:6px; }
+body.data-core-layout .award-ai-saved-card { flex:0 0 150px; display:grid; gap:4px; padding:6px; border:1px solid #dfe3e0; border-radius:10px; background:#fff; text-align:left; cursor:pointer; min-height:0; }
+.award-ai-saved-card.is-on { border-color:#215ab7; box-shadow:inset 0 0 0 1px #215ab7; }
+.award-ai-saved-card img { width:100%; aspect-ratio:4/3; object-fit:cover; border-radius:6px; background:#f1f2f0; }
+.award-ai-saved-card strong { font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.award-ai-saved-card small { font-size:11.5px; color:#6b7280; }
+.award-ai-canvas { position:relative; width:fit-content; max-width:100%; }
 .award-ai-canvas img { display:block; max-width:100%; max-height:520px; border-radius:10px; }
 #awardAiMarks { position:absolute; inset:0; pointer-events:none; }
 .award-ai-mark { position:absolute; border:3px solid var(--mark); border-radius:8px; background:color-mix(in srgb,var(--mark) 14%,transparent); box-shadow:0 0 0 1px #fff8; }
@@ -160,7 +182,8 @@ body.data-core-layout .award-ai-go { width:100%; min-height:50px; margin-top:12p
 #awardAiRefs { display:flex; flex-wrap:wrap; gap:6px; }
 #awardAiRefs img { width:64px; height:64px; object-fit:cover; border-radius:6px; background:#f1f2f0; }
 @media(max-width:760px) {
-  .award-ai-top, .award-ai-result { grid-template-columns:minmax(0,1fr); }
+  .award-ai-top, .award-ai-pair { grid-template-columns:minmax(0,1fr); }
+  .award-ai-actions input { max-width:none; }
   .award-ai-drop { min-height:160px; }
   .award-ai-grid { grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); }
   .award-ai-scroll { max-height:300px; }
