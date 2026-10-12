@@ -124,8 +124,28 @@ export async function deleteStudent(db: D1Database, context: DataCoreAccessConte
   return { ok: true, id: Number(id) };
 }
 
+// 희망 계열 (실기 유형): the basic list lives in the page; teachers can add more, shared with everyone.
+const TRACK_LIMIT = 60;
+export async function trackOptions(db: D1Database) {
+  await ensureAdmissionStudents(db);
+  const row = await db.prepare(`SELECT value FROM admission_students_meta WHERE key='trackOptions'`).first<{ value: string }>();
+  try { const list = JSON.parse(row?.value || '[]'); return Array.isArray(list) ? list.filter(v => typeof v === 'string') : []; } catch { return []; }
+}
+export async function addTrackOption(db: D1Database, context: DataCoreAccessContext, input: unknown) {
+  requireStudentMember(context); requireWriteAccess(context);
+  const label = String((input as Row)?.label || '').replace(/\s+/g, ' ').trim();
+  if (!label || label.length > 20) throw new DataCoreAccessError(400, '희망 계열 이름을 1~20자로 입력해주세요.');
+  const list = await trackOptions(db);
+  if (!list.includes(label)) {
+    if (list.length >= TRACK_LIMIT) throw new DataCoreAccessError(400, `희망 계열은 ${TRACK_LIMIT}개까지 추가할 수 있습니다.`);
+    list.push(label);
+    await db.prepare(`INSERT INTO admission_students_meta (key,value) VALUES ('trackOptions',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`).bind(JSON.stringify(list)).run();
+  }
+  return list;
+}
+
 export async function handleAdmissionStudentsApi(request: Request, db: D1Database, context: DataCoreAccessContext, source: () => Promise<Row[]>) {
-  const url = new URL(request.url), match = url.pathname.match(/^\/api\/admissions\/students(?:\/(\d{1,16}))?$/);
+  const url = new URL(request.url), match = url.pathname.match(/^\/api\/admissions\/students(?:\/(\d{1,16}|track-options))?$/);
   if (!match) return null;
   const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { 'cache-control': 'private, no-store' } });
   try {
@@ -134,7 +154,12 @@ export async function handleAdmissionStudentsApi(request: Request, db: D1Databas
       throw new DataCoreAccessError(403, '같은 사이트에서만 요청할 수 있습니다.');
     await importStudentsOnce(db, source);
     const id = match[1];
-    if (!id && request.method === 'GET') return json({ students: await listStudents(db), canManage: studentManager(context) });
+    if (!id && request.method === 'GET') return json({ students: await listStudents(db), canManage: studentManager(context), trackOptions: await trackOptions(db) });
+    if (id === 'track-options') {
+      if (request.method === 'GET') return json({ trackOptions: await trackOptions(db) });
+      if (request.method === 'POST') { let body: unknown = {}; try { body = await request.json(); } catch { body = {}; } return json({ trackOptions: await addTrackOption(db, context, body) }, 201); }
+      return json({ error: '허용되지 않은 요청입니다.' }, 405);
+    }
     let body: Row = {};
     if (['POST', 'PATCH'].includes(request.method)) { try { body = await request.json() as Row; } catch { throw new DataCoreAccessError(400, '학생 정보 형식이 올바르지 않습니다.'); } }
     if (!id && request.method === 'POST') return json({ students: await createStudents(db, context, Array.isArray(body.students) ? body.students : [body.student]) }, 201);

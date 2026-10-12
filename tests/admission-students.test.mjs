@@ -45,6 +45,14 @@ test('every teacher sees the same students; teachers add/edit; delete and 합격
     const list = (await h.request('GET', api, users.staff)).body.students.map(s => s.name);
     assert.deepEqual(list, ['가상학생 둘', '가상학생 셋', '가상학생 넷']);
 
+    // 희망 계열 options: any teacher adds one; everyone sees it; bad names refused.
+    const added = await h.request('POST', `${api}/track-options`, users.teacher, { label: '  캐릭터   디자인 ' });
+    assert.equal(added.status, 201); assert.deepEqual(added.body.trackOptions, ['캐릭터 디자인']);
+    assert.equal((await h.request('POST', `${api}/track-options`, users.staff, { label: '캐릭터 디자인' })).body.trackOptions.length, 1, 'no duplicates');
+    assert.equal((await h.request('POST', `${api}/track-options`, users.teacher, { label: '' })).status, 400);
+    assert.equal((await h.request('POST', `${api}/track-options`, users.outsider, { label: 'x' })).status, 403);
+    assert.deepEqual((await h.request('GET', '/api/data', users.foreign)).body._students.trackOptions, ['캐릭터 디자인']);
+
     // A whole-document save never touches students (nor the legacy copy of them).
     const doc = (await h.request('GET', '/api/data', users.admin)).body;
     doc.students = [];
@@ -89,6 +97,14 @@ test('로드맵 홈 first, 지원 전략 removed, 학생 관리 tabs by 학년 w
   assert.match(app, /if\(page !== activePageId\(\)\) resetStudentView\(\);/);
   assert.match(app, /const first = order\.find\(\(\[key, tab\]\) => studentGradeCounts\(key\)\[tab\] > 0\);/, '학생 관리 opens on a tab that has students');
   assert.match(app, /합격자 데이터로 넘기기/);
-  assert.match(app, /dashboardUniversitiesForTrack\(track\)\.map\(u => \(\{ u, p: scoreUniversity\(u, gpa, skill\) \}\)\)/);
+  assert.match(app, /\(matched\.length \? matched : dashboardUniversitiesForTrack\(track\)\)\.map\(u => \(\{ u, p: scoreUniversity\(u, gpa, skill\) \}\)\)/);
+  // 실기능력 · 전공 계열(디자인/애니) · 희망 계열(실기 유형) wait for the row 저장; 관리 = 수정 · 저장 · 삭제.
+  assert.match(app, /const BASE_HOPE_TRACKS = \['기초소양', '기초디자인', '발상과표현', '상황표현', '칸만화', '이미지보드', '포트폴리오'\];/);
+  assert.match(app, /data-row-field="division"/); assert.match(app, /data-row-field="track"/); assert.match(app, /data-row-field="skillLevel"/);
+  assert.match(app, />수정<\/button><button class="btn mini primary" type="button" \$\{editorOpen \? 'data-editor-save' : `data-row-save=/);
+  assert.doesNotMatch(app, /track: trackLabelOf/, '전공 계열 never overwrites 희망 계열');
+  // 실기 점수 is gone everywhere; 실기능력 is A+ · A0 · A- · B+ · B0 · B- · C.
+  assert.match(app, /const SKILL_LEVELS = \['A\+','A0','A-','B\+','B0','B-','C'\];/);
+  assert.doesNotMatch(app, /<th>실기점수<\/th>|id="editStudentSkill"|<dt>실기점수<\/dt>/);
   assert.match(app, /const deleteButton = manager \?/);
 });
