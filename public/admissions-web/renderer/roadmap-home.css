@@ -50,3 +50,19 @@
 .student-editor .editor-actions-bottom { margin-top: 16px; }
 .student-editor .editor-actions .btn { min-width: 84px; }
 .track-select { min-width: 84px; }
+
+/* 희망 계열 + 추가, row 저장 */
+.hope-field { display: flex; gap: 8px; }
+.hope-field select { flex: 1; min-width: 0; }
+.hope-add { display: flex; gap: 8px; margin-top: 8px; }
+.hope-add.hidden { display: none; }
+.hope-add input { flex: 1; min-width: 0; }
+.hope-select { min-width: 104px; }
+tr.student-data-row.is-dirty td { background: #fffbeb; }
+.row-actions .btn[disabled] { opacity: .45; cursor: default; }
+
+/* 학생 표: names, numbers and the 관리 buttons stay on one line; a narrow screen scrolls the table sideways */
+.student-table-scroll { overflow-x: auto; }
+.student-table-scroll tr.student-data-row > td:is(:nth-child(-n+4), :nth-child(8), :nth-child(9)), .student-table-scroll thead th { white-space: nowrap; }
+.student-table-scroll tr.student-data-row .row-actions { flex-wrap: nowrap; white-space: nowrap; }
+.student-table-scroll tr.student-data-row .rec-chip { margin-bottom: 0; }

@@ -505,7 +505,7 @@ async function handleApi(request: Request, env: Env) {
             await students.importStudentsOnce(env.DB, () => allLegacyStudents(env.DB!, legacy));
             data.students = await students.listStudents(env.DB);
           }
-          return Response.json({...data, _students: {canManage: students.studentManager(context)}, _universityManagementDeletedIds: await managementDeletedIds(env.DB,data.universities)}, {headers:{'cache-control':'private, no-store'}});
+          return Response.json({...data, _students: {canManage: students.studentManager(context), trackOptions: students.studentMember(context) ? await students.trackOptions(env.DB) : []}, _universityManagementDeletedIds: await managementDeletedIds(env.DB,data.universities)}, {headers:{'cache-control':'private, no-store'}});
         }
         if (request.method === 'PUT') {
           const input = await request.json() as Record<string,unknown>;
@@ -535,7 +535,7 @@ async function handleApi(request: Request, env: Env) {
       return Response.json({error:error instanceof DataCoreAccessError ? error.message : '입시 데이터를 처리하지 못했습니다.'}, {status:error instanceof DataCoreAccessError ? error.status : 503,headers:{'cache-control':'private, no-store'}});
     }
   }
-  if (/^\/api\/admissions\/students(\/\d{1,16})?$/.test(url.pathname) && env.DB) {
+  if (/^\/api\/admissions\/students(\/(\d{1,16}|track-options))?$/.test(url.pathname) && env.DB) {
     const context = await resolveDataCoreAccess(request, env.DB, env.DATA_CORE_SUPER_ADMIN_EMAILS);
     const { handleAdmissionStudentsApi } = await import('./admission-students');
     const response = await handleAdmissionStudentsApi(request, env.DB, context, async () => allLegacyStudents(env.DB!, await readAppData(request, env) as Record<string, unknown>));
