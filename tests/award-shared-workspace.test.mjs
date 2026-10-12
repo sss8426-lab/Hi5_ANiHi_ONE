@@ -137,3 +137,24 @@ test('activity keyset pages remain unique when new events arrive; private files 
     assert.equal((await h.env.DB.prepare('SELECT count(*) AS n FROM data_records WHERE organization_id<>?').bind(ORG).first()).n,0);
   }finally{await h.mf.dispose();}
 });
+
+test('합격생 재현작 · 대학 공개 우수작: own 모음, never mixed into 재원생/공개 lists, children inherit, images upload',async()=>{
+  const h=await libraryHarness();
+  try {
+    const roots={};
+    for(const type of ['enrolled','public','admitted','university']) roots[type]=await folder(h,users.teacher,'SYNTHETIC '+type,{collectionType:type});
+    const list=async type=>(await h.request('GET',`${base}/folders?collectionType=${type}`,users.staff)).body.folders.map(r=>r.id);
+    assert.deepEqual(await list('enrolled'),[roots.enrolled.id],'재원생 list keeps only 재원생 (and legacy untyped) folders');
+    assert.deepEqual(await list('public'),[roots.public.id]);
+    assert.deepEqual(await list('admitted'),[roots.admitted.id]);
+    assert.deepEqual(await list('university'),[roots.university.id]);
+    const year=await folder(h,users.staff,'2025',{parentFolderId:roots.admitted.id,collectionType:'admitted'});
+    assert.equal(year.collectionType,'admitted');
+    const detail=(await h.request('GET',`${base}/folders/${year.id}`,users.teacher)).body;
+    assert.deepEqual(detail.breadcrumbs.map(r=>r.collectionType),['admitted','admitted']);
+    assert.equal((await h.request('POST',base+'/folders',users.staff,{title:'X',parentFolderId:roots.admitted.id,collectionType:'university'})).status,400,'a child stays in its parent 모음');
+    const file=await upload(h,users.teacher,year,'SYNTHETIC 재현작.png');
+    assert.equal(file.recordId,year.id);
+    assert.equal((await h.request('POST',base+'/folders',null,{title:'X',collectionType:'admitted'})).status,401);
+  } finally { await h.mf.dispose(); }
+});

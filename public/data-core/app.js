@@ -150,7 +150,7 @@ function isSuperAdmin() {
 
 function modeForView(view) {
   if (view === 'mode-home') return 'mode';
-  if (view === 'counseling-home' || view === 'competitions' || view === 'curriculum') return 'counseling';
+  if (view === 'counseling-home' || view === 'competitions' || view === 'works' || view === 'curriculum') return 'counseling';
   if (view === 'work-home' || view === 'library' || view === 'attendance') return 'work';
   return state.currentMode === 'mode' ? 'work' : state.currentMode;
 }
@@ -163,6 +163,7 @@ function titleForView(view) {
     library: '자료보관함',
     attendance: '출석부',
     competitions: '공모전·실기대회',
+    works: '합격 재현작·대학 우수작',
     curriculum: '꿈을 향한 커리큘럼',
     admin: '권한관리',
   })[view] || 'DATA CORE';
@@ -189,7 +190,7 @@ function switchView(view, options = {}) {
   document.body.classList.toggle('brand-home', view === 'counseling-home');
   const eyebrow = $('pageEyebrow');
   if (eyebrow) eyebrow.textContent = view === 'counseling-home' ? 'HI5·ANiHi DATA CORE' : 'HI5·ANiHi 통합 데이터 허브';
-  if (view !== 'competitions') clearAwardImages();
+  if (view !== 'competitions' && view !== 'works') clearAwardImages();
   if (view !== 'curriculum') window.DataCoreCurriculumLibrary?.dispose();
   void renderAttendance();
   document.querySelectorAll('.view').forEach((section) => section.classList.remove('active'));
@@ -207,6 +208,7 @@ function switchView(view, options = {}) {
       attendance: '/data-core/work/attendance',
       admin: '/data-core/work?view=admin',
       competitions: '/data-core/counseling/competitions',
+      works: '/data-core/counseling/works',
       curriculum: '/data-core/curriculum',
     })[view];
     // 자료보관함 사이드바 메뉴는 어떤 하위 폴더/검색/페이지에 있든 항상 root로 이동해야 한다.
@@ -227,6 +229,7 @@ function switchView(view, options = {}) {
     loadCompetitions();
     loadAwardFolders();
   }
+  if (view === 'works' && state.context?.authenticated) loadAwardFolders();
   if (view === 'counseling-home' || view === 'work-home') loadCalendar();
 }
 
@@ -236,6 +239,7 @@ function initialViewFromPath() {
   if (/^\/data-core\/curriculum(?:\/(?:start(?:\/(?:drawing|comics|design))?|(content|design)(?:\/(basic|advanced|admission))?))?$/.test(path)) return 'curriculum';
   if (path === '/data-core/counseling') return 'counseling-home';
   if (path === '/data-core/counseling/competitions') return 'competitions';
+  if (path === '/data-core/counseling/works') return 'works';
   if (path === '/data-core/work/library') return 'library';
   if (path === '/data-core/work/attendance') return 'attendance';
   if (path === '/data-core/work') return 'work-home';
@@ -271,7 +275,7 @@ function updateBrandPresentation() {
 function renderUser() {
   updateBrandPresentation();
   window.DataCoreLibraryUsage?.update(state.context, state.currentView === 'library');
-  for (const id of ['openAwardFolderBtn','openPublicAwardFolderBtn','openAwardChildBtn','openAwardUploadBtn','deleteAwardFolderBtn']) {
+  for (const id of [...Object.values(AWARD_TYPES).map(item=>item.create),'openAwardChildBtn','openAwardUploadBtn','deleteAwardFolderBtn']) {
     $(id)?.classList.toggle('hidden', !canManageAwards());
   }
   const chip = $('userChip');
@@ -821,7 +825,16 @@ function renderCompetitionAwardFiles(files = []) {
   }).join('')}</div>`;
 }
 
-const awardSort={enrolled:'asc',public:'asc'};
+// 수상작 자료실 모음. 공모전·실기대회 화면: 재원생 · 공개 수상작, 합격 재현작·우수작 화면: 합격생 재현작 · 대학 공개 우수작.
+// prefix names the folder row (…FolderList/Track/Prev/Next), detail the id prefix of the cloned folder detail.
+const AWARD_TYPES={
+  enrolled:{label:'재원생 수상작 모음',host:'awardEnrolledCollection',prefix:'award',detail:'',create:'openAwardFolderBtn',sort:'awardSortEnrolled'},
+  public:{label:'공개 수상작 모음',host:'awardPublicCollection',prefix:'publicAward',detail:'public-',create:'openPublicAwardFolderBtn',sort:'awardSortPublic'},
+  admitted:{label:'합격생 재현작 모음',host:'awardAdmittedCollection',prefix:'admittedAward',detail:'admitted-',create:'openAdmittedAwardFolderBtn',sort:'awardSortAdmitted'},
+  university:{label:'대학 공개 우수작 모음',host:'awardUniversityCollection',prefix:'universityAward',detail:'university-',create:'openUniversityAwardFolderBtn',sort:'awardSortUniversity'},
+};
+const awardListId = type => AWARD_TYPES[type].prefix==='award' ? 'awardFolderList' : AWARD_TYPES[type].prefix+'FolderList';
+const awardSort=Object.fromEntries(Object.keys(AWARD_TYPES).map(type=>[type,'asc']));
 try { for(const type of Object.keys(awardSort)) if(localStorage.getItem('award-sort-'+type)==='desc') awardSort[type]='desc'; } catch { /* Storage can be disabled. */ }
 
 let awardActivityRequest=0, awardActivityCursor=null;
@@ -855,7 +868,7 @@ async function downloadAward(file) {
 }
 
 function updateAwardFolderArrows() {
-  for (const prefix of ['award', 'publicAward']) {
+  for (const {prefix} of Object.values(AWARD_TYPES)) {
     const track = $(prefix+'FolderTrack');
     if (!track) continue;
     $(prefix+'FolderPrev').disabled = track.scrollLeft <= 1;
@@ -878,8 +891,9 @@ function moveAwardFolder(direction, prefix = 'award') {
 const awardDetailIds = new Set(["awardFolderDetail","awardBreadcrumb","openAwardChildBtn","openAwardUploadBtn","deleteAwardFolderBtn","awardChildFolders","awardSlideshow","awardSelectionBar","awardSelectionCount","selectAllAwardsBtn","deleteSelectedAwardsBtn","awardLibraryFiles"]);
 function createAwardCollection(type, collectionState) {
   const state = collectionState;
-  const host = document.getElementById(type === 'public' ? 'awardPublicCollection' : 'awardEnrolledCollection');
-  const $ = id => document.getElementById(type === 'public' && awardDetailIds.has(id) ? 'public-'+id : id);
+  const config = AWARD_TYPES[type];
+  const host = document.getElementById(config.host);
+  const $ = id => document.getElementById(awardDetailIds.has(id) ? config.detail+id : id);
   const view = {filesRequest:0,folderRequest:0,loading:false,deleteBusy:false,initialized:false};
   function selectedAwardFolder() {
     return state.awardFolders.find((folder) => folder.id === state.selectedAwardFolderId) || null;
@@ -887,7 +901,7 @@ function createAwardCollection(type, collectionState) {
 
 
   function renderAwardFolders() {
-    const list = type === 'public' ? $('publicAwardFolderList') : $('awardFolderList');
+    const list = $(awardListId(type));
     if (!list) return;
     const folder = selectedAwardFolder();
     const typeOf = item => item.collectionType || item.metadata?.collectionType;
@@ -912,11 +926,11 @@ function createAwardCollection(type, collectionState) {
       };
     });
     for (const id of ['openAwardUploadBtn','deleteAwardFolderBtn','openAwardChildBtn']) { $(id).disabled=!folder||!canManageAwards(); $(id).classList.toggle('hidden',!canManageAwards()); }
-    const createButton = $(type === 'public' ? 'openPublicAwardFolderBtn' : 'openAwardFolderBtn');
+    const createButton = $(config.create);
     createButton.classList.toggle('hidden',!canManageAwards());
     createButton.disabled=!canManageAwards();
     const crumbs=state.awardBreadcrumbs||[];
-    $('awardBreadcrumb').innerHTML=folder?`<button type="button" class="ghost-btn" data-award-crumb="">${typeOf(folder)==='public'?'공개':'재원생'} 수상작 모음</button>`+crumbs.map(item=>`<span aria-hidden="true">›</span><button type="button" class="ghost-btn" title="${h(item.title)}" ${item.id===folder.id?'aria-current="page"':''} data-award-crumb="${h(item.id)}">${h(item.title)}</button>`).join(''):'';
+    $('awardBreadcrumb').innerHTML=folder?`<button type="button" class="ghost-btn" data-award-crumb="">${h((AWARD_TYPES[typeOf(folder)]||AWARD_TYPES.enrolled).label)}</button>`+crumbs.map(item=>`<span aria-hidden="true">›</span><button type="button" class="ghost-btn" title="${h(item.title)}" ${item.id===folder.id?'aria-current="page"':''} data-award-crumb="${h(item.id)}">${h(item.title)}</button>`).join(''):'';
     host.querySelectorAll('[data-award-crumb]').forEach(button=>button.onclick=()=>navigateAwardFolder(button.dataset.awardCrumb||null));
     updateAwardFolderArrows();
   }
@@ -925,7 +939,7 @@ function createAwardCollection(type, collectionState) {
   function prepareAwardFolder(type='enrolled',parent=null) {
     awardCreatePane = awardCollections[type];
     awardCreateTarget={collectionType:parent?(parent.collectionType||parent.metadata?.collectionType||null):type,parentFolderId:parent?.id||null};
-    $('awardFolderDestination').textContent=parent?.title || (type==='public'?'공개 수상작 모음':'재원생 수상작 모음');
+    $('awardFolderDestination').textContent=parent?.title || AWARD_TYPES[type].label;
     $('awardFolderTitle').value=''; openModal('awardFolderModal');
   }
   async function navigateAwardFolder(id) {
@@ -1293,35 +1307,41 @@ function createAwardCollection(type, collectionState) {
   }
 
 
-  return {state,view,selected:awardSelected,selectedAwardFolder,renderAwardFolders,loadAwardFolders,loadAwardFiles,
+  return {type,host,state,view,selected:awardSelected,selectedAwardFolder,renderAwardFolders,loadAwardFolders,loadAwardFiles,
     clearAwardImages,updateAwardSelection,toggleAllAwards,requestAwardDelete,deleteSelectedAwards,
     prepareAwardFolder,createAwardFolder,deleteAwardFolder,openAwardUpload,navigateAwardFolder};
 }
+// One folder detail (경로 · 단계별 줄 · 슬라이드 · 이미지) per 모음, cloned from the 재원생 one with prefixed ids.
 function mountAwardCollectionDetails() {
   const detail = $('awardFolderDetail');
-  const publicDetail = detail.cloneNode(true);
-  publicDetail.id = 'public-awardFolderDetail';
-  publicDetail.querySelectorAll('[id]').forEach(node => { node.id = 'public-'+node.id; });
+  for (const config of Object.values(AWARD_TYPES)) {
+    const host = $(config.host);
+    if (!host || !config.detail) continue;
+    const copy = detail.cloneNode(true);
+    copy.id = config.detail+'awardFolderDetail';
+    copy.querySelectorAll('[id]').forEach(node => { node.id = config.detail+node.id; });
+    host.appendChild(copy);
+  }
   $('awardEnrolledCollection').appendChild(detail);
-  $('awardPublicCollection').appendChild(publicDetail);
 }
 mountAwardCollectionDetails();
-const publicAwardState = Object.assign(Object.create(state), {awardFolders:[],awardFiles:[],awardBreadcrumbs:[],selectedAwardFolderId:null});
-const awardCollections = {enrolled:createAwardCollection('enrolled',state),public:createAwardCollection('public',publicAwardState)};
+const awardCollections = Object.fromEntries(Object.entries(AWARD_TYPES).filter(([,config])=>$(config.host)).map(([type])=>[type,
+  createAwardCollection(type, type==='enrolled' ? state : Object.assign(Object.create(state), {awardFolders:[],awardFiles:[],awardBreadcrumbs:[],selectedAwardFolderId:null}))]));
 let awardNavigationRequest = 0;
 async function loadAwardFolders(force = false) {
   const token = ++awardNavigationRequest;
   const params = new URL(location.href).searchParams;
-  const ids = {enrolled:params.get('enrolledAwardFolder'),public:params.get('publicAwardFolder')};
+  const ids = Object.fromEntries(Object.keys(awardCollections).map(type=>[type,params.get(type+'AwardFolder')]));
   const legacy = params.get('awardFolder');
-  if (legacy && !ids.enrolled && !ids.public) {
+  if (legacy && !Object.values(ids).some(Boolean)) {
     try {
       const detail = await api('/api/data-core/awards/folders/'+encodeURIComponent(legacy));
-      ids[detail.record?.collectionType === 'public' ? 'public' : 'enrolled'] = legacy;
+      ids[awardCollections[detail.record?.collectionType] ? detail.record.collectionType : 'enrolled'] = legacy;
     } catch(error) { if(error.status!==404 && error.status!==401)toast(error.message,'error'); }
   }
   if(token!==awardNavigationRequest)return;
-  await Promise.all(Object.entries(awardCollections).map(([type,pane])=>pane.loadAwardFolders(ids[type],force)));
+  // Only the 모음 on the open screen (공모전·실기대회 or 합격 재현작·우수작) load.
+  await Promise.all(Object.entries(awardCollections).filter(([,pane])=>{const view=pane.host?.closest?.('.view');return !view||view.classList.contains('active');}).map(([type,pane])=>pane.loadAwardFolders(ids[type],force)));
   await loadAwardActivity();
 }
 function clearAwardImages() {
@@ -1546,7 +1566,8 @@ function bindEvents() {
   $('openUploadBtn').onclick = () => openModal('uploadModal');
   $('uploadForm').onsubmit = uploadFile;
   $('retryUploadsBtn').onclick = () => runUploadQueue(true);
-  for (const prefix of ['award', 'publicAward']) {
+  for (const {prefix,host} of Object.values(AWARD_TYPES)) {
+    if (!$(host)) continue;
     $(prefix+'FolderPrev').onclick = () => moveAwardFolder(-1, prefix);
     $(prefix+'FolderNext').onclick = () => moveAwardFolder(1, prefix);
     $(prefix+'FolderTrack').addEventListener('scroll', updateAwardFolderArrows, {passive:true});
@@ -1558,16 +1579,16 @@ function bindEvents() {
   });
   $('competitionForm').onsubmit = createCompetitionFromForm;
   $('awardFolderForm').onsubmit = event => awardCreatePane?.createAwardFolder(event);
-  $('openAwardFolderBtn').onclick = () => awardCollections.enrolled.prepareAwardFolder('enrolled');
-  $('openPublicAwardFolderBtn').onclick = () => awardCollections.public.prepareAwardFolder('public');
   for (const [type,pane] of Object.entries(awardCollections)) {
-    const element = id => $(type === 'public' && awardDetailIds.has(id) ? 'public-'+id : id);
+    const config = AWARD_TYPES[type];
+    const element = id => $(awardDetailIds.has(id) ? config.detail+id : id);
+    $(config.create).onclick = () => pane.prepareAwardFolder(type);
     element('openAwardChildBtn').onclick = () => {const folder=pane.selectedAwardFolder();if(folder)pane.prepareAwardFolder(type,folder);};
     element('openAwardUploadBtn').onclick = pane.openAwardUpload;
     element('deleteAwardFolderBtn').onclick = pane.deleteAwardFolder;
     element('selectAllAwardsBtn').onclick = pane.toggleAllAwards;
     element('deleteSelectedAwardsBtn').onclick = pane.requestAwardDelete;
-    const sort = $(type === 'public' ? 'awardSortPublic' : 'awardSortEnrolled');
+    const sort = $(config.sort);
     sort.value = awardSort[type];
     sort.onchange = () => {awardSort[type]=sort.value;try{localStorage.setItem('award-sort-'+type,sort.value);}catch{/* Optional preference. */}pane.renderAwardFolders();};
   }
@@ -1592,7 +1613,7 @@ function bindEvents() {
   window.addEventListener('pagehide', clearAwardImages);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') clearAwardImages();
-    else if (state.currentView === 'competitions') loadAwardFiles();
+    else if (state.currentView === 'competitions' || state.currentView === 'works') loadAwardFiles();
   });
   $('calendarForm').onsubmit = saveCalendarEvent;
   $('logoutBtn').onclick = async () => {
@@ -1658,7 +1679,21 @@ async function init() {
   if (state.context?.authenticated && state.currentView === 'competitions') {
     await Promise.all([loadCompetitions(), loadAwardFolders()]);
   }
+  if (state.context?.authenticated && state.currentView === 'works') await loadAwardFolders();
 }
+
+// ?embed=1 inside another screen (대학 합격 로드맵): only the content, and its height goes to the parent page.
+function embedInParent() {
+  if (new URLSearchParams(location.search).get('embed') !== '1' || window.parent === window) return;
+  document.body.classList.add('data-core-embed');
+  // Height of the shown content itself (never the window), so the parent frame fits it without an inner scroll bar.
+  const shown = () => document.querySelector('.view.active') || document.body;
+  const post = () => window.parent.postMessage({type:'data-core-embed-height',height:Math.ceil(shown().getBoundingClientRect().bottom + window.scrollY + 24)}, location.origin);
+  const observer = new ResizeObserver(post);
+  document.querySelectorAll('.view').forEach(view => observer.observe(view));
+  post();
+}
+embedInParent();
 
 init().catch((error) => {
   console.error(error);
