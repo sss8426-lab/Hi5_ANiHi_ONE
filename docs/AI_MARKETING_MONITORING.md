@@ -8,7 +8,7 @@
 
 ## 계약
 
-- `GET /api/data-core/marketing/config`: `{campuses:[{id,code,name,status,displayOrder}],keywords:[13개],schedule:{time:'13:30',timezone:'Asia/Seoul'},capabilities:{ingestConfigured:boolean},channelProfiles:[]}`. 실제 DB 활성 캠퍼스만 반환. 검증된 계정이 없는 캠퍼스의 URL을 만들지 않습니다.
+- `GET /api/data-core/marketing/config`: `{campuses:[{id,code,name,status,displayOrder}],keywords:[13개],schedule:{days:['월','수','금'],time:'15:00',timezone:'Asia/Seoul'},capabilities:{ingestConfigured:boolean},channelProfiles:[]}`. 실제 DB 활성 캠퍼스만 반환. 검증된 계정이 없는 캠퍼스의 URL을 만들지 않습니다.
 - `GET /api/data-core/marketing/reports?campusId=&date=&limit=30`: `{reports,coverage:{campuses,latestDaily:[{campus_id,kind,capturedAt}],latestSample:[...]}}`. campus/date SQL 필터가 LIMIT보다 먼저 적용됩니다. limit 1~100. coverage는 전체 접근 범위 최신 daily/sample를 각각 보존하며 선택 date 필터와 무관한 최종 수집 시각입니다.
 - `GET /api/data-core/marketing/reports/{encodeURIComponent(id)}`: `{report}`.
 - report: `{id,campusId,campusName,reportDate,capturedAt,runId,runKind,status,environment,platforms,channels,improvements,limitations,imageFiles:[{id,name,url}],createdAt,updatedAt}`. status `partial|complete`. 원본 PNG URL은 `/api/data-core/files/{id}`이며 R2 키/공개 URL은 응답하지 않습니다.
@@ -61,7 +61,7 @@ Windows npm .cmd 실행 경로 오류를 피하기 위해 build/deploy 스크립
 2. 수집용 PC에서 한 번 실행: `node scripts/marketing-google-serp.mjs configure --key-file "..\.monitoring\secrets\serpapi.dpapi"` → SerpApi 대시보드에서 키를 **복사만** 해 두고 실행하면 클립보드에서 읽어 Windows DPAPI 파일로 저장한 뒤 클립보드를 비웁니다(터미널에 붙여 넣지 않음). 복사된 키가 없을 때만 숨김 입력으로 받습니다.
 3. 매일 수집 순서(Aside 예약): 네이버·채널 관찰 → 보고서 JSON 저장 → **`node scripts/marketing-google-serp.mjs merge --payload "report.json" --key-file "..\.monitoring\secrets\serpapi.dpapi"`** → PNG 렌더 → ingest. merge는 PNG 전에 실행해야 PNG에도 Google이 들어갑니다.
 
-merge는 13개 키워드를 부천시 위치·google.co.kr·데스크톱으로 한 번씩 검색합니다(같은 KST 날짜 결과는 `..\.monitoring\cache\serpapi`에 저장해 다른 캠퍼스 보고서가 재사용). 2026-10-13 SerpApi **무료 플랜(월 250회)** 가입·인증 완료, 사용자 요청으로 Google은 **주 2회(기본 월·목 KST)**만 검색합니다(13 × 월 약 9회 ≈ 117회). 다른 요일 보고서는 검색 없이 `platforms.google={status:'not_scheduled',keywords:[]}`와 한계 문장을 남기고 화면·PNG에 "이번 회차 미수집 (Google은 주 2회 수집)"으로 표시합니다. 요일은 `--days 1,4`(0=일~6=토)로 바꿀 수 있습니다. 공식 채널은 보고서 `channels`의 블로그·인스타·웹사이트 주소로 판정하고, 더 필요하면 `--official URL`, 지도 이름 매칭은 `--place 이름`을 더합니다. 이미 `platforms.google.status='observed'`인 보고서는 다시 검색하지 않아 같은 runId 재전송 409를 막습니다. 키 오류(401/403)와 사용량 초과(429)는 즉시 멈추고, 일시 오류는 최대 3회 재시도 후 해당 키워드만 unavailable(platform status partial)로 남깁니다. 키는 출력·로그·Git에 남기지 않으며 `SERPAPI_API_KEY` 환경변수도 지원합니다.
+merge는 13개 키워드를 부천시 위치·google.co.kr·데스크톱으로 한 번씩 검색합니다(같은 KST 날짜 결과는 `..\.monitoring\cache\serpapi`에 저장해 다른 캠퍼스 보고서가 재사용). 2026-10-13 SerpApi **무료 플랜(월 250회)** 가입·인증 완료, 사용자 요청으로 Google은 정기 수집일 **월·수·금 15:00 KST**에만 검색합니다(13 × 월 12~14회 ≈ 156~182회, 2026-10-13 사용자 결정). 다른 요일 보고서는 검색 없이 `platforms.google={status:'not_scheduled',keywords:[]}`와 한계 문장을 남기고 화면·PNG에 "이번 회차 미수집 (Google은 월·수·금 수집)"으로 표시합니다. 요일은 `--days 1,3,5`(0=일~6=토)로 바꿀 수 있습니다. 공식 채널은 보고서 `channels`의 블로그·인스타·웹사이트 주소로 판정하고, 더 필요하면 `--official URL`, 지도 이름 매칭은 `--place 이름`을 더합니다. 이미 `platforms.google.status='observed'`인 보고서는 다시 검색하지 않아 같은 runId 재전송 409를 막습니다. 키 오류(401/403)와 사용량 초과(429)는 즉시 멈추고, 일시 오류는 최대 3회 재시도 후 해당 키워드만 unavailable(platform status partial)로 남깁니다. 키는 출력·로그·Git에 남기지 않으며 `SERPAPI_API_KEY` 환경변수도 지원합니다.
 
 ## 자연검색 안내
 
@@ -75,4 +75,4 @@ merge는 13개 키워드를 부천시 위치·google.co.kr·데스크톱으로 �
 
 선택 `comparison={status:'observed'|'not_available'|'not_comparable',baselineRunKind?:'daily',baselineDate?,baselineReportId?,scopeComparable?,summary?,limitations?:string[]}`. observed는 현재 daily·이전 날짜·baseline daily·scopeComparable=true·실제 nonempty 요약·동일한 nonempty `environment.comparisonScope`가 필요합니다. ingest는 DB의 기준 보고서가 같은 조직/캠퍼스/type/sourceApp/live daily 및 실제 이전 시각·일치하는 날짜/관찰범위인지 검증합니다. 기준선이 없거나 샘플이면 변화를 0으로 계산하지 않습니다. 단위·분모·관찰환경이 다르면 not_comparable로 저장합니다. summary는 실제 기준선과 현 관찰값에서 근거가 확보된 변화 문장으로 제공하며 숫자 음수 delta를 임의로 저장하지 않습니다.
 
-정기 수집은 서버 Worker cron이 아니라 연결된 수집용 PC의 Aside 예약에서 매일 13:30 KST 조사를 시작합니다. PC/Aside가 실행 중이어야 하며 조사 완료 후 DATA CORE로 저장합니다. 화면의 ingestConfigured는 인증 연결 여부이지 항상 실행을 보장하는 표시가 아닙니다.
+정기 수집은 서버 Worker cron이 아니라 연결된 수집용 PC의 Aside 예약에서 매주 월·수·금 15:00 KST 조사를 시작합니다(2026-10-13 변경, 이전 매일 13:30). PC/Aside가 실행 중이어야 하며 조사 완료 후 DATA CORE로 저장합니다. 화면의 ingestConfigured는 인증 연결 여부이지 항상 실행을 보장하는 표시가 아닙니다.
