@@ -27,3 +27,10 @@ test('google robot-check block is named instead of a bare unknown',async()=>{
  const html=renderMarketingReport({version:1,runKind:'sample',campusId:'campus-anihi-admission',reportDate:'2026-10-13',capturedAt:'2026-10-13T01:00:00+09:00',platforms:{google:{status:'blocked',keywords:[]}}});
  assert.match(html,/Google · 광고 \/ 자연검색 <small>자동 검색 차단 \(Google 로봇 확인 화면\)/);
 });
+
+test('google off-day is named, not shown as unknown',async()=>{
+ const {status}=await import('../public/data-core/marketing.js');
+ assert.match(status('not_scheduled'),/주 2회/);
+ const html=renderMarketingReport({version:1,runKind:'daily',campusId:'campus-anihi-admission',reportDate:'2026-10-13',capturedAt:'2026-10-13T13:30:00+09:00',platforms:{google:{status:'not_scheduled',keywords:[]}}});
+ assert.match(html,/Google · 광고 \/ 자연검색 <small>이번 회차 미수집 \(Google은 주 2회 수집\)/);
+});

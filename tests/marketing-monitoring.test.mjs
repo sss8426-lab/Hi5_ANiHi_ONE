@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { build } from 'esbuild';
 import { Miniflare } from 'miniflare';
-import { mkdtemp, writeFile, rm, mkdir } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, rm, mkdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -127,7 +127,8 @@ test('historical comparisons require a real earlier daily baseline in the same c
 }finally{await h.mf.dispose();}});
 test.after(async()=>{await rm(temp,{recursive:true,force:true});});
 test('SerpApi Google results fill the google platform in a server-valid shape',async()=>{
- const {collectGoogle,mergeGoogleIntoPayload,officialMatchers,isOfficial}=await import('../scripts/marketing-google-serp.mjs');
+ const {collectGoogle,mergeGoogleIntoPayload,officialMatchers,isOfficial,parseGoogleDays}=await import('../scripts/marketing-google-serp.mjs');
+ const monday=new Date('2026-10-12T03:00:00Z'),tuesday=new Date('2026-10-13T03:00:00Z');
  const channels={blog:{url:'https://blog.naver.com/example_official'},website:{url:'https://example-academy.test/'}};
  const m=officialMatchers({channels});
  assert.ok(isOfficial('https://m.blog.naver.com/example_official/223000000001',m));
@@ -148,8 +149,15 @@ test('SerpApi Google results fill the google platform in a server-valid shape',a
  // merge: 결과를 보고서 JSON에 넣고, 이미 관찰된 Google은 다시 검색하지 않는다.
  const dir=await mkdtemp(join(resolve('.wrangler'),'google-merge-'));const file=join(dir,'report.json');
  await writeFile(file,JSON.stringify(payload({channels})));
- const merged=await mergeGoogleIntoPayload({payloadPath:file,apiKey:'k'.repeat(64),request:fake});assert.equal(merged.merged,true);
- const again=await mergeGoogleIntoPayload({payloadPath:file,apiKey:'k'.repeat(64),request:()=>{throw new Error('must not search again');}});assert.equal(again.merged,false);
+ const merged=await mergeGoogleIntoPayload({payloadPath:file,apiKey:'k'.repeat(64),request:fake,now:monday});assert.equal(merged.merged,true);
+ const again=await mergeGoogleIntoPayload({payloadPath:file,apiKey:'k'.repeat(64),request:()=>{throw new Error('must not search again');},now:monday});assert.equal(again.merged,false);
+ // 주 2회(월·목)만 검색: 화요일 보고서는 검색 없이 '이번 회차 미수집'으로 남고 서버도 받는다.
+ const offFile=join(dir,'tuesday.json');await writeFile(offFile,JSON.stringify(payload({channels})));
+ const off=await mergeGoogleIntoPayload({payloadPath:offFile,apiKey:'k'.repeat(64),request:()=>{throw new Error('must not search on Tuesday');},now:tuesday});
+ assert.deepEqual([off.merged,off.reason,off.days],[false,'not-scheduled','월·목']);
+ const offPayload=JSON.parse(await readFile(offFile,'utf8'));assert.equal(offPayload.platforms.google.status,'not_scheduled');assert.match(offPayload.limitations.at(-1),/주 2회\(월·목\)/);
+ assert.equal(validateMarketingPayload(offPayload).platforms.google.status,'not_scheduled');
+ assert.deepEqual(parseGoogleDays('4,1,1'),[1,4]);assert.throws(()=>parseGoogleDays('7'));
  await rm(dir,{recursive:true,force:true});
  // 키 오류는 바로 멈춘다(13번 재시도하지 않음).
  let calls=0;await assert.rejects(()=>collectGoogle({payload:{channels},apiKey:'bad',request:async()=>{calls++;return new Response('{}',{status:401});}}),/키를 확인/);assert.equal(calls,1);

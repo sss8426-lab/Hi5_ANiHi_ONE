@@ -7,7 +7,7 @@ export function privateImageUrl(v,base=globalThis.location?.origin||'https://loc
 export function kstTime(v){if(!v)return UNKNOWN;if(typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v)){const date=new Date(v+'T00:00:00+09:00');return Number.isNaN(date.getTime())||new Date(date.getTime()+32400000).toISOString().slice(0,10)!==v?UNKNOWN:v+' · KST (날짜만 확인)';}const d=new Date(v);return Number.isNaN(d.getTime())?UNKNOWN:new Intl.DateTimeFormat('ko-KR',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(d)+' · KST (Asia/Seoul)';}
 export function reportKind(r){return r?.runKind==='sample'?'샘플 관찰 (정기 보고서 아님)':r?.runKind==='daily'?'정기 보고서':'실행 구분 확인 불가';}
 const arr=v=>Array.isArray(v)?v:[];
-export const status=v=>({observed:'관찰 완료',measured:'실측',complete:'수집 완료',partial:'일부 수집',pending:'수집 대기',unavailable:UNKNOWN,not_observed:'미조사',not_inspected:'미조사',not_configured:'연결 미설정',blocked:'자동 검색 차단 (Google 로봇 확인 화면)'})[v]||(v?'상태 확인 불가':'미조사');
+export const status=v=>({observed:'관찰 완료',measured:'실측',complete:'수집 완료',partial:'일부 수집',pending:'수집 대기',unavailable:UNKNOWN,not_observed:'미조사',not_inspected:'미조사',not_configured:'연결 미설정',blocked:'자동 검색 차단 (Google 로봇 확인 화면)',not_scheduled:'이번 회차 미수집 (Google은 주 2회 수집)'})[v]||(v?'상태 확인 불가':'미조사');
 // Only present server-saved comparison evidence; never calculate missing deltas.
 export function comparisonView(report){
   const c=report?.comparison;
