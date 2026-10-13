@@ -71,13 +71,30 @@ const matches = report => {
   return all.includes(state.q.toLocaleLowerCase());
 };
 
+// 진행·예정업무는 분야별로 묶어서 보여 준다(수업 → 상담 → 행사 → 홍보 → 운영 → 분류 없음). 분야 안에서는 입력 순서를 지킨다.
+const GROUP_ORDER = ['수업', '상담', '행사', '홍보', '운영'];
+function groupLines(lines) {
+  const groups = new Map();
+  for (const line of lines) { const key = GROUP_ORDER.includes(line.category) ? line.category : ''; if (!groups.has(key)) groups.set(key, []); groups.get(key).push(line); }
+  return [...GROUP_ORDER, ''].filter(key => groups.has(key)).map(category => ({ category, lines: groups.get(category) }));
+}
+function groupedHtml(lines, limit = Infinity) {
+  let left = limit; const out = [];
+  for (const group of groupLines(lines)) {
+    if (left <= 0) break;
+    const items = group.lines.slice(0, left); left -= items.length;
+    out.push(`<div class="report-group" data-group="${h(group.category || '기타')}"><div class="report-group-head"><span class="report-tag ${TAG[group.category] || 't-ops'}">${h(group.category || '기타')}</span><small>${group.lines.length}건</small></div><ul>${items.map(line => `<li>${h(line.text)}</li>`).join('')}</ul></div>`);
+  }
+  return out.join('');
+}
+
 function lineHtml(line) { return `<div class="report-line">${line.category ? `<span class="report-tag ${TAG[line.category] || ''}">${h(line.category)}</span>` : ''}<span>${h(line.text)}</span></div>`; }
 
 function cardHtml(report) {
   const b = report.body || {}, open = state.open.has(report.id), detail = state.details.get(report.id);
-  const done = b.done || [], shown = open ? done : done.slice(0, 3);
+  const done = b.done || [];
   const photos = b.photos || [];
-  const sections = open ? `${(b.planned || []).length ? `<div class="report-sec"><h4>예정업무</h4>${b.planned.map(lineHtml).join('')}</div>` : ''}
+  const sections = open ? `${(b.planned || []).length ? `<div class="report-sec"><h4>예정업무</h4>${groupedHtml(b.planned)}</div>` : ''}
       ${(b.classes || []).length ? `<div class="report-sec"><h4>수업내용</h4>${b.classes.map(lineHtml).join('')}</div>` : ''}
       ${(b.awards || []).length ? `<div class="report-sec"><h4>수상·성과</h4>${b.awards.map(a => `<div class="report-line"><span>🏆 ${h(a.contest)} · ${h(a.prize)}${a.count ? ` · ${h(a.count)}명` : ''}</span></div>`).join('')}</div>` : ''}` : '';
   const rest = Math.max(0, done.length - 3) + (b.planned || []).length + (b.classes || []).length + (b.awards || []).length;
@@ -86,7 +103,7 @@ function cardHtml(report) {
   return `<article class="report-item" data-report-id="${h(report.id)}">
     <header class="report-who"><span class="report-avatar">${h(report.authorName.slice(0, 1))}</span><div><b>${h(report.authorName)}</b> <span>${h(report.campusName)}</span><small>${h(timeLabel(report.createdAt))}${report.updatedAt !== report.createdAt ? ' · 수정됨' : ''}</small></div>
       <span class="report-badge">${h(monthLabel(report.month))} 업무보고</span>${report.canManage ? `<button type="button" class="report-link" data-edit="${h(report.id)}">수정</button><button type="button" class="report-link danger" data-delete="${h(report.id)}">삭제</button>` : ''}</header>
-    ${done.length ? `<div class="report-sec"><h4>진행업무</h4>${shown.map(lineHtml).join('')}</div>` : ''}
+    ${done.length ? `<div class="report-sec"><h4>진행업무</h4>${groupedHtml(done, open ? Infinity : 3)}</div>` : ''}
     ${sections}
     ${!open && rest ? `<button type="button" class="report-link report-more" data-open="${h(report.id)}">…더보기 (${rest}줄 더)</button>` : !open ? `<button type="button" class="report-link report-more" data-open="${h(report.id)}">자세히 보기</button>` : `<button type="button" class="report-link report-more" data-close="${h(report.id)}">접기</button>`}
     <div class="report-nums"><div><span>신입</span><b>${total(b.joins)}</b><small>${h(gradeText(b.joins)) || '-'}</small></div><div><span>퇴원</span><b>${total(b.leaves)}</b><small>${h(gradeText(b.leaves)) || '-'}</small></div><div><span>수상</span><b>${awardTotal(b.awards)}</b><small>${h(b.awards?.[0] ? `${b.awards[0].contest} ${b.awards[0].prize}${b.awards.length > 1 ? ' 외' : ''}` : '-')}</small></div></div>

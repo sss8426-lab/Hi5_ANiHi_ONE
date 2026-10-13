@@ -75,3 +75,5 @@
 .report-editor .report-counts th:first-child{width:46px;white-space:nowrap}
 .report-editor .report-counts td{padding:2px}
 .report-editor .report-counts input{width:100%;min-width:0!important;min-height:34px!important;height:34px;padding:2px!important;border:0!important;border-radius:4px!important;box-shadow:none!important;background:#fafbfa!important;text-align:center}
+/* 진행·예정업무 분야별 묶음 */
+.report-group{display:grid;grid-template-columns:58px minmax(0,1fr);column-gap:10px;padding:8px 0;border-top:1px dashed #e3e9e6}.report-sec h4+.report-group{border-top:0;padding-top:2px}.report-group-head{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding-top:3px}.report-group-head small{font-size:11px;color:#7a8a84}.report-group ul{margin:0;padding:0;list-style:none}.report-group li{position:relative;padding-left:12px;font-size:13.5px;line-height:1.7;overflow-wrap:anywhere}.report-group li::before{content:'';position:absolute;left:2px;top:.75em;width:4px;height:4px;border-radius:50%;background:#9fb3ab}
