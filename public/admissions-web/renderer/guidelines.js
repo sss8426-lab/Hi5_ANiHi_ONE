@@ -44,7 +44,9 @@ const ratioSummary=(row,kind)=>{
   return row.ratioStatus==='staged'?'단계별 전형':h(row.selectionFormula || '공개 자료에서 확인 필요');
 };
 
-export async function renderGuidelines(season) {
+export async function renderGuidelines(season, {fresh=false}={}) {
+  // 다른 메뉴에서 들어오면 검색어 · 조건 · 쪽 번호를 비우고 첫 화면부터 보여 준다.
+  if(fresh) state[season]={};
   const root=document.getElementById(season); if(!root || root.classList.contains('hidden')) return;
   const filters=state[season];
   let historyWindow=window;

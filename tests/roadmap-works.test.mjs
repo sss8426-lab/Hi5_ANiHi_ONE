@@ -25,3 +25,19 @@ test('DATA CORE 대학합격 재현작 및 공개우수작 view: two 모음 on t
   assert.match(css, /body\.data-core-embed :is\(\.sidebar, \.topbar/);
   assert.match(read('worker/router.ts'), /url\.pathname === "\/data-core\/counseling\/works"/);
 });
+
+test('대학 합격 로드맵: 다른 메뉴·뒤로가기 후 다시 들어오면 첫 화면 (이전 대학·폴더·그림·검색어가 남지 않음)', () => {
+  const app = read('public/admissions-web/renderer/app.js'), guide = read('public/admissions-web/renderer/guidelines.js');
+  assert.match(app, /if\(page !== activePageId\(\)\)\{ resetPageView\(page\); window\.scrollTo\(0, 0\); \}/, 'entering a page from another one resets it');
+  const reset = app.slice(app.indexOf('function resetPageView('), app.indexOf('// 추천 대학'));
+  assert.match(reset, /resetStudentView\(\)/);
+  assert.match(reset, /caseSearch: ''/);
+  assert.match(reset, /adminSearch: ''/);
+  assert.match(reset, /page === 'admin'\) state\.selectedUniversityId = null/);
+  assert.match(reset, /page === 'works' && \$\('works'\)\) \$\('works'\)\.innerHTML = ''/, '재현작·우수작 folder frame is opened anew');
+  assert.match(reset, /freshGuidelinePage = page/);
+  assert.match(app, /m\.renderGuidelines\(page, \{fresh\}\)/);
+  assert.match(guide, /if\(fresh\) state\[season\]=\{\};/);
+  // an address with ?university= still picks that university after the reset
+  assert.ok(app.indexOf("showPage(page, false);") < app.indexOf("if(page === 'admin' && university"), 'deep link applies after the reset');
+});
