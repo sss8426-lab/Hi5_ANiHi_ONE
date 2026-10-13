@@ -80,7 +80,7 @@ export async function derivativeMetadata(db: D1Database, row: Record<string, unk
 export async function canReadRegisteredFile(db: D1Database, context: DataCoreAccessContext, row: Record<string, unknown>): Promise<boolean> {
   if (row.source_app === 'marketing-monitoring' || row.category === 'marketing-report') {
     if (row.organization_id !== DEFAULT_ORGANIZATION_ID) return false;
-    if (!context.isSuperAdmin && !context.memberships.some(m => m.organizationId === DEFAULT_ORGANIZATION_ID && m.role === 'CAMPUS_ADMIN' && m.campusId === row.campus_id)) return false;
+    if (!context.isSuperAdmin && !context.memberships.some(m => m.organizationId === DEFAULT_ORGANIZATION_ID && Boolean(m.campusId) && m.campusId === row.campus_id)) return false;
     const report = await db.prepare('SELECT id FROM data_records WHERE id=? AND organization_id=? AND campus_id=? AND record_type=? AND deleted_at IS NULL').bind(row.data_record_id, DEFAULT_ORGANIZATION_ID, row.campus_id, 'marketing-report').first();
     return Boolean(report && row.visibility === 'campus');
   }

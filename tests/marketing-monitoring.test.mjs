@@ -59,6 +59,16 @@ test('immutable idempotency, daily/sample, campus SQL filter before limit',async
  assert.equal((await h.call('/reports?campusId='+B,{headers:admin})).status,403);
  const other=await h.call('/reports?campusId='+B,{headers});assert.equal((await h.call('/reports/'+encodeURIComponent(other.body.reports[0].id),{headers:admin})).status,403);
  assert.equal((await h.call('/channels',{method:'PUT',headers:{...admin,origin:'http://localhost','content-type':'application/json'},body:JSON.stringify({campusId:B,channels:{blog:'https://blog.naver.com/official'}})})).status,403);
+ // 선생님도 자기 캠퍼스 보고서는 볼 수 있다. 다른 캠퍼스와 채널 변경은 막힌다.
+ const teacher={'oai-authenticated-user-id':'campus-teacher','oai-authenticated-user-email':'campus-teacher@example.test'};
+ await h.env.DB.prepare("INSERT INTO users (id,email,display_name,status,created_at,updated_at) VALUES ('oai:campus-teacher',?,'Teacher','active',?,?)").bind(teacher['oai-authenticated-user-email'],p.capturedAt,p.capturedAt).run();
+ await h.env.DB.prepare("INSERT INTO memberships (id,organization_id,campus_id,user_id,role,created_at,updated_at) VALUES ('marketing-teacher',?,?,'oai:campus-teacher','TEACHER',?,?)").bind(ORG,A,p.capturedAt,p.capturedAt).run();
+ const tConfig=await h.call('/config',{headers:teacher});assert.equal(tConfig.status,200);assert.deepEqual(tConfig.body.campuses.map(c=>c.id),[A]);
+ const tList=await h.call('/reports',{headers:teacher});assert.equal(tList.status,200);assert.ok(tList.body.reports.length>=1);assert.ok(tList.body.reports.every(r=>r.campusId===A));
+ assert.equal((await h.call('/reports/'+encodeURIComponent(tList.body.reports[0].id),{headers:teacher})).status,200);
+ assert.equal((await h.call('/reports?campusId='+B,{headers:teacher})).status,403);
+ assert.equal((await h.call('/reports/'+encodeURIComponent(other.body.reports[0].id),{headers:teacher})).status,403);
+ assert.equal((await h.call('/channels',{method:'PUT',headers:{...teacher,origin:'http://localhost','content-type':'application/json'},body:JSON.stringify({campusId:A,channels:{blog:'https://blog.naver.com/official'}})})).status,403);
 }finally{await h.mf.dispose();}});
 test('PNG signature, image limit and original R2 linkage',async()=>{const h=await harness();try{
  const fake=new File(['not png'],'fake.png',{type:'image/png'});await assert.rejects(()=>validateMarketingPng(fake));assert.equal((await h.ingest(payload(),[fake])).status,415);
@@ -68,7 +78,7 @@ test('PNG signature, image limit and original R2 linkage',async()=>{const h=awai
  const row=await h.env.DB.prepare('SELECT * FROM file_objects WHERE id=?').bind(res.body.report.imageFiles[0].id).first();assert.equal(row.source_app,'marketing-monitoring');assert.equal(row.category,'marketing-report');assert.equal(row.visibility,'campus');assert.equal(row.data_record_id,res.body.report.id);
  const original=await h.env.FILES.get(row.r2_key);assert.deepEqual(new Uint8Array(await original.arrayBuffer()),png);
 }finally{await h.mf.dispose();}});
-test('generic records/uploads protected; STAFF cannot download marketing PNG',async()=>{const h=await harness();try{
+test('generic records/uploads protected; only own-campus staff can download marketing PNG',async()=>{const h=await harness();try{
  const ctx={authenticated:true,database:true,user:{internalUserId:'oai:marketing-master'},isSuperAdmin:true,canWrite:true,memberships:[],campusIds:[]};
  for(const type of ['marketing-report','marketing-channel-profile','marketing-internal-config']){assert.throws(()=>protection.assertMutableRecordType(type));assert.equal(protection.canReadRow(ctx,{record_type:type}),false);}
  for(const fields of [{sourceApp:'marketing-monitoring'},{sourceApp:' marketing-monitoring '},{category:' marketing-report '},{purpose:'marketing-report'}]){const form=new FormData();form.append('file',new File(['x'],'x.png',{type:'image/png'}));for(const [key,value] of Object.entries(fields))form.append(key,value);await assert.rejects(()=>protection.uploadDataCoreFile(new Request('http://localhost/api/upload',{method:'POST',body:form}),h.env.DB,h.env.FILES,ctx),e=>e.status===403);}
@@ -79,6 +89,9 @@ test('generic records/uploads protected; STAFF cannot download marketing PNG',as
  assert.equal(await protection.canReadRegisteredFile(h.env.DB,ctx,{...row,organization_id:'foreign-org'}),false);
  const staff={...ctx,isSuperAdmin:false,memberships:[{role:'STAFF',campusId:A}],campusIds:[A]};
  assert.equal(await protection.canReadRegisteredFile(h.env.DB,staff,{source_app:'marketing-monitoring',category:'marketing-report',campus_id:A,visibility:'campus'}),false);
+ const teacher={...ctx,isSuperAdmin:false,memberships:[{organizationId:ORG,role:'TEACHER',campusId:A}],campusIds:[A]};
+ assert.equal(await protection.canReadRegisteredFile(h.env.DB,teacher,row),true);
+ assert.equal(await protection.canReadRegisteredFile(h.env.DB,{...teacher,memberships:[{organizationId:ORG,role:'TEACHER',campusId:B}],campusIds:[B]},row),false);
 }finally{await h.mf.dispose();}});
 test('historical comparisons require a real earlier daily baseline in the same campus and scope',async()=>{const h=await harness();try{
  const currentTime=Date.now()-60000;

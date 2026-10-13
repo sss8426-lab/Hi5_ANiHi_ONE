@@ -8,3 +8,22 @@ test('print report marks confirmed noncore queries without changing stored keywo
  const html=renderMarketingReport({version:1,runKind:'sample',campusId:'campus-anihi-admission',reportDate:'2026-10-13',capturedAt:'2026-10-13T01:00:00+09:00',platforms:{naver:{keywords:[{keyword:'부천디자인학원',relevance:'noncore'}]}}});
  assert.match(html,/부천디자인학원 · 비핵심/);
 });
+
+test('naver table explains organic rank and lists keywords without our posts first',async()=>{
+ const {organicFocusKeywords}=await import('../public/data-core/marketing.js');
+ const naver={status:'observed',keywords:[{keyword:'부천웹툰학원',organicRank:4},{keyword:'부천미술학원',organicRank:null},{keyword:'부천디자인학원'}]};
+ assert.deepEqual(organicFocusKeywords(naver),['부천미술학원','부천디자인학원']);
+ assert.deepEqual(organicFocusKeywords(undefined),[]);
+ const html=renderMarketingReport({version:1,runKind:'sample',campusId:'campus-anihi-admission',reportDate:'2026-10-13',capturedAt:'2026-10-13T01:00:00+09:00',platforms:{naver}});
+ assert.equal(html.split('자연검색 순위란?').length-1,1);
+ assert.match(html,/자연검색 순위를 올리려면/);
+ assert.match(html,/먼저 할 일: 우리 글이 보이지 않은 부천미술학원, 부천디자인학원/);
+ assert.ok(html.indexOf('자연검색 순위란?')<html.indexOf('Google · 광고'));
+});
+
+test('google robot-check block is named instead of a bare unknown',async()=>{
+ const {status}=await import('../public/data-core/marketing.js');
+ assert.match(status('blocked'),/Google 로봇 확인/);
+ const html=renderMarketingReport({version:1,runKind:'sample',campusId:'campus-anihi-admission',reportDate:'2026-10-13',capturedAt:'2026-10-13T01:00:00+09:00',platforms:{google:{status:'blocked',keywords:[]}}});
+ assert.match(html,/Google · 광고 \/ 자연검색 <small>자동 검색 차단 \(Google 로봇 확인 화면\)/);
+});

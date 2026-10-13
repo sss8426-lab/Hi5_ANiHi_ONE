@@ -4,7 +4,7 @@
 
 기존 DB(D1) `data_records`, FILES(R2), `file_objects`만 사용합니다. 신규 DB, bucket, migration은 없습니다. `marketing-report`, `marketing-channel-profile` 및 향후 `marketing-internal-config`는 범용 레코드 API 읽기/변경 대상이 아닙니다. 보고서는 immutable입니다. 원본 PNG는 `documents-private` / `marketing-report` / `marketing-monitoring` / `campus`로 등록하며 소유자는 서버가 찾은 실제 활성 조직 MASTER 내부 ID입니다.
 
-웹 조회는 기존 `resolveDataCoreAccess` + `requireAuthenticatedAccess` 세션 인증을 사용합니다. MASTER/SUPER_ADMIN은 실제 활성 정규 10개 캠퍼스, CAMPUS_ADMIN은 자기 캠퍼스만 조회합니다. 다른 역할/공개 접근은 거부합니다. 토큰은 읽기 API의 인증이 되지 않습니다. 파일도 기존 인증 다운로드 경로에서 동일 관리자/캠퍼스 및 live report 링크를 검증합니다.
+웹 조회는 기존 `resolveDataCoreAccess` + `requireAuthenticatedAccess` 세션 인증을 사용합니다. MASTER/SUPER_ADMIN은 실제 활성 정규 10개 캠퍼스를 조회합니다. 캠퍼스 관리자·원장·선생님·직원 등 캠퍼스 소속 계정은 자기 캠퍼스 보고서와 PNG만 조회합니다(2026-10-13 사용자 요청). 채널 주소 변경(PUT /channels)은 MASTER와 자기 캠퍼스 CAMPUS_ADMIN만, 수동 수집은 MASTER만 가능합니다. 소속 캠퍼스가 없는 계정/공개 접근은 거부합니다. 토큰은 읽기 API의 인증이 되지 않습니다. 파일도 기존 인증 다운로드 경로에서 동일 관리자/캠퍼스 및 live report 링크를 검증합니다.
 
 ## 계약
 
@@ -52,6 +52,14 @@ node scripts/marketing-collector.mjs ingest --payload "report.json" --image "rep
 `node scripts/render-marketing-report.mjs report.json temporary-report.html`은 13키워드×2플랫폼을 포함한 자체 인쇄 HTML을 생성합니다. 브라우저에 넣고 snapshot → PDF 스킬 `page.pdf({preferCSSPageSize:true,printBackground:true})` → `aside.pdf.renderPages`로 PNG를 만들며 각 페이지 픽셀 수가 8백만 이하인지, 최대 4장인지, 한글·행·날짜가 잘리지 않았는지 육안 검증합니다. HTML/PDF는 tmp, 사용자 PNG는 해당 실행 artifacts에 보존합니다. 전체 요약 이미지에는 다른 캠퍼스 데이터가 포함될 수 있으므로 개별 캠퍼스 ingest에 첨부하지 않습니다.
 
 Windows npm .cmd 실행 경로 오류를 피하기 위해 build/deploy 스크립트는 잠긴 로컬 vinext/Wrangler CLI를 Node로 직접 호출합니다. 배포는 `--keep-vars`로 기존 운영 변수와 별도 FAMILY 바인딩을 보존합니다. 전용 수집 secret은 UI/API 조회 권한을 부여하지 않습니다. 예약 자체가 데이터를 만드는 단계이며 수집 토큰 설정만으로 매일 수집이 실행되는 것은 아닙니다.
+
+## Google 차단 표시
+
+2026-10-13 확인: 자동화 브라우저로 Google 검색을 열면 첫 검색부터 "비정상적인 트래픽" 로봇 확인 화면이 나와 결과를 읽을 수 없습니다. 로봇 확인은 우회하지 않습니다. 수집기는 이때 `platforms.google={status:'blocked',keywords:[]}`로 보내면 화면·PNG에 "자동 검색 차단 (Google 로봇 확인 화면)"으로 표시됩니다(확인 불가와 구분). Google 자연검색 순위는 공식 Google Search Console(사이트 소유자 인증 필요) 연결로 받는 것이 정식 경로입니다.
+
+## 자연검색 안내
+
+네이버 표 바로 아래(화면과 PNG 모두)에 `ORGANIC_GUIDE`(public/data-core/marketing.js)로 자연검색 순위의 뜻과 올리는 방법 5가지를 보여 줍니다. 자연검색 순위가 없는 키워드는 `organicFocusKeywords`로 골라 "먼저 할 일"로 표시합니다.
 
 ## 시간·지도·전회 비교
 
