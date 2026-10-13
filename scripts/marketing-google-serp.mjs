@@ -5,6 +5,7 @@
 //   보고서에 추가:   node scripts/marketing-google-serp.mjs merge --payload "report.json" --key-file "..\.monitoring\secrets\serpapi.dpapi"
 //
 // merge는 PNG를 만들기 전에 실행한다. 이미 Google이 관찰된 보고서는 건드리지 않는다(같은 runId 재전송 409 방지).
+// 무료 플랜(월 250회)을 넘지 않도록 Google은 주 2회(기본 월·목, KST)만 검색한다: 13키워드 × 월 약 9회 ≈ 117회.
 import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import { dirname, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -148,6 +149,16 @@ export async function collectGoogle({ payload, apiKey, request = fetch, cacheDir
   };
 }
 
+export const GOOGLE_DAYS = [1, 4]; // 0=일 1=월 … 6=토 (KST)
+const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
+export function googleDaysLabel(days = GOOGLE_DAYS) { return days.map(d => DAY_NAMES[d]).join('·'); }
+export function kstWeekday(now = new Date()) { return new Date(now.getTime() + 32400000).getUTCDay(); }
+export function parseGoogleDays(value) {
+  const days = [...new Set(String(value).split(',').map(v => v.trim()).filter(Boolean).map(Number))];
+  if (!days.length || days.some(d => !Number.isInteger(d) || d < 0 || d > 6)) throw new Error('--days는 0(일)~6(토)을 쉼표로 적습니다. 예: 1,4');
+  return days.sort((a, b) => a - b);
+}
+
 export const GOOGLE_LIMITATION = 'Google은 SerpApi 공식 검색결과 API로 부천시 위치 · google.co.kr · 데스크톱 · 첫 화면(자연검색 최대 10건)만 관찰했습니다. 광고는 시간·사용자에 따라 달라질 수 있습니다.';
 
 export async function mergeGoogleIntoPayload({ payloadPath, ...options }) {
@@ -155,6 +166,18 @@ export async function mergeGoogleIntoPayload({ payloadPath, ...options }) {
   const payload = JSON.parse(text);
   if (payload.version !== 1 || !payload.platforms?.naver) throw new Error('version 1 보고서 JSON(네이버 포함)이 필요합니다.');
   if (payload.platforms.google?.status === 'observed') return { merged: false, reason: 'already-observed' };
+  const days = options.days || GOOGLE_DAYS, now = options.now || new Date();
+  if (!days.includes(kstWeekday(now))) {
+    // 수집하지 않는 요일: 검색 횟수를 쓰지 않고 이유만 남긴다(확인 불가와 구분).
+    if (payload.platforms.google) return { merged: false, reason: 'not-scheduled' };
+    payload.platforms.google = { status: 'not_scheduled', keywords: [] };
+    const note = 'Google은 무료 사용량에 맞춰 주 2회(' + googleDaysLabel(days) + ')만 수집합니다. 이번 보고서는 수집 요일이 아닙니다.';
+    payload.limitations = [...(Array.isArray(payload.limitations) ? payload.limitations : []), note];
+    const skipTemp = payloadPath + '.google-tmp';
+    await writeFile(skipTemp, JSON.stringify(payload, null, 2));
+    await rename(skipTemp, payloadPath);
+    return { merged: false, reason: 'not-scheduled', days: googleDaysLabel(days) };
+  }
   const google = await collectGoogle({ payload, ...options });
   if (!google.note) delete google.note;
   payload.platforms.google = google;
@@ -202,6 +225,7 @@ function parseArgs(args) {
     else if (key === '--cache-dir') result.cacheDir = resolve(value);
     else if (key === '--official') result.officialUrls.push(value);
     else if (key === '--place') result.placeNames.push(value);
+    else if (key === '--days') result.days = parseGoogleDays(value);
     else throw new Error('지원하지 않는 인자입니다: ' + key);
   }
   return result;
