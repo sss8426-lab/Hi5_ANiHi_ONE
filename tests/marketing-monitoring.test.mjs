@@ -151,11 +151,11 @@ test('SerpApi Google results fill the google platform in a server-valid shape',a
  await writeFile(file,JSON.stringify(payload({channels})));
  const merged=await mergeGoogleIntoPayload({payloadPath:file,apiKey:'k'.repeat(64),request:fake,now:monday});assert.equal(merged.merged,true);
  const again=await mergeGoogleIntoPayload({payloadPath:file,apiKey:'k'.repeat(64),request:()=>{throw new Error('must not search again');},now:monday});assert.equal(again.merged,false);
- // 주 2회(월·목)만 검색: 화요일 보고서는 검색 없이 '이번 회차 미수집'으로 남고 서버도 받는다.
+ // 월·수·금만 검색: 화요일 보고서는 검색 없이 '이번 회차 미수집'으로 남고 서버도 받는다.
  const offFile=join(dir,'tuesday.json');await writeFile(offFile,JSON.stringify(payload({channels})));
  const off=await mergeGoogleIntoPayload({payloadPath:offFile,apiKey:'k'.repeat(64),request:()=>{throw new Error('must not search on Tuesday');},now:tuesday});
- assert.deepEqual([off.merged,off.reason,off.days],[false,'not-scheduled','월·목']);
- const offPayload=JSON.parse(await readFile(offFile,'utf8'));assert.equal(offPayload.platforms.google.status,'not_scheduled');assert.match(offPayload.limitations.at(-1),/주 2회\(월·목\)/);
+ assert.deepEqual([off.merged,off.reason,off.days],[false,'not-scheduled','월·수·금']);
+ const offPayload=JSON.parse(await readFile(offFile,'utf8'));assert.equal(offPayload.platforms.google.status,'not_scheduled');assert.match(offPayload.limitations.at(-1),/주 3회\(월·수·금\)/);
  assert.equal(validateMarketingPayload(offPayload).platforms.google.status,'not_scheduled');
  assert.deepEqual(parseGoogleDays('4,1,1'),[1,4]);assert.throws(()=>parseGoogleDays('7'));
  await rm(dir,{recursive:true,force:true});

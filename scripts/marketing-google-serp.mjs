@@ -7,7 +7,7 @@
 //   보고서에 추가:   node scripts/marketing-google-serp.mjs merge --payload "report.json" --key-file "..\.monitoring\secrets\serpapi.dpapi"
 //
 // merge는 PNG를 만들기 전에 실행한다. 이미 Google이 관찰된 보고서는 건드리지 않는다(같은 runId 재전송 409 방지).
-// 무료 플랜(월 250회)을 넘지 않도록 Google은 주 2회(기본 월·목, KST)만 검색한다: 13키워드 × 월 약 9회 ≈ 117회.
+// 무료 플랜(월 250회)을 넘지 않도록 Google은 정기 수집일(기본 월·수·금, KST)만 검색한다: 13키워드 × 월 12~14회 ≈ 156~182회.
 import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import { dirname, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -152,7 +152,7 @@ export async function collectGoogle({ payload, apiKey, request = fetch, cacheDir
   };
 }
 
-export const GOOGLE_DAYS = [1, 4]; // 0=일 1=월 … 6=토 (KST)
+export const GOOGLE_DAYS = [1, 3, 5]; // 0=일 1=월 … 6=토 (KST)
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 export function googleDaysLabel(days = GOOGLE_DAYS) { return days.map(d => DAY_NAMES[d]).join('·'); }
 export function kstWeekday(now = new Date()) { return new Date(now.getTime() + 32400000).getUTCDay(); }
@@ -174,7 +174,7 @@ export async function mergeGoogleIntoPayload({ payloadPath, ...options }) {
     // 수집하지 않는 요일: 검색 횟수를 쓰지 않고 이유만 남긴다(확인 불가와 구분).
     if (payload.platforms.google) return { merged: false, reason: 'not-scheduled' };
     payload.platforms.google = { status: 'not_scheduled', keywords: [] };
-    const note = 'Google은 무료 사용량에 맞춰 주 2회(' + googleDaysLabel(days) + ')만 수집합니다. 이번 보고서는 수집 요일이 아닙니다.';
+    const note = 'Google은 무료 사용량에 맞춰 주 ' + days.length + '회(' + googleDaysLabel(days) + ')만 수집합니다. 이번 보고서는 수집 요일이 아닙니다.';
     payload.limitations = [...(Array.isArray(payload.limitations) ? payload.limitations : []), note];
     const skipTemp = payloadPath + '.google-tmp';
     await writeFile(skipTemp, JSON.stringify(payload, null, 2));
