@@ -1515,8 +1515,9 @@ function routeAdmissions(){
   const requested = ['dashboard','strategy'].includes(params.get('page')) ? 'students' : params.get('page');
   const page = ['home','students','cases','works','admin','awards','settings','susi','jungsi'].includes(requested) ? requested : ADMISSIONS_HOME;
   const university = params.get('university');
-  if(page === 'admin' && university && state.data.universities.some(u=>String(u.id)===university)) state.selectedUniversityId = state.data.universities.find(u=>String(u.id)===university).id;
   showPage(page, false);
+  // 주소에 대학이 있으면(바로가기 링크) 첫 화면으로 비운 뒤 그 대학을 고른다.
+  if(page === 'admin' && university && state.data.universities.some(u=>String(u.id)===university)) state.selectedUniversityId = state.data.universities.find(u=>String(u.id)===university).id;
 }
 function bindNav(){
   document.querySelectorAll('#nav button').forEach(b=>b.addEventListener('click',()=>showPage(b.dataset.page)));
@@ -1529,7 +1530,7 @@ function showPage(page, updateHistory=true){
   const target = $(page);
   if(!target) return;
   if(updateHistory) pushAdmissionsPage(page);
-  if(page !== activePageId()) resetStudentView();
+  if(page !== activePageId()){ resetPageView(page); window.scrollTo(0, 0); }
   pageRenderToken += 1;
   const token = pageRenderToken;
   document.querySelectorAll('.page').forEach(p=>p.classList.add('hidden'));
@@ -1550,7 +1551,7 @@ function renderPage(page){
     if(page==='awards') renderAwards();
     if(page==='works') renderWorks();
     if(page==='settings') renderSettings();
-    if(page==='susi' || page==='jungsi') import('./guidelines.js?v=20260929-links').then(m=>m.renderGuidelines(page)).catch(()=>{ $(page).textContent='입시요강 화면을 불러오지 못했습니다. 새로고침해주세요.'; });
+    if(page==='susi' || page==='jungsi') import('./guidelines.js?v=20261013-fresh').then(m=>{ const fresh = freshGuidelinePage === page; if(fresh) freshGuidelinePage = ''; return m.renderGuidelines(page, {fresh}); }).catch(()=>{ $(page).textContent='입시요강 화면을 불러오지 못했습니다. 새로고침해주세요.'; });
   }catch(error){
     renderAppError(error, page);
   }
@@ -1629,6 +1630,19 @@ const canManageStudents = () => Boolean(state.data?._students?.canManage);
 function resetStudentView(){
   Object.assign(state, { studentSearch: '', studentEditor: null, studentDetailId: null, studentResultExpandedId: null,
     studentGalleryId: null, studentGradeId: null, studentYearFilter: '', studentRoundFilter: '', studentUploadOpen: false, studentPending: {} });
+}
+// 다른 메뉴(또는 뒤로가기 후 로드맵 홈)에서 들어오면 항상 그 메뉴의 첫 화면: 검색어 · 필터 · 고른 대학/폴더 · 열린 창을 비운다.
+// 같은 메뉴 안에서 다시 그릴 때(저장·탭 이동 등)는 부르지 않는다.
+let freshGuidelinePage = '';
+function resetPageView(page){
+  resetStudentView();
+  Object.assign(state, { caseSearch: '', caseReserveFilter: '', caseDetail: null, conversionDetailId: null,
+    adminSearch: '', adminTrackSearch: '', adminEditing: false, adminDraft: null, adminMode: 'edit', pdfAnalysis: null,
+    awardFolderId: null, awardViewer: null });
+  if(page === 'admin') state.selectedUniversityId = null;
+  // 재현작·우수작은 DATA CORE 폴더 화면(iframe)을 새로 띄워 대학 · 연도 폴더와 그림 보기를 처음 상태로 돌린다.
+  if(page === 'works' && $('works')) $('works').innerHTML = '';
+  if(page === 'susi' || page === 'jungsi') freshGuidelinePage = page;
 }
 // 추천 대학: the same scoring the old 지원 전략 used (내신 · 실기 · 희망 계열), shown inside 학생 관리.
 function studentRecommendations(student){
