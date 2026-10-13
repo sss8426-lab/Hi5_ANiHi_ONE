@@ -126,3 +126,31 @@ test('historical comparisons require a real earlier daily baseline in the same c
  assert.equal((await attempt('signed-delta',{comparison:{...comparison,delta:-1}})).status,400);
 }finally{await h.mf.dispose();}});
 test.after(async()=>{await rm(temp,{recursive:true,force:true});});
+test('SerpApi Google results fill the google platform in a server-valid shape',async()=>{
+ const {collectGoogle,mergeGoogleIntoPayload,officialMatchers,isOfficial}=await import('../scripts/marketing-google-serp.mjs');
+ const channels={blog:{url:'https://blog.naver.com/example_official'},website:{url:'https://example-academy.test/'}};
+ const m=officialMatchers({channels});
+ assert.ok(isOfficial('https://m.blog.naver.com/example_official/223000000001',m));
+ assert.ok(isOfficial('https://blog.naver.com/PostView.naver?blogId=example_official&logNo=1',m));
+ assert.ok(!isOfficial('https://blog.naver.com/someone_else/1',m));
+ assert.ok(isOfficial('https://www.example-academy.test/notice',m));
+ const seen=[];
+ const fake=async url=>{const q=new URL(url).searchParams;seen.push(q.get('q'));assert.equal(q.get('location'),'Bucheon-si,Gyeonggi-do,South Korea');assert.equal(q.get('gl'),'kr');
+  const first=q.get('q')===MARKETING_KEYWORDS[0];
+  return new Response(JSON.stringify({ads:first?[{link:'https://other.test/'},{link:'https://example-academy.test/ad'}]:[],organic_results:[{link:'https://other.test/a'},{link:'https://other.test/b'},{link:'https://blog.naver.com/example_official/22300'},{link:'https://example-academy.test/'}],local_results:first?{places:[{position:1,title:'다른 학원'},{position:2,title:'예시 학원',links:{website:'https://example-academy.test/'}}]}:undefined}),{status:200});};
+ const google=await collectGoogle({payload:{channels},apiKey:'k'.repeat(64),request:fake});
+ assert.equal(seen.length,13);assert.equal(google.status,'observed');
+ const k0=google.keywords[0];assert.deepEqual([k0.adCount,k0.adStatus,k0.adRank,k0.organicRank,k0.officialDocuments,k0.inspectedResults],[2,'observed',2,3,2,4]);
+ assert.equal(google.keywords[1].adStatus,'not_observed');assert.equal(google.keywords[1].adRank,null);
+ assert.deepEqual([google.maps.items[0].status,google.maps.items[0].rank],['observed',2]);assert.equal(google.maps.items[1].status,'not_observed');
+ const valid=validateMarketingPayload(payload({channels,platforms:{naver:payload().platforms.naver,google}}));assert.equal(valid.platforms.google.keywords.length,13);
+ const h=await harness();try{const res=await h.ingest(payload({runId:'google-serp',channels,platforms:{naver:payload().platforms.naver,google}}));assert.equal(res.status,201,JSON.stringify(res.body));assert.equal(res.body.report.platforms.google.keywords[0].adRank,2);}finally{await h.mf.dispose();}
+ // merge: 결과를 보고서 JSON에 넣고, 이미 관찰된 Google은 다시 검색하지 않는다.
+ const dir=await mkdtemp(join(resolve('.wrangler'),'google-merge-'));const file=join(dir,'report.json');
+ await writeFile(file,JSON.stringify(payload({channels})));
+ const merged=await mergeGoogleIntoPayload({payloadPath:file,apiKey:'k'.repeat(64),request:fake});assert.equal(merged.merged,true);
+ const again=await mergeGoogleIntoPayload({payloadPath:file,apiKey:'k'.repeat(64),request:()=>{throw new Error('must not search again');}});assert.equal(again.merged,false);
+ await rm(dir,{recursive:true,force:true});
+ // 키 오류는 바로 멈춘다(13번 재시도하지 않음).
+ let calls=0;await assert.rejects(()=>collectGoogle({payload:{channels},apiKey:'bad',request:async()=>{calls++;return new Response('{}',{status:401});}}),/키를 확인/);assert.equal(calls,1);
+});

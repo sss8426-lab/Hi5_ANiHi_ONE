@@ -55,7 +55,13 @@ Windows npm .cmd 실행 경로 오류를 피하기 위해 build/deploy 스크립
 
 ## Google 차단 표시
 
-2026-10-13 확인: 자동화 브라우저로 Google 검색을 열면 첫 검색부터 "비정상적인 트래픽" 로봇 확인 화면이 나와 결과를 읽을 수 없습니다. 로봇 확인은 우회하지 않습니다. 수집기는 이때 `platforms.google={status:'blocked',keywords:[]}`로 보내면 화면·PNG에 "자동 검색 차단 (Google 로봇 확인 화면)"으로 표시됩니다(확인 불가와 구분). Google 자연검색 순위는 공식 Google Search Console(사이트 소유자 인증 필요) 연결로 받는 것이 정식 경로입니다.
+2026-10-13 확인: 자동화 브라우저로 Google 검색을 열면 첫 검색부터 "비정상적인 트래픽" 로봇 확인 화면이 나와 결과를 읽을 수 없습니다. 로봇 확인은 우회하지 않습니다. 수집기는 이때 `platforms.google={status:'blocked',keywords:[]}`로 보내면 화면·PNG에 "자동 검색 차단 (Google 로봇 확인 화면)"으로 표시됩니다(확인 불가와 구분). 사용자 결정(2026-10-13): Google 광고·자연검색·지도는 유료 검색결과 API **SerpApi**로 받습니다.
+
+1. 원장님이 serpapi.com에 직접 가입하고 Private API Key를 확인합니다(가입·결제는 사용자가 직접).
+2. 수집용 PC에서 한 번 실행: `node scripts/marketing-google-serp.mjs configure --key-file "..\.monitoring\secrets\serpapi.dpapi"` → 키를 붙여 넣으면 화면에 보이지 않고 Windows DPAPI 파일로만 저장됩니다.
+3. 매일 수집 순서(Aside 예약): 네이버·채널 관찰 → 보고서 JSON 저장 → **`node scripts/marketing-google-serp.mjs merge --payload "report.json" --key-file "..\.monitoring\secrets\serpapi.dpapi"`** → PNG 렌더 → ingest. merge는 PNG 전에 실행해야 PNG에도 Google이 들어갑니다.
+
+merge는 13개 키워드를 부천시 위치·google.co.kr·데스크톱으로 한 번씩 검색합니다(같은 KST 날짜 결과는 `..\.monitoring\cache\serpapi`에 저장해 다른 캠퍼스 보고서가 재사용 → 하루 13회, 월 약 390회). 공식 채널은 보고서 `channels`의 블로그·인스타·웹사이트 주소로 판정하고, 더 필요하면 `--official URL`, 지도 이름 매칭은 `--place 이름`을 더합니다. 이미 `platforms.google.status='observed'`인 보고서는 다시 검색하지 않아 같은 runId 재전송 409를 막습니다. 키 오류(401/403)와 사용량 초과(429)는 즉시 멈추고, 일시 오류는 최대 3회 재시도 후 해당 키워드만 unavailable(platform status partial)로 남깁니다. 키는 출력·로그·Git에 남기지 않으며 `SERPAPI_API_KEY` 환경변수도 지원합니다.
 
 ## 자연검색 안내
 

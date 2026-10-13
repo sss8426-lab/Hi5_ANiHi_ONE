@@ -20,7 +20,7 @@ function runCaptured(executable, args, input, options = {}) {
   });
 }
 
-async function dpapi(input, protect) {
+export async function dpapi(input, protect) {
   if (process.platform !== 'win32') throw new Error('DPAPI 자격증명은 Windows 사용자 계정에서만 사용할 수 있습니다. 다른 환경은 MARKETING_INGEST_TOKEN 환경변수를 사용하세요.');
   const powershell = join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
   const command = `$ErrorActionPreference='Stop'; Add-Type -AssemblyName System.Security; $data=[Convert]::FromBase64String([Console]::In.ReadToEnd().Trim()); $entropy=[Text.Encoding]::UTF8.GetBytes('${entropy}'); $result=[Security.Cryptography.ProtectedData]::${protect ? 'Protect' : 'Unprotect'}($data,$entropy,[Security.Cryptography.DataProtectionScope]::CurrentUser); [Console]::Out.Write([Convert]::ToBase64String($result));`;
