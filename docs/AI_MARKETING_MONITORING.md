@@ -4,7 +4,7 @@
 
 기존 DB(D1) `data_records`, FILES(R2), `file_objects`만 사용합니다. 신규 DB, bucket, migration은 없습니다. `marketing-report`, `marketing-channel-profile` 및 향후 `marketing-internal-config`는 범용 레코드 API 읽기/변경 대상이 아닙니다. 보고서는 immutable입니다. 원본 PNG는 `documents-private` / `marketing-report` / `marketing-monitoring` / `campus`로 등록하며 소유자는 서버가 찾은 실제 활성 조직 MASTER 내부 ID입니다.
 
-웹 조회는 기존 `resolveDataCoreAccess` + `requireAuthenticatedAccess` 세션 인증을 사용합니다. MASTER/SUPER_ADMIN은 실제 활성 정규 10개 캠퍼스, CAMPUS_ADMIN은 자기 캠퍼스만 조회합니다. 다른 역할/공개 접근은 거부합니다. 토큰은 읽기 API의 인증이 되지 않습니다. 파일도 기존 인증 다운로드 경로에서 동일 관리자/캠퍼스 및 live report 링크를 검증합니다.
+웹 조회는 기존 `resolveDataCoreAccess` + `requireAuthenticatedAccess` 세션 인증을 사용합니다. MASTER/SUPER_ADMIN은 실제 활성 정규 10개 캠퍼스를 조회합니다. 캠퍼스 관리자·원장·선생님·직원 등 캠퍼스 소속 계정은 자기 캠퍼스 보고서와 PNG만 조회합니다(2026-10-13 사용자 요청). 채널 주소 변경(PUT /channels)은 MASTER와 자기 캠퍼스 CAMPUS_ADMIN만, 수동 수집은 MASTER만 가능합니다. 소속 캠퍼스가 없는 계정/공개 접근은 거부합니다. 토큰은 읽기 API의 인증이 되지 않습니다. 파일도 기존 인증 다운로드 경로에서 동일 관리자/캠퍼스 및 live report 링크를 검증합니다.
 
 ## 계약
 
@@ -52,6 +52,20 @@ node scripts/marketing-collector.mjs ingest --payload "report.json" --image "rep
 `node scripts/render-marketing-report.mjs report.json temporary-report.html`은 13키워드×2플랫폼을 포함한 자체 인쇄 HTML을 생성합니다. 브라우저에 넣고 snapshot → PDF 스킬 `page.pdf({preferCSSPageSize:true,printBackground:true})` → `aside.pdf.renderPages`로 PNG를 만들며 각 페이지 픽셀 수가 8백만 이하인지, 최대 4장인지, 한글·행·날짜가 잘리지 않았는지 육안 검증합니다. HTML/PDF는 tmp, 사용자 PNG는 해당 실행 artifacts에 보존합니다. 전체 요약 이미지에는 다른 캠퍼스 데이터가 포함될 수 있으므로 개별 캠퍼스 ingest에 첨부하지 않습니다.
 
 Windows npm .cmd 실행 경로 오류를 피하기 위해 build/deploy 스크립트는 잠긴 로컬 vinext/Wrangler CLI를 Node로 직접 호출합니다. 배포는 `--keep-vars`로 기존 운영 변수와 별도 FAMILY 바인딩을 보존합니다. 전용 수집 secret은 UI/API 조회 권한을 부여하지 않습니다. 예약 자체가 데이터를 만드는 단계이며 수집 토큰 설정만으로 매일 수집이 실행되는 것은 아닙니다.
+
+## Google 차단 표시
+
+2026-10-13 확인: 자동화 브라우저로 Google 검색을 열면 첫 검색부터 "비정상적인 트래픽" 로봇 확인 화면이 나와 결과를 읽을 수 없습니다. 로봇 확인은 우회하지 않습니다. 수집기는 이때 `platforms.google={status:'blocked',keywords:[]}`로 보내면 화면·PNG에 "자동 검색 차단 (Google 로봇 확인 화면)"으로 표시됩니다(확인 불가와 구분). 사용자 결정(2026-10-13): Google 광고·자연검색·지도는 유료 검색결과 API **SerpApi**로 받습니다.
+
+1. 원장님이 serpapi.com에 직접 가입하고 Private API Key를 확인합니다(가입·결제는 사용자가 직접).
+2. 수집용 PC에서 한 번 실행: `node scripts/marketing-google-serp.mjs configure --key-file "..\.monitoring\secrets\serpapi.dpapi"` → 키를 붙여 넣으면 화면에 보이지 않고 Windows DPAPI 파일로만 저장됩니다.
+3. 매일 수집 순서(Aside 예약): 네이버·채널 관찰 → 보고서 JSON 저장 → **`node scripts/marketing-google-serp.mjs merge --payload "report.json" --key-file "..\.monitoring\secrets\serpapi.dpapi"`** → PNG 렌더 → ingest. merge는 PNG 전에 실행해야 PNG에도 Google이 들어갑니다.
+
+merge는 13개 키워드를 부천시 위치·google.co.kr·데스크톱으로 한 번씩 검색합니다(같은 KST 날짜 결과는 `..\.monitoring\cache\serpapi`에 저장해 다른 캠퍼스 보고서가 재사용 → 하루 13회, 월 약 390회). 공식 채널은 보고서 `channels`의 블로그·인스타·웹사이트 주소로 판정하고, 더 필요하면 `--official URL`, 지도 이름 매칭은 `--place 이름`을 더합니다. 이미 `platforms.google.status='observed'`인 보고서는 다시 검색하지 않아 같은 runId 재전송 409를 막습니다. 키 오류(401/403)와 사용량 초과(429)는 즉시 멈추고, 일시 오류는 최대 3회 재시도 후 해당 키워드만 unavailable(platform status partial)로 남깁니다. 키는 출력·로그·Git에 남기지 않으며 `SERPAPI_API_KEY` 환경변수도 지원합니다.
+
+## 자연검색 안내
+
+네이버 표 바로 아래(화면과 PNG 모두)에 `ORGANIC_GUIDE`(public/data-core/marketing.js)로 자연검색 순위의 뜻과 올리는 방법 5가지를 보여 줍니다. 자연검색 순위가 없는 키워드는 `organicFocusKeywords`로 골라 "먼저 할 일"로 표시합니다.
 
 ## 시간·지도·전회 비교
 

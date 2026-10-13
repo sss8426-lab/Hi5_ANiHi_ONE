@@ -59,6 +59,16 @@ test('immutable idempotency, daily/sample, campus SQL filter before limit',async
  assert.equal((await h.call('/reports?campusId='+B,{headers:admin})).status,403);
  const other=await h.call('/reports?campusId='+B,{headers});assert.equal((await h.call('/reports/'+encodeURIComponent(other.body.reports[0].id),{headers:admin})).status,403);
  assert.equal((await h.call('/channels',{method:'PUT',headers:{...admin,origin:'http://localhost','content-type':'application/json'},body:JSON.stringify({campusId:B,channels:{blog:'https://blog.naver.com/official'}})})).status,403);
+ // 선생님도 자기 캠퍼스 보고서는 볼 수 있다. 다른 캠퍼스와 채널 변경은 막힌다.
+ const teacher={'oai-authenticated-user-id':'campus-teacher','oai-authenticated-user-email':'campus-teacher@example.test'};
+ await h.env.DB.prepare("INSERT INTO users (id,email,display_name,status,created_at,updated_at) VALUES ('oai:campus-teacher',?,'Teacher','active',?,?)").bind(teacher['oai-authenticated-user-email'],p.capturedAt,p.capturedAt).run();
+ await h.env.DB.prepare("INSERT INTO memberships (id,organization_id,campus_id,user_id,role,created_at,updated_at) VALUES ('marketing-teacher',?,?,'oai:campus-teacher','TEACHER',?,?)").bind(ORG,A,p.capturedAt,p.capturedAt).run();
+ const tConfig=await h.call('/config',{headers:teacher});assert.equal(tConfig.status,200);assert.deepEqual(tConfig.body.campuses.map(c=>c.id),[A]);
+ const tList=await h.call('/reports',{headers:teacher});assert.equal(tList.status,200);assert.ok(tList.body.reports.length>=1);assert.ok(tList.body.reports.every(r=>r.campusId===A));
+ assert.equal((await h.call('/reports/'+encodeURIComponent(tList.body.reports[0].id),{headers:teacher})).status,200);
+ assert.equal((await h.call('/reports?campusId='+B,{headers:teacher})).status,403);
+ assert.equal((await h.call('/reports/'+encodeURIComponent(other.body.reports[0].id),{headers:teacher})).status,403);
+ assert.equal((await h.call('/channels',{method:'PUT',headers:{...teacher,origin:'http://localhost','content-type':'application/json'},body:JSON.stringify({campusId:A,channels:{blog:'https://blog.naver.com/official'}})})).status,403);
 }finally{await h.mf.dispose();}});
 test('PNG signature, image limit and original R2 linkage',async()=>{const h=await harness();try{
  const fake=new File(['not png'],'fake.png',{type:'image/png'});await assert.rejects(()=>validateMarketingPng(fake));assert.equal((await h.ingest(payload(),[fake])).status,415);
@@ -68,7 +78,7 @@ test('PNG signature, image limit and original R2 linkage',async()=>{const h=awai
  const row=await h.env.DB.prepare('SELECT * FROM file_objects WHERE id=?').bind(res.body.report.imageFiles[0].id).first();assert.equal(row.source_app,'marketing-monitoring');assert.equal(row.category,'marketing-report');assert.equal(row.visibility,'campus');assert.equal(row.data_record_id,res.body.report.id);
  const original=await h.env.FILES.get(row.r2_key);assert.deepEqual(new Uint8Array(await original.arrayBuffer()),png);
 }finally{await h.mf.dispose();}});
-test('generic records/uploads protected; STAFF cannot download marketing PNG',async()=>{const h=await harness();try{
+test('generic records/uploads protected; only own-campus staff can download marketing PNG',async()=>{const h=await harness();try{
  const ctx={authenticated:true,database:true,user:{internalUserId:'oai:marketing-master'},isSuperAdmin:true,canWrite:true,memberships:[],campusIds:[]};
  for(const type of ['marketing-report','marketing-channel-profile','marketing-internal-config']){assert.throws(()=>protection.assertMutableRecordType(type));assert.equal(protection.canReadRow(ctx,{record_type:type}),false);}
  for(const fields of [{sourceApp:'marketing-monitoring'},{sourceApp:' marketing-monitoring '},{category:' marketing-report '},{purpose:'marketing-report'}]){const form=new FormData();form.append('file',new File(['x'],'x.png',{type:'image/png'}));for(const [key,value] of Object.entries(fields))form.append(key,value);await assert.rejects(()=>protection.uploadDataCoreFile(new Request('http://localhost/api/upload',{method:'POST',body:form}),h.env.DB,h.env.FILES,ctx),e=>e.status===403);}
@@ -79,6 +89,9 @@ test('generic records/uploads protected; STAFF cannot download marketing PNG',as
  assert.equal(await protection.canReadRegisteredFile(h.env.DB,ctx,{...row,organization_id:'foreign-org'}),false);
  const staff={...ctx,isSuperAdmin:false,memberships:[{role:'STAFF',campusId:A}],campusIds:[A]};
  assert.equal(await protection.canReadRegisteredFile(h.env.DB,staff,{source_app:'marketing-monitoring',category:'marketing-report',campus_id:A,visibility:'campus'}),false);
+ const teacher={...ctx,isSuperAdmin:false,memberships:[{organizationId:ORG,role:'TEACHER',campusId:A}],campusIds:[A]};
+ assert.equal(await protection.canReadRegisteredFile(h.env.DB,teacher,row),true);
+ assert.equal(await protection.canReadRegisteredFile(h.env.DB,{...teacher,memberships:[{organizationId:ORG,role:'TEACHER',campusId:B}],campusIds:[B]},row),false);
 }finally{await h.mf.dispose();}});
 test('historical comparisons require a real earlier daily baseline in the same campus and scope',async()=>{const h=await harness();try{
  const currentTime=Date.now()-60000;
@@ -113,3 +126,31 @@ test('historical comparisons require a real earlier daily baseline in the same c
  assert.equal((await attempt('signed-delta',{comparison:{...comparison,delta:-1}})).status,400);
 }finally{await h.mf.dispose();}});
 test.after(async()=>{await rm(temp,{recursive:true,force:true});});
+test('SerpApi Google results fill the google platform in a server-valid shape',async()=>{
+ const {collectGoogle,mergeGoogleIntoPayload,officialMatchers,isOfficial}=await import('../scripts/marketing-google-serp.mjs');
+ const channels={blog:{url:'https://blog.naver.com/example_official'},website:{url:'https://example-academy.test/'}};
+ const m=officialMatchers({channels});
+ assert.ok(isOfficial('https://m.blog.naver.com/example_official/223000000001',m));
+ assert.ok(isOfficial('https://blog.naver.com/PostView.naver?blogId=example_official&logNo=1',m));
+ assert.ok(!isOfficial('https://blog.naver.com/someone_else/1',m));
+ assert.ok(isOfficial('https://www.example-academy.test/notice',m));
+ const seen=[];
+ const fake=async url=>{const q=new URL(url).searchParams;seen.push(q.get('q'));assert.equal(q.get('location'),'Bucheon-si,Gyeonggi-do,South Korea');assert.equal(q.get('gl'),'kr');
+  const first=q.get('q')===MARKETING_KEYWORDS[0];
+  return new Response(JSON.stringify({ads:first?[{link:'https://other.test/'},{link:'https://example-academy.test/ad'}]:[],organic_results:[{link:'https://other.test/a'},{link:'https://other.test/b'},{link:'https://blog.naver.com/example_official/22300'},{link:'https://example-academy.test/'}],local_results:first?{places:[{position:1,title:'다른 학원'},{position:2,title:'예시 학원',links:{website:'https://example-academy.test/'}}]}:undefined}),{status:200});};
+ const google=await collectGoogle({payload:{channels},apiKey:'k'.repeat(64),request:fake});
+ assert.equal(seen.length,13);assert.equal(google.status,'observed');
+ const k0=google.keywords[0];assert.deepEqual([k0.adCount,k0.adStatus,k0.adRank,k0.organicRank,k0.officialDocuments,k0.inspectedResults],[2,'observed',2,3,2,4]);
+ assert.equal(google.keywords[1].adStatus,'not_observed');assert.equal(google.keywords[1].adRank,null);
+ assert.deepEqual([google.maps.items[0].status,google.maps.items[0].rank],['observed',2]);assert.equal(google.maps.items[1].status,'not_observed');
+ const valid=validateMarketingPayload(payload({channels,platforms:{naver:payload().platforms.naver,google}}));assert.equal(valid.platforms.google.keywords.length,13);
+ const h=await harness();try{const res=await h.ingest(payload({runId:'google-serp',channels,platforms:{naver:payload().platforms.naver,google}}));assert.equal(res.status,201,JSON.stringify(res.body));assert.equal(res.body.report.platforms.google.keywords[0].adRank,2);}finally{await h.mf.dispose();}
+ // merge: 결과를 보고서 JSON에 넣고, 이미 관찰된 Google은 다시 검색하지 않는다.
+ const dir=await mkdtemp(join(resolve('.wrangler'),'google-merge-'));const file=join(dir,'report.json');
+ await writeFile(file,JSON.stringify(payload({channels})));
+ const merged=await mergeGoogleIntoPayload({payloadPath:file,apiKey:'k'.repeat(64),request:fake});assert.equal(merged.merged,true);
+ const again=await mergeGoogleIntoPayload({payloadPath:file,apiKey:'k'.repeat(64),request:()=>{throw new Error('must not search again');}});assert.equal(again.merged,false);
+ await rm(dir,{recursive:true,force:true});
+ // 키 오류는 바로 멈춘다(13번 재시도하지 않음).
+ let calls=0;await assert.rejects(()=>collectGoogle({payload:{channels},apiKey:'bad',request:async()=>{calls++;return new Response('{}',{status:401});}}),/키를 확인/);assert.equal(calls,1);
+});

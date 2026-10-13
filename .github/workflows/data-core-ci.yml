@@ -70,6 +70,7 @@ jobs:
           node --check public/data-core/marketing.js
           node --check scripts/marketing-collector.mjs
           node --check scripts/render-marketing-report.mjs
+          node --check scripts/marketing-google-serp.mjs
           node --check public/data-core/content-caption.js
           node --check public/data-core/content-preset-catalog.js
           node --check public/data-core/content-text-presets.js

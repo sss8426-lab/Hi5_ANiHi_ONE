@@ -10,6 +10,7 @@
     "build": "node scripts/build-library-preview.mjs && node node_modules/vinext/dist/cli.js build",
     "deploy": "npm run build && node node_modules/wrangler/bin/wrangler.js deploy --keep-vars",
     "marketing:ingest": "node scripts/marketing-collector.mjs ingest",
+    "marketing:google": "node scripts/marketing-google-serp.mjs merge",
     "preview": "npm run build && vite preview",
     "start": "vinext start",
     "test": "npm run build && node --test --test-concurrency=1 tests/*.test.mjs",
