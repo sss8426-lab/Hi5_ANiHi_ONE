@@ -1,7 +1,9 @@
 // Google 광고 · 자연검색 · 지도를 SerpApi 공식 검색결과 API로 받아 보고서 JSON의 platforms.google을 채운다.
 // Google은 자동화 브라우저 검색을 로봇 확인 화면으로 막으므로(2026-10-13 확인) 브라우저로 수집하지 않고, 로봇 확인도 우회하지 않는다.
 //
-//   키 저장(한 번):  node scripts/marketing-google-serp.mjs configure --key-file "..\.monitoring\secrets\serpapi.dpapi"
+//   키 저장(한 번):  SerpApi 대시보드에서 키를 복사한 뒤
+//                    node scripts/marketing-google-serp.mjs configure --key-file "..\.monitoring\secrets\serpapi.dpapi"
+//                    (복사해 둔 키를 클립보드에서 읽어 저장하고 클립보드를 비운다. 터미널에 붙여 넣지 않는다.)
 //   보고서에 추가:   node scripts/marketing-google-serp.mjs merge --payload "report.json" --key-file "..\.monitoring\secrets\serpapi.dpapi"
 //
 // merge는 PNG를 만들기 전에 실행한다. 이미 Google이 관찰된 보고서는 건드리지 않는다(같은 runId 재전송 409 방지).
@@ -9,6 +11,7 @@
 import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
 import { dirname, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { spawn } from 'node:child_process';
 import { dpapi } from './marketing-collector.mjs';
 import { REPORT_KEYWORDS } from './render-marketing-report.mjs';
 
@@ -196,6 +199,25 @@ export async function readSerpApiKey(keyFile) {
   return (await dpapi(bytes, false)).toString('utf8').trim();
 }
 
+export const SERPAPI_KEY_PATTERN = /^[A-Za-z0-9]{32,128}$/;
+
+// Windows 클립보드를 읽고/비운다. 키는 화면·로그에 출력하지 않는다.
+function clipboard(command) {
+  if (process.platform !== 'win32') return Promise.resolve('');
+  const powershell = join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+  return new Promise(done => {
+    const child = spawn(powershell, ['-NoProfile', '-NonInteractive', '-STA', '-Command', command], { windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
+    const out = [];
+    child.stdout.on('data', c => out.push(c));
+    child.once('error', () => done(''));
+    child.once('close', () => done(Buffer.concat(out).toString('utf8').trim()));
+  });
+}
+export async function readKeyFromClipboard(read = clipboard) {
+  const value = await read('[Console]::OutputEncoding=[Text.Encoding]::UTF8; Get-Clipboard -Raw');
+  return SERPAPI_KEY_PATTERN.test(value) ? value : '';
+}
+
 // 원장님이 직접 키를 붙여 넣는다. 화면에 글자가 보이지 않고, 키는 Windows 사용자 암호화(DPAPI) 파일로만 저장된다.
 async function promptHidden(label) {
   const input = process.stdin;
@@ -235,11 +257,15 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.command === 'configure') {
     if (!args.keyFile) throw new Error('--key-file이 필요합니다.');
-    const key = await promptHidden('SerpApi 키를 붙여 넣고 Enter (화면에 보이지 않습니다): ');
-    if (!/^[A-Za-z0-9]{32,128}$/.test(key)) throw new Error('SerpApi 키 형식이 아닙니다. serpapi.com 대시보드의 Private API Key를 붙여 넣으세요.');
+    // 1순위: 복사해 둔 키(클립보드). 없으면 숨김 입력으로 받는다.
+    let key = await readKeyFromClipboard(), fromClipboard = Boolean(key);
+    if (!key) key = await promptHidden('복사된 SerpApi 키가 없습니다. 키를 붙여 넣고 Enter (화면에 보이지 않습니다): ');
+    if (!SERPAPI_KEY_PATTERN.test(key)) throw new Error('SerpApi 키 형식이 아닙니다. serpapi.com 대시보드에서 Private API Key를 복사한 뒤 같은 명령을 다시 실행하세요.');
     await mkdir(dirname(args.keyFile), { recursive: true });
     await writeFile(args.keyFile, await dpapi(Buffer.from(key, 'utf8'), true));
-    console.log(JSON.stringify({ configured: true, credentialProtection: 'Windows DPAPI CurrentUser' }));
+    if (fromClipboard) await clipboard('Set-Clipboard -Value $null');
+    console.log(JSON.stringify({ configured: true, source: fromClipboard ? 'clipboard (비움)' : 'typed', credentialProtection: 'Windows DPAPI CurrentUser' }));
+    console.log('저장 완료: SerpApi 키를 이 PC에 암호화해 저장했습니다.');
   } else if (args.command === 'merge') {
     if (!args.payloadPath) throw new Error('--payload가 필요합니다.');
     const apiKey = await readSerpApiKey(args.keyFile);

@@ -162,3 +162,8 @@ test('SerpApi Google results fill the google platform in a server-valid shape',a
  // 키 오류는 바로 멈춘다(13번 재시도하지 않음).
  let calls=0;await assert.rejects(()=>collectGoogle({payload:{channels},apiKey:'bad',request:async()=>{calls++;return new Response('{}',{status:401});}}),/키를 확인/);assert.equal(calls,1);
 });
+test('SerpApi key is read from a copied clipboard value only when it looks like a key',async()=>{
+ const {readKeyFromClipboard}=await import('../scripts/marketing-google-serp.mjs');
+ assert.equal(await readKeyFromClipboard(async()=>'a'.repeat(64)),'a'.repeat(64));
+ for(const value of ['','not a key','https://serpapi.com/dashboard','a'.repeat(20)])assert.equal(await readKeyFromClipboard(async()=>value),'');
+});
