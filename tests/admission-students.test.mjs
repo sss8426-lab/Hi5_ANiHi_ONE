@@ -97,9 +97,11 @@ test('로드맵 홈 first, 지원 전략 removed, 학생 관리 tabs by 학년 w
   assert.match(app, /if\(page !== activePageId\(\)\)\{ resetPageView\(page\); window\.scrollTo\(0, 0\); \}/);
   assert.match(app, /const first = order\.find\(\(\[key, tab\]\) => studentGradeCounts\(key\)\[tab\] > 0\);/, '학생 관리 opens on a tab that has students');
   assert.match(app, /합격자 데이터로 넘기기/);
-  // Recommendations now use audited mean comparisons, never a heuristic admission probability.
+  // High3 keeps audited comparisons; other current students use a labeled simple-average reference, never probability.
   const recommendationBody = app.match(/function studentRecommendations\(student\)\{([\s\S]*?)\n\}/)?.[1] || '';
-  assert.match(recommendationBody, /window\.BenchmarkStudentUi\.compare\(state\.data,student,admissionBenchmarkModel/);
+  assert.match(recommendationBody, /window\.BenchmarkStudentUi\.compare\(state\.data,input,admissionBenchmarkModel/);
+  assert.match(recommendationBody, /const simple=usesSimpleAverage\(student\)/);
+  assert.match(recommendationBody, /const input=simple\?\{\.\.\.student,detailedTranscript:normalizeDetailedTranscript\(student\)\}:student/);
   assert.doesNotMatch(recommendationBody, /scoreUniversity/);
   // 실기능력 · 전공 계열(디자인/애니) · 희망 계열(실기 유형) wait for the row 저장; 관리 = 수정 · 저장 · 삭제.
   assert.match(app, /const BASE_HOPE_TRACKS = \['기초소양', '기초디자인', '발상과표현', '상황표현', '칸만화', '이미지보드', '포트폴리오'\];/);

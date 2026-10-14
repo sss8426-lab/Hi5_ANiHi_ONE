@@ -1,4 +1,5 @@
 let admissionBenchmarkModel = null;
+let simpleAverageModel = null;
 let state = { data: null, selectedUniversityId: 1, lastAnalysis: null, studentSearch: '', studentGradeInputTab: 'simple', studentYearFilter: '', studentRoundFilter: '', studentTypeTab: 'g1', studentEditor: null, studentDetailId: null, studentResultExpandedId: null, studentGalleryId: null, studentGradeId: null, caseSearch: '', caseReserveFilter: '', caseDetail: null, conversionDetailId: null, adminShowArchived: false, adminMode: 'edit', adminEditing: false, adminSearch: '', adminTrackSearch: '', pdfAnalysis: null, adminDraft: null, artworkViewer: null, awardFolderId: null, awardYear: '2024', awardViewer: null, strategyInput: { gpa: 3.2, skillLevel: '중', track: '웹툰', studentId: '', search: '' } };
 let dashboardAnalyzeTimer = null;
 let casePages = { pass: 1, fail: 1 };
@@ -295,6 +296,7 @@ function studentGradeStats(student){
   };
 }
 function studentOverallGrade(student){
+  if(simpleAverageModel && usesSimpleAverage(student)){const average=simpleAverageModel.studentAverage({...student,detailedTranscript:normalizeDetailedTranscript(student)}).value;return Number.isFinite(average)?formatGrade(average):'-';}
   const average = studentGradeStats(student).overallAverage;
   return Number.isFinite(average) ? formatGrade(average) : (student?.gpa || '-');
 }
@@ -563,7 +565,7 @@ function studentGradeInputTabsMarkup(student){
   return `<div class="student-grade-input-tabs">
     <div class="student-grade-tab-buttons"><button class="btn ${activeTab==='simple'?'primary':''}" type="button" data-student-grade-tab="simple">간편 성적 입력</button><button class="btn ${activeTab==='detailed'?'primary':''}" type="button" data-student-grade-tab="detailed">상세 학생부 입력</button></div>
     <div class="grade-input-notice"><p>평균 내신만으로 대학별 반영성적을 계산하지 않습니다.</p><p>정확한 대학별 환산을 위해서는 상세 학생부 입력을 권장합니다.</p></div>
-    ${window.BenchmarkStudentUi.profile(student)}
+    ${window.BenchmarkStudentUi.profile(student,{simple:usesSimpleAverage(student)})}
     ${activeTab==='detailed' ? detailedTranscriptEditor(student) : termGradesEditor(student)}
   </div>`;
 }
@@ -1514,8 +1516,9 @@ async function saveStrategyAsImage(student, gpa, skillLevel, track, results){
 
 async function boot(){
   try{
-    const [loadedData,benchmarkModel]=await Promise.all([window.desktopAPI.getAll(),import('./admission-benchmarks.js?v=20261014-evidence')]);
+    const [loadedData,benchmarkModel,averageModel]=await Promise.all([window.desktopAPI.getAll(),import('./admission-benchmarks.js?v=20261014-evidence'),import('./simple-average-recommendations.js?v=20261014-simple-average')]);
     admissionBenchmarkModel=benchmarkModel;
+    simpleAverageModel=averageModel;
     setStateData(loadedData);
     bindNav();
     routeAdmissions();
@@ -1675,10 +1678,13 @@ function resetPageView(page){
   if(page === 'works' && $('works')) $('works').innerHTML = '';
   if(page === 'susi' || page === 'jungsi') freshGuidelinePage = page;
 }
-// 추천 대학: the same scoring the old 지원 전략 used (내신 · 실기 · 희망 계열), shown inside 학생 관리.
+// 고3은 공식 검증 비교 유지. 나머지 현재 학생은 한 학기만 있어도 단순평균 참고 비교.
+function usesSimpleAverage(student){const info=window.AdmissionsStudentGrades.gradeOf(student);return isCurrentStudent(student)&&!(info.grade===3&&!info.graduated);}
 function studentRecommendations(student){
- const track=trackLabelOf(studentDivision(student));const hope=String(student?.track||'').trim();
- return window.BenchmarkStudentUi.compare(state.data,student,admissionBenchmarkModel,u=>universityMatchesTrack(u,track));
+ const track=trackLabelOf(studentDivision(student));
+ const simple=usesSimpleAverage(student);
+ const input=simple?{...student,detailedTranscript:normalizeDetailedTranscript(student)}:student;
+ return window.BenchmarkStudentUi.compare(state.data,input,admissionBenchmarkModel,u=>universityMatchesTrack(u,track),{simple,simpleAverageModel});
 }
 function recommendationChips(student){return window.BenchmarkStudentUi.chips(studentRecommendations(student));}
 function studentRecommendationPanel(student){return isCurrentStudent(student)?window.BenchmarkStudentUi.panel(studentRecommendations(student),admissionBenchmarkModel):'';}
