@@ -12,6 +12,7 @@ const api = context.window.GradePhotoImport._test;
 const plain = v => JSON.parse(JSON.stringify(v)); // objects made inside the vm have another realm's prototypes
 const { expectedGrade, nameKey, subjectKey } = api;
 const validate = (...a) => plain(api.validate(...a)), mergeInto = (...a) => plain(api.mergeInto(...a)), fillTermGrades = (...a) => plain(api.fillTermGrades(...a));
+const { fillFromClassmates, schoolKey } = api;
 
 const reading = (rows, extra = {}) => ({ kind: 'report', studentName: '', school: '가상고', gradeScale: '5등급', uncertain: [], rows, ...extra });
 const row = o => ({ schoolYear: '1학년', semester: '1학기', subjectGroup: 'KOREAN', subjectName: '공통국어1', subjectType: 'COMMON', credits: '4', grade: '', rawScore: '', averageScore: '', standardDeviation: '', achievement: '', rank: '', studentCount: '', notes: '', uncertainFields: [], ...o });
@@ -89,4 +90,34 @@ test('server keeps only known codes and drops rows from non-report photos', asyn
   assert.equal(out.rows[0].subjectGroup, 'ETC');
   assert.deepEqual(out.rows[0].uncertainFields, ['grade']);
   assert.equal(cleanReading({ kind: 'artwork', rows: [{ subjectName: 'x' }] }).rows.length, 0);
+});
+
+test('blank 과목평균·수강자수 come from classmates who provably sat the same exam, and only when they agree', () => {
+  assert.equal(schoolKey('원미고등학교'), '원미고');
+  assert.equal(schoolKey('부천여자고등학교'), '부천여고');
+  assert.equal(schoolKey('가상고 (일반)'), '가상고');
+  const english = o => row({ subjectGroup: 'ENGLISH', subjectName: '공통영어1', averageScore: '67.3', studentCount: '226', ...o });
+  const mate = (id, rows, extra = {}) => ({ id, entryYear: 2026, school: '가상고등학교', detailedTranscript: [english(), ...rows.map(row)], ...extra });
+  const everyone = [
+    mate(2, [{ averageScore: '74.1', studentCount: '226' }]),
+    mate(3, [{ averageScore: '74.10', studentCount: '226' }], { school: '', consultMemo: '학교: 가상고 (일반)' }),
+    mate(4, [{ averageScore: '60', studentCount: '100' }], { entryYear: 2025 }),          // other year: ignored
+    mate(5, [{ averageScore: '60', studentCount: '100' }], { school: '다른고' }),          // other school: ignored
+    { id: 8, entryYear: 2026, school: '가상고', detailedTranscript: [english({ studentCount: '233' }), row({ averageScore: '99' })] }, // entryYear wrong: 공통영어1 disagrees → ignored
+    { id: 9, entryYear: 2026, school: '가상고', detailedTranscript: [row({ semester: '2학기', subjectName: '공통국어2', averageScore: '70' }), row({ averageScore: '98' })] }, // nothing to compare → ignored
+    mate(6, [{ subjectName: '공통수학1', averageScore: '70.3' }]),
+    mate(7, [{ subjectName: '공통수학1', averageScore: '71.0' }]),                          // disagree → not filled
+  ];
+  const student = { id: 1, entryYear: 2026, consultMemo: '학교: 가상고' };
+  const rows = [english(), row({ grade: '3', averageScore: '', studentCount: '' }), row({ subjectName: '공통수학1', notes: '합계 51.30' }), row({ subjectName: '한국사1', averageScore: '' })];
+  assert.equal(fillFromClassmates(student, rows, everyone), 2);
+  assert.equal(rows[1].averageScore, '74.1');
+  assert.equal(rows[1].studentCount, '226');
+  assert.match(rows[1].notes, /같은 학교 같은 학기 성적통지표 기준/);
+  assert.equal(rows[2].averageScore, '');
+  assert.equal(rows[2].notes, '합계 51.30');
+  assert.equal(rows[3].averageScore, '');
+  assert.equal(rows[0].notes, '');                                                          // already complete: untouched
+  assert.equal(fillFromClassmates({ id: 1, entryYear: 2026 }, [english(), row({})], everyone), 0); // school unknown
+  assert.equal(fillFromClassmates(student, [row({})], everyone), 0);                        // nothing to prove the same exam
 });
