@@ -1,4 +1,5 @@
-let state = { data: null, selectedUniversityId: 1, lastAnalysis: null, studentSearch: '', studentGradeInputTab: 'simple', studentYearFilter: '', studentRoundFilter: '', studentTypeTab: 'g1', studentEditor: null, studentDetailId: null, studentResultExpandedId: null, studentGalleryId: null, studentGradeId: null, caseSearch: '', caseReserveFilter: '', caseDetail: null, conversionDetailId: null, adminMode: 'edit', adminEditing: false, adminSearch: '', adminTrackSearch: '', pdfAnalysis: null, adminDraft: null, artworkViewer: null, awardFolderId: null, awardYear: '2024', awardViewer: null, strategyInput: { gpa: 3.2, skillLevel: '중', track: '웹툰', studentId: '', search: '' } };
+let admissionBenchmarkModel = null;
+let state = { data: null, selectedUniversityId: 1, lastAnalysis: null, studentSearch: '', studentGradeInputTab: 'simple', studentYearFilter: '', studentRoundFilter: '', studentTypeTab: 'g1', studentEditor: null, studentDetailId: null, studentResultExpandedId: null, studentGalleryId: null, studentGradeId: null, caseSearch: '', caseReserveFilter: '', caseDetail: null, conversionDetailId: null, adminShowArchived: false, adminMode: 'edit', adminEditing: false, adminSearch: '', adminTrackSearch: '', pdfAnalysis: null, adminDraft: null, artworkViewer: null, awardFolderId: null, awardYear: '2024', awardViewer: null, strategyInput: { gpa: 3.2, skillLevel: '중', track: '웹툰', studentId: '', search: '' } };
 let dashboardAnalyzeTimer = null;
 let casePages = { pass: 1, fail: 1 };
 let admissionsDataRevision = 0;
@@ -388,7 +389,8 @@ function syncStudentEditorDraft(){
     consultMemo: $('editStudentConsultMemo')?.value || state.studentEditor.student.consultMemo || '',
     admissionResults: readAdmissionResultsFromEditor(),
     termGrades: readTermGradesFromEditor(),
-    detailedTranscript: readDetailedTranscriptFromEditor()
+    detailedTranscript: readDetailedTranscriptFromEditor(),
+    admissionsProfile: window.BenchmarkStudentUi.readProfile(state.studentEditor.student)
   };
 }
 const detailedSubjectGroupOptions = [
@@ -560,7 +562,8 @@ function studentGradeInputTabsMarkup(student){
   const activeTab = state.studentGradeInputTab || 'simple';
   return `<div class="student-grade-input-tabs">
     <div class="student-grade-tab-buttons"><button class="btn ${activeTab==='simple'?'primary':''}" type="button" data-student-grade-tab="simple">간편 성적 입력</button><button class="btn ${activeTab==='detailed'?'primary':''}" type="button" data-student-grade-tab="detailed">상세 학생부 입력</button></div>
-    <div class="grade-input-notice"><p>간편 성적은 빠른 상담 및 대략적인 대학 추천에 사용됩니다.</p><p>정확한 대학별 환산을 위해서는 상세 학생부 입력을 권장합니다.</p></div>
+    <div class="grade-input-notice"><p>평균 내신만으로 대학별 반영성적을 계산하지 않습니다.</p><p>정확한 대학별 환산을 위해서는 상세 학생부 입력을 권장합니다.</p></div>
+    ${window.BenchmarkStudentUi.profile(student)}
     ${activeTab==='detailed' ? detailedTranscriptEditor(student) : termGradesEditor(student)}
   </div>`;
 }
@@ -1181,13 +1184,14 @@ function scoreUniversity(u, gpa, skill){
 function level(p){ if(p>=65)return ['안정','safe']; if(p>=42)return ['적정','fit']; return ['소신','reach']; }
 function universityCollegeType(university){
   const raw = String(university?.collegeType || university?.schoolType || university?.admissionCategory || '').trim();
+  if(raw==='특수학교/교육기관') return raw;
   if(raw.includes('전문')) return '전문대';
   if(raw.includes('4') || raw.includes('일반')) return '4년제';
   return '4년제';
 }
 function collegeTypeOptions(selected='4년제'){
   const current = universityCollegeType({ collegeType: selected });
-  return ['4년제','전문대'].map(type => `<option value="${type}" ${current===type?'selected':''}>${type}</option>`).join('');
+  return ['4년제','전문대','특수학교/교육기관'].map(type => `<option value="${type}" ${current===type?'selected':''}>${type}</option>`).join('');
 }
 function collegeTypeBadge(university){
   const type = universityCollegeType(university);
@@ -1238,7 +1242,8 @@ function isUniversityChecked(university){
   return university.isChecked === true || university.checked === true;
 }
 function checkedUniversities(){
-  return (state.data.universities || []).filter(university => isUniversityChecked(university) && !university.hiddenDuplicate);
+  const excluded = new Set((state.data._universityRecommendationExcludedIds || []).map(String));
+  return (state.data.universities || []).filter(university => !excluded.has(String(university.id)) && isUniversityChecked(university) && !university.hiddenDuplicate);
 }
 function recommendationUniversities(){
   const checked = checkedUniversities();
@@ -1509,7 +1514,9 @@ async function saveStrategyAsImage(student, gpa, skillLevel, track, results){
 
 async function boot(){
   try{
-    setStateData(await window.desktopAPI.getAll());
+    const [loadedData,benchmarkModel]=await Promise.all([window.desktopAPI.getAll(),import('./admission-benchmarks.js?v=20261014-evidence')]);
+    admissionBenchmarkModel=benchmarkModel;
+    setStateData(loadedData);
     bindNav();
     routeAdmissions();
   }catch(error){
@@ -1661,7 +1668,7 @@ let freshGuidelinePage = '';
 function resetPageView(page){
   resetStudentView();
   Object.assign(state, { caseSearch: '', caseReserveFilter: '', caseDetail: null, conversionDetailId: null,
-    adminSearch: '', adminTrackSearch: '', adminEditing: false, adminDraft: null, adminMode: 'edit', pdfAnalysis: null,
+    adminShowArchived: false, adminSearch: '', adminTrackSearch: '', adminEditing: false, adminDraft: null, adminMode: 'edit', pdfAnalysis: null,
     awardFolderId: null, awardViewer: null });
   if(page === 'admin') state.selectedUniversityId = null;
   // 재현작·우수작은 DATA CORE 폴더 화면(iframe)을 새로 띄워 대학 · 연도 폴더와 그림 보기를 처음 상태로 돌린다.
@@ -1670,33 +1677,11 @@ function resetPageView(page){
 }
 // 추천 대학: the same scoring the old 지원 전략 used (내신 · 실기 · 희망 계열), shown inside 학생 관리.
 function studentRecommendations(student){
-  const gpa = Number(student?.gpa), track = trackLabelOf(studentDivision(student)), hope = String(student?.track || '').trim();
-  if(!Number.isFinite(gpa) || gpa <= 0 || !track) return null;
-  const level = student.skillLevel || (Number(student.skill) > 0 ? skillLevelFromScore(student.skill) : '');
-  const skill = skillScoreFromLevel(level || 'B0');
-  const matched = hope ? dashboardUniversitiesForTrack(track, hope) : [];
-  const scored = (matched.length ? matched : dashboardUniversitiesForTrack(track)).map(u => ({ u, p: scoreUniversity(u, gpa, skill) })).sort((a,b) => b.p - a.p);
-  const pick = (min, max) => scored.filter(x => x.p >= min && x.p < max);
-  return { safe: pick(65, 101), fit: pick(42, 65), reach: pick(0, 42) };
+ const track=trackLabelOf(studentDivision(student));const hope=String(student?.track||'').trim();
+ return window.BenchmarkStudentUi.compare(state.data,student,admissionBenchmarkModel,u=>universityMatchesTrack(u,track));
 }
-function recommendationChips(student){
-  const rec = studentRecommendations(student);
-  if(!rec) return '<span class="muted rec-empty">내신 입력 필요</span>';
-  return `<span class="rec-chip safe">안정 ${rec.safe.length}</span><span class="rec-chip fit">적정 ${rec.fit.length}</span><span class="rec-chip reach">소신 ${rec.reach.length}</span>`;
-}
-function studentRecommendationPanel(student){
-  if(!isCurrentStudent(student)) return '';
-  const rec = studentRecommendations(student);
-  const list = (items) => items.length ? items.slice(0,4).map(({u,p}) => `<li><b>${universityNameMarkup(u)}</b><span>${h(u.major || '')}${u.admission ? ` · ${h(u.admission)}` : ''}</span><em>${p}%</em></li>`).join('') : '<li class="muted">해당 없음</li>';
-  return `<section class="student-detail-section student-rec-panel">
-    <div class="student-detail-head"><h3>추천 대학</h3><span class="muted">내신 ${h(student.gpa || '-')} · 실기능력 ${h(studentSkillLevel(student))} · 전공 계열 ${h(trackLabelOf(studentDivision(student)))}${student.track ? ` · 희망 계열 ${h(student.track)}` : ''} 기준, 자동</span></div>
-    ${rec ? `<div class="rec-columns">
-      <div class="rec-col safe"><h4>안정</h4><ul>${list(rec.safe)}</ul></div>
-      <div class="rec-col fit"><h4>적정</h4><ul>${list(rec.fit)}</ul></div>
-      <div class="rec-col reach"><h4>소신</h4><ul>${list(rec.reach)}</ul></div>
-    </div><p class="muted rec-note">상담 참고용 예측입니다. 실제 지원 전 대학 모집요강을 확인하세요.</p>` : '<p class="muted">학생 정보에 내신 평균을 입력하면 추천 대학이 나옵니다.</p>'}
-  </section>`;
-}
+function recommendationChips(student){return window.BenchmarkStudentUi.chips(studentRecommendations(student));}
+function studentRecommendationPanel(student){return isCurrentStudent(student)?window.BenchmarkStudentUi.panel(studentRecommendations(student),admissionBenchmarkModel):'';}
 function studentUploadPanel(){
   const grades = window.AdmissionsStudentGrades;
   const tabGrade = /^g([123])$/.exec(state.studentTypeTab || '')?.[1] || '1';
@@ -2357,7 +2342,8 @@ function applyPdfMatchToAdmin(matchIndex){
 }
 
 function renderAdmin(){
-  const allUniversities = sortedUniversities({management:true});
+  const hiddenIds = new Set((state.data._universityManagementDeletedIds || []).map(String));
+  const allUniversities = state.adminShowArchived ? sortedUniversities().filter(u=>hiddenIds.has(String(u.id))) : sortedUniversities({management:true});
   if (state.adminMode !== 'add' && !allUniversities.some(u=>String(u.id)===String(state.selectedUniversityId))) state.selectedUniversityId = allUniversities[0]?.id ?? null;
   const adminQuery = String(state.adminSearch || '').trim().toLowerCase();
   const adminTrackQuery = state.adminTrackSearch || '';
@@ -2374,12 +2360,14 @@ function renderAdmin(){
   const editorLocked = state.adminMode === 'edit' && !state.adminEditing;
   const checkedComplete = isUniversityChecked(current);
   const required = current.requiredScores || {};
-  const stats = current.acceptedStats || {};
+  const officialStats = window.OfficialAdmissionEvidence.statsFor(state.data,current);
+  const stats = officialStats || current.acceptedStats || {};
   $('admin').innerHTML=`<div class="top"><div><h1>대학 데이터 관리</h1><p>ㄱ~ㅎ 순서 대학 목록에서 입시요강과 합격 기준 데이터를 쉽게 확인하고 편집합니다.</p></div><div class="actions"><button class="btn" id="newUniBtn">새 대학 추가</button></div></div>
+  ${window.AdmissionUniversityScope.markup(state.data,state.adminShowArchived)}
   <div class="admin-layout">
     <aside class="card university-list"><h2>대학 목록 ㄱ~ㅎ</h2><div class="search-box admin-search-box"><input id="adminSearchInput" placeholder="대학명, 지역, 학과, 전형명 검색" value="${h(state.adminSearch)}"><button class="btn" id="adminSearchBtn">검색</button></div><div class="admin-track-filter"><div class="field"><label>전공 계열 검색</label><select id="adminTrackSearchInput">${adminTrackOptions}</select></div><div class="admin-track-actions"><button class="btn primary" id="checkFilteredUniversitiesBtn" type="button">검색 결과 전체 최신입시요강 체크완료</button><button class="btn danger" id="uncheckFilteredUniversitiesBtn" type="button">검색 결과 전체 체크해제</button></div></div>${(adminQuery || adminTrackQuery) ? `<div class="search-summary">검색 결과 ${list.length}개${adminTrackQuery ? ` · 전공 계열 ${h(adminTrackQuery)}` : ''}</div>` : ''}<div class="university-list-scroll">${list.length ? list.map(u=>{const isChecked=isUniversityChecked(u); return `<button class="${state.adminMode==='edit'&&u.id===current.id?'selected':''}" data-admin-uni="${u.id}"><b>${universityNameMarkup(u)}<span class="admin-card-badges">${collegeTypeBadge(u)}${isChecked?'<em class="latest-admission-badge">최신입시요강 체크완료</em>':''}</span></b><span>${h(u.major)}</span><small>${h(u.admission || '')}</small></button>`}).join('') : '<div class="empty-box">검색 결과가 없습니다.</div>'}</div></aside>
     <section class="card admin-editor-panel">
-      <div class="admin-editor-head"><h2>${state.adminMode==='add'?'새 대학 입력':'대학 정보 수정'}</h2><div class="actions admin-head-actions"><input type="hidden" id="aCheckedComplete" value="${checkedComplete?'true':'false'}"><button class="btn admission-image-save-btn" id="saveAdmissionImagesBtn" type="button" ${state.adminMode==='edit'&&current?.id?'':'disabled'}>입시요강 이미지 저장</button><button class="btn admission-image-view-btn" id="viewAdmissionImagesBtn" type="button" ${state.adminMode==='edit'&&current?.id?'':'disabled'}>입시요강 이미지 보기${current.admissionImages?.length ? ` (${current.admissionImages.length})` : ''}</button><button class="btn check-complete-btn ${checkedComplete?'active':''}" id="checkCompleteBtn" type="button">최신입시요강 체크완료</button><button class="btn uncheck-complete-btn" id="uncheckCompleteBtn" type="button">체크해제</button><button class="btn" id="editUniBtn" type="button">${editorLocked?'편집':'편집 중'}</button><button class="btn primary" id="saveUni" type="button" ${editorLocked?'disabled':''}>저장</button><button class="btn danger" id="deleteUniBtn" type="button" ${state.adminMode==='edit'&&current?.id?'':'disabled'}>대학삭제</button></div></div>
+      <div class="admin-editor-head"><h2>${state.adminMode==='add'?'새 대학 입력':'대학 정보 수정'}</h2><div class="actions admin-head-actions"><input type="hidden" id="aCheckedComplete" value="${checkedComplete?'true':'false'}"><button class="btn admission-image-save-btn" id="saveAdmissionImagesBtn" type="button" ${state.adminMode==='edit'&&current?.id?'':'disabled'}>입시요강 이미지 저장</button><button class="btn admission-image-view-btn" id="viewAdmissionImagesBtn" type="button" ${state.adminMode==='edit'&&current?.id?'':'disabled'}>입시요강 이미지 보기${current.admissionImages?.length ? ` (${current.admissionImages.length})` : ''}</button><button class="btn check-complete-btn ${checkedComplete?'active':''}" id="checkCompleteBtn" type="button">최신입시요강 체크완료</button><button class="btn uncheck-complete-btn" id="uncheckCompleteBtn" type="button">체크해제</button><button class="btn" id="editUniBtn" type="button">${editorLocked?'편집':'편집 중'}</button><button class="btn primary" id="saveUni" type="button" ${editorLocked?'disabled':''}>저장</button><button class="btn danger" id="deleteUniBtn" type="button" ${state.adminMode==='edit'&&current?.id?'':'disabled'}>목록에서 숨기기</button></div></div>
       <div class="admin-grid">
         <div class="field"><label>대학명</label><input id="aName" value="${h(current.name)}"></div>
         <div class="field"><label>학과</label><input id="aMajor" value="${h(current.major)}"></div>
@@ -2405,7 +2393,8 @@ function renderAdmin(){
         <div class="field"><label>사탐</label><select id="reqSocial">${gradeStepOptions(required.social)}</select></div>
         <div class="field"><label>과탐</label><select id="reqScience">${gradeStepOptions(required.science)}</select></div>
       </div>
-      <h3 class="admin-subtitle">합격생 성적 통계</h3>
+      ${window.OfficialAdmissionEvidence.markup(state.data,current)}
+      <h3 class="admin-subtitle">${officialStats ? '공식 최종등록자 통계 · 2026학년도' : '기존 입력 성적 (공식 검증 전 참고값)'}</h3>
       <div class="admin-grid">
         <div class="field"><label>합격생 평균성적</label><input id="statAverage" type="number" step="0.1" value="${h(stats.average || '')}"></div>
         <div class="field"><label>합격생 최고성적</label><input id="statBest" type="number" step="0.1" value="${h(stats.best || '')}"></div>
@@ -2416,6 +2405,8 @@ function renderAdmin(){
       <div class="notice">입시요강이 바뀌면 이 화면에서 바로 수정해 저장하세요. 저장된 데이터는 대시보드 추천과 분석 화면에 즉시 반영됩니다.</div>
     </section>
   </div>`;
+  window.AdmissionUniversityScope.bind({data:state.data,showArchived:state.adminShowArchived,selectedId:current.id,onToggle:()=>{state.adminShowArchived=!state.adminShowArchived;state.adminEditing=false;state.adminDraft=null;state.selectedUniversityId=null;renderAdmin();},onSaved:async()=>{setStateData(await window.desktopAPI.getAll());state.adminEditing=false;state.adminDraft=null;state.selectedUniversityId=null;renderAdmin();}});
+  window.OfficialAdmissionEvidence.bind(state.data,async()=>{setStateData(await window.desktopAPI.getAll());renderAdmin();});
   $('newUniBtn').onclick=()=>{state.adminMode='add'; state.adminEditing=true; state.pdfAnalysis=null; renderAdmin();};
   $('editUniBtn').onclick=()=>{state.adminEditing=true; renderAdmin();};
   const setCheckComplete = next=>{
@@ -2456,7 +2447,7 @@ function renderAdmin(){
   };
   document.querySelectorAll('[data-admin-uni]').forEach(btn=>btn.onclick=()=>{state.adminMode='edit'; state.adminEditing=false; state.selectedUniversityId=Number(btn.dataset.adminUni); state.adminDraft=null; state.pdfAnalysis=null; renderAdmin();});
   if(editorLocked){
-    document.querySelectorAll('.admin-editor-panel input, .admin-editor-panel select, .admin-editor-panel textarea, .admin-editor-panel button:not(#editUniBtn):not(#saveUni):not(#deleteUniBtn):not(#checkCompleteBtn):not(#uncheckCompleteBtn):not(#saveAdmissionImagesBtn):not(#viewAdmissionImagesBtn):not(#applyRuleTemplateBtn)').forEach(element => {
+    document.querySelectorAll('.admin-editor-panel input, .admin-editor-panel select, .admin-editor-panel textarea, .admin-editor-panel button:not(#applyOfficialEvidence):not(#editUniBtn):not(#saveUni):not(#deleteUniBtn):not(#checkCompleteBtn):not(#uncheckCompleteBtn):not(#saveAdmissionImagesBtn):not(#viewAdmissionImagesBtn):not(#applyRuleTemplateBtn)').forEach(element => {
       element.disabled = true;
     });
   }
@@ -2497,23 +2488,15 @@ function renderAdmin(){
   };
 }
 async function deleteUniversity(){
-  const current = uni(state.selectedUniversityId);
-  if(!current?.id) return;
-  if(!confirm(`${universityNameText(current)} 대학 정보를 삭제할까요?`)) return;
-  const removed = await window.desktopAPI.deleteUniversity(current.id);
-  state.data.universities = (state.data.universities || []).filter(university => Number(university.id) !== Number(removed.id));
-  clearComputedCaches();
-  refreshUniversityRecommendations();
-  state.selectedUniversityId = sortedUniversities({management:true})[0]?.id ?? null;
-  state.adminMode = 'edit';
-  state.adminEditing = false;
-  state.adminDraft = null;
-  state.pdfAnalysis = null;
-  renderAdmin();
+  const current=uni(state.selectedUniversityId);if(!current?.id)return;
+  if(!state.data._universityScope?.canManage){alert('마스터 권한이 필요합니다.');return;}
+  if(!confirm(universityNameText(current)+' 항목을 목록에서 숨길까요? 숨긴 대학 보기에서 언제든 복원할 수 있습니다.'))return;
+  try{await window.AdmissionUniversityScope.request({action:'hide',ids:[String(current.id)],expectedRevision:state.data._universityScope?.revision||0});setStateData(await window.desktopAPI.getAll());state.adminEditing=false;state.adminDraft=null;state.selectedUniversityId=null;renderAdmin();}catch(e){alert(e.message);}
 }
 async function saveUniversity(){
   const current = state.adminMode === 'add' ? blankUniversity() : uni(state.selectedUniversityId);
   const checkedValue = $('aCheckedComplete')?.value === 'true';
+  const optionalNumber=id=>{const value=$(id)?.value?.trim();return value&&Number.isFinite(Number(value))?Number(value):null;};
   const payload = {
     ...(current || {}),
     name:$('aName').value.trim(),
@@ -2528,15 +2511,15 @@ async function saveUniversity(){
     subjects:$('aSubjects').value.trim(),
     ratePrev:$('aRatePrev').value.trim(),
     rateCurrent:$('aRate').value.trim(),
-    cutGpa:num('aCutGpa',3.5),
-    sampleSkill:num('aSampleSkill',80),
+    cutGpa:optionalNumber('aCutGpa'),
+    sampleSkill:optionalNumber('aSampleSkill'),
     checkedComplete:checkedValue,
     isChecked:checkedValue,
     checked:checkedValue,
     latestAdmissionComplete: checkedValue ? true : current?.latestAdmissionComplete,
     latestAdmissionSource: checkedValue && !current?.latestAdmissionSource ? '수동 최신입시요강 체크' : current?.latestAdmissionSource,
     requiredScores:{korean:num('reqKorean'),english:num('reqEnglish'),math:num('reqMath'),social:num('reqSocial'),science:num('reqScience')},
-    acceptedStats:{average:num('statAverage'),best:num('statBest'),worst:num('statWorst')}
+    acceptedStats:{average:optionalNumber('statAverage'),best:optionalNumber('statBest'),worst:optionalNumber('statWorst')}
   };
   if(!payload.name){ alert('대학명을 입력하세요.'); return; }
   if(state.adminMode==='add'){

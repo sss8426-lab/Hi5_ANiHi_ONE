@@ -23,7 +23,8 @@ test('management filtering is ID-specific and leaves original objects and all ot
   assert.deepEqual(managementRows(rows,['1']),[rows[1]]);assert.deepEqual(managementRows(rows),rows);
   assert.equal(JSON.stringify(rows),before);
   const code=fs.readFileSync('public/admissions-web/renderer/app.js','utf8');
-  assert.match(code,/function renderAdmin\(\)\{\s*const allUniversities = sortedUniversities\(\{management:true\}\)/);
+  assert.match(code,/function renderAdmin\(\)\{\s*const hiddenIds = new Set/);
+  assert.match(code,/const allUniversities = state\.adminShowArchived \? sortedUniversities\(\)\.filter\([\s\S]*?: sortedUniversities\(\{management:true\}\)/);
   assert.match(code,/const universityOptions = editor \? sortedUniversities\(\)/);
 });
 
