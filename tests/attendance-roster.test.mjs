@@ -5,7 +5,7 @@ import {unzipSync,strFromU8,strToU8,zipSync} from '../public/data-core/vendor/ff
 import {rosterFixture,expandedRosterFixture,defaultClasses} from './helpers/attendance-roster-fixture.mjs';
 import {parseRoster,RosterError} from '../public/data-core/work/attendance-roster-parser.js';
 import {parseSchedule,scheduleLabel,monthColumns,plannedColumns,lessonCount,ScheduleError} from '../public/data-core/work/attendance-roster-schedule.js';
-import {buildRosterWorkbook,planRosterWorkbook,sheetNames,OUTPUT_HEADERS,COLORS,PRINT} from '../public/data-core/work/attendance-roster-export.js';
+import {buildRosterWorkbook,planRosterWorkbook,sheetNames,pageFillRows,OUTPUT_HEADERS,COLORS,PRINT} from '../public/data-core/work/attendance-roster-export.js';
 import {holidayDates,holidayClassDates,fetchHolidays,fetchMonthHolidays,addHolidayClass,removeHolidayClass,holidaySummary} from '../public/data-core/work/attendance-holidays.js';
 import {columnName} from '../public/data-core/work/attendance-template.js';
 
@@ -416,4 +416,65 @@ test('an unmerged class bar still reads, with a warning; check marks that disagr
   const checked=parseRoster(zipSync(files),env);
   assert.deepEqual(checked.issues,[]);assert.match(checked.warnings.join(),/체크칸\(월1 목1\)과 수업요일\(월1 수1\)/);
   assert.deepEqual(checked.classes[0].students[0].schedule.slots,['월1','수1']);
+});
+
+// ---------- 손으로 적을 빈칸 ----------
+test('blank rows follow the students, numbered after the last student, with nothing planned', ()=>{
+  const roster=parse({classes:[{name:'A반',students:[student('가','화1 토1'),student('나','수1')]}]});
+  const book=openOutput(buildRosterWorkbook(roster,{year:2026,month:10,blankRows:3}).bytes),out=book.sheets[0];
+  assert.equal(out.at('A7').value,'3');assert.equal(out.at('A9').value,'5');
+  assert.equal(out.at('B7').value,'');assert.equal(out.at('I7').value,'');
+  const lastColumn=columnName(9+planRosterWorkbook(roster,{year:2026,month:10}).sheets[0].columns.length);
+  for(let c=10;c<=9+5;c++)assert.notEqual(out.at(`${columnName(c)}8`).value,'1');
+  assert.ok(book.defined.find(d=>d.name==='_xlnm.Print_Area').ref.endsWith(`$${lastColumn}$10`)); // rows 5–6 students, 7–9 blank, 10 note
+  assert.match(out.at('A10').value,/신입생 수기 기록용/);
+});
+
+test('without the option nothing changes: no blank rows, no extra columns', ()=>{
+  const roster=parse({classes:[{name:'A반',students:[student('가','화1')]}]});
+  const plan=planRosterWorkbook(roster,{year:2026,month:10}).sheets[0];
+  assert.equal(plan.blankRows,0);assert.ok(plan.columns.every(c=>!c.extra));
+  const out=openOutput(buildRosterWorkbook(roster,{year:2026,month:10}).bytes).sheets[0];
+  assert.doesNotMatch(out.at('A6').value,/^\d+$/);
+});
+
+test('보강용 빈 열: a chosen slot gets a column in every sheet even with no student in it', ()=>{
+  const roster=parse({classes:[{name:'주말반',students:[student('가','일1'),student('나','토1 일1')]},{name:'평일반',students:[student('다','화1')]}]});
+  const plan=planRosterWorkbook(roster,{year:2026,month:10,extraSlots:['일2','없는칸']});
+  for(const sheet of plan.sheets){
+    const extra=sheet.columns.filter(c=>c.extra);
+    assert.deepEqual([...new Set(extra.map(c=>c.slot))],['일2']);
+    assert.equal(extra.length,4); // 2026-10 Sundays: 4, 11, 18, 25
+  }
+  const weekend=plan.sheets[0];
+  const sunday=weekend.columns.filter(c=>c.date==='2026-10-04').map(c=>c.label);
+  assert.deepEqual(sunday,['일1','일2']);
+  // nobody is planned in the 보강 column, so 일수 does not change
+  assert.deepEqual(weekend.students.map(s=>s.count.label),['4','8+1']); // 5 Saturdays in 2026-10
+  const out=openOutput(buildRosterWorkbook(roster,{year:2026,month:10,extraSlots:['일2']}).bytes).sheets[0];
+  const col=columnName(10+weekend.columns.findIndex(c=>c.extra));
+  assert.equal(out.at(`${col}4`).value,'일2');assert.equal(out.at(`${col}4`).style.fill,'FFE2F0D9');
+});
+
+test('a slot a student already has is not marked as 보강', ()=>{
+  const roster=parse({classes:[{name:'A반',students:[student('가','일2')]}]});
+  const plan=planRosterWorkbook(roster,{year:2026,month:10,extraSlots:['일2']}).sheets[0];
+  assert.ok(plan.columns.filter(c=>c.slot==='일2').length>0);
+  assert.ok(plan.columns.every(c=>!c.extra));
+});
+
+test('A4 한 장 끝까지: blank rows fill the rest of the last printed page and never start a new one', ()=>{
+  // measured with Excel 16: 49 data rows on page 1 at 100%, 2 spare rows kept
+  assert.equal(pageFillRows({used:6,widthUnits:140}),41);
+  assert.equal(pageFillRows({used:46,widthUnits:140}),1);
+  assert.equal(pageFillRows({used:48,widthUnits:140}),0);
+  assert.equal(pageFillRows({used:49,widthUnits:140}),0);
+  // later pages hold more rows (no title), the page's last 2 rows stay free
+  assert.equal(pageFillRows({used:62,widthUnits:140}),37); // page 2 holds 52 rows: 13 used + 37 blank + 2 spare
+  // a wider sheet is printed smaller, so more rows fit
+  assert.ok(pageFillRows({used:6,widthUnits:220})>pageFillRows({used:6,widthUnits:140}));
+  const roster=parse({classes:[{name:'A반',students:[student('가','화1'),student('나','수1')]}]});
+  const out=openOutput(buildRosterWorkbook(roster,{year:2026,month:10,blankRows:'page'}).bytes).sheets[0];
+  const numbered=[...out.cells].filter(([ref,c])=>/^A\d+$/.test(ref)&&/^\d+$/.test(c.value)).length;
+  assert.ok(numbered>30,`${numbered} numbered rows`);
 });

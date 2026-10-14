@@ -34,13 +34,35 @@ export function sheetNames(names){
 }
 
 /** Everything a sheet shows, shared by the Excel writer and the on-screen preview. */
-export function planRosterWorkbook(roster,{year,month,holidays=new Map(),classDays=new Map(),attendance=null}){
+// blankRows: empty rows under the students for new students written in by hand — a number, or 'page'
+// to fill the rest of the last printed A4 page.
+// extraSlots: time slots (e.g. '일2') that get a column in every sheet even when no student has that
+// lesson — a blank column for 보강 written in by hand.
+export const MAX_BLANK_ROWS=10,FILL_PAGE='page';
+// A4 landscape page in Excel, measured with Excel 16 (fit to 1 page wide): about 835pt of sheet width and
+// 604pt of row height fit at 100%; a wider sheet is scaled down and fits proportionally more rows.
+// Each Excel width unit of these columns is about 5.62pt. Two rows are left free so another printer's
+// slightly smaller page does not push the last blank rows onto an extra sheet.
+const PAGE={width:835,height:604,unit:5.62,spare:2},ROW=11,TITLE_ROWS=24+14;
+/** How many blank rows fill the last printed page after `used` rows (students + notes). */
+export function pageFillRows({used,widthUnits}){
+  const scale=Math.min(1,PAGE.width/(widthUnits*PAGE.unit)),height=PAGE.height/scale;
+  // Rows per page: the first page under the title, later pages under the repeated header rows.
+  const first=Math.floor((height-TITLE_ROWS)/ROW)-HEADER_ROWS.length,next=Math.floor(height/ROW)-HEADER_ROWS.length;
+  if(first<=PAGE.spare||next<=PAGE.spare)return 0;
+  const onLast=used<=first?used:(used-first)%next||next,room=(used<=first?first:next)-PAGE.spare;
+  return Math.max(0,room-onLast);
+}
+export function planRosterWorkbook(roster,{year,month,holidays=new Map(),classDays=new Map(),attendance=null,blankRows=0,extraSlots=[]}){
   const names=sheetNames(roster.classes.map(c=>c.name));
+  const extra=new Set((extraSlots||[]).filter(s=>SLOT_ORDER.includes(s)));
+  const blank=blankRows===FILL_PAGE?FILL_PAGE:Math.max(0,Math.min(MAX_BLANK_ROWS,Math.floor(Number(blankRows)||0)));
   const sheets=roster.classes.map((group,i)=>{
     const used=new Set(group.students.flatMap(s=>s.schedule?.slots||[]));
-    const columns=monthColumns(year,month,SLOT_ORDER.filter(s=>used.has(s)),holidays);
+    const columns=monthColumns(year,month,SLOT_ORDER.filter(s=>used.has(s)||extra.has(s)),holidays)
+      .map(col=>({...col,extra:!used.has(col.slot)&&extra.has(col.slot)&&col.label===col.slot}));
     const students=group.students.map(s=>{const planned=plannedColumns(s.schedule,columns);return {...s,planned,count:lessonCount(s.schedule,planned)};});
-    return {name:names[i],className:group.name,columns,students};
+    return {name:names[i],className:group.name,columns,students,blankRows:blank};
   });
   return {campus:roster.campus,year,month,holidays,sheets,attendance,holidayNote:holidaySummary(holidays),classDayNote:holidaySummary(classDays)};
 }
@@ -76,7 +98,20 @@ function borderFor(c,r,{lastColumn,lastRow}){
 }
 
 function sheetXml(sheet,plan,styles,sheetIndex){
-  const {columns,students}=sheet,lastColumn=FIRST_DATE_COLUMN+columns.length-1,lastRow=FIRST_STUDENT_ROW+Math.max(students.length,1)-1;
+  const {columns,students}=sheet,lastColumn=FIRST_DATE_COLUMN+columns.length-1;
+  // 수업요일 grows with the longest schedule in the class ("화1.2.3 수1.2.3 … 일1.2.3") so it stays
+  // readable instead of shrinking to a few points; 7pt Hangul ≈ 1.3 and digits/dots ≈ 0.6 width units.
+  const scheduleWidth=Math.min(28,Math.max(INFO_WIDTHS[7],...students.map(s=>{
+    const label=s.schedule?scheduleLabel(s.schedule):String(s.scheduleText||'');
+    return [...label].reduce((w,ch)=>w+(/[가-힣]/.test(ch)?1.3:0.6),1);
+  })));
+  const widths=INFO_WIDTHS.map((w,i)=>i===7?Math.round(scheduleWidth*10)/10:w);
+  const noteCount=1+(plan.attendance?1:0)+(plan.holidayNote?1:0)+(plan.classDayNote?1:0);
+  const blankRows=sheet.blankRows===FILL_PAGE
+    ?pageFillRows({used:students.length+noteCount,widthUnits:widths.reduce((a,b)=>a+b,0)+columns.length*DATE_WIDTH})
+    :sheet.blankRows||0;
+  const lastRow=FIRST_STUDENT_ROW+Math.max(students.length+blankRows,1)-1;
+  const lastNo=students.reduce((max,s)=>Math.max(max,Number.isFinite(Number(s.no))?Number(s.no):0),students.length);
   const last=columnName(lastColumn),rows=[],merges=[];
   const cell=(c,r,value,s,type)=>{
     const ref=`${columnName(c)}${r}`;
@@ -95,7 +130,7 @@ function sheetXml(sheet,plan,styles,sheetIndex){
     const cells=[];
     OUTPUT_HEADERS.forEach((title,i)=>cells.push(cell(i+1,r,r===HEADER_ROWS[0]?title:null,styles.style({size:7,bold:true,color:COLORS.white,fill:COLORS.header,wrap:true,border:borderFor(i+1,r,{lastColumn,lastRow})}))));
     columns.forEach((col,i)=>{
-      const c=FIRST_DATE_COLUMN+i,fill=col.holiday?COLORS.holiday:col.weekend?COLORS.weekendHeader:COLORS.dateHeader;
+      const c=FIRST_DATE_COLUMN+i,fill=col.holiday?COLORS.holiday:col.extra?EXTRA_FILL:col.weekend?COLORS.weekendHeader:COLORS.dateHeader;
       const s=styles.style({size:6.5,bold:true,color:col.holiday?COLORS.white:COLORS.text,fill,shrink:true,border:borderFor(c,r,{lastColumn,lastRow})});
       cells.push(cell(c,r,r===HEADER_ROWS[0]?col.day:col.holiday?'휴':col.label,s));
     });
@@ -129,20 +164,22 @@ function sheetXml(sheet,plan,styles,sheetIndex){
     });
     row(r,11,cells);
   });
-  if(!students.length)row(FIRST_STUDENT_ROW,11,Array.from({length:lastColumn},(_,i)=>cell(i+1,FIRST_STUDENT_ROW,null,styles.style({size:7,border:borderFor(i+1,FIRST_STUDENT_ROW,{lastColumn,lastRow})}))));
+  // Blank rows for new students: numbered, same grid and weekend/holiday shading, nothing planned.
+  for(let k=0;k<blankRows;k++){
+    const r=FIRST_STUDENT_ROW+students.length+k,b=c=>borderFor(c,r,{lastColumn,lastRow});
+    const cells=Array.from({length:9},(_,i)=>cell(i+1,r,i===0?lastNo+k+1:null,styles.style({size:7,shrink:true,border:b(i+1)})));
+    columns.forEach((col,i)=>{const c=FIRST_DATE_COLUMN+i;cells.push(cell(c,r,null,styles.style({size:6,fill:col.holiday?COLORS.holidayBody:col.weekend?COLORS.weekendBody:null,border:b(c)})));});
+    row(r,11,cells);
+  }
+  if(!students.length&&!blankRows)row(FIRST_STUDENT_ROW,11,Array.from({length:lastColumn},(_,i)=>cell(i+1,FIRST_STUDENT_ROW,null,styles.style({size:7,border:borderFor(i+1,FIRST_STUDENT_ROW,{lastColumn,lastRow})}))));
   const noteStyle=styles.style({size:6.5,italic:true,color:COLORS.note,h:'left'});
   let noteRow=lastRow+1;
-  row(noteRow,11,span(noteRow,'파란색 = 예정 수업 · 일수 = 4주 기준 수업수 ± 이 달 실제 예정 수업 차이 · A4 가로 1페이지 폭, 학생이 많으면 세로 다음 장',noteStyle));merges.push(`A${noteRow}:${last}${noteRow}`);
+  const extraNote=columns.some(col=>col.extra)?` · 연두색 머리글 = 보강용 빈 열(${[...new Set(columns.filter(col=>col.extra).map(col=>col.slot))].join('·')})`:'';
+  const blankNote=blankRows?' · 번호만 있는 빈 줄 = 신입생 수기 기록용':'';
+  row(noteRow,11,span(noteRow,`파란색 = 예정 수업 · 일수 = 4주 기준 수업수 ± 이 달 실제 예정 수업 차이${extraNote}${blankNote} · A4 가로 1페이지 폭, 학생이 많으면 세로 다음 장`,noteStyle));merges.push(`A${noteRow}:${last}${noteRow}`);
   if(plan.attendance){noteRow++;row(noteRow,11,span(noteRow,`출결: ${Object.values(MARKS).map(m=>`${m.text} ${m.label}`).join(' · ')} · 연두 칸 = 예정 외 날 출석 · 빈 파란 칸 = 기록 없음`,noteStyle));merges.push(`A${noteRow}:${last}${noteRow}`);}
   if(plan.holidayNote){noteRow++;row(noteRow,11,span(noteRow,`공휴일·휴무: ${plan.holidayNote}`,noteStyle));merges.push(`A${noteRow}:${last}${noteRow}`);}
   if(plan.classDayNote){noteRow++;row(noteRow,11,span(noteRow,`공휴일 수업(정상 수업): ${plan.classDayNote}`,noteStyle));merges.push(`A${noteRow}:${last}${noteRow}`);}
-  // 수업요일 grows with the longest schedule in the class ("화1.2.3 수1.2.3 … 일1.2.3") so it stays
-  // readable instead of shrinking to a few points; 7pt Hangul ≈ 1.3 and digits/dots ≈ 0.6 width units.
-  const scheduleWidth=Math.min(28,Math.max(INFO_WIDTHS[7],...students.map(s=>{
-    const label=s.schedule?scheduleLabel(s.schedule):String(s.scheduleText||'');
-    return [...label].reduce((w,ch)=>w+(/[가-힣]/.test(ch)?1.3:0.6),1);
-  })));
-  const widths=INFO_WIDTHS.map((w,i)=>i===7?Math.round(scheduleWidth*10)/10:w);
   const cols=[...widths.map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`),columns.length?`<col min="${FIRST_DATE_COLUMN}" max="${lastColumn}" width="${DATE_WIDTH}" customWidth="1"/>`:''].join('');
   const plannedRef=`${columnName(FIRST_DATE_COLUMN)}${FIRST_STUDENT_ROW}:${last}${lastRow}`;
   const m=PRINT.margins;

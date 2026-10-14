@@ -1,17 +1,26 @@
 // 종합 출석부 업로드 → 반별 출석부 Excel. One official 종합입력 file becomes one workbook with a sheet
 // per class (input order), in the official blue A4-landscape design. 공휴일·휴무 come from CORE's calendar.
 import {parseRoster,RosterError} from './attendance-roster-parser.js?v=20260928-dist';
-import {buildRosterWorkbook} from './attendance-roster-export.js?v=20261010-marks';
+import {buildRosterWorkbook,MAX_BLANK_ROWS,FILL_PAGE} from './attendance-roster-export.js?v=20261014-blank';
 import {fetchMonthHolidays,addHolidayClass,removeHolidayClass,holidaySummary} from './attendance-holidays.js?v=20260924-class-days';
 import {escapeHtml as h} from './attendance-template.js?v=20260919-sparse-import';
 
 const XLSX_TYPE='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const SLOT_DAYS=['월','화','수','목','금','토','일'],DEFAULT_BLANK_ROWS=FILL_PAGE;
+// 빈 줄 수·보강용 빈 열 choices are remembered per campus on this device.
+const optionsKey=campusId=>`core.attendance.roster-options.${campusId||'default'}`;
+function loadOptions(campusId){
+  try{const saved=JSON.parse(localStorage.getItem(optionsKey(campusId))||'null');
+    if(saved&&typeof saved==='object')return {blankRows:saved.blankRows===FILL_PAGE||Number.isInteger(saved.blankRows)?saved.blankRows:DEFAULT_BLANK_ROWS,extraSlots:Array.isArray(saved.extraSlots)?saved.extraSlots:[]};}catch{/* storage blocked or corrupt: use the defaults */}
+  return {blankRows:DEFAULT_BLANK_ROWS,extraSlots:[]};
+}
+function saveOptions(campusId,options){try{localStorage.setItem(optionsKey(campusId),JSON.stringify(options));}catch{/* not remembered on this device */}}
 export function mountRosterAttendance(host,{campusId='',campusName=''}={}){
   let roster=null,rosterFile='',linkTicket=0,result=null,busy=false,disposed=false,ticket=0,controller=null;
   let month=null,monthTicket=0,monthController=null,saving=false;
   const urls=new Set(),now=new Date();
   const next=now.getMonth()===11?{year:now.getFullYear()+1,month:1}:{year:now.getFullYear(),month:now.getMonth()+2};
-  const years=[next.year-1,next.year,next.year+1];
+  const years=[next.year-1,next.year,next.year+1],options=loadOptions(campusId);
   host.innerHTML=`<section class="at-app ar-app">
     <p class="ar-lead">종합입력 양식 하나를 올리면 반마다 시트가 나뉜 출석부 Excel을 만듭니다. A4 가로로 바로 인쇄할 수 있습니다.</p>
     <form id="arForm">
@@ -21,6 +30,14 @@ export function mountRosterAttendance(host,{campusId='',campusName=''}={}){
       <details id="arWarnings" hidden><summary></summary><ul></ul></details>
       <div class="ar-period"><label>연도<select id="arYear">${years.map(y=>`<option value="${y}"${y===next.year?' selected':''}>${y}년</option>`).join('')}</select></label>
         <label>월<select id="arMonth">${Array.from({length:12},(_,i)=>`<option value="${i+1}"${i+1===next.month?' selected':''}>${i+1}월</option>`).join('')}</select></label></div>
+      <fieldset class="ar-blanks"><legend>손으로 적을 빈칸</legend>
+        <label class="ar-blank-rows">맨 아래 빈 줄<span><select id="arBlankRows"><option value="${FILL_PAGE}"${options.blankRows===FILL_PAGE?' selected':''}>A4 한 장 끝까지</option>${Array.from({length:MAX_BLANK_ROWS+1},(_,n)=>`<option value="${n}"${n===options.blankRows?' selected':''}>${n?`${n}줄`:'없음'}</option>`).join('')}</select><small>반마다 학생 아래에 번호만 있는 빈 줄을 넣습니다. 새로 온 학생을 손으로 적는 칸입니다. "A4 한 장 끝까지"는 인쇄했을 때 마지막 장의 남은 자리를 빈 줄로 채웁니다.</small></span></label>
+        <div class="ar-extra" role="group" aria-labelledby="arExtraTitle"><strong id="arExtraTitle">보강용 빈 열</strong>
+          <small>신청한 학생이 없어도 체크한 요일·타임에 날짜 칸을 만듭니다. 예) 일요일 1타임은 정규 수업, 2타임은 보강만 → 일 2타임 체크</small>
+          <div class="ar-slot-grid"><span></span>${SLOT_DAYS.map(d=>`<span class="ar-slot-day">${d}</span>`).join('')}
+            ${['1','2','3'].map(n=>`<span class="ar-slot-time">${n}타임</span>${SLOT_DAYS.map(d=>`<label><input type="checkbox" data-extra-slot="${d}${n}" aria-label="${d}요일 ${n}타임"${options.extraSlots.includes(d+n)?' checked':''}><span>${d}${n}</span></label>`).join('')}`).join('')}
+          </div></div>
+      </fieldset>
       <fieldset id="arDaysOff" class="ar-days-off" hidden><legend>이 달 공휴일·휴무</legend>
         <small>공휴일이어도 수업하는 날은 체크하세요. 체크한 날은 이 캠퍼스 출석부에 휴로 표시하지 않고 정상 수업일로 만듭니다.</small>
         <ul id="arDaysOffList"></ul></fieldset>
@@ -39,7 +56,8 @@ export function mountRosterAttendance(host,{campusId='',campusName=''}={}){
   const $=id=>host.querySelector(`#${id}`),status=text=>{if(!disposed)$('arStatus').textContent=text;};
   const blocked=()=>!roster||roster.issues.length>0;
   function sync(){
-    $('arFile').disabled=busy;$('arYear').disabled=busy;$('arMonth').disabled=busy;
+    $('arFile').disabled=busy;$('arYear').disabled=busy;$('arMonth').disabled=busy;$('arBlankRows').disabled=busy;
+    host.querySelectorAll('[data-extra-slot]').forEach(input=>{input.disabled=busy;});
     host.querySelectorAll('[data-day-off]').forEach(input=>{input.disabled=busy||saving;});
     $('arGenerate').disabled=busy||blocked();$('arGenerate').textContent=busy?'처리 중...':'반별 출석부 Excel 생성';
     $('arDownload').disabled=busy||!result;
@@ -105,6 +123,8 @@ export function mountRosterAttendance(host,{campusId='',campusName=''}={}){
     finally{saving=false;if(!disposed&&month===current)renderDaysOff();}
   };
   $('arYear').onchange=$('arMonth').onchange=()=>{invalidate();status('');void loadDaysOff();};
+  const readOptions=()=>({blankRows:$('arBlankRows').value===FILL_PAGE?FILL_PAGE:Number($('arBlankRows').value)||0,extraSlots:[...host.querySelectorAll('[data-extra-slot]:checked')].map(i=>i.dataset.extraSlot)});
+  host.querySelector('.ar-blanks').onchange=()=>{invalidate();status('');saveOptions(campusId,readOptions());};
   $('arForm').onsubmit=async e=>{
     e.preventDefault();if(busy||blocked())return;
     const year=Number($('arYear').value),month=Number($('arMonth').value),epoch=++ticket;
@@ -116,7 +136,7 @@ export function mountRosterAttendance(host,{campusId='',campusName=''}={}){
       if(disposed||ticket!==epoch)return;
       status('반별 출석부를 만드는 중...');
       await new Promise(resolve=>setTimeout(resolve,0));if(disposed||ticket!==epoch)return;
-      result=buildRosterWorkbook(roster,{year,month,holidays,classDays});
+      result=buildRosterWorkbook(roster,{year,month,holidays,classDays,...readOptions()});
       const plan=result.plan;
       $('arResultTitle').textContent=`${year}년 ${month}월 반별 출석부 · ${plan.sheets.length}개 시트`;
       $('arHolidays').textContent=holidays.size?`공휴일·휴무 반영: ${holidaySummary(holidays)}`:'이 달에는 휴로 표시할 날이 없습니다. (공휴일은 자동 등록되며, 학원 자체 휴무는 업무 캘린더에 "휴일" 일정으로 넣으면 반영됩니다)';
