@@ -535,6 +535,12 @@ async function handleApi(request: Request, env: Env) {
       return Response.json({error:error instanceof DataCoreAccessError ? error.message : '입시 데이터를 처리하지 못했습니다.'}, {status:error instanceof DataCoreAccessError ? error.status : 503,headers:{'cache-control':'private, no-store'}});
     }
   }
+  if (url.pathname === '/api/admissions/grade-photos/read' && env.DB) {
+    const context = await resolveDataCoreAccess(request, env.DB, env.DATA_CORE_SUPER_ADMIN_EMAILS);
+    const { handleGradePhotoApi } = await import('./admission-grade-photos');
+    const response = await handleGradePhotoApi(request, env as unknown as import('./content-openai-provider').OpenAiEnv, env.DB, context);
+    if (response) return response;
+  }
   if (/^\/api\/admissions\/students(\/(\d{1,16}|track-options))?$/.test(url.pathname) && env.DB) {
     const context = await resolveDataCoreAccess(request, env.DB, env.DATA_CORE_SUPER_ADMIN_EMAILS);
     const { handleAdmissionStudentsApi } = await import('./admission-students');

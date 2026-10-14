@@ -661,10 +661,34 @@ function studentGradePanel(student){
   }));
   const hasSimpleScores = rows.some(row => subjectFields.some(subject => row[subject.key] !== ''));
   const hasDetailedScores = normalizeDetailedTranscript(student).length > 0;
-  if(!hasSimpleScores && !hasDetailedScores) return `<div class="case-detail-panel"><h3>성적 보기</h3><div class="empty-box">입력된 성적이 없습니다.</div></div>`;
+  if(!hasSimpleScores && !hasDetailedScores) return `<div class="case-detail-panel"><h3>성적 보기</h3>${gradePhotoNotice(student)}<div class="empty-box">입력된 성적이 없습니다.</div>${gradeReportFiles(student)}</div>`;
   const simpleMarkup = hasSimpleScores ? `${gradeSummaryMarkup(student)}<table class="grade-term-table"><thead><tr><th>학년</th><th>학기</th><th>국어</th><th>영어</th><th>수학</th><th>사탐</th><th>과탐</th><th>학기 평균</th></tr></thead><tbody>${termRows().map((row,index)=>`<tr><td>${h(rows[index].gradeYear)}</td><td>${h(rows[index].semester)}</td><td>${h(rows[index].korean || '-')}</td><td>${h(rows[index].english || '-')}</td><td>${h(rows[index].math || '-')}</td><td>${h(rows[index].social || '-')}</td><td>${h(rows[index].science || '-')}</td><td><b>${formatGrade(rowAverage(student,row))}</b></td></tr>`).join('')}</tbody></table>` : `<div class="empty-box compact">간편 성적 입력 내역이 없습니다.</div>`;
-  return `<div class="case-detail-panel"><h3>성적 보기</h3>${simpleMarkup}${detailedTranscriptView(student)}</div>`;
+  return `<div class="case-detail-panel"><h3>성적 보기</h3>${gradePhotoNotice(student)}${simpleMarkup}${detailedTranscriptView(student)}${gradeReportFiles(student)}</div>`;
 }
+// 성적표 사진 넣기 results on a student: doubtful cells still to check, and the kept report photos.
+function gradePhotoNotice(student){
+  const count = Array.isArray(student?.gradeReview) ? student.gradeReview.length : 0;
+  return count ? `<div class="grade-review-note"><b>성적표 사진 확인 필요 ${count}곳</b><span>사진이 애매하거나 기존 값과 다른 칸입니다.</span><button class="btn mini" type="button" data-grade-review="${h(student.id)}">확인하기</button></div>` : '';
+}
+function gradeReportFiles(student){
+  const reports = Array.isArray(student?.gradeReports) ? student.gradeReports : [];
+  if(!reports.length) return '';
+  return `<div class="grade-report-files"><h4>성적 자료 <small>비공개 · 그림 목록과 따로 보관 · ${reports.length}장</small></h4><div>${reports.map(r=>`<a href="${h(r.path)}" target="_blank" rel="noopener" title="${h(r.name||'')}"><img src="${h(r.path)}" alt="${h(r.name||'성적표')}" loading="lazy"></a>`).join('')}</div></div>`;
+}
+function replaceStudentInState(saved){
+  if(!saved || !state.data?.students) return;
+  const index = state.data.students.findIndex(s => String(s.id) === String(saved.id));
+  if(index >= 0) state.data.students[index] = saved;
+}
+let gradePhotoRenderTimer = 0;
+function scheduleStudentsRender(){ clearTimeout(gradePhotoRenderTimer); gradePhotoRenderTimer = setTimeout(()=>{ if(document.getElementById('students')) renderStudents(); }, 300); }
+if(window.GradePhotoImport) window.GradePhotoImport.onStudentSaved = saved => { replaceStudentInState(saved); scheduleStudentsRender(); };
+document.addEventListener('click', event => {
+  const button = event.target.closest?.('[data-grade-review]');
+  if(!button || !window.GradePhotoImport) return;
+  const student = (state.data?.students || []).find(s => String(s.id) === button.dataset.gradeReview);
+  if(student) window.GradePhotoImport.review(student, saved => { replaceStudentInState(saved); scheduleStudentsRender(); });
+});
 function consultantName(){
   const options = consultantNameOptions();
   const savedName = state.data?.settings?.consultantName || '';
@@ -1826,6 +1850,7 @@ function renderStudents(){
     <div class="student-toolbar">
       <div class="search-box"><input id="studentSearchInput" placeholder="학생명, 전공 계열, 실기능력, 합격 대학 검색" value="${h(state.studentSearch)}"><button class="btn" id="studentSearchBtn">학생 검색</button></div>
       ${gradeTab ? '<button class="btn" id="studentUploadBtn" type="button">엑셀 업로드</button>' : ''}
+      ${/^g[123]$/.test(activeStudentTab) && window.GradePhotoImport ? '<button class="btn grade-photo-btn" id="studentGradePhotoBtn" type="button">성적표 사진 넣기</button>' : ''}
       <button class="btn primary" id="studentAddBtn">학생 추가</button>
     </div>
     ${activeStudentTab === 'result' ? `<div class="student-filter-bar">
@@ -1849,6 +1874,15 @@ function renderStudents(){
   if($('studentRoundFilter')) $('studentRoundFilter').onchange=()=>{syncStudentEditorDraft(); state.studentRoundFilter=$('studentRoundFilter').value; renderStudents();};
   if($('studentFilterClearBtn')) $('studentFilterClearBtn').onclick=()=>{syncStudentEditorDraft(); state.studentYearFilter=''; state.studentRoundFilter=''; renderStudents();};
   if($('studentUploadBtn')) $('studentUploadBtn').onclick=()=>{state.studentUploadOpen=!state.studentUploadOpen; renderStudents();};
+  if($('studentGradePhotoBtn')) $('studentGradePhotoBtn').onclick=()=>{
+    const grade = activeStudentTab.slice(1);
+    window.GradePhotoImport.open({
+      divisionLabel: (STUDENT_DIVISIONS.find(([key]) => key === division) || [division, division])[1],
+      gradeLabel: `고${grade}`, entryYear: grades.entryYearFor(grade, grades.schoolYear()),
+      students: allStudents.filter(inTab),
+      onChanged: saved => { replaceStudentInState(saved); scheduleStudentsRender(); },
+    });
+  };
   if(state.studentUploadOpen) bindStudentUpload();
   $('studentAddBtn').onclick=()=>{state.studentDetailId=null; const tabGrade=/^g([123])$/.exec(activeStudentTab)?.[1]; state.studentEditor={mode:'add',student:{division,studentType:gradeTab?'current':'result',...(tabGrade?{entryYear:grades.entryYearFor(tabGrade,grades.schoolYear())}:{}),name:'',gpa:'',skill:'',skillLevel:'중',track:'웹툰',practiceExperience:'',gradeLevel:'고3',enrollmentStatus:'재원중',preparationStage:'방향 설정',nextConsultationDate:'',targetUniversities:'',consultMemo:'',admissionResults:[],artworkImage:'',artworks:[],termGrades:{},detailedTranscript:[]}}; renderStudents(); requestAnimationFrame(()=>document.querySelector('.student-add-card')?.scrollIntoView({block:'start'}));};
   document.querySelectorAll('[data-student-row]').forEach(row=>row.onclick=(event)=>{
