@@ -1688,6 +1688,9 @@ function studentRecommendations(student){
 }
 function recommendationChips(student){return window.BenchmarkStudentUi.chips(studentRecommendations(student));}
 function studentRecommendationPanel(student){return isCurrentStudent(student)?window.BenchmarkStudentUi.panel(studentRecommendations(student),admissionBenchmarkModel):'';}
+// 학생 명단 기본 양식: built by scripts/build-student-roster-template.py (same look as 출석부 기본 양식).
+const STUDENT_TEMPLATE_URL = 'templates/student-roster-template.xlsx?v=20261014-student-template';
+const STUDENT_TEMPLATE_NAME = '학생명단_기본양식.xlsx';
 function studentUploadPanel(){
   const grades = window.AdmissionsStudentGrades;
   const tabGrade = /^g([123])$/.exec(state.studentTypeTab || '')?.[1] || '1';
@@ -1699,7 +1702,7 @@ function studentUploadPanel(){
       <div class="field"><label>몇 년도 학년인가요?</label><input id="studentUploadYear" type="number" min="2000" max="2100" value="${grades.schoolYear()}"></div>
       <div class="field wide"><label>엑셀(.xlsx)·CSV 파일</label><input id="studentUploadFile" type="file" accept=".xlsx,.csv,.json"></div>
     </div>
-    <p class="muted">첫 줄에 이름(학생명) · 내신 · 실기능력(A+~C) · 전공 계열 · 희망 계열 · 학교 · 메모 중 필요한 칸을 적어 주세요. 연도를 기준으로 해가 바뀌면 학년이 자동으로 올라갑니다.</p>
+    <p class="muted"><a href="${STUDENT_TEMPLATE_URL}" download="${STUDENT_TEMPLATE_NAME}">학생 명단 기본 양식</a>을 내려받아 채우면 가장 편합니다. 직접 만든 파일은 첫 줄에 이름(학생명) · 내신 · 실기능력(A+~C) · 희망 계열 · 학교 · 희망 대학 · 메모 중 필요한 칸을 적어 주세요. 연도를 기준으로 해가 바뀌면 학년이 자동으로 올라갑니다.</p>
     <p class="student-upload-preview" id="studentUploadPreview" role="status"></p>
     <div class="row-actions"><button class="btn" id="studentUploadCancel" type="button">닫기</button><button class="btn primary" id="studentUploadSave" type="button" disabled>올리기</button></div>
   </div>`;
@@ -1840,7 +1843,7 @@ function renderStudents(){
     ${gradeTab ? `<div class="student-year-note">${grades.schoolYear()}학년도 기준 · 고1 연도로 학년이 매년 3월에 자동으로 올라갑니다${activeStudentTab === 'g3' ? ' · 고3은 마지막에 합격자 데이터로 넘깁니다' : ''}</div>` : ''}
     <div class="student-toolbar">
       <div class="search-box"><input id="studentSearchInput" placeholder="학생명, 전공 계열, 실기능력, 합격 대학 검색" value="${h(state.studentSearch)}"><button class="btn" id="studentSearchBtn">학생 검색</button></div>
-      ${gradeTab ? '<button class="btn" id="studentUploadBtn" type="button">엑셀 업로드</button>' : ''}
+      ${gradeTab ? `<button class="btn" id="studentUploadBtn" type="button">엑셀 업로드</button><a class="btn student-template-link" href="${STUDENT_TEMPLATE_URL}" download="${STUDENT_TEMPLATE_NAME}" title="학생 명단 기본 양식(.xlsx) 다운로드"><svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>학생 명단 기본 양식</a>` : ''}
       ${/^g[123]$/.test(activeStudentTab) && window.GradePhotoImport ? '<button class="btn grade-photo-btn" id="studentGradePhotoBtn" type="button">성적표 사진 넣기</button>' : ''}
       <button class="btn primary" id="studentAddBtn">학생 추가</button>
     </div>
