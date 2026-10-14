@@ -1707,3 +1707,7 @@
     display: grid;
   }
 }
+
+/* 학생 명단 기본 양식 다운로드 */
+.student-template-link{display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:var(--core-brand,#174f44);border-color:var(--core-brand,#174f44);font-weight:700}
+.student-template-link:hover{background:var(--core-brand,#174f44);color:#fff}
