@@ -106,6 +106,9 @@ export async function updateStudent(db: D1Database, context: DataCoreAccessConte
   const revision = (input as Row)?._revision;
   if (revision !== undefined && Number(revision) !== current._revision) throw new DataCoreAccessError(409, '다른 선생님이 먼저 수정했습니다. 새로고침 후 다시 저장하세요.');
   const next = clean({ ...current, ...(input as Row) });
+  // OCR and partial transcript updates invalidate prior completeness attestation.
+  if (Object.hasOwn(input as Row, 'detailedTranscript') && JSON.stringify((input as Row).detailedTranscript) !== JSON.stringify((current as Row).detailedTranscript) && !Object.hasOwn(input as Row, 'admissionsProfile') && next.admissionsProfile) next.admissionsProfile = { ...next.admissionsProfile, complete: false };
+
   if (!studentManager(context) && finalized(next) !== finalized(current)) throw new DataCoreAccessError(403, '합격자 데이터로 넘기기는 캠퍼스 관리자나 마스터만 할 수 있습니다.');
   const now = new Date().toISOString(), user = context.user!.internalUserId;
   const result = await db.prepare(`UPDATE admission_students SET payload_json=?, revision=revision+1, updated_by=?, updated_at=? WHERE id=? AND revision=? AND deleted_at IS NULL`)

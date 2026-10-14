@@ -25,6 +25,8 @@ import {
 import { listAuditLogs } from "./data-core-audit";
 import { createInstagramDerivative } from './data-core-derivatives';
 import { handleAdmissionsArtworks } from './admissions-artworks';
+import { handleUniversityScopeApi, universityScopeData } from './university-scope';
+import { handleUniversityEvidenceApi, universityEvidenceData } from './university-evidence';
 import {
   deleteDataCoreFile,
   listDataCoreFiles,
@@ -375,6 +377,8 @@ async function handleDataCoreApi(request: Request, env: Env) {
       return jsonResponse({ content: await getDataRecordContent(env.DB, context, recordId) });
     }
     if (request.method === "PUT" || request.method === "PATCH") {
+      const protectedRecord = await env.DB.prepare('SELECT record_type FROM data_records WHERE id=? AND organization_id=?').bind(recordId,DEFAULT_ORGANIZATION_ID).first<{record_type:string}>();
+      if (['admissions-university-scope','admissions-official-evidence'].includes(protectedRecord?.record_type || '')) throw new DataCoreAccessError(403,'대학 범위와 공식 근거는 전용 API에서만 변경할 수 있습니다.');
       const body = (await readJsonBody(request)) as { content?: unknown };
       return jsonResponse({
         content: await setDataRecordContent(env.DB, context, recordId, body.content),
@@ -485,6 +489,8 @@ async function handleDataCoreApi(request: Request, env: Env) {
 
 async function handleApi(request: Request, env: Env) {
   const url = new URL(request.url);
+  if (url.pathname === '/api/admissions/university-scope') return handleUniversityScopeApi(request, env);
+  if (url.pathname === '/api/admissions/university-evidence') return handleUniversityEvidenceApi(request, env);
   if (url.pathname === '/api/data' || url.pathname === '/api/upload' || url.pathname.startsWith('/api/files/')) {
     try {
       const context = await resolveDataCoreAccess(request, env.DB, env.DATA_CORE_SUPER_ADMIN_EMAILS);
@@ -498,18 +504,17 @@ async function handleApi(request: Request, env: Env) {
         const legacy = await readAppData(request,env) as Record<string, unknown>;
         if (request.method === 'GET') {
           const data = await readCampusAdmissions(env.DB,context,url,legacy);
-          const { managementDeletedIds } = await import('./university-management');
           // 학생 관리: one shared list for every teacher (admission_students), not the campus-scoped document copy.
           const students = await import('./admission-students');
           if (students.studentMember(context)) {
             await students.importStudentsOnce(env.DB, () => allLegacyStudents(env.DB!, legacy));
             data.students = await students.listStudents(env.DB);
           }
-          return Response.json({...data, _students: {canManage: students.studentManager(context), trackOptions: students.studentMember(context) ? await students.trackOptions(env.DB) : []}, _universityManagementDeletedIds: await managementDeletedIds(env.DB,data.universities)}, {headers:{'cache-control':'private, no-store'}});
+          return Response.json({...data, _students: {canManage: students.studentManager(context), trackOptions: students.studentMember(context) ? await students.trackOptions(env.DB) : []}, ...await universityScopeData(env.DB,context,data.universities), _universityEvidence: await universityEvidenceData(env.DB,context)}, {headers:{'cache-control':'private, no-store'}});
         }
         if (request.method === 'PUT') {
           const input = await request.json() as Record<string,unknown>;
-          if (input && typeof input === 'object') { delete input._universityManagementDeletedIds; delete input._students; }
+          if (input && typeof input === 'object') { delete input._universityManagementDeletedIds; delete input._universityScope; delete input._universityRecommendationExcludedIds; delete input._universityEvidence; delete input._students; }
           // Students change only through /api/admissions/students; a whole-document save keeps the stored copy as it was.
           if (input && typeof input === 'object' && !Array.isArray(input)) input.students = (await readCampusAdmissions(env.DB,context,url,legacy)).students;
           const result = await saveCampusAdmissions(env.DB,context,url,legacy,input);
