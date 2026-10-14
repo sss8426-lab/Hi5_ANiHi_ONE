@@ -159,9 +159,52 @@
     }
     return { termGrades, filled, gpa };
   }
+  // A phone capture of the school app often scrolls 과목평균·수강자수 off screen. A classmate who sat the same exam
+  // has the same 평균·수강자수·표준편차 on their own 성적통지표. Same school and entryYear is not proof (entryYear is
+  // sometimes wrong), so a classmate counts for a 학기 only when a value both have already agrees and none disagrees;
+  // a blank is filled only when every such classmate gives the same value.
+  const CLASS_FIELDS = ['averageScore', 'studentCount', 'standardDeviation'];
+  const CLASS_NOTE = '과목평균·수강자수: 같은 학교 같은 학기 성적통지표 기준';
+  const schoolKey = n => String(n || '').replace(/\(.*?\)/g, '').replace(/\s+/g, '').replace(/여자고등학교$/, '여고').replace(/고등학교$/, '고').trim();
+  const schoolOf = s => schoolKey(s?.school || /학교\s*:\s*([^\n·]+)/.exec(s?.consultMemo || '')?.[1] || '');
+  const normValue = v => { v = str(v); return num(v) !== null && /^[\d.]+$/.test(v) ? String(num(v)) : v; };
+  function fillFromClassmates(student, rows, everyone, school = schoolOf(student)) {
+    const key = schoolKey(school), entry = String(student.entryYear || '');
+    if (!key || !entry) return 0;
+    const mine = new Map(rows.map(r => [rowKey(r), r])), values = new Map();
+    for (const other of everyone) {
+      if (String(other.id) === String(student.id) || String(other.entryYear || '') !== entry || schoolOf(other) !== key) continue;
+      const terms = new Map();
+      for (const r of other.detailedTranscript || []) {
+        const m = mine.get(rowKey(r)); if (!m) continue;
+        const t = terms.get(`${r.schoolYear}|${r.semester}`) || terms.set(`${r.schoolYear}|${r.semester}`, { agree: 0, disagree: 0 }).get(`${r.schoolYear}|${r.semester}`);
+        for (const f of CLASS_FIELDS) { const a = normValue(m[f]), b = normValue(r[f]); if (a && b) t[a === b ? 'agree' : 'disagree']++; }
+      }
+      for (const r of other.detailedTranscript || []) {
+        const t = terms.get(`${r.schoolYear}|${r.semester}`);
+        if (!t || !t.agree || t.disagree) continue;
+        for (const f of CLASS_FIELDS) {
+          const v = str(r[f]); if (!v) continue;
+          const k = `${rowKey(r)}|${f}`, seen = values.get(k) || values.set(k, new Map()).get(k);
+          if (!seen.has(normValue(v))) seen.set(normValue(v), v);
+        }
+      }
+    }
+    let filled = 0;
+    for (const r of rows) {
+      let used = false;
+      for (const f of CLASS_FIELDS) {
+        const found = values.get(`${rowKey(r)}|${f}`);
+        if (str(r[f]) || !found || found.size !== 1) continue;
+        r[f] = [...found.values()][0]; filled++; used = true;
+      }
+      if (used && !str(r.notes).includes(CLASS_NOTE)) r.notes = [str(r.notes), CLASS_NOTE].filter(Boolean).join(' · ');
+    }
+    return filled;
+  }
   async function saveStudent(student, items, session) {
     for (let attempt = 0; attempt < 2; attempt++) {
-      const current = (await listStudents()).find(s => String(s.id) === String(student.id));
+      const everyone = await listStudents(), current = everyone.find(s => String(s.id) === String(student.id));
       if (!current) throw Error('학생을 찾을 수 없습니다.');
       if (!session.before.has(current.id)) session.before.set(current.id, JSON.parse(JSON.stringify(current)));
       const reports = [];
@@ -170,11 +213,14 @@
         reports.push({ id: item.uploaded.dataCoreFileId || item.uploaded.id || uid('rp'), dataCoreFileId: item.uploaded.dataCoreFileId || '', path: item.uploaded.path, name: item.file.name, readAt: today(), batch: session.id });
       }
       const merged = mergeInto(current, items.map((item, i) => ({ reading: item.reading, reportId: reports[i].id })));
+      const readSchool = items.map(item => item.reading.school).find(Boolean) || '';
+      const school = current.school || readSchool;
+      const fromClass = fillFromClassmates(current, merged.rows, everyone, schoolOf(current) || schoolKey(readSchool));
       const term = fillTermGrades(current, merged.rows);
       const known = new Set((current.gradeReports || []).map(r => r.path));
-      const memoLine = `성적표 사진 자동 입력 (${today()}): 사진 ${items.length}장 · 새 과목 ${merged.added.length}개${merged.review.length ? ` · 확인 필요 ${merged.review.length}곳` : ''}`;
+      const memoLine = `성적표 사진 자동 입력 (${today()}): 사진 ${items.length}장 · 새 과목 ${merged.added.length}개${merged.filledCells.length ? ` · 빈 칸 ${merged.filledCells.length}개 채움` : ''}${fromClass ? ` · 같은 학교 친구 성적표로 평균·수강자수 ${fromClass}칸 채움` : ''}${merged.review.length ? ` · 확인 필요 ${merged.review.length}곳` : ''}`;
       const next = {
-        ...current, detailedTranscript: merged.rows, termGrades: term.filled.length ? term.termGrades : current.termGrades,
+        ...current, ...(school && !current.school ? { school } : {}), detailedTranscript: merged.rows, termGrades: term.filled.length ? term.termGrades : current.termGrades,
         ...(term.gpa !== null ? { gpa: term.gpa } : {}),
         gradeReports: [...(current.gradeReports || []), ...reports.filter(r => !known.has(r.path))],
         gradeReview: [...(current.gradeReview || []), ...merged.review],
@@ -182,7 +228,7 @@
       };
       try {
         const saved = await window.desktopAPI.updateStudent(next);
-        return { saved, added: merged.added.length, filled: term.filled, review: merged.review };
+        return { saved, added: merged.added.length, cells: merged.filledCells.length + fromClass, filled: term.filled, review: merged.review };
       } catch (error) { if (attempt || !/먼저 수정/.test(error.message || '')) throw error; }
     }
   }
@@ -303,7 +349,7 @@
       entry.items.push(...group.items); entry.status = 'saving'; session.groups.set(group.student.id, entry); render();
       try {
         const result = await saveStudent(group.student, group.items, session);
-        entry.student = result.saved || entry.student; entry.added = (entry.added || 0) + result.added;
+        entry.student = result.saved || entry.student; entry.added = (entry.added || 0) + result.added; entry.cells = (entry.cells || 0) + result.cells;
         entry.review = (result.saved?.gradeReview || []).filter(r => r.reportId && (result.saved.gradeReports || []).some(p => p.id === r.reportId && p.batch === session.id));
         entry.status = entry.review.length ? 'review' : 'saved';
         group.items.forEach(i => { i.state = 'saved'; });
@@ -312,7 +358,7 @@
       render();
     }
     function summaryRows() {
-      const rows = [...session.groups.values()].map(g => ({ kind: g.status, student: g.student, items: g.items, added: g.added, review: g.review || [], error: g.error }));
+      const rows = [...session.groups.values()].map(g => ({ kind: g.status, student: g.student, items: g.items, added: g.added, cells: g.cells, review: g.review || [], error: g.error }));
       for (const item of session.items.filter(i => i.state === 'pick')) rows.push({ kind: 'pick', item });
       for (const item of session.items.filter(i => i.state === 'failed')) rows.push({ kind: 'error', item, error: item.error });
       if (session.done) for (const id of session.folderStudents) if (!session.groups.has(id)) { const s = targets.find(t => t.id === id); if (s) { const mine = session.items.filter(i => i.student?.id === id); rows.push({ kind: mine.some(i => i.state === 'stopped') ? 'stopped' : 'none', student: s, items: mine }); } }
@@ -340,7 +386,7 @@
           if (r.kind === 'pick') return `<tr class="e"><td><span class="gpi-badge ${cls}">${label}</span></td><td>${h(r.item.reading.studentName || '(이름 안 보임)')}<small>${h(r.item.path)}</small></td><td>1장</td><td>${r.item.reading.rows.length}과목</td><td><select data-pick="${r.item.id}"><option value="">학생 고르기…</option>${targets.map(s => `<option value="${h(s.id)}">${h(s.name)}</option>`).join('')}</select></td></tr>`;
           if (r.kind === 'error' && r.item) return `<tr class="e"><td><span class="gpi-badge e">읽기 실패</span></td><td>${h(r.item.student?.name || '')}<small>${h(r.item.path)}</small></td><td>1장</td><td>-</td><td>${h(r.error)} <button class="btn mini" data-retry="${r.item.id}">다시 읽기</button></td></tr>`;
           const rv = r.review || [];
-          return `<tr class="${cls}"><td><span class="gpi-badge ${cls}">${r.kind === 'review' ? `${label} ${rv.length}곳` : label}</span></td><td><b>${h(r.student.name)}</b></td><td>${r.items.length}장</td><td>${['none', 'stopped'].includes(r.kind) ? '-' : `새 과목 ${r.added || 0}개`}</td><td>${r.kind === 'review' ? `<button class="btn mini" data-review="${h(r.student.id)}">확인하기</button> <small>${h(rv.slice(0, 2).map(x => `${x.subjectName} ${FIELD_LABEL[x.field] || ''}`).join(', '))}</small>` : r.kind === 'stopped' ? '<small>정지해서 읽지 않음 · 같은 폴더를 다시 넣으면 다시 읽습니다 (이미 들어간 과목은 두 번 들어가지 않음)</small>' : r.kind === 'none' ? '<small>폴더에 성적표 없음</small>' : r.kind === 'error' ? h(r.error) : '-'}</td></tr>`;
+          return `<tr class="${cls}"><td><span class="gpi-badge ${cls}">${r.kind === 'review' ? `${label} ${rv.length}곳` : label}</span></td><td><b>${h(r.student.name)}</b></td><td>${r.items.length}장</td><td>${['none', 'stopped'].includes(r.kind) ? '-' : `새 과목 ${r.added || 0}개${r.cells ? `<small>빈 칸 ${r.cells}개 채움</small>` : ''}`}</td><td>${r.kind === 'review' ? `<button class="btn mini" data-review="${h(r.student.id)}">확인하기</button> <small>${h(rv.slice(0, 2).map(x => `${x.subjectName} ${FIELD_LABEL[x.field] || ''}`).join(', '))}</small>` : r.kind === 'stopped' ? '<small>정지해서 읽지 않음 · 같은 폴더를 다시 넣으면 다시 읽습니다 (이미 들어간 과목은 두 번 들어가지 않음)</small>' : r.kind === 'none' ? '<small>폴더에 성적표 없음</small>' : r.kind === 'error' ? h(r.error) : '-'}</td></tr>`;
         }).join('') || `<tr><td colspan="5" class="gpi-muted">${session.running ? '읽은 사진이 학생별로 여기에 나옵니다…' : '표시할 학생이 없습니다.'}</td></tr>`}
         </tbody></table></div>
         <p class="gpi-muted">간편 성적·내신 평균은 비어 있는 학기만 채웁니다. "확인하기"에서 고친 값은 바로 저장됩니다.</p>`);
@@ -429,5 +475,5 @@
     draw();
   }
 
-  window.GradePhotoImport = { open, review, close, _test: { expectedGrade, mergeInto, fillTermGrades, nameKey, subjectKey, validate } };
+  window.GradePhotoImport = { open, review, close, _test: { expectedGrade, mergeInto, fillTermGrades, fillFromClassmates, nameKey, subjectKey, schoolKey, validate } };
 })();
