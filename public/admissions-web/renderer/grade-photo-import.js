@@ -188,7 +188,7 @@
   }
 
   // ---------- UI ----------
-  const STATUS = { saved: ['ok', '자동 저장됨'], review: ['w', '확인 필요'], pick: ['e', '학생 선택 필요'], none: ['n', '성적 자료 없음'], error: ['e', '저장 실패'], reading: ['n', '읽는 중'] };
+  const STATUS = { saved: ['ok', '자동 저장됨'], review: ['w', '확인 필요'], pick: ['e', '학생 선택 필요'], none: ['n', '성적 자료 없음'], stopped: ['n', '정지로 읽지 않음'], error: ['e', '저장 실패'], reading: ['n', '읽는 중'] };
   function modal(html) {
     let host = document.getElementById('gpiModal');
     if (!host) { host = document.createElement('div'); host.id = 'gpiModal'; host.className = 'gpi-scrim'; document.body.append(host); }
@@ -198,8 +198,8 @@
   }
   const close = () => { const host = document.getElementById('gpiModal'); if (host) { host.hidden = true; host.innerHTML = ''; } };
 
-  function open({ divisionLabel, gradeLabel, entryYear, students, onChanged }) {
-    const session = { id: uid('batch'), items: [], groups: new Map(), before: new Map(), running: false, done: false, filter: 'all', started: 0 };
+  function open({ divisionLabel, gradeLabel, entryYear, students, allStudents = [], tabOf = () => '', onChanged }) {
+    const session = { id: uid('batch'), items: [], groups: new Map(), before: new Map(), running: false, done: false, stopping: false, stopped: false, filter: 'all', started: 0 };
     const targets = students.slice();
     const byName = new Map();
     targets.forEach(s => { const k = nameKey(s.name); byName.set(k, byName.has(k) ? null : s); });
@@ -234,9 +234,35 @@
       drop.ondragleave = () => drop.classList.remove('over');
       drop.ondrop = async e => { e.preventDefault(); drop.classList.remove('over'); start(await entriesFromDrop(e.dataTransfer)); };
     }
-    async function begin(list) {
+    // Student-name folders that belong to another tab (e.g. a 고2 folder dropped on the 고1 tab) would all end up as
+    // "학생 선택 필요" after paying for every photo — say so before reading anything.
+    function otherTabFolders(list) {
+      const inTab = new Set(targets.map(s => s.id)), found = new Map();
+      const others = new Map();
+      allStudents.filter(s => !inTab.has(s.id)).forEach(s => { const k = nameKey(s.name); others.set(k, others.has(k) ? null : s); });
+      let matched = 0;
+      for (const { path } of list) for (const segment of path.split('/').slice(0, -1)) {
+        const k = nameKey(segment);
+        if (byName.get(k)) { matched++; break; }
+        const other = others.get(k);
+        if (other) { found.set(other.id, tabOf(other)); break; }
+      }
+      const tabs = [...new Set(found.values())].filter(Boolean);
+      return found.size && found.size >= matched ? { count: found.size, tabs } : null;
+    }
+    function confirmTab(list, wrong) {
+      const host = modal(`<div class="gpi-head"><h2>다른 학년 탭의 학생 폴더입니다</h2><button class="gpi-x" data-close aria-label="닫기">×</button></div>
+        <p class="gpi-sub">넣은 폴더의 학생 <b>${wrong.count}명</b>이 지금 탭(<b>${h(divisionLabel)} ${h(gradeLabel)}</b>)에 없고 <b>${h(wrong.tabs.join(', ') || '다른 탭')}</b>에 있습니다.<br>이대로 읽으면 학생을 찾지 못해 모두 "학생 선택 필요"가 되고, 사진마다 AI 사용료가 듭니다.</p>
+        <p class="gpi-note">창을 닫고 ${h(wrong.tabs[0] || '맞는 학년')} 탭을 누른 뒤 다시 [성적표 사진 넣기]를 눌러 주세요.</p>
+        <div class="gpi-pick" style="justify-content:flex-end"><button class="btn" data-go>그래도 이 탭으로 읽기</button><button class="btn primary" data-close>닫기</button></div>`);
+      host.querySelectorAll('[data-close]').forEach(b => b.onclick = close);
+      host.querySelector('[data-go]').onclick = () => begin(list, true);
+    }
+    async function begin(list, checked = false) {
       if (!list.length) return;
       if (list.length > PHOTO_LIMIT) { alert(`한 번에 사진 ${PHOTO_LIMIT}장까지 넣을 수 있습니다. 나눠서 넣어 주세요.`); return; }
+      const wrong = checked ? null : otherTabFolders(list);
+      if (wrong) { confirmTab(list, wrong); return; }
       session.items = list.map(({ file, path }) => ({ id: uid('it'), file, path, student: pickFromPath(path), skip: skipReason(path), state: 'queued' }));
       session.items.forEach(item => { if (item.skip) item.state = 'skipped'; });
       session.folderStudents = new Set(session.items.map(i => i.student?.id).filter(Boolean));
@@ -246,7 +272,7 @@
       const queue = session.items.filter(i => i.state === 'queued');
       let index = 0;
       const worker = async () => {
-        while (index < queue.length) {
+        while (index < queue.length && !session.stopping) {
           const item = queue[index++];
           item.state = 'reading'; render();
           try {
@@ -262,6 +288,8 @@
         }
       };
       await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+      // 정지: photos not started yet are left unread; what was already read is still saved below.
+      if (session.stopping) { session.stopped = true; queue.forEach(item => { if (item.state === 'queued') item.state = 'stopped'; }); render(); }
       // Save per student once all its photos are read.
       const groups = new Map();
       for (const item of session.items.filter(i => i.state === 'read')) (groups.get(item.student.id) || groups.set(item.student.id, { student: item.student, items: [] }).get(item.student.id)).items.push(item);
@@ -287,7 +315,7 @@
       const rows = [...session.groups.values()].map(g => ({ kind: g.status, student: g.student, items: g.items, added: g.added, review: g.review || [], error: g.error }));
       for (const item of session.items.filter(i => i.state === 'pick')) rows.push({ kind: 'pick', item });
       for (const item of session.items.filter(i => i.state === 'failed')) rows.push({ kind: 'error', item, error: item.error });
-      if (session.done) for (const id of session.folderStudents) if (!session.groups.has(id)) { const s = targets.find(t => t.id === id); if (s) rows.push({ kind: 'none', student: s, items: session.items.filter(i => i.student?.id === id) }); }
+      if (session.done) for (const id of session.folderStudents) if (!session.groups.has(id)) { const s = targets.find(t => t.id === id); if (s) { const mine = session.items.filter(i => i.student?.id === id); rows.push({ kind: mine.some(i => i.state === 'stopped') ? 'stopped' : 'none', student: s, items: mine }); } }
       return rows;
     }
     function render() {
@@ -301,9 +329,9 @@
       const minutes = Math.max(1, Math.round((Date.now() - session.started) / 60000));
       const skipped = items.filter(i => i.state === 'skipped').length;
       const host = modal(`<div class="gpi-head"><h2>성적표 사진 넣기 · ${h(divisionLabel)} ${h(gradeLabel)}</h2>
-          ${session.done && session.before.size ? '<button class="btn" id="gpiUndo">이번에 넣은 것 모두 되돌리기</button>' : ''}<button class="btn primary" data-close ${session.running ? 'disabled' : ''}>${session.running ? '읽는 중…' : '완료'}</button></div>
+          ${session.done && session.before.size ? '<button class="btn" id="gpiUndo">이번에 넣은 것 모두 되돌리기</button>' : ''}${session.running ? `<button class="btn gpi-stop" id="gpiStop" ${session.stopping ? 'disabled' : ''}>${session.stopping ? '멈추는 중…' : '정지'}</button>` : ''}<button class="btn primary" data-close ${session.running ? 'disabled' : ''}>${session.running ? '읽는 중…' : '완료'}</button></div>
         <div class="gpi-prog"><i style="width:${pct}%"></i></div>
-        <p class="gpi-muted">${session.done ? `사진 ${items.length}장 처리 끝 · 약 ${minutes}분` : `사진 ${finished}/${total}장 읽음 · 창을 닫지 말고 기다려 주세요 (다른 탭은 사용 가능)`}</p>
+        <p class="gpi-muted">${session.stopped ? `정지함 · 사진 ${total}장 중 ${finished}장 읽음, ${items.filter(i => i.state === 'stopped').length}장은 읽지 않음${session.done ? ' · 읽은 사진은 학생별로 저장했습니다' : ' · 읽은 사진을 저장하는 중…'}` : session.stopping ? `멈추는 중 · 지금 읽고 있는 사진까지만 마칩니다` : session.done ? `사진 ${items.length}장 처리 끝 · 약 ${minutes}분` : `사진 ${finished}/${total}장 읽음 · 창을 닫지 말고 기다려 주세요 (다른 탭은 사용 가능)`}</p>
         <div class="gpi-stats"><div class="ok"><span>자동 저장됨</span><b>${count('saved')}명</b></div><div class="w"><span>확인 필요</span><b>${count('review')}명</b></div><div class="e"><span>학생 선택·실패</span><b>${count('pick') + count('error')}건</b></div><div class="n"><span>성적 자료 없음</span><b>${count('none')}명</b></div><div><span>건너뛴 그림·사진</span><b>${skipped}장</b></div></div>
         <div class="gpi-filter">${[['all', `전체 ${rows.length}`], ['todo', `확인할 것만 ${count('review') + count('pick') + count('error')}`], ['saved', `자동 저장됨 ${count('saved')}`]].map(([k, t]) => `<button type="button" data-filter="${k}" class="${session.filter === k ? 'on' : ''}">${t}</button>`).join('')}</div>
         <div class="gpi-table"><table><thead><tr><th>상태</th><th>학생</th><th>사진</th><th>들어간 과목</th><th>할 일</th></tr></thead><tbody>
@@ -312,11 +340,16 @@
           if (r.kind === 'pick') return `<tr class="e"><td><span class="gpi-badge ${cls}">${label}</span></td><td>${h(r.item.reading.studentName || '(이름 안 보임)')}<small>${h(r.item.path)}</small></td><td>1장</td><td>${r.item.reading.rows.length}과목</td><td><select data-pick="${r.item.id}"><option value="">학생 고르기…</option>${targets.map(s => `<option value="${h(s.id)}">${h(s.name)}</option>`).join('')}</select></td></tr>`;
           if (r.kind === 'error' && r.item) return `<tr class="e"><td><span class="gpi-badge e">읽기 실패</span></td><td>${h(r.item.student?.name || '')}<small>${h(r.item.path)}</small></td><td>1장</td><td>-</td><td>${h(r.error)} <button class="btn mini" data-retry="${r.item.id}">다시 읽기</button></td></tr>`;
           const rv = r.review || [];
-          return `<tr class="${cls}"><td><span class="gpi-badge ${cls}">${r.kind === 'review' ? `${label} ${rv.length}곳` : label}</span></td><td><b>${h(r.student.name)}</b></td><td>${r.items.length}장</td><td>${r.kind === 'none' ? '-' : `새 과목 ${r.added || 0}개`}</td><td>${r.kind === 'review' ? `<button class="btn mini" data-review="${h(r.student.id)}">확인하기</button> <small>${h(rv.slice(0, 2).map(x => `${x.subjectName} ${FIELD_LABEL[x.field] || ''}`).join(', '))}</small>` : r.kind === 'none' ? '<small>폴더에 성적표 없음</small>' : r.kind === 'error' ? h(r.error) : '-'}</td></tr>`;
+          return `<tr class="${cls}"><td><span class="gpi-badge ${cls}">${r.kind === 'review' ? `${label} ${rv.length}곳` : label}</span></td><td><b>${h(r.student.name)}</b></td><td>${r.items.length}장</td><td>${['none', 'stopped'].includes(r.kind) ? '-' : `새 과목 ${r.added || 0}개`}</td><td>${r.kind === 'review' ? `<button class="btn mini" data-review="${h(r.student.id)}">확인하기</button> <small>${h(rv.slice(0, 2).map(x => `${x.subjectName} ${FIELD_LABEL[x.field] || ''}`).join(', '))}</small>` : r.kind === 'stopped' ? '<small>정지해서 읽지 않음 · 같은 폴더를 다시 넣으면 다시 읽습니다 (이미 들어간 과목은 두 번 들어가지 않음)</small>' : r.kind === 'none' ? '<small>폴더에 성적표 없음</small>' : r.kind === 'error' ? h(r.error) : '-'}</td></tr>`;
         }).join('') || `<tr><td colspan="5" class="gpi-muted">${session.running ? '읽은 사진이 학생별로 여기에 나옵니다…' : '표시할 학생이 없습니다.'}</td></tr>`}
         </tbody></table></div>
         <p class="gpi-muted">간편 성적·내신 평균은 비어 있는 학기만 채웁니다. "확인하기"에서 고친 값은 바로 저장됩니다.</p>`);
       host.querySelectorAll('[data-filter]').forEach(b => b.onclick = () => { session.filter = b.dataset.filter; render(); });
+      const stop = host.querySelector('#gpiStop');
+      if (stop) stop.onclick = () => {
+        if (!confirm('사진 읽기를 멈출까요?\n지금 읽고 있는 사진까지만 마치고 나머지는 읽지 않습니다. 이미 읽은 사진은 학생별로 저장합니다.')) return;
+        session.stopping = true; render();
+      };
       host.querySelector('[data-close]').onclick = () => { if (!session.running) close(); };
       host.querySelectorAll('[data-review]').forEach(b => b.onclick = () => {
         const g = [...session.groups.values()].find(x => String(x.student.id) === b.dataset.review);

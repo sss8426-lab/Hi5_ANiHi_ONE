@@ -1870,6 +1870,8 @@ function renderStudents(){
       divisionLabel: (STUDENT_DIVISIONS.find(([key]) => key === division) || [division, division])[1],
       gradeLabel: `고${grade}`, entryYear: grades.entryYearFor(grade, grades.schoolYear()),
       students: allStudents.filter(inTab),
+      allStudents: allStudents.filter(isCurrentStudent),
+      tabOf: s => { const info = grades.gradeOf(s); return info.grade ? `${(STUDENT_DIVISIONS.find(([key]) => key === studentDivision(s)) || ['', ''])[1]} 고${info.grade}`.trim() : ''; },
       onChanged: saved => { replaceStudentInState(saved); scheduleStudentsRender(); },
     });
   };
