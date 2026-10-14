@@ -1837,9 +1837,11 @@ function renderStudents(){
     ${gradeTab ? `<div class="student-year-note">${grades.schoolYear()}학년도 기준 · 고1 연도로 학년이 매년 3월에 자동으로 올라갑니다${activeStudentTab === 'g3' ? ' · 고3은 마지막에 합격자 데이터로 넘깁니다' : ''}</div>` : ''}
     <div class="student-toolbar">
       <div class="search-box"><input id="studentSearchInput" placeholder="학생명, 전공 계열, 실기능력, 합격 대학 검색" value="${h(state.studentSearch)}"><button class="btn" id="studentSearchBtn">학생 검색</button></div>
-      ${gradeTab ? `<button class="btn" id="studentUploadBtn" type="button">엑셀 업로드</button><a class="btn student-template-link" href="${STUDENT_TEMPLATE_URL}" download="${STUDENT_TEMPLATE_NAME}" title="학생 명단 기본 양식(.xlsx) 다운로드"><svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>학생 명단 기본 양식</a>` : ''}
-      ${/^g[123]$/.test(activeStudentTab) && window.GradePhotoImport ? '<button class="btn grade-photo-btn" id="studentGradePhotoBtn" type="button">성적표 사진 넣기</button>' : ''}
-      <button class="btn primary" id="studentAddBtn">학생 추가</button>
+      <div class="student-toolbar-actions">
+        ${gradeTab ? `<a class="btn student-template-link" href="${STUDENT_TEMPLATE_URL}" download="${STUDENT_TEMPLATE_NAME}" title="학생 명단 기본 양식(.xlsx) 다운로드"><svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>학생 명단 기본 양식</a><button class="btn" id="studentUploadBtn" type="button">엑셀 업로드</button>` : ''}
+        ${/^g[123]$/.test(activeStudentTab) && window.GradePhotoImport ? '<button class="btn grade-photo-btn" id="studentGradePhotoBtn" type="button">성적표 사진 넣기</button>' : ''}
+        <button class="btn primary" id="studentAddBtn">학생 추가</button>
+      </div>
     </div>
     ${activeStudentTab === 'result' ? `<div class="student-filter-bar">
       <div class="field"><label>학년도</label><select id="studentYearFilter"><option value="">전체 연도</option>${yearOptions.map(year=>`<option value="${h(year)}" ${String(yearFilter)===String(year)?'selected':''}>${h(year)}</option>`).join('')}</select></div>
