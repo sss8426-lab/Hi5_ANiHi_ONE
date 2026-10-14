@@ -22,6 +22,9 @@ interface Env {
   PUSH_VAPID_PRIVATE_JWK?: string;
   PUSH_VAPID_SUBJECT?: string;
   PUSH_SUBSCRIPTION_ENCRYPTION_KEY?: string;
+  // 꿈이음 Android 앱(TWA): Play Console의 패키지 이름과 SHA-256 인증서 지문(쉼표로 여러 개). 공개 정보.
+  ANDROID_TWA_PACKAGE?: string;
+  ANDROID_TWA_SHA256?: string;
 }
 
 async function familyShell(request: Request, env: Env): Promise<Response | null> {
@@ -41,8 +44,21 @@ async function familyShell(request: Request, env: Env): Promise<Response | null>
   return new Response(response.body, { status: response.status, headers });
 }
 
+// Digital Asset Links: lets the Play Store 꿈이음 app open /family/ full screen (no address bar).
+// Answers only when both values are set in Cloudflare; otherwise 404 so nothing half-configured is published.
+function androidAssetLinks(request: Request, env: Env): Response | null {
+  if (request.method !== "GET" || new URL(request.url).pathname !== "/.well-known/assetlinks.json") return null;
+  const pkg = String(env.ANDROID_TWA_PACKAGE || "").trim();
+  const prints = String(env.ANDROID_TWA_SHA256 || "").split(",").map(v => v.trim().toUpperCase()).filter(v => /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/.test(v));
+  if (!/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/i.test(pkg) || !prints.length) return new Response("Not found", { status: 404 });
+  const body = [{ relation: ["delegate_permission/common.handle_all_urls"], target: { namespace: "android_app", package_name: pkg, sha256_cert_fingerprints: prints } }];
+  return new Response(JSON.stringify(body), { headers: { "content-type": "application/json", "cache-control": "public, max-age=3600" } });
+}
+
 const worker = {
   async fetch(request: Request, env: Env): Promise<Response> {
+    const links = androidAssetLinks(request, env);
+    if (links) return links;
     const shell = await familyShell(request, env);
     if (shell) return shell;
     if (new URL(request.url).pathname.startsWith('/api/data-core/marketing/')) {
