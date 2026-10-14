@@ -1711,3 +1711,7 @@
 /* 학생 명단 기본 양식 다운로드 */
 .student-template-link{display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:var(--core-brand,#174f44);border-color:var(--core-brand,#174f44);font-weight:700}
 .student-template-link:hover{background:var(--core-brand,#174f44);color:#fff}
+
+/* 학생 관리 툴바: 검색은 왼쪽, 양식·업로드·사진 넣기·학생 추가는 오른쪽에 모아서 */
+.student-toolbar-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+@media (max-width:900px){.student-toolbar-actions{justify-content:flex-start}.student-toolbar-actions>.btn{flex:1 1 auto}}
