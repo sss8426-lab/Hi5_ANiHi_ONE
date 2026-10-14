@@ -1,11 +1,11 @@
-// 꿈이음 보호자: 신청/동의서 · 학원 일정.
+// 꿈이음 보호자: 신청/동의서 · 학원 일정 · 수납 안내.
 // 신청/동의서는 자녀마다 한 번 제출하고, 마감 전에는 다시 제출해 고칠 수 있습니다. 알림을 누르면 그 양식이 열립니다.
 // 학원 일정은 휴일과 학원이 "학부모에게도 보이기"로 고른 일정만 보여 줍니다.
 (() => {
   const familyView = document.getElementById('familyView');
   if (!familyView) return;
   const h = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const st = { key: '', box: null, list: null, form: null, child: '', month: '', schedule: null, busy: false, waiting: 0, pending: '' };
+  const st = { key: '', box: null, list: null, form: null, child: '', month: '', schedule: null, bills: null, busy: false, waiting: 0, pending: '', pendingBills: false };
   const KIND = { application: '신청서', consent: '동의서' };
   const md = d => d ? `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}` : '';
   const kstDate = iso => iso ? new Date(iso).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric' }) : '';
@@ -89,9 +89,32 @@
     return `${head}<ul class="ff-events">${rows || '<li class="km-state">이 달에는 안내할 일정이 없습니다.</li>'}</ul>`;
   }
 
+  // ---- 수납 안내 (학원에서 기록한 청구와 납부 상태만; 앱에서 결제하지 않음) ----
+  const won = n => `${Number(n || 0).toLocaleString('ko-KR')}원`;
+  function billsView() {
+    const head = '<h2>수납 안내</h2><p class="ft-intro">학원에서 보낸 청구와 납부 상태입니다. 납부는 아래 안내대로 학원에 해 주세요.</p>';
+    const d = st.bills;
+    if (!d) return `${head}<p class="km-state">불러오는 중...</p>`;
+    const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+    const guides = Object.values(d.guides || {}).map(g => `<div class="ff-body ff-guide"><b>납부 방법</b>
+${h(g)}</div>`).join('');
+    const months = [...new Set(d.bills.map(b => b.month))];
+    const list = months.map(m => `<h3 class="ff-bill-month">${Number(m.slice(0, 4))}년 ${Number(m.slice(5, 7))}월</h3>${d.bills.filter(b => b.month === m).map(b => {
+      const late = !b.paid && b.dueDate < today;
+      const status = b.paid ? `<em class="ff-tag ff-class">납부 완료${b.paidAt ? ` ${h(md(b.paidAt))}` : ''}</em>` : `<em class="ff-tag ff-holiday">${late ? '납부일 지남' : '납부 전'}</em>`;
+      return `<div class="ff-bill${late ? ' ff-late' : ''}"><span class="ff-what"><b>${h(b.title)}</b><small>${h(b.studentName)} · 납부일 ${h(dayLabel(b.dueDate))}</small></span><span class="ff-amount"><b>${won(b.paid && b.paidAmount != null ? b.paidAmount : b.amount)}</b>${status}</span></div>`;
+    }).join('')}`).join('');
+    return `${head}${guides}<div class="ff-bills">${list || '<p class="km-state">받은 청구가 없습니다.</p>'}</div>`;
+  }
+  async function loadBills() {
+    st.bills = null; paint();
+    try { st.bills = await api('/api/family/bills'); paint(); }
+    catch (e) { if (st.box) st.box.innerHTML = `<p class="km-state">${h(fail(e))}</p>`; }
+  }
+
   function paint() {
     if (!st.box) return;
-    st.box.innerHTML = `<div class="ft-wrap ff-wrap">${st.key === 'schedule' ? scheduleView() : st.form ? formView() : listView()}</div>`;
+    st.box.innerHTML = `<div class="ft-wrap ff-wrap">${st.key === 'schedule' ? scheduleView() : st.key === 'bills' ? billsView() : st.form ? formView() : listView()}</div>`;
   }
   async function loadList() {
     st.form = null; st.list = null; paint();
@@ -141,6 +164,7 @@
   window.FamilyForms = {
     open(key, box) {
       st.key = key; st.box = box;
+      if (key === 'bills') { void loadBills(); return; }
       if (key === 'schedule') { st.month = st.month || new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 7); void loadSchedule(); return; }
       if (st.pending) { const id = st.pending; st.pending = ''; void openForm(id); } else void loadList();
     },
@@ -150,11 +174,13 @@
   // 신청/동의서 알림은 /family/?openForm=<id>로 열린다.
   const params = new URLSearchParams(location.search);
   const openId = params.get('openForm');
+  if (params.get('openBills')) { params.delete('openBills'); history.replaceState(null, '', `${location.pathname}${params.toString() ? `?${params}` : ''}`); st.pendingBills = true; }
   if (openId) { params.delete('openForm'); history.replaceState(null, '', `${location.pathname}${params.toString() ? `?${params}` : ''}`); st.pending = openId; }
   function whenVisible() {
     if (familyView.classList.contains('hidden')) return;
     void refresh();
     if (st.pending) setTimeout(() => { if (st.pending) document.querySelector('.km-more [data-open="consents"]')?.click(); }, 450);
+    if (st.pendingBills) setTimeout(() => { if (st.pendingBills) { st.pendingBills = false; document.querySelector('.km-more [data-open="bills"]')?.click(); } }, 450);
   }
   new MutationObserver(whenVisible).observe(familyView, { attributes: true, attributeFilter: ['class'] });
   whenVisible();
