@@ -46,5 +46,5 @@ test('calendar shares today\'s events with the 오늘 widget', () => {
   const calendar = read('public/data-core/calendar.js');
   assert.match(calendar, /new CustomEvent\('academy-calendar:today'/);
   assert.match(shell, /addEventListener\('academy-calendar:today'/);
-  assert.match(index, /calendar\.js\?v=20261009-mobile-app/);
+  assert.match(index, /calendar\.js\?v=20261014-forms/);
 });

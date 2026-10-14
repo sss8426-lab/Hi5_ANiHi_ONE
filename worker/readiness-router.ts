@@ -27,6 +27,8 @@ import { kioskCheckin, kioskSession, pairKiosk, unpairKiosk } from "./kkumeum-ch
 import {
   createGuardianInquiry, getGuardianThread, guardianNoticeReplies, guardianThreadMessage, listGuardianThreads, readGuardianTalkFile, replyToNotice,
 } from "./kkumeum-talk";
+import { getGuardianForm, guardianScheduleScope, listGuardianForms, submitGuardianForm } from "./kkumeum-forms";
+import { listFamilyCalendar } from "./data-core-calendar";
 import {
   guardianPushStatus,
   subscribeGuardianPush,
@@ -181,6 +183,22 @@ async function handleFamilyGuardianFeedApi(request: Request, env: Env): Promise<
   if (talkFileMatch && request.method === "GET") {
     if (!env.FAMILY_FILES) throw new DataCoreAccessError(503, "꿈이음 보호자 전용 FAMILY_FILES 연결이 필요합니다.");
     return readGuardianTalkFile(env.FAMILY_DB, env.FAMILY_FILES, request, decodeURIComponent(talkFileMatch[1]));
+  }
+
+  // 신청/동의서 · 학부모 일정 (꿈이음 3단계).
+  if (url.pathname === "/api/family/forms" && request.method === "GET") {
+    return privateJsonResponse(await listGuardianForms(env.FAMILY_DB, request));
+  }
+  const formResponseMatch = url.pathname.match(/^\/api\/family\/forms\/([^/]+)\/responses$/);
+  if (formResponseMatch && request.method === "POST") {
+    return privateJsonResponse(await submitGuardianForm(env.FAMILY_DB, request, decodeURIComponent(formResponseMatch[1]), await readJson<Record<string, unknown>>(request)), { status: 201 });
+  }
+  const formMatch = url.pathname.match(/^\/api\/family\/forms\/([^/]+)$/);
+  if (formMatch && request.method === "GET") return privateJsonResponse(await getGuardianForm(env.FAMILY_DB, request, decodeURIComponent(formMatch[1])));
+  if (url.pathname === "/api/family/schedule" && request.method === "GET") {
+    const scope = await guardianScheduleScope(env.FAMILY_DB, request);
+    if (!env.DB) return privateJsonResponse({ month: url.searchParams.get("month") || "", events: [], unavailable: true });
+    return privateJsonResponse(await listFamilyCalendar(env.DB, scope.campusIds, url.searchParams.get("month")));
   }
 
   const noticeReadMatch = url.pathname.match(/^\/api\/family\/notices\/([^/]+)\/read$/);

@@ -73,6 +73,7 @@ import {
   createSnippet, deleteSnippet, getStaffThread, listSnippets, listStaffThreads, readStaffTalkFile, readTalkSettings, saveTalkSettings,
   setStaffThreadStatus, staffThreadMessage, staffThreadSummary,
 } from "./kkumeum-talk";
+import { createStaffForm, deleteStaffForm, getStaffForm, listStaffForms, remindStaffForm, setStaffFormStatus } from "./kkumeum-forms";
 export type KkumeumRouterEnv = KkumeumBindings & KkumeumPushEnv & { DB?: D1Database };
 
 type JsonResponder = (value: unknown, init?: ResponseInit) => Response;
@@ -314,6 +315,27 @@ export async function handleKkumeumApi(
       await assertKkumeumPilotCampus(familyDb, campusId); return respond(await saveTalkSettings(familyDb, context, campusId, input.settings));
     }
     return respond({ error: "지원하지 않는 문의 운영시간 요청입니다." }, { status: 405 });
+  }
+  // 신청/동의서 (꿈이음 3단계): 만들기 · 제출 현황 · 마감 · 미제출 알림.
+  if (url.pathname === "/api/kkumeum/forms") {
+    if (request.method === "GET") { const campusId = requiredCampusId(url); await assertKkumeumPilotCampus(familyDb, campusId); return respond(await listStaffForms(familyDb, context, campusId)); }
+    if (request.method === "POST") {
+      assertSameOrigin(request); const input = await readJson(request); const campusId = requiredBodyId(input.campusId, "campusId");
+      await assertKkumeumPilotCampus(familyDb, campusId); return respond(await createStaffForm(familyDb, context, env, campusId, input), { status: 201 });
+    }
+    return respond({ error: "지원하지 않는 신청/동의서 요청입니다." }, { status: 405 });
+  }
+  const formRemindMatch = url.pathname.match(/^\/api\/kkumeum\/forms\/([^/]+)\/remind$/);
+  if (formRemindMatch && request.method === "POST") {
+    assertSameOrigin(request); return respond(await remindStaffForm(familyDb, context, env, decodeURIComponent(formRemindMatch[1])));
+  }
+  const formMatch = url.pathname.match(/^\/api\/kkumeum\/forms\/([^/]+)$/);
+  if (formMatch) {
+    const formId = decodeURIComponent(formMatch[1]);
+    if (request.method === "GET") return respond(await getStaffForm(familyDb, context, formId));
+    if (request.method === "PATCH") { assertSameOrigin(request); const input = await readJson(request); return respond(await setStaffFormStatus(familyDb, context, formId, input.status)); }
+    if (request.method === "DELETE") { assertSameOrigin(request); return respond(await deleteStaffForm(familyDb, context, formId)); }
+    return respond({ error: "지원하지 않는 신청/동의서 요청입니다." }, { status: 405 });
   }
   if (url.pathname === "/api/kkumeum/snippets") {
     if (request.method === "GET") { const campusId = requiredCampusId(url); await assertKkumeumPilotCampus(familyDb, campusId); return respond(await listSnippets(familyDb, context, campusId)); }
