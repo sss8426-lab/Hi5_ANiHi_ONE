@@ -478,3 +478,20 @@ test('A4 한 장 끝까지: blank rows fill the rest of the last printed page an
   const numbered=[...out.cells].filter(([ref,c])=>/^A\d+$/.test(ref)&&/^\d+$/.test(c.value)).length;
   assert.ok(numbered>30,`${numbered} numbered rows`);
 });
+
+test('보강용 빈 열 per class: each sheet gets only its own class slots; unlisted classes use the shared choice', ()=>{
+  const roster=parse({classes:[
+    {name:'주말반',students:[student('가','토1 일1')]},
+    {name:'예비반',students:[student('나','화1 토1')]},
+    {name:'평일반',students:[student('다','월1 수1')]},
+    {name:'새반',students:[student('라','목1')]},
+  ]});
+  const plan=planRosterWorkbook(roster,{year:2026,month:10,extraSlots:['토3'],extraSlotsByClass:{'주말반':['일2'],'예비반':['일1','일2'],'평일반':[]}});
+  const extras=plan.sheets.map(s=>[...new Set(s.columns.filter(c=>c.extra).map(c=>c.slot))]);
+  assert.deepEqual(extras,[['일2'],['일1','일2'],[],['토3']]);
+  // a class's own choice of a slot nobody else has does not leak into another sheet
+  assert.ok(!plan.sheets[2].columns.some(c=>c.weekday==='일'));
+  const out=openOutput(buildRosterWorkbook(roster,{year:2026,month:10,extraSlotsByClass:{'주말반':['일2']}}).bytes);
+  assert.ok([...out.sheets[0].cells.values()].some(c=>c.value==='일2'));
+  assert.ok(![...out.sheets[1].cells.values()].some(c=>c.value==='일2'));
+});

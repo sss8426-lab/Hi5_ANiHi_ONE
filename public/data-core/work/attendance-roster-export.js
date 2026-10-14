@@ -36,8 +36,9 @@ export function sheetNames(names){
 /** Everything a sheet shows, shared by the Excel writer and the on-screen preview. */
 // blankRows: empty rows under the students for new students written in by hand — a number, or 'page'
 // to fill the rest of the last printed A4 page.
-// extraSlots: time slots (e.g. '일2') that get a column in every sheet even when no student has that
-// lesson — a blank column for 보강 written in by hand.
+// extraSlots: time slots (e.g. '일2') that get a column even when no student has that lesson — a blank
+// column for 보강 written in by hand. extraSlotsByClass {반 이름: slots} chooses them per class; a class
+// not listed there uses extraSlots.
 export const MAX_BLANK_ROWS=10,FILL_PAGE='page';
 // A4 landscape page in Excel, measured with Excel 16 (fit to 1 page wide): about 835pt of sheet width and
 // 604pt of row height fit at 100%; a wider sheet is scaled down and fits proportionally more rows.
@@ -53,12 +54,13 @@ export function pageFillRows({used,widthUnits}){
   const onLast=used<=first?used:(used-first)%next||next,room=(used<=first?first:next)-PAGE.spare;
   return Math.max(0,room-onLast);
 }
-export function planRosterWorkbook(roster,{year,month,holidays=new Map(),classDays=new Map(),attendance=null,blankRows=0,extraSlots=[]}){
+export function planRosterWorkbook(roster,{year,month,holidays=new Map(),classDays=new Map(),attendance=null,blankRows=0,extraSlots=[],extraSlotsByClass={}}){
   const names=sheetNames(roster.classes.map(c=>c.name));
-  const extra=new Set((extraSlots||[]).filter(s=>SLOT_ORDER.includes(s)));
+  const slotSet=list=>new Set((Array.isArray(list)?list:[]).filter(s=>SLOT_ORDER.includes(s)));
   const blank=blankRows===FILL_PAGE?FILL_PAGE:Math.max(0,Math.min(MAX_BLANK_ROWS,Math.floor(Number(blankRows)||0)));
   const sheets=roster.classes.map((group,i)=>{
     const used=new Set(group.students.flatMap(s=>s.schedule?.slots||[]));
+    const extra=slotSet(Object.hasOwn(extraSlotsByClass||{},group.name)?extraSlotsByClass[group.name]:extraSlots);
     const columns=monthColumns(year,month,SLOT_ORDER.filter(s=>used.has(s)||extra.has(s)),holidays)
       .map(col=>({...col,extra:!used.has(col.slot)&&extra.has(col.slot)&&col.label===col.slot}));
     const students=group.students.map(s=>{const planned=plannedColumns(s.schedule,columns);return {...s,planned,count:lessonCount(s.schedule,planned)};});

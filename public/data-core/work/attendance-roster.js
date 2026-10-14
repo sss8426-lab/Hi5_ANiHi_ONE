@@ -1,19 +1,29 @@
 // 종합 출석부 업로드 → 반별 출석부 Excel. One official 종합입력 file becomes one workbook with a sheet
 // per class (input order), in the official blue A4-landscape design. 공휴일·휴무 come from CORE's calendar.
 import {parseRoster,RosterError} from './attendance-roster-parser.js?v=20260928-dist';
-import {buildRosterWorkbook,MAX_BLANK_ROWS,FILL_PAGE} from './attendance-roster-export.js?v=20261014-blank';
+import {buildRosterWorkbook,MAX_BLANK_ROWS,FILL_PAGE} from './attendance-roster-export.js?v=20261014-class-extra';
 import {fetchMonthHolidays,addHolidayClass,removeHolidayClass,holidaySummary} from './attendance-holidays.js?v=20260924-class-days';
 import {escapeHtml as h} from './attendance-template.js?v=20260919-sparse-import';
 
 const XLSX_TYPE='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const SLOT_DAYS=['월','화','수','목','금','토','일'],DEFAULT_BLANK_ROWS=FILL_PAGE;
-// 빈 줄 수·보강용 빈 열 choices are remembered per campus on this device.
+const SLOT_ORDER_LABELS=SLOT_DAYS.flatMap(d=>['1','2','3'].map(n=>d+n));
+// 빈 줄 수 and each class's 보강용 빈 열 are remembered per campus on this device (by class name).
+// extraSlots is the older one-choice-for-every-class setting, still used for classes never set.
 const optionsKey=campusId=>`core.attendance.roster-options.${campusId||'default'}`;
+const slotList=v=>Array.isArray(v)?v.filter(x=>typeof x==='string'):[];
 function loadOptions(campusId){
+  const options={blankRows:DEFAULT_BLANK_ROWS,extraSlots:[],extraByClass:{}};
   try{const saved=JSON.parse(localStorage.getItem(optionsKey(campusId))||'null');
-    if(saved&&typeof saved==='object')return {blankRows:saved.blankRows===FILL_PAGE||Number.isInteger(saved.blankRows)?saved.blankRows:DEFAULT_BLANK_ROWS,extraSlots:Array.isArray(saved.extraSlots)?saved.extraSlots:[]};}catch{/* storage blocked or corrupt: use the defaults */}
-  return {blankRows:DEFAULT_BLANK_ROWS,extraSlots:[]};
+    if(saved&&typeof saved==='object'){
+      if(saved.blankRows===FILL_PAGE||Number.isInteger(saved.blankRows))options.blankRows=saved.blankRows;
+      options.extraSlots=slotList(saved.extraSlots);
+      if(saved.extraByClass&&typeof saved.extraByClass==='object')for(const [name,slots] of Object.entries(saved.extraByClass))options.extraByClass[name]=slotList(slots);
+    }}catch{/* storage blocked or corrupt: use the defaults */}
+  return options;
 }
+const slotGrid=(index,selected)=>`<div class="ar-slot-grid"><span></span>${SLOT_DAYS.map(d=>`<span class="ar-slot-day">${d}</span>`).join('')}
+  ${['1','2','3'].map(n=>`<span class="ar-slot-time">${n}타임</span>${SLOT_DAYS.map(d=>`<label><input type="checkbox" data-class-index="${index}" data-extra-slot="${d}${n}" aria-label="${d}요일 ${n}타임"${selected.includes(d+n)?' checked':''}><span>${d}${n}</span></label>`).join('')}`).join('')}</div>`;
 function saveOptions(campusId,options){try{localStorage.setItem(optionsKey(campusId),JSON.stringify(options));}catch{/* not remembered on this device */}}
 export function mountRosterAttendance(host,{campusId='',campusName=''}={}){
   let roster=null,rosterFile='',linkTicket=0,result=null,busy=false,disposed=false,ticket=0,controller=null;
@@ -32,11 +42,10 @@ export function mountRosterAttendance(host,{campusId='',campusName=''}={}){
         <label>월<select id="arMonth">${Array.from({length:12},(_,i)=>`<option value="${i+1}"${i+1===next.month?' selected':''}>${i+1}월</option>`).join('')}</select></label></div>
       <fieldset class="ar-blanks"><legend>손으로 적을 빈칸</legend>
         <label class="ar-blank-rows">맨 아래 빈 줄<span><select id="arBlankRows"><option value="${FILL_PAGE}"${options.blankRows===FILL_PAGE?' selected':''}>A4 한 장 끝까지</option>${Array.from({length:MAX_BLANK_ROWS+1},(_,n)=>`<option value="${n}"${n===options.blankRows?' selected':''}>${n?`${n}줄`:'없음'}</option>`).join('')}</select><small>반마다 학생 아래에 번호만 있는 빈 줄을 넣습니다. 새로 온 학생을 손으로 적는 칸입니다. "A4 한 장 끝까지"는 인쇄했을 때 마지막 장의 남은 자리를 빈 줄로 채웁니다.</small></span></label>
-        <div class="ar-extra" role="group" aria-labelledby="arExtraTitle"><strong id="arExtraTitle">보강용 빈 열</strong>
-          <small>신청한 학생이 없어도 체크한 요일·타임에 날짜 칸을 만듭니다. 예) 일요일 1타임은 정규 수업, 2타임은 보강만 → 일 2타임 체크</small>
-          <div class="ar-slot-grid"><span></span>${SLOT_DAYS.map(d=>`<span class="ar-slot-day">${d}</span>`).join('')}
-            ${['1','2','3'].map(n=>`<span class="ar-slot-time">${n}타임</span>${SLOT_DAYS.map(d=>`<label><input type="checkbox" data-extra-slot="${d}${n}" aria-label="${d}요일 ${n}타임"${options.extraSlots.includes(d+n)?' checked':''}><span>${d}${n}</span></label>`).join('')}`).join('')}
-          </div></div>
+        <div class="ar-extra" role="group" aria-labelledby="arExtraTitle"><strong id="arExtraTitle">보강용 빈 열 · 반마다 선택</strong>
+          <small>신청한 학생이 없어도 체크한 요일·타임에 날짜 칸을 만듭니다. 예) 주말반: 일요일 1타임은 정규 수업, 2타임은 보강만 → 일 2타임 체크</small>
+          <p id="arExtraEmpty" class="ar-empty">종합 출석부를 올리면 반마다 고를 수 있습니다.</p>
+          <ul id="arExtraClasses" class="ar-extra-classes" hidden></ul></div>
       </fieldset>
       <fieldset id="arDaysOff" class="ar-days-off" hidden><legend>이 달 공휴일·휴무</legend>
         <small>공휴일이어도 수업하는 날은 체크하세요. 체크한 날은 이 캠퍼스 출석부에 휴로 표시하지 않고 정상 수업일로 만듭니다.</small>
@@ -57,7 +66,7 @@ export function mountRosterAttendance(host,{campusId='',campusName=''}={}){
   const blocked=()=>!roster||roster.issues.length>0;
   function sync(){
     $('arFile').disabled=busy;$('arYear').disabled=busy;$('arMonth').disabled=busy;$('arBlankRows').disabled=busy;
-    host.querySelectorAll('[data-extra-slot]').forEach(input=>{input.disabled=busy;});
+    host.querySelectorAll('[data-extra-slot],[data-extra-copy]').forEach(input=>{input.disabled=busy;});
     host.querySelectorAll('[data-day-off]').forEach(input=>{input.disabled=busy||saving;});
     $('arGenerate').disabled=busy||blocked();$('arGenerate').textContent=busy?'처리 중...':'반별 출석부 Excel 생성';
     $('arDownload').disabled=busy||!result;
@@ -76,7 +85,17 @@ export function mountRosterAttendance(host,{campusId='',campusName=''}={}){
     $('arWarnings').querySelector('summary').textContent=`확인하면 좋은 점 ${roster.warnings.length}개`;
     $('arWarnings').querySelector('ul').innerHTML=roster.warnings.map(w=>`<li>${h(w)}</li>`).join('');
   }
-  function clearRoster(){roster=null;$('arSummary').hidden=true;$('arSummary').replaceChildren();$('arIssues').hidden=true;$('arIssues').replaceChildren();$('arWarnings').hidden=true;invalidate();}
+  // 보강용 빈 열, one row per class of the uploaded file: name, chosen slots, and its own 요일·타임 grid.
+  const classSlots=name=>options.extraByClass[name]??options.extraSlots;
+  const chips=slots=>slots.length?SLOT_ORDER_LABELS.filter(s=>slots.includes(s)).map(s=>`<span class="ar-chip">${s}</span>`).join(''):'<span class="ar-chip-none">없음</span>';
+  function renderExtraClasses(){
+    const list=$('arExtraClasses'),names=roster?[...new Set(roster.classes.map(c=>c.name))]:[];
+    $('arExtraEmpty').hidden=names.length>0;list.hidden=!names.length;
+    list.innerHTML=names.map((name,i)=>`<li><details><summary><span class="ar-extra-name">${h(name)}</span><span class="ar-extra-chips" data-chips="${i}">${chips(classSlots(name))}</span></summary>
+      ${slotGrid(i,classSlots(name))}<button type="button" class="ar-extra-copy" data-extra-copy="${i}">이 반 선택을 모든 반에 똑같이</button></details></li>`).join('');
+    list.dataset.names=JSON.stringify(names);sync();
+  }
+  function clearRoster(){roster=null;$('arSummary').hidden=true;$('arSummary').replaceChildren();$('arIssues').hidden=true;$('arIssues').replaceChildren();$('arWarnings').hidden=true;renderExtraClasses();invalidate();}
   $('arFile').onchange=async e=>{
     const file=e.target.files[0],epoch=++ticket;clearRoster();if(!file){status('');return;}
     busy=true;sync();status('종합 출석부를 확인하는 중...');
@@ -84,7 +103,7 @@ export function mountRosterAttendance(host,{campusId='',campusName=''}={}){
       if(!/\.xlsx$/i.test(file.name))throw new RosterError('xlsx 파일만 올릴 수 있습니다. Excel에서 "Excel 통합 문서(*.xlsx)"로 저장해주세요.');
       if(file.size>20*1024*1024)throw new RosterError('Excel 파일은 20MB 이하로 올려주세요.');
       const bytes=await file.arrayBuffer();if(disposed||ticket!==epoch)return;
-      roster=parseRoster(bytes);rosterFile=file.name;showRoster(file.name);
+      roster=parseRoster(bytes);rosterFile=file.name;showRoster(file.name);renderExtraClasses();
       status(roster.issues.length?'':`${roster.classes.length}개 반 · 학생 ${roster.studentCount}명을 확인했습니다. 연도와 월을 고른 뒤 생성해주세요.`);
     }catch(error){
       if(disposed||ticket!==epoch)return;roster=null;
@@ -123,8 +142,25 @@ export function mountRosterAttendance(host,{campusId='',campusName=''}={}){
     finally{saving=false;if(!disposed&&month===current)renderDaysOff();}
   };
   $('arYear').onchange=$('arMonth').onchange=()=>{invalidate();status('');void loadDaysOff();};
-  const readOptions=()=>({blankRows:$('arBlankRows').value===FILL_PAGE?FILL_PAGE:Number($('arBlankRows').value)||0,extraSlots:[...host.querySelectorAll('[data-extra-slot]:checked')].map(i=>i.dataset.extraSlot)});
-  host.querySelector('.ar-blanks').onchange=()=>{invalidate();status('');saveOptions(campusId,readOptions());};
+  const classNames=()=>JSON.parse($('arExtraClasses').dataset.names||'[]');
+  const checkedSlots=index=>[...host.querySelectorAll(`[data-class-index="${index}"][data-extra-slot]:checked`)].map(i=>i.dataset.extraSlot);
+  const readOptions=()=>({blankRows:$('arBlankRows').value===FILL_PAGE?FILL_PAGE:Number($('arBlankRows').value)||0,
+    extraSlotsByClass:Object.fromEntries(classNames().map(name=>[name,classSlots(name)]))});
+  const remember=()=>{options.blankRows=readOptions().blankRows;saveOptions(campusId,options);};
+  host.querySelector('.ar-blanks').onchange=e=>{
+    const input=e.target.closest('[data-extra-slot]');
+    if(input){const i=Number(input.dataset.classIndex),name=classNames()[i];options.extraByClass[name]=checkedSlots(i);
+      host.querySelector(`[data-chips="${i}"]`).innerHTML=chips(options.extraByClass[name]);}
+    invalidate();status('');remember();
+  };
+  $('arExtraClasses').onclick=e=>{
+    const button=e.target.closest('[data-extra-copy]');if(!button)return;
+    const names=classNames(),slots=checkedSlots(Number(button.dataset.extraCopy));
+    for(const name of names)options.extraByClass[name]=[...slots];
+    const open=[...host.querySelectorAll('#arExtraClasses details')].map(d=>d.open);
+    renderExtraClasses();host.querySelectorAll('#arExtraClasses details').forEach((d,i)=>{d.open=open[i];});
+    invalidate();remember();status(`보강용 빈 열 ${slots.length?slots.join('·'):'없음'}을(를) 모든 반에 적용했습니다.`);
+  };
   $('arForm').onsubmit=async e=>{
     e.preventDefault();if(busy||blocked())return;
     const year=Number($('arYear').value),month=Number($('arMonth').value),epoch=++ticket;
@@ -143,7 +179,7 @@ export function mountRosterAttendance(host,{campusId='',campusName=''}={}){
       if(classDays.size)$('arHolidays').textContent+=` · 공휴일 수업(정상 수업): ${holidaySummary(classDays)}`;
       $('arSheets').innerHTML=plan.sheets.map(s=>{
         const labels=[...new Set(s.students.map(st=>st.count.label))];
-        return `<tr><th scope="row">${h(s.name)}</th><td>${s.students.length}명</td><td>${s.columns.length}칸</td><td>${h(labels.join(' · '))}</td></tr>`;
+        return `<tr><th scope="row">${h(s.name)}</th><td>${s.students.length}명</td><td>${s.columns.length}칸${s.columns.some(c=>c.extra)?` · 보강 ${h([...new Set(s.columns.filter(c=>c.extra).map(c=>c.slot))].join('·'))}`:''}</td><td>${h(labels.join(' · '))}</td></tr>`;
       }).join('');
       $('arResult').hidden=false;status('');
       void linkAttendance(year,month);
