@@ -37,3 +37,4 @@
 .grade-report-files{margin-top:16px}.grade-report-files h4{margin:0 0 8px;font-size:14px}.grade-report-files h4 small{font-weight:500;color:var(--core-ink-muted,#687066);font-size:12px}
 .grade-report-files>div{display:flex;gap:8px;flex-wrap:wrap}.grade-report-files img{width:72px;height:96px;object-fit:cover;border:1px solid var(--core-line,#e1e3dc);border-radius:4px;background:#fff}
 @media (max-width:760px){.gpi-how{grid-template-columns:1fr}.gpi-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.gpi-review{grid-template-columns:1fr}.gpi-dialog{padding:18px}}
+.gpi-dialog .gpi-stop{border-color:#a13e3e;color:#a13e3e;font-weight:700}.gpi-dialog .gpi-stop:hover:not(:disabled){background:#a13e3e;color:#fff}
