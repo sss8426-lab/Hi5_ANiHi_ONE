@@ -90,6 +90,16 @@ test('server keeps only known codes and drops rows from non-report photos', asyn
   assert.equal(out.rows[0].subjectGroup, 'ETC');
   assert.deepEqual(out.rows[0].uncertainFields, ['grade']);
   assert.equal(cleanReading({ kind: 'artwork', rows: [{ subjectName: 'x' }] }).rows.length, 0);
+  // 과목명 끝 숫자를 빠뜨려도 표에 찍힌 글자로 되살리고, 괄호 숫자는 단위수로
+  const named = rows => cleanReading({ kind: 'report', rows }).rows.map(r => [r.subjectName, r.credits]);
+  assert.deepEqual(named([
+    { subjectName: '체육', printedName: '체육1(2)', credits: '' },
+    { subjectName: '과학탐구실험', printedName: '과학탐구실험1 (1)', credits: '1' },
+    { subjectName: '통합과학', printedName: '통합과학 1(4)', credits: '' },
+    { subjectName: '영어Ⅰ', printedName: '영어 Ⅰ', credits: '4' },
+    { subjectName: '미술', printedName: '', credits: '2' },
+    { subjectName: '미술', printedName: '1차 정기시험 (25.00%)', credits: '2' },
+  ]), [['체육1', '2'], ['과학탐구실험1', '1'], ['통합과학1', '4'], ['영어Ⅰ', '4'], ['미술', '2'], ['미술', '2']]);
 });
 
 test('blank 과목평균·수강자수 come from classmates who provably sat the same exam, and only when they agree', () => {

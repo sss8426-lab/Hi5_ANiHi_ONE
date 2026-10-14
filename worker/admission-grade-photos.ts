@@ -15,11 +15,12 @@ const ROW_FIELDS = ['credits', 'grade', 'rawScore', 'averageScore', 'standardDev
 const text = { type: 'string' };
 const ROW_SCHEMA = {
   type: 'object', additionalProperties: false,
-  required: ['schoolYear', 'semester', 'subjectGroup', 'subjectName', 'subjectType', ...ROW_FIELDS, 'notes', 'uncertainFields'],
+  required: ['schoolYear', 'semester', 'subjectGroup', 'printedName', 'subjectName', 'subjectType', ...ROW_FIELDS, 'notes', 'uncertainFields'],
   properties: {
     schoolYear: { type: 'string', enum: ['1학년', '2학년', '3학년', ''] },
     semester: { type: 'string', enum: ['1학기', '2학기', ''] },
     subjectGroup: { type: 'string', enum: [...SUBJECT_GROUPS] },
+    printedName: text,
     subjectName: text,
     subjectType: { type: 'string', enum: [...SUBJECT_TYPES] },
     ...Object.fromEntries(ROW_FIELDS.map(field => [field, text])),
@@ -46,6 +47,7 @@ const INSTRUCTIONS = `당신은 한국 고등학교 성적 자료(성적통지�
 3. rows: 사진에 보이는 과목마다 학기마다 한 줄. 과목군 합계·평균 행(전과목, 국영수사과 등)은 넣지 않습니다.
  - schoolYear/semester: 사진 제목·머리글(예: "2025학년도 1학기 2학년")에서. 학기 구분 없는 학년 전체 표는 semester "" + notes "학년 전체". 제목이 없으면 과목명(예: 공통국어1=1학기, 공통국어2=2학기)과 함께 준 학생 학년 힌트로 판단하고 uncertainFields에 넣습니다.
  - subjectGroup: KOREAN 국어 · MATH 수학 · ENGLISH 영어 · SOCIAL 사회(통합사회·사회문화·윤리·지리·경제·법 등) · SCIENCE 과학(통합과학·물리·화학·생명·지구·과학탐구실험) · KOREAN_HISTORY 한국사 · HISTORY 세계사·동아시아사 · ETHICS 도덕 · TECH_HOME 기술·가정 · INFORMATION 정보 · SECOND_LANGUAGE 제2외국어 · CHINESE_CLASSICS 한문 · ART 음악·미술 · PE 체육 · LIBERAL 교양 · SPECIALIZED 전문교과(특성화고·예술고 전공) · ETC.
+ - printedName: 표의 과목 칸에 찍힌 글자를 숫자·괄호까지 하나도 빼지 않고 그대로(예: "체육1(2)", "과학탐구실험1(1)", "공통국어1(4)", "영어 Ⅰ").
  - subjectName: 과목명 그대로. 과목명 끝의 숫자·로마숫자(공통국어1, 영어Ⅰ, 체육2)는 과목명의 일부이니 지우지 말고, 괄호 안 숫자 "(4)"만 단위수로 credits에 넣습니다.
  - subjectType: COMMON 공통과목(공통국어·공통수학·공통영어·통합사회·통합과학·한국사·과학탐구실험) · GENERAL 일반선택 · CAREER 진로선택 · CONVERGENCE 융합선택 · SPECIALIZED 전문교과 · ETC. 표기가 없으면 교육과정 기준으로 판단(체육·음악·미술·기술·가정·정보·제2외국어 기본 과목 = 일반선택, 2022 개정: 스포츠 생활·미술과 매체·미디어 영어·세계 문화와 영어 = 융합선택, 운동과 건강 = 일반선택).
  - 표의 모든 칸을 빠짐없이 옮깁니다. 휴대폰 화면처럼 표가 옆으로 잘려 일부 칸만 보이면 보이는 칸만 적고 나머지는 ""로 둡니다(다른 사진이 그 칸을 채웁니다).
@@ -59,6 +61,15 @@ const INSTRUCTIONS = `당신은 한국 고등학교 성적 자료(성적통지�
 5. uncertain: 사진 전체에 대한 주의점(잘린 쪽, 기울어짐 등)을 짧은 한국어 문장으로. 주민번호·주소·전화번호는 절대 옮기지 마세요.`;
 
 const clip = (value: unknown, max: number) => String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
+// The model sometimes shortens "체육1(2)" to "체육", which then neither matches the entered 체육1 nor tells the 학기.
+// It also copies the cell as printed, so take the name and 단위수 from that text when it is the same subject.
+export function subjectFromPrinted(printed: string, name: string, credits: string) {
+  const m = /^(.*?)\s*\(\s*(\d{1,2}(?:\.\d+)?)\s*\)$/.exec(printed);
+  const base = (m ? m[1] : printed).replace(/\s+(?=[0-9ⅠⅡⅢⅣ]+$)/, '').trim();
+  const key = (v: string) => v.replace(/\s+/g, '');
+  const sameSubject = base && (!name || (key(base).startsWith(key(name)) && key(base).length - key(name).length <= 4));
+  return { subjectName: sameSubject ? base : name, credits: credits || (sameSubject && m ? m[2] : '') };
+}
 export function cleanReading(value: unknown) {
   const v = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
   const kind = ['report', 'artwork', 'other'].includes(String(v.kind)) ? String(v.kind) : 'other';
@@ -69,11 +80,14 @@ export function cleanReading(value: unknown) {
       semester: ['1학기', '2학기'].includes(String(r.semester)) ? String(r.semester) : '',
       subjectGroup: (SUBJECT_GROUPS as readonly string[]).includes(String(r.subjectGroup)) ? String(r.subjectGroup) : 'ETC',
       subjectName: clip(r.subjectName, 60),
+      printedName: clip(r.printedName, 60),
       subjectType: (SUBJECT_TYPES as readonly string[]).includes(String(r.subjectType)) ? String(r.subjectType) : 'ETC',
       notes: clip(r.notes, 160),
       uncertainFields: (Array.isArray(r.uncertainFields) ? r.uncertainFields : []).map(String).filter(f => [...ROW_FIELDS, 'subjectName', 'schoolYear', 'semester'].includes(f)),
     };
     for (const field of ROW_FIELDS) row[field] = clip(r[field], 16);
+    Object.assign(row, subjectFromPrinted(String(row.printedName), String(row.subjectName), String(row.credits)));
+    delete row.printedName;
     return row;
   }).filter(row => row.subjectName);
   return {
