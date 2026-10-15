@@ -28,3 +28,10 @@
 .ff-holiday{background:#fdecea;color:#a3271d}
 .ff-class{background:#e2f2ee;color:#16614f}
 @media (max-width:360px){.ff-event{grid-template-columns:1fr}}
+.ff-guide{white-space:pre-wrap}
+.ff-bills{display:grid;gap:8px}
+.ff-bill-month{font-size:15px;margin:8px 0 0;color:#475a55}
+.ff-bill{display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid #e1e8e5;border-radius:14px;background:#fff;padding:11px 13px}
+.ff-bill.ff-late{border-color:#f0b4ad}
+.ff-amount{display:grid;justify-items:end;gap:4px;flex:none}
+.ff-amount b{font-size:16px}
