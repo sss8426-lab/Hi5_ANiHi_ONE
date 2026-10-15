@@ -1,3 +1,4 @@
+import { schemaOnce } from "./schema-once";
 import { ensureKkumeumPhase1Schema } from "./kkumeum-schema";
 
 const PHASE2_SCHEMA = [
@@ -93,7 +94,10 @@ async function ensureMonthlyReportColumns(familyDb: D1Database): Promise<void> {
   }
 }
 
-export async function ensureKkumeumPhase2Schema(familyDb: D1Database): Promise<void> {
+export function ensureKkumeumPhase2Schema(familyDb: D1Database): Promise<void> {
+  return schemaOnce(familyDb, "ensureKkumeumPhase2Schema", () => ensureKkumeumPhase2SchemaNow(familyDb));
+}
+async function ensureKkumeumPhase2SchemaNow(familyDb: D1Database): Promise<void> {
   await ensureKkumeumPhase1Schema(familyDb);
   await familyDb.batch(PHASE2_SCHEMA.map((sql) => familyDb.prepare(sql)));
   await ensureMonthlyReportColumns(familyDb);

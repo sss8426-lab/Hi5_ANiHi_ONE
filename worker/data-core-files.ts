@@ -19,7 +19,7 @@ import { canReadRegisteredFile, derivativeMetadata, DERIVATIVE_CATEGORY, DERIVAT
 import { curriculumFile, curriculumRecord } from './data-core-curriculum';
 import { libraryUploadTarget, libraryCanDelete, LIBRARY_FOLDER, LIBRARY_SOURCE } from './data-core-library-policy';
 import { acquireLibraryWrite } from './library-write-lease';
-import { privateImageResponse } from './private-image-response';
+import { privateImageResponse, conditionalImageGet } from './private-image-response';
 import { thumbnailUrls } from './data-core-thumbnails';
 import { THUMBNAIL_CATEGORY, THUMBNAIL_RECORD_TYPE, thumbnailSource,blogDerivativeSource } from './data-core-derivative-policy';
 import { awardRow, awardPath, awardAudit, sharedAwardFileFolder, requireAwardMember } from './data-core-awards';
@@ -530,7 +530,7 @@ export async function readDataCoreFile(
     const source=await blogDerivativeSource(db,row);
     if(!source||!await files.head(String(source.r2_key)))throw new DataCoreAccessError(404,'원본 파일을 찾을 수 없습니다.');
   }
-  const object = await files.get(String(row.r2_key));
+  const object = await conditionalImageGet(files, String(row.r2_key), request, String(row.mime_type));
   if (!object) throw new DataCoreAccessError(404, "R2 원본 파일을 찾을 수 없습니다.");
   const headers = new Headers();
   object.writeHttpMetadata(headers);

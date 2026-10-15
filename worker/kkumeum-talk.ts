@@ -1,3 +1,4 @@
+import { schemaOnce } from "./schema-once";
 import { DataCoreAccessContext, DataCoreAccessError, requireAuthenticatedAccess } from "./data-core-access";
 import { ensureKkumeumAnnouncementSchema, guardianCanViewPublishedAnnouncement } from "./kkumeum-announcements";
 import { kkumeumGuardianSessionIdentity, type KkumeumGuardianIdentity } from "./kkumeum-guardian-auth";
@@ -41,7 +42,10 @@ const DEFAULT_SETTINGS: TalkSettings = {
   autoReply: "문의 감사합니다. 지금은 상담 시간이 아니에요. 운영시간에 확인한 뒤 바로 답변드리겠습니다.",
 };
 
-export async function ensureKkumeumTalkSchema(familyDb: D1Database): Promise<void> {
+export function ensureKkumeumTalkSchema(familyDb: D1Database): Promise<void> {
+  return schemaOnce(familyDb, "ensureKkumeumTalkSchema", () => ensureKkumeumTalkSchemaNow(familyDb));
+}
+async function ensureKkumeumTalkSchemaNow(familyDb: D1Database): Promise<void> {
   await ensureKkumeumAnnouncementSchema(familyDb);
   await familyDb.batch([
     familyDb.prepare(`CREATE TABLE IF NOT EXISTS family_threads (

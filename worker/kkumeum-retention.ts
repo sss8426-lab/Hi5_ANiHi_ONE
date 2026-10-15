@@ -1,3 +1,4 @@
+import { schemaOnce } from "./schema-once";
 import {
   DataCoreAccessContext,
   DataCoreAccessError,
@@ -69,7 +70,10 @@ function requireWriteAccess(context: DataCoreAccessContext): void {
   throw new DataCoreAccessError(403, "보존정책 변경은 최고관리자만 할 수 있습니다.");
 }
 
-export async function ensureKkumeumRetentionSchema(familyDb: D1Database): Promise<void> {
+export function ensureKkumeumRetentionSchema(familyDb: D1Database): Promise<void> {
+  return schemaOnce(familyDb, "ensureKkumeumRetentionSchema", () => ensureKkumeumRetentionSchemaNow(familyDb));
+}
+async function ensureKkumeumRetentionSchemaNow(familyDb: D1Database): Promise<void> {
   await ensureKkumeumGuardianAuthSchema(familyDb);
   await familyDb.batch([
     familyDb.prepare(`CREATE TABLE IF NOT EXISTS family_retention_policies (

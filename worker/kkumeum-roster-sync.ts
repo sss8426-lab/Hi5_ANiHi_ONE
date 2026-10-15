@@ -1,3 +1,4 @@
+import { schemaOnce } from "./schema-once";
 import { DataCoreAccessContext, DataCoreAccessError } from "./data-core-access";
 import { campusStudents, matchRosterStudent, norm, pickRosterMonth, type StudentRow } from "./kkumeum-attendance-roster";
 import { kstDate } from "./kkumeum-attendance";
@@ -20,7 +21,10 @@ export type SyncItem = {
 const ORDER: ItemType[] = ["new", "reactivate", "move", "leave", "hide"];
 const DEFAULT_CHECKED: Record<ItemType, boolean> = { new: true, reactivate: true, move: true, leave: false, hide: true };
 
-async function ensureSyncSchema(familyDb: D1Database) {
+function ensureSyncSchema(familyDb: D1Database): Promise<void> {
+  return schemaOnce(familyDb, "ensureSyncSchema", () => ensureSyncSchemaNow(familyDb));
+}
+async function ensureSyncSchemaNow(familyDb: D1Database): Promise<void> {
   await familyDb.prepare(`CREATE TABLE IF NOT EXISTS family_roster_sync_skips (
     campus_id TEXT NOT NULL,
     year_month TEXT NOT NULL,

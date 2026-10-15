@@ -6,6 +6,7 @@
   "main": "./worker/family-shell-router.ts",
   "triggers": { "crons": ["0 18 * * *"] },
   "observability": { "enabled": true, "head_sampling_rate": 1 },
+  "placement": { "mode": "smart" },
   "vars": {
     "OPENAI_PROJECT_ID": "proj_xGBBMJiRALx3Hn9FISmnPgcD",
     "CLOUDFLARE_USAGE_ACCOUNT_ID": "44d44ea5985018a83d093a28f5fb7511",

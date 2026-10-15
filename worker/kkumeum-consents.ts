@@ -1,3 +1,4 @@
+import { schemaOnce } from "./schema-once";
 import {
   DataCoreAccessContext,
   DataCoreAccessError,
@@ -89,7 +90,10 @@ function requirePolicyReader(context: DataCoreAccessContext): void {
   throw new DataCoreAccessError(403, "동의 정책은 최고관리자 또는 캠퍼스 원장만 확인할 수 있습니다.");
 }
 
-export async function ensureKkumeumConsentSchema(familyDb: D1Database): Promise<void> {
+export function ensureKkumeumConsentSchema(familyDb: D1Database): Promise<void> {
+  return schemaOnce(familyDb, "ensureKkumeumConsentSchema", () => ensureKkumeumConsentSchemaNow(familyDb));
+}
+async function ensureKkumeumConsentSchemaNow(familyDb: D1Database): Promise<void> {
   await ensureKkumeumGuardianAuthSchema(familyDb);
   await familyDb.batch([
     familyDb.prepare(`CREATE TABLE IF NOT EXISTS consents (
