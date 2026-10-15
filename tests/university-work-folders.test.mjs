@@ -26,7 +26,8 @@ test('university roots: master-only POST, concurrent idempotency, shared workspa
     assert.equal(year.status,201);
     const detail=await h.request('GET',base+'/folders/'+year.body.record.id,users.foreign);
     assert.deepEqual(detail.body.breadcrumbs.map(row=>row.title),[root.title,'2026']);
-    assert.equal((await h.request('DELETE',base+'/folders/'+root.id,users.teacher)).status,200);
+    assert.equal((await h.request('DELETE',base+'/folders/'+root.id,users.teacher)).status,403,'최상위 폴더는 마스터만');
+    assert.equal((await h.request('DELETE',base+'/folders/'+root.id,users.master)).status,200);
     assert.equal((await h.request('POST',base+'/university-folders',users.master,{})).body.created,0);
     assert.equal((await list()).body.folders.length,67);
     const audit=await h.env.DB.prepare("SELECT count(*) AS n FROM audit_logs WHERE action='folder.create' AND resource_id LIKE 'university-works:%'").first();

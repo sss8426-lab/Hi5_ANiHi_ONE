@@ -8,8 +8,14 @@ test('default folder edit preserves canonical IDs, bytes and private authorizati
   const patch=(id,user,body)=>h.request('PATCH',path(id),user,body);
   const remove=(id,user)=>h.request('DELETE',path(id),user);
   try {
-    await t.test('every own-campus writer and master can rename, archive, browse and restore defaults',async()=>{
-      for(const user of [users.staff,users.teacher,users.director,users.campusAdmin,users.master,users.admin]) {
+    await t.test('원장·마스터 rename, archive, browse and restore defaults; 선생님·직원 cannot (2026-10-15)',async()=>{
+      for(const user of [users.staff,users.teacher]) {
+        const id=`category:${A}:academy-photo`;
+        assert.equal((await h.browse(id,user)).body.folder.canRename,false);
+        assert.equal((await h.browse(id,user)).body.folder.canDelete,false);
+        ok(await patch(id,user,{title:'__synthetic_blocked'}),403);ok(await remove(id,user),403);
+      }
+      for(const user of [users.director,users.campusAdmin,users.master,users.admin]) {
         const id=`category:${A}:academy-photo`,parent=`campus:${A}`, title=`__synthetic_default_${user.id}`;
         assert.equal((await h.browse(id,user)).body.folder.canRename,true);
         ok(await patch(id,user,{title,campusId:B,libraryShareMode:'public'}));
@@ -32,7 +38,8 @@ test('default folder edit preserves canonical IDs, bytes and private authorizati
     });
     await t.test('cross-campus mutation, restore, trash listing and CSRF denied',async()=>{
       const id=`category:${B}:promotion-material`;
-      ok(await patch(id,users.foreign,{title:'__synthetic_B'}));
+      ok(await patch(id,users.foreign,{title:'__synthetic_B'}),403);
+      ok(await patch(id,users.master,{title:'__synthetic_B'}));
       ok(await h.browse(id,users.staff));
       ok(await patch(id,users.staff,{title:'spoof',campusId:A}),403);ok(await remove(id,users.staff),403);
       ok(await remove(id,users.master));
@@ -57,24 +64,25 @@ test('default folder edit preserves canonical IDs, bytes and private authorizati
     });
     await t.test('virtual deletion persists, name validation, children and pending uploads are safe',async()=>{
       const id=`category:${A}:blog-source`;
-      ok(await patch(id,users.staff,{title:''}),400);
-      ok(await patch(id,users.staff,{title:'학원사진'}));
-      ok(await remove(id,users.staff));
+      ok(await patch(id,users.staff,{title:'학원사진'}),403);
+      ok(await patch(id,users.campusAdmin,{title:''}),400);
+      ok(await patch(id,users.campusAdmin,{title:'학원사진'}));
+      ok(await remove(id,users.campusAdmin));
       assert.ok(!(await h.browse(`campus:${A}`,users.staff)).body.folders.some(f=>f.id===id));
       const collision=await h.folder(`campus:${A}`,'학원사진',users.staff);ok(collision,201);
-      ok(await patch(id,users.staff,{restore:true}),409);
-      ok(await remove(collision.body.folder.id,users.staff));ok(await patch(id,users.staff,{restore:true}));
+      ok(await patch(id,users.campusAdmin,{restore:true}),409);
+      ok(await remove(collision.body.folder.id,users.staff));ok(await patch(id,users.campusAdmin,{restore:true}));
       const child=await h.folder(id,'__synthetic_child',users.staff);ok(child,201);
-      ok(await remove(id,users.staff),409);ok(await remove(child.body.folder.id,users.staff));
+      ok(await remove(id,users.campusAdmin),409);ok(await remove(child.body.folder.id,users.staff));
       const start=await h.request('POST','/api/data-core/library/uploads',users.staff,{folderId:id,fileName:'synthetic.psd',sizeBytes:80*1024*1024});ok(start,201);
-      ok(await remove(id,users.staff),409);
+      ok(await remove(id,users.campusAdmin),409);
       ok(await h.request('DELETE',`/api/data-core/library/uploads/${start.body.sessionId}`,users.staff));
-      ok(await remove(id,users.staff));
-      ok(await patch(id,users.staff,{restore:true}));
+      ok(await remove(id,users.campusAdmin));
+      ok(await patch(id,users.campusAdmin,{restore:true}));
       const fresh=`category:${A}:instagram-source`;
-      ok(await remove(fresh,users.staff));
+      ok(await remove(fresh,users.campusAdmin));
       assert.equal((await h.browse(fresh,users.staff)).body.folder.archived,true);
-      ok(await patch(fresh,users.staff,{restore:true}));
+      ok(await patch(fresh,users.campusAdmin,{restore:true}));
     });
   } finally {await h.mf.dispose();}
 });

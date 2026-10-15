@@ -2,7 +2,8 @@ import { schemaOnce } from "./schema-once";
 import { DataCoreAccessContext, DataCoreAccessError, requireAuthenticatedAccess } from "./data-core-access";
 import { requireKkumeumStudentAccess } from "./kkumeum-core";
 import { getGuardianChild } from "./kkumeum-guardian-feed";
-import { ensureKkumeumGuardianAuthSchema } from "./kkumeum-guardian-auth";
+import { ensureKkumeumGuardianAuthSchema, kkumeumGuardianSessionIdentity } from "./kkumeum-guardian-auth";
+import { requireKkumeumGuardianConsentPolicy } from "./kkumeum-consents";
 import { dispatchGuardianDirectPush, type KkumeumPushEnv } from "./kkumeum-push";
 import { listKkumeumStudents } from "./kkumeum-staff";
 import { attendanceScheduleForDay } from "./kkumeum-attendance-roster";
@@ -233,6 +234,8 @@ export async function cancelKkumeumAttendance(familyDb: D1Database, context: Dat
 // Guardian: one month of a linked child's marks (only children linked to this guardian).
 export async function listGuardianChildAttendance(familyDb: D1Database, request: Request, studentId: string, monthValue: unknown) {
   await getGuardianChild(familyDb, request, studentId);
+  // 성장평가·작품사진과 같은 기준: 동의 정책을 켜 두었다면 동의한 보호자만 본다.
+  await requireKkumeumGuardianConsentPolicy(familyDb, studentId, (await kkumeumGuardianSessionIdentity(familyDb, request))!.guardianId);
   await ensureKkumeumAttendanceSchema(familyDb);
   const month = validMonth(monthValue || kstDate().slice(0, 7));
   const [from, to] = monthRange(month);

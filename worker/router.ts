@@ -846,6 +846,11 @@ const worker = {
           throw new DataCoreAccessError(503, "CORE 인증 데이터베이스가 연결되지 않았습니다.");
         }
         const context = await resolveDataCoreAccess(request, env.DB, env.DATA_CORE_SUPER_ADMIN_EMAILS);
+        // 꿈이음 전체: 다른 사이트에서 보낸 변경 요청은 거절(브라우저는 변경 요청에 항상 Origin을 붙인다).
+        const origin = request.headers.get('origin');
+        if (!['GET','HEAD'].includes(request.method) && ((origin && origin !== url.origin) || request.headers.get('sec-fetch-site') === 'cross-site')) {
+          throw new DataCoreAccessError(context.authenticated ? 403 : 401, '같은 사이트에서만 요청할 수 있습니다.');
+        }
         const kkumeumResponse = await handleKkumeumApi(request, env, context, jsonResponse);
         if (kkumeumResponse) return kkumeumResponse;
       }

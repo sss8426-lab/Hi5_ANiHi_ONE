@@ -365,6 +365,7 @@ async function handleDataCoreApi(request: Request, env: Env) {
   if (url.pathname === "/api/data-core/records" && request.method === "POST") {
     if (!env.DB) throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
     const input = await readJsonBody(request) as DataRecordCreateInput;
+    if (DEDICATED_RECORD_TYPES.has(String(input.recordType).trim())) throw new DataCoreAccessError(403, '일정은 일정 화면에서 관리하세요.');
     if (String(input.recordType).trim() === 'competition-award-folder' && request.headers.get('origin') !== url.origin) throw new DataCoreAccessError(403,'동일 출처 요청만 허용됩니다.');
     if ((String(input.recordType).trim().startsWith('curriculum-') || String(input.sourceApp).trim() === 'curriculum') && request.headers.get('origin') !== url.origin) throw new DataCoreAccessError(403, '동일 출처 요청만 허용됩니다.');
     return jsonResponse(
@@ -383,6 +384,7 @@ async function handleDataCoreApi(request: Request, env: Env) {
     if (request.method === "PUT" || request.method === "PATCH") {
       const protectedRecord = await env.DB.prepare('SELECT record_type FROM data_records WHERE id=? AND organization_id=?').bind(recordId,DEFAULT_ORGANIZATION_ID).first<{record_type:string}>();
       if (['admissions-university-scope','admissions-official-evidence'].includes(protectedRecord?.record_type || '')) throw new DataCoreAccessError(403,'대학 범위와 공식 근거는 전용 API에서만 변경할 수 있습니다.');
+      if (DEDICATED_RECORD_TYPES.has(protectedRecord?.record_type || '')) throw new DataCoreAccessError(403, '일정은 일정 화면에서 관리하세요.');
       const body = (await readJsonBody(request)) as { content?: unknown };
       return jsonResponse({
         content: await setDataRecordContent(env.DB, context, recordId, body.content),
@@ -396,6 +398,8 @@ async function handleDataCoreApi(request: Request, env: Env) {
     if (!env.DB) throw new DataCoreAccessError(503, "DATA CORE 데이터베이스가 연결되지 않았습니다.");
     if (!['GET','HEAD'].includes(request.method)) {
       const row = await env.DB.prepare('SELECT record_type,source_app FROM data_records WHERE id=? AND organization_id=?').bind(recordId,DEFAULT_ORGANIZATION_ID).first<Record<string,unknown>>();
+      // 일정은 작성자·공개 범위·연결 일정 규칙이 있는 일정 API로만 바꾼다(일반 자료 API로 우회 금지).
+      if (DEDICATED_RECORD_TYPES.has(String(row?.record_type || ''))) throw new DataCoreAccessError(403, '일정은 일정 화면에서 관리하세요.');
       if (row?.record_type === 'competition-award-folder' && request.headers.get('origin') !== url.origin) throw new DataCoreAccessError(403,'동일 출처 요청만 허용됩니다.');
       if ((String(row?.record_type).startsWith('curriculum-') || row?.source_app === 'curriculum') && request.headers.get('origin') !== url.origin) throw new DataCoreAccessError(403, '동일 출처 요청만 허용됩니다.');
     }
@@ -404,8 +408,10 @@ async function handleDataCoreApi(request: Request, env: Env) {
       return jsonResponse({ record: await getDataRecord(env.DB, context, recordId) });
     }
     if (request.method === "PATCH") {
+      const input = await readJsonBody(request) as Record<string, unknown>;
+      if (DEDICATED_RECORD_TYPES.has(String(input?.recordType ?? '').trim())) throw new DataCoreAccessError(403, '일정은 일정 화면에서 관리하세요.');
       return jsonResponse({
-        record: await updateDataRecord(env.DB, context, recordId, await readJsonBody(request)),
+        record: await updateDataRecord(env.DB, context, recordId, input),
       });
     }
     if (request.method === "DELETE") {
@@ -603,4 +609,7 @@ const worker = {
   },
 };
 
+
+// Record types only their own API may change through /api/data-core/records.
+const DEDICATED_RECORD_TYPES = new Set(['academy-calendar-event']);
 export default worker;

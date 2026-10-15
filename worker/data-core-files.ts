@@ -13,7 +13,7 @@ import {
   requireAuthenticatedAccess,
   requireCampusAccess,
   requireWriteAccess,
-  isCampusAdmin, managesCampus, campusForWrite,
+  isCampusAdmin, managesCampus, campusForWrite, leadsCampus,
 } from "./data-core-access";
 import { canReadRegisteredFile, derivativeMetadata, DERIVATIVE_CATEGORY, DERIVATIVE_RECORD_TYPE } from './data-core-derivative-policy';
 import { curriculumFile, curriculumRecord } from './data-core-curriculum';
@@ -108,6 +108,11 @@ function canMutateFileRow(context: DataCoreAccessContext, row: Record<string, un
   if (curriculumFile(row)) return false;
   if (isCampusAdmin(context)) return managesCampus(context, row.campus_id);
   return context.user?.internalUserId === row.owner_user_id;
+}
+
+/** 수상작 파일: 올린 사람, 그 캠퍼스 원장, 마스터만 지우고 되살린다. */
+function canManageAwardFile(context: DataCoreAccessContext, row: Record<string, unknown>) {
+  return context.isSuperAdmin || context.user?.internalUserId === row.owner_user_id || leadsCampus(context, row.campus_id);
 }
 
 async function audit(
@@ -467,8 +472,15 @@ export async function listDeletedDataCoreFiles(
 
   if (!context.isSuperAdmin) {
     if (!context.user) return [];
-    conditions.push("fo.owner_user_id = ?");
-    bindings.push(context.user.internalUserId);
+    // 본인이 올린 파일 + 원장이면 자기 캠퍼스에서 지워진 파일(직원 파일을 지운 원장이 되살릴 수 있게).
+    const led = context.memberships.filter(m => leadsCampus(context, m.campusId)).map(m => m.campusId);
+    if (led.length) {
+      conditions.push(`(fo.owner_user_id = ? OR fo.campus_id IN (${led.map(() => "?").join(",")}))`);
+      bindings.push(context.user.internalUserId, ...led);
+    } else {
+      conditions.push("fo.owner_user_id = ?");
+      bindings.push(context.user.internalUserId);
+    }
   }
   if (campusId) {
     conditions.push("fo.campus_id = ?");
@@ -568,6 +580,7 @@ export async function deleteDataCoreFile(
   const awardFolder = await sharedAwardFileFolder(db,context,row);
   if (awardFolderId !== undefined && (!awardFolder || awardFolder.id !== awardFolderId)) throw new DataCoreAccessError(403,'수상작 폴더 연결을 확인해주세요.');
   if (awardFolder) {
+    if (!canManageAwardFile(context, row)) throw new DataCoreAccessError(403, "본인이 올린 파일만 삭제할 수 있습니다.");
     const deletedAt = new Date().toISOString();
     await db.batch([db.prepare('UPDATE file_objects SET deleted_at=? WHERE id=? AND deleted_at IS NULL').bind(deletedAt,fileId),
       awardAudit(db,context,'file.trash',row,awardFolder,deletedAt,true)]);
@@ -617,7 +630,8 @@ export async function restoreDataCoreFile(
     if (!folder) throw new DataCoreAccessError(403, '원본 폴더를 확인할 수 없습니다.');
   }
   const awardFolder = await sharedAwardFileFolder(db,context,row);
-  if (!awardFolder && !canMutateFileRow(context, row)) {
+  const libraryLead = row.source_app === LIBRARY_SOURCE && leadsCampus(context, row.campus_id);
+  if (awardFolder ? !canManageAwardFile(context, row) : !canMutateFileRow(context, row) && !libraryLead) {
     throw new DataCoreAccessError(403, "본인이 삭제한 파일만 복원할 수 있습니다.");
   }
 

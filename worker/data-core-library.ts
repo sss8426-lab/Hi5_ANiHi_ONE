@@ -303,7 +303,7 @@ async function listFiles(tree: LibraryTree, folder: LibraryFolder, url: URL) {
         createdAt: row.created_at, campusId: row.campus_id, ownerName: row.owner_name, recordId: row.data_record_id,
         folderId:sourceFolder.id, folderTitle:sourceFolder.title, path:sourceFolder.id === folder.id ? path : await tree.breadcrumbs(sourceFolder), revision:row.data_record_id,
         canDelete: libraryCanDelete(tree.context, sourceFolder, row.owner_user_id),
-        canMove: libraryCanWrite(tree.context, sourceFolder),
+        canMove: libraryCanDelete(tree.context, sourceFolder, row.owner_user_id),
         previewUrl: `/api/data-core/library/files/${encodeURIComponent(row.id)}`,
         downloadUrl: `/api/data-core/library/files/${encodeURIComponent(row.id)}/download` });
     } catch (e) { if (!(e instanceof DataCoreAccessError)) throw e; }
@@ -367,7 +367,7 @@ async function recentFiles(tree: LibraryTree, folder: LibraryFolder) {
         instagramPreserveReason: instagramPreserveReason(row),
         campusId: row.campus_id, campusName: row.campus_id ? campusNames.get(row.campus_id) || null : null, ownerUserId: row.owner_user_id,
         mimeType: row.mime_type, sizeBytes: row.size_bytes, createdAt: row.created_at, path:await tree.breadcrumbs(sourceFolder), revision:row.data_record_id,
-        canDelete: libraryCanDelete(tree.context, sourceFolder, row.owner_user_id), canMove: libraryCanWrite(tree.context, sourceFolder),
+        canDelete: libraryCanDelete(tree.context, sourceFolder, row.owner_user_id), canMove: libraryCanDelete(tree.context, sourceFolder, row.owner_user_id),
         previewUrl: `/api/data-core/library/files/${encodeURIComponent(String(row.id))}`,
         downloadUrl: `/api/data-core/library/files/${encodeURIComponent(String(row.id))}/download` });
     } catch (e) { if (!(e instanceof DataCoreAccessError)) throw e; }
@@ -387,6 +387,8 @@ async function moveFile(tree: LibraryTree, id: string, input: Record<string,unkn
   const {row, folder, source} = await fileRow(tree, id);
   requireLibraryWrite(tree.context, folder);
   if (source.id !== row.id) error(403, '파생 파일은 원본과 함께 관리됩니다.');
+  // 여러 개 옮기기와 같은 기준: 올린 사람, 원장, 마스터만 옮길 수 있다.
+  if (!libraryCanDelete(tree.context, folder, row.owner_user_id)) error(403, '본인이 올린 파일만 옮길 수 있습니다.');
   let target = await tree.resolve(text(input.folderId));
   requireLibraryWrite(tree.context, target);
   // Relocation never changes campus, visibility, owner or original R2 bytes.

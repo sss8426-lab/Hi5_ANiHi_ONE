@@ -444,7 +444,8 @@ async function loadHealthAndContext() {
   const previousCalendarAccess = JSON.stringify(state.context);
   state.context = contextResult.status === 'fulfilled' ? contextResult.value : null;
   if (previousCalendarAccess !== JSON.stringify(state.context)) window.AcademyCalendar.reset();
-  if (state.context?.authenticated && state.context.isSuperAdmin) void window.DataCoreWorkNavigation?.signupCount?.();
+  // 메뉴: 관리자 메뉴·직원인증 수(마스터), 꿈이음(쓸 수 있는 역할만).
+  window.DataCoreWorkNavigation?.setContext?.(state.context);
   renderConnection();
   renderUser();
 
@@ -948,6 +949,9 @@ function createAwardCollection(type, collectionState) {
       };
     });
     for (const id of ['openAwardUploadBtn','deleteAwardFolderBtn','openAwardChildBtn']) { $(id).disabled=!folder||!canManageAwards(); $(id).classList.toggle('hidden',!canManageAwards()); }
+    // 폴더 삭제: 마스터, 또는 만든 사람(최상위 모음 제외).
+    const ownFolder=Boolean(folder&&folder.parentFolderId&&folder.createdByUserId===state.context?.user?.internalUserId);
+    $('deleteAwardFolderBtn').classList.toggle('hidden',!canManageAwards()||!(isSuperAdmin()||ownFolder));
     const createButton = $(config.create);
     createButton.classList.toggle('hidden',!canManageAwards());
     createButton.disabled=!canManageAwards();
@@ -1064,8 +1068,9 @@ function createAwardCollection(type, collectionState) {
     if (!allSelected) for (const file of selectable) awardSelected.add(file.id);
     updateAwardSelection();
   }
+  // 지우기는 올린 사람·마스터만(서버도 같은 기준).
   function canDeleteAward(file) {
-    return canManageAwards() && file.recordId === state.selectedAwardFolderId;
+    return canManageAwards() && file.recordId === state.selectedAwardFolderId && (isSuperAdmin() || file.ownerUserId === state.context?.user?.internalUserId);
   }
   function requestAwardDelete() {
     const folder = selectedAwardFolder();
