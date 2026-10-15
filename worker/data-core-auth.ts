@@ -4,6 +4,9 @@ import { canonicalCampusId, HEARTBEAT_MINUTES, campusDisplayName, isSelectableCa
 
 export const AUTH_COOKIE_NAME = "data_core_session";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 8;
+// 자동 로그인(로그인 상태 유지): 이 기기에서 30일. 쓰는 동안에는 하루에 한 번 30일로 다시 늘린다.
+export const REMEMBER_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
+const REMEMBER_RENEW_AFTER_SECONDS = 60 * 60 * 24;
 // Cloudflare Workers currently rejects PBKDF2 requests above this limit.
 const PASSWORD_ITERATIONS = 100_000;
 const MAX_PASSWORD_ITERATIONS = 100_000;
@@ -122,6 +125,13 @@ async function initializeStandaloneAuthSchema(db: D1Database) {
     db.prepare("CREATE INDEX IF NOT EXISTS auth_signup_login_idx ON auth_signup_requests(login_id, status)"),
     db.prepare("CREATE INDEX IF NOT EXISTS auth_signup_requester_idx ON auth_signup_requests(requester_hash, created_at)"),
   ]);
+  // 로그인 상태 유지 표시 (예전 세션은 0 = 8시간 로그인).
+  const columns = (await db.prepare("PRAGMA table_info(auth_sessions)").all<{ name: string }>()).results || [];
+  if (!columns.some((c) => c.name === "remember")) {
+    await db.prepare("ALTER TABLE auth_sessions ADD COLUMN remember INTEGER NOT NULL DEFAULT 0").run().catch((error) => {
+      if (!/duplicate column/i.test(String(error?.message || error))) throw error;
+    });
+  }
 }
 
 export async function standaloneSessionIdentity(db: D1Database, request: Request) {
@@ -169,18 +179,40 @@ async function audit(db: D1Database, userId: string | null, action: string, reso
   await auditStatement(db, userId, action, resourceId, metadata).run();
 }
 
-async function createSession(db: D1Database, userId: string) {
+async function createSession(db: D1Database, userId: string, remember = false) {
   const rawToken = toBase64(crypto.getRandomValues(new Uint8Array(32)));
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + SESSION_MAX_AGE_SECONDS * 1000).toISOString();
+  const maxAge = remember ? REMEMBER_MAX_AGE_SECONDS : SESSION_MAX_AGE_SECONDS;
+  const expiresAt = new Date(now.getTime() + maxAge * 1000).toISOString();
   await db.prepare(
-    `INSERT INTO auth_sessions (id, token_hash, user_id, created_at, expires_at, last_seen_at)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-  ).bind(crypto.randomUUID(), await sha256(rawToken), userId, now.toISOString(), expiresAt, now.toISOString()).run();
-  return { rawToken, expiresAt };
+    `INSERT INTO auth_sessions (id, token_hash, user_id, created_at, expires_at, last_seen_at, remember)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  ).bind(crypto.randomUUID(), await sha256(rawToken), userId, now.toISOString(), expiresAt, now.toISOString(), remember ? 1 : 0).run();
+  return { rawToken, expiresAt, maxAge };
 }
 
-export async function loginStandalone(db: D1Database, request: Request, body: { loginId?: unknown; password?: unknown }) {
+/** The login cookie for a new session (8 hours, or 30 days with 로그인 상태 유지). */
+export function sessionCookie(rawToken: string, maxAge: number) {
+  return cookie(rawToken, maxAge);
+}
+
+/**
+ * 로그인 상태 유지 세션은 쓰는 동안 끝나지 않게, 하루에 한 번 만료를 30일 뒤로 다시 늘리고 쿠키도 새로 준다.
+ * 그 외(8시간 세션·로그아웃·취소된 세션)는 아무것도 하지 않는다.
+ */
+export async function renewRememberedSession(db: D1Database, request: Request): Promise<string | null> {
+  const rawToken = sessionToken(request);
+  if (!rawToken) return null;
+  await ensureStandaloneAuthSchema(db);
+  const now = new Date();
+  const renewBefore = new Date(now.getTime() + (REMEMBER_MAX_AGE_SECONDS - REMEMBER_RENEW_AFTER_SECONDS) * 1000).toISOString();
+  const expiresAt = new Date(now.getTime() + REMEMBER_MAX_AGE_SECONDS * 1000).toISOString();
+  const result = await db.prepare(`UPDATE auth_sessions SET expires_at = ? WHERE token_hash = ? AND remember = 1 AND revoked_at IS NULL
+    AND expires_at > ? AND expires_at < ?`).bind(expiresAt, await sha256(rawToken), now.toISOString(), renewBefore).run();
+  return Number(result.meta?.changes || 0) ? cookie(rawToken, REMEMBER_MAX_AGE_SECONDS) : null;
+}
+
+export async function loginStandalone(db: D1Database, request: Request, body: { loginId?: unknown; password?: unknown; remember?: unknown }) {
   assertSameOrigin(request);
   const loginId = normalizeLoginId(body.loginId);
   const password = String(body.password || "");
@@ -218,8 +250,9 @@ export async function loginStandalone(db: D1Database, request: Request, body: { 
   }
   await db.prepare("UPDATE auth_accounts SET failed_login_count = 0, locked_until = NULL, last_login_at = ?, updated_at = ? WHERE id = ?")
     .bind(now.toISOString(), now.toISOString(), account.id).run();
-  const session = await createSession(db, account.user_id);
-  await audit(db, account.user_id, "login", account.id);
+  const remember = body.remember === true;
+  const session = await createSession(db, account.user_id, remember);
+  await audit(db, account.user_id, "login", account.id, remember ? { remember: true } : {});
   return { session, mustChangePassword: Boolean(account.must_change_password) };
 }
 

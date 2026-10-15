@@ -39,7 +39,7 @@ async function harness({session = {authenticated: false}, search = '', respond} 
 test('approved local image, accessible exact headline and isolated versioned login stylesheet', () => {
   assert.match(html, /너와 나의 합격의 순간<br>하이파이브/);
   assert.match(html, /login-highfive-v1\.webp" width="1536" height="1024" fetchpriority="high"/);
-  assert.match(html, /login\.css\?v=20260928-signup/);
+  assert.match(html, /login\.css\?v=20261015-remember/);
   assert.doesNotMatch(html, /layout-theme\.css|mode-sidebar\.svg|https?:\/\//);
   assert.match(html, /href="\/data-core\/counseling"/);
   assert.match(html, /autocomplete="username" required/);
