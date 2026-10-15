@@ -982,6 +982,47 @@ async function runAi(captionOnly = false, quick = false) {
   } finally { blogWorkflow?.recordTime('generationTotalMs',generationStarted);clearTimeout(timer); setAiBusy(false); state.aiController = null; }
 }
 
+// 블로그 발행 소식 → AI로 변환하기: another campus's published post is rewritten for the selected campus,
+// keeping only its structure and story flow, then lands in the editor like a 바로 글 만들기 result.
+async function convertPublication(item) {
+  if (state.busy || !canWrite() || state.sourceApp !== 'blog') return;
+  const campusId = $('draftCampus').value;
+  if (!campusId) return toast('변환할 우리 캠퍼스를 먼저 고르세요.', 'error');
+  if ($('draftContent').value.trim() && !confirm('지금 쓰고 있는 본문을 변환한 글로 바꿀까요?')) return;
+  const campusName = $('draftCampus').selectedOptions[0]?.textContent || '우리 캠퍼스';
+  state.aiController = new AbortController();
+  const signal = state.aiController.signal, timer = setTimeout(() => state.aiController?.abort(), 150000);
+  setAiBusy(true);
+  $('aiResult').hidden = false;
+  $('aiStatus').textContent = `‘${item.title}’ 글의 구조와 흐름을 ${campusName} 글로 바꾸고 있습니다…`;
+  $('aiStatus').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  try {
+    const keywordSettings = textPresets?.values();
+    const recentTitles = await recentBlogTitles();
+    state.blogTitlePrefix = titlePrefix(keywordSettings?.keywords || [], keywordSettings?.keywordBrand, state.blogRecentRawTitles || []);
+    const result = await api(`/api/data-core/content/blog/publications/${encodeURIComponent(item.id)}/convert`, { method: 'POST', signal, headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ campusId, strategyMode: $('strategyMode').value, recentTitles, keywordBrand: keywordSettings?.keywordBrand,
+        keywordTags: normalizeTags(keywordSettings?.userHashtags || ''), notes: $('aiCommand').value.trim(), requestId: crypto.randomUUID() }) });
+    const generated = result.generated;
+    state.blogStrategy = generated.strategy; state.blogTitles = generated.titles;
+    state.blogSelectedTitleKind = generated.selectedTitleKind; state.blogFittedKind = generated.selectedTitleKind;
+    state.currentLead = generated.lead; state.currentBody = generated.body;
+    state.lastHashtags = generated.hashtags || []; state.lastCta = generated.cta || ''; state.blogAiTags = generated.hashtags || [];
+    state.blogNextTopics = generated.nextTopics || []; state.blogWarnings = generated.warnings || [];
+    applyBlogTitleAndBody(state.blogSelectedTitleKind);
+    assembleBlogResult();
+    const fill = generated.missingInfo?.length ? ` · 채워 넣을 것: ${generated.missingInfo.join(', ')}` : '';
+    const outline = result.outline?.length ? ` · 따라 쓴 구조: ${result.outline.slice(0, 6).join(' → ')}` : '';
+    $('aiStatus').textContent = `${result.source?.campusName || '다른 캠퍼스'} 글의 구조로 ${campusName} 글을 만들었습니다 · 원문과 겹친 문장 ${result.copiedPercent}%${fill}${outline}`
+      + (state.blogWarnings.length ? ` · ${state.blogWarnings[0]}` : '');
+    $('aiResult').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (error) {
+    $('aiStatus').textContent = error.name === 'AbortError' ? '대기를 중단했습니다. 이미 전송된 AI 작업은 과금될 수 있습니다.' : error.message;
+    toast($('aiStatus').textContent, 'error');
+  } finally { clearTimeout(timer); setAiBusy(false); state.aiController = null; }
+}
+window.BlogConvert = convertPublication;
+
 async function copyContent() {
   if(state.sourceApp==='blog'&&blogWorkflow)return blogWorkflow.copy();
   try{captionTail($('resultFooter').value,$('draftTags').value,[],$('resultContact').value);}catch(error){return toast(error.message,'error');}

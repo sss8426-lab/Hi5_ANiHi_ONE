@@ -16,3 +16,13 @@
   이 기능 전에 발행으로 저장된 글도 처음 열 때 한 번 옮겨 담습니다.
 - API (worker/blog-publications.ts): `GET /api/data-core/content/blog/publications?campusId=&limit=30&refresh=1`, `POST …/publications` {campusId,url,date}, `DELETE …/publications/:id`, `PUT /api/data-core/content/blog/campus-blogs` {campusId, blogUrl}
 - 테스트: tests/blog-publish-feed.test.mjs
+
+## 블로그 글 검색 · AI로 변환하기 (2026-10-15 추가)
+
+- '발행 주소 넣기' 버튼 자리를 **블로그 글 검색** 칸으로 바꿨습니다(주소 넣기 API는 그대로). 검색은 최신 30개가 아니라
+  저장된 모든 글에서 제목·해시태그·분류·요약·본문을 찾고, 제목 > 해시태그 > 분류 > 요약 > 본문 순으로 관련 높은 글부터 30개 보여 줍니다.
+- 자동 수집 글은 RSS에 요약만 있어서, 수집할 때마다 몇 개씩 네이버 글 본문(소제목·인용·사진 자리 포함)을 읽어 둡니다(cron은 더 많이).
+- 카드의 **AI로 변환하기**: 그 글의 구조(도입, 소제목 흐름, 사진 자리, 인용구, 마무리)와 흐름만 따라
+  왼쪽에서 고른 우리 캠퍼스 글을 새로 씁니다. 글 만들기와 같은 작성 규칙·캠퍼스 SEO 키워드·제목 후보를 쓰고, 결과는 편집기에 바로 들어갑니다.
+  원문 문장과 12글자 단위로 20% 넘게 겹치면 한 번 더 새로 쓰고, 그래도 겹치면 경고합니다. 다른 캠퍼스의 사실(학원명·수상·날짜)은 가져오지 않고
+  [행사 날짜] 같은 빈칸으로 남깁니다. API: `POST /api/data-core/content/blog/publications/:id/convert` (자기 캠퍼스만, AI 사용량 기록).

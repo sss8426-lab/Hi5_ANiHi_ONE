@@ -239,7 +239,7 @@ async function selectedFileDescriptors(
 }
 
 const BRAND_NAMES: Record<string, string> = { hi5: '하이파이브', anihi: '애니하이' };
-async function blogSeo(db: D1Database, campusId: string | null, brand: unknown, userTags: unknown) {
+export async function blogSeo(db: D1Database, campusId: string | null, brand: unknown, userTags: unknown) {
   const own = Array.isArray(userTags) ? userTags.filter((tag): tag is string => typeof tag === 'string').map(tag => cleanText(tag.replace(/^#+/, ''), 40)).filter(Boolean).slice(0, 30) : [];
   // The user's own saved tags come first: they are the words the post should be found by.
   const tags = [...own, ...((await loadCampusKeywords(db, campusId, brand)) || [])];
