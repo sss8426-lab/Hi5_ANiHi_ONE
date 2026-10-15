@@ -1,3 +1,4 @@
+import { schemaOnce } from "./schema-once";
 import { DataCoreAccessError } from "./data-core-access";
 import { ensureKkumeumConsentSchema, type KkumeumConsentPolicy } from "./kkumeum-consents";
 import {
@@ -15,7 +16,10 @@ export type GuardianNotice = {
   unread: boolean;
 };
 
-export async function ensureKkumeumAnnouncementSchema(familyDb: D1Database): Promise<void> {
+export function ensureKkumeumAnnouncementSchema(familyDb: D1Database): Promise<void> {
+  return schemaOnce(familyDb, "ensureKkumeumAnnouncementSchema", () => ensureKkumeumAnnouncementSchemaNow(familyDb));
+}
+async function ensureKkumeumAnnouncementSchemaNow(familyDb: D1Database): Promise<void> {
   await ensureKkumeumGuardianAuthSchema(familyDb);
   await familyDb.batch([
     familyDb.prepare(`CREATE TABLE IF NOT EXISTS announcements (

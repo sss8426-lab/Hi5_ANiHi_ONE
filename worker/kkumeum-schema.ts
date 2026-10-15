@@ -1,3 +1,4 @@
+import { schemaOnce } from "./schema-once";
 const PHASE1_SCHEMA = [
   `CREATE TABLE IF NOT EXISTS family_classes (
     id TEXT PRIMARY KEY NOT NULL,
@@ -78,7 +79,10 @@ const PHASE1_SCHEMA = [
     ON family_audit_logs(resource_type, resource_id, created_at)`,
 ] as const;
 
-export async function ensureKkumeumPhase1Schema(familyDb: D1Database): Promise<void> {
+export function ensureKkumeumPhase1Schema(familyDb: D1Database): Promise<void> {
+  return schemaOnce(familyDb, "ensureKkumeumPhase1Schema", () => ensureKkumeumPhase1SchemaNow(familyDb));
+}
+async function ensureKkumeumPhase1SchemaNow(familyDb: D1Database): Promise<void> {
   await familyDb.exec("PRAGMA foreign_keys = ON");
   await familyDb.batch(PHASE1_SCHEMA.map((sql) => familyDb.prepare(sql)));
 }

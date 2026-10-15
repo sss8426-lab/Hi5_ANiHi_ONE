@@ -1,3 +1,4 @@
+import { schemaOnce } from "./schema-once";
 import { DataCoreAccessContext, DataCoreAccessError, requireAuthenticatedAccess } from "./data-core-access";
 import { campusDisplayName } from "./campus-directory";
 import { ensureKkumeumPhase1Schema } from "./kkumeum-schema";
@@ -47,7 +48,10 @@ async function audit(familyDb: D1Database, campusId: string, actorType: string, 
     VALUES (?, ?, ?, ?, ?, 'attendance_checkin', ?, ?, ?)`).bind(crypto.randomUUID(), campusId, actorType, actorId, action, resourceId, JSON.stringify(meta), new Date().toISOString()).run();
 }
 
-export async function ensureKkumeumCheckinSchema(familyDb: D1Database): Promise<void> {
+export function ensureKkumeumCheckinSchema(familyDb: D1Database): Promise<void> {
+  return schemaOnce(familyDb, "ensureKkumeumCheckinSchema", () => ensureKkumeumCheckinSchemaNow(familyDb));
+}
+async function ensureKkumeumCheckinSchemaNow(familyDb: D1Database): Promise<void> {
   await ensureKkumeumAttendanceSchema(familyDb);
   await ensureKkumeumAttendanceRosterSchema(familyDb);
   await ensureKkumeumInviteSchema(familyDb);

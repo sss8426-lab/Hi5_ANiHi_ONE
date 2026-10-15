@@ -1,3 +1,4 @@
+import { schemaOnce } from "./schema-once";
 import {
   DataCoreAccessContext,
   DataCoreAccessError,
@@ -60,7 +61,10 @@ function hasCampusRole(context: DataCoreAccessContext, campusId: string, role: s
   );
 }
 
-export async function ensureKkumeumStaffAnnouncementSchema(familyDb: D1Database): Promise<void> {
+export function ensureKkumeumStaffAnnouncementSchema(familyDb: D1Database): Promise<void> {
+  return schemaOnce(familyDb, "ensureKkumeumStaffAnnouncementSchema", () => ensureKkumeumStaffAnnouncementSchemaNow(familyDb));
+}
+async function ensureKkumeumStaffAnnouncementSchemaNow(familyDb: D1Database): Promise<void> {
   await ensureKkumeumAnnouncementSchema(familyDb);
   await familyDb.batch([
     familyDb.prepare(`CREATE TABLE IF NOT EXISTS family_staff_notice_permissions (
