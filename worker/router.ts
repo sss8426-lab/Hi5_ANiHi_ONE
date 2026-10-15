@@ -575,9 +575,15 @@ async function handleContentApi(request: Request, env: Env) {
     const { blogOverlap } = await import('./blog-insights');
     return jsonResponse(await blogOverlap(env.DB, context, await contentJson(request, 130000)), { headers: { 'cache-control': 'private, no-store' } });
   }
-  if (url.pathname === '/api/data-core/content/blog/publications' && request.method === 'GET') {
-    const { listBlogPublications } = await import('./blog-publications');
-    return jsonResponse(await listBlogPublications(env.DB, context, url), { headers: { 'cache-control': 'private, no-store' } });
+  if (url.pathname === '/api/data-core/content/blog/publications' || url.pathname.startsWith('/api/data-core/content/blog/publications/') || url.pathname === '/api/data-core/content/blog/campus-blogs') {
+    const feed = await import('./blog-publications');
+    const noStore = { headers: { 'cache-control': 'private, no-store' } };
+    if (url.pathname === '/api/data-core/content/blog/campus-blogs' && request.method === 'PUT') return jsonResponse(await feed.setCampusBlog(env.DB, context, await contentJson(request)), noStore);
+    if (url.pathname === '/api/data-core/content/blog/publications' && request.method === 'GET') return jsonResponse(await feed.listBlogPublications(env.DB, context, url), noStore);
+    if (url.pathname === '/api/data-core/content/blog/publications' && request.method === 'POST') return jsonResponse(await feed.addBlogPublication(env.DB, context, await contentJson(request)), noStore);
+    const hide = url.pathname.match(/^\/api\/data-core\/content\/blog\/publications\/([^/]+)$/);
+    if (hide && request.method === 'DELETE') return jsonResponse(await feed.hideBlogPublication(env.DB, context, decodeURIComponent(hide[1])), noStore);
+    throw new DataCoreAccessError(405, '허용되지 않은 요청입니다.');
   }
   if (url.pathname === '/api/data-core/content/blog/save' && request.method === 'POST') {
     if(!env.FILES)throw new DataCoreAccessError(503,'파일 저장소를 확인하세요.');
