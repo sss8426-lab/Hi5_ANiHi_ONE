@@ -1,4 +1,4 @@
-import { mountRosterAttendance } from './attendance-roster.js?v=20261014-class-extra';
+import { mountRosterAttendance } from './attendance-roster.js?v=20261015-sync';
 
 export const TEMPLATE_URL = '/data-core/work/templates/attendance-roster-template.xlsx?v=20260928-dist';
 export const TEMPLATE_NAME = '출석부_종합입력_기본양식.xlsx';

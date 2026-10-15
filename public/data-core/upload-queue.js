@@ -60,10 +60,15 @@ class DataCoreUploadQueue {
     this.notify();
     const hasLargeLibraryFile = this.target.libraryScoped === true &&
       this.items.some(i => i.status === 'waiting' && i.file.size > DataCoreUploadQueue.SIMPLE_UPLOAD_MAX_BYTES);
+    // 큰 파일(50MiB 초과, 여러 조각으로 나눠 보냄)은 한 번에 하나만 보내고, 작은 파일은 그동안에도 계속 보낸다.
+    const isLarge = i => this.target.libraryScoped === true && i.file.size > DataCoreUploadQueue.SIMPLE_UPLOAD_MAX_BYTES;
+    let largeActive = false;
     const worker = async () => {
       while (!this.cancelled) {
-        const item = this.items.find(i => i.status === 'waiting');
+        const item = this.items.find(i => i.status === 'waiting' && !(largeActive && isLarge(i)));
         if (!item) return;
+        const large = isLarge(item);
+        if (large) largeActive = true;
         item.status = 'uploading';
         const controller = new AbortController();
         this.controllers.add(controller);
@@ -77,10 +82,10 @@ class DataCoreUploadQueue {
           item.status = controller.signal.aborted ? 'cancelled' : 'failed';
           item.error = error?.message || '업로드에 실패했습니다.';
           item.retryable = !controller.signal.aborted;
-        } finally { this.controllers.delete(controller); this.notify(); }
+        } finally { if (large) largeActive = false; this.controllers.delete(controller); this.notify(); }
       }
     };
-    const concurrency = hasLargeLibraryFile ? 1 : Math.min(3, this.items.filter(i => i.status === 'waiting').length || 1);
+    const concurrency = Math.min(hasLargeLibraryFile ? 2 : 3, this.items.filter(i => i.status === 'waiting').length || 1);
     await Promise.all(Array.from({length: concurrency}, worker));
     if (this.cancelled) for (const item of this.items) if (item.status === 'waiting') item.status = 'cancelled';
     this.running = false;

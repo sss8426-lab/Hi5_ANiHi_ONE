@@ -1,3 +1,4 @@
+import { schemaOnce } from "./schema-once";
 import { DataCoreAccessContext, DataCoreAccessError } from "./data-core-access";
 
 export type KkumeumPilotSettings = {
@@ -14,7 +15,10 @@ type PilotRow = {
   updated_at: string | null;
 };
 
-export async function ensureKkumeumPilotSchema(familyDb: D1Database): Promise<void> {
+export function ensureKkumeumPilotSchema(familyDb: D1Database): Promise<void> {
+  return schemaOnce(familyDb, "ensureKkumeumPilotSchema", () => ensureKkumeumPilotSchemaNow(familyDb));
+}
+async function ensureKkumeumPilotSchemaNow(familyDb: D1Database): Promise<void> {
   await familyDb.batch([
     familyDb.prepare(`CREATE TABLE IF NOT EXISTS family_pilot_settings (
       id INTEGER PRIMARY KEY CHECK (id = 1),

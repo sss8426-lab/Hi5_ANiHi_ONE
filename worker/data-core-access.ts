@@ -117,7 +117,27 @@ async function ensureBootstrapSuperAdmin(
     .run();
 }
 
-export async function resolveDataCoreAccess(
+// One login check per request: several layers (router guard, API handlers) ask for the same context.
+// Cached on the Request object itself, so it never outlives the request or crosses users.
+const resolvedForRequest = new WeakMap<Request, Map<unknown, Promise<DataCoreAccessContext>>>();
+
+export function resolveDataCoreAccess(
+  request: Request,
+  db?: D1Database,
+  bootstrapAdminEmails?: string,
+): Promise<DataCoreAccessContext> {
+  let byDb = resolvedForRequest.get(request);
+  if (!byDb) { byDb = new Map(); resolvedForRequest.set(request, byDb); }
+  const key = db ?? null;
+  let pending = byDb.get(key);
+  if (!pending) {
+    pending = resolveDataCoreAccessNow(request, db, bootstrapAdminEmails).catch((error) => { byDb!.delete(key); throw error; });
+    byDb.set(key, pending);
+  }
+  return pending;
+}
+
+async function resolveDataCoreAccessNow(
   request: Request,
   db?: D1Database,
   bootstrapAdminEmails?: string,

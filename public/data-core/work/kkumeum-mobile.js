@@ -52,7 +52,8 @@
   function renderGroups() {
     const {tab}=route(); const selective=tab==='select-delivery';
     const query=state.q.toLocaleLowerCase();
-    let groups=[...state.classes];
+    // 숨긴 반(active=0)은 목록에 보이지 않는다 (출석부 반영에서 숨긴 반).
+    let groups=state.classes.filter(c=>Number(c.active??1)!==0);
     if(state.students.some(s=>!(s.current_class_id||s.currentClassId)))groups.push({id:'',name:'반 미지정'});
     groups=groups.filter(c=>[c.name,...studentsFor(c.id).map(name),...noticesFor(c).map(n=>n.title)].some(v=>String(v).toLocaleLowerCase().includes(query)));
     groups.sort(state.sort==='name'?(a,b)=>a.name.localeCompare(b.name,'ko'):(a,b)=>String(b.updated_at||b.updatedAt||'').localeCompare(String(a.updated_at||a.updatedAt||'')));
@@ -174,8 +175,24 @@
     if(['payments','bulk'].includes(view)){if(view==='payments'?!manager():!writer()){content.innerHTML=empty(view==='payments'?'수납관리는 원장·관리자만 할 수 있습니다.':'개인별 전송은 원장·관리자와 담당 선생님만 할 수 있습니다.');return;}window.KkumeumPayments?.open({state,route,go});return;}
     if(view==='notice'){void detail(id);return;}
     if(view==='calendar'){void calendar();return;}
+    // 출석부 → 꿈이음 반영 (roster-sync.js): 다른 곳을 학생마다 체크해서 적용.
+    if(view==='roster-sync'){
+      if(!manager()){content.innerHTML=empty('출석부 반영은 원장·관리자만 할 수 있습니다.');return;}
+      content.innerHTML=`<button type="button" class="km-back" data-back>${icon('ArrowLeft')}소식으로 돌아가기</button><div id="kmRosterSync"></div>`;
+      window.RosterSync?.mount($('kmRosterSync'),{campusId:state.campusId,onChange:d=>{state.sync={month:d.month,pending:d.pending};void reloadLists();}});
+      return;
+    }
     if(view){auxiliary(view);return;}
-    rootView();
+    rootView();syncBanner();
+  }
+  // 아이소식 맨 위: 이번 달 출석부와 꿈이음 반·학생이 다르면 알림 줄 (원장·관리자).
+  function syncBanner() {
+    const n=state.sync?.pending||0;if(!n||!manager()||!state.sync?.month)return;
+    content.insertAdjacentHTML('afterbegin',`<button type="button" class="km-sync-banner" data-view="roster-sync"><b>${Number(state.sync.month.slice(5))}월 출석부와 다른 곳 ${n}곳</b><span>확인하고 반영하기 ›</span></button>`);
+  }
+  async function reloadLists() {
+    const q=`campusId=${encodeURIComponent(state.campusId)}`;
+    try{const [classes,students]=await Promise.all([api(`/api/kkumeum/classes?${q}`),api(`/api/kkumeum/students?${q}`)]);state.classes=classes.classes||[];state.students=students.students||[];}catch{/* 다음 새로고침 때 다시 불러온다 */}
   }
   function openMore() {
     const menus=[['attendance-settings','ShieldCheck','출결 설정 · 출결기',manager()],['talk-settings','PenLine','문의 운영시간 · 자주 쓰는 글',writer()],['settings','Settings','설정',manager()],['help','BookOpen','도움말',true],['suggest','PenLine','비트에게 건의/문의',true],['consents','ShieldCheck','신청/동의서',true],['payments','BookOpen','수납관리',manager()],['members','Users','회원등록',manager()],['members','Folder','반관리',manager()],['teachers','Users','선생님 관리',manager()],['calendar','CalendarDays','일정관리',writer()],['bulk','PenLine','개인별 일괄 전송',writer()]];
@@ -196,6 +213,8 @@
       const [classes,students,notices]=await Promise.all([writer()?api(`/api/kkumeum/classes?${q}`):{classes:[]},writer()?api(`/api/kkumeum/students?${q}`):{students:[]},api(`/api/kkumeum/announcements?${q}`)]);
       if(version!==state.version)return;
       state.classes=classes.classes||[];state.students=students.students||[];state.notices=(notices.announcements||[]).filter(n=>!n.campusId||n.campusId===state.campusId);
+      state.sync=manager()?await api(`/api/kkumeum/attendance/roster-sync?${q}&summary=1`).catch(()=>null):null;
+      if(version!==state.version)return;
       const old=window.KkumeumStaff;if(old){old.state.campusId=state.campusId;old.state.classes=state.classes;old.state.students=state.students;}
     }catch(error){if(version===state.version){state.error=error.status===401?'로그인이 필요합니다. 다시 로그인해주세요.':error.status===403?error.message:error.status===503?'꿈이음 저장소 연결을 확인해주세요. 관리자는 FAMILY_DB와 FAMILY_FILES 연결 상태를 확인해야 합니다.':'데이터를 불러오지 못했습니다. 다시 시도해주세요.';state.classes=[];state.students=[];state.notices=[];}}
     finally{if(version===state.version){state.loading=false;render();}}

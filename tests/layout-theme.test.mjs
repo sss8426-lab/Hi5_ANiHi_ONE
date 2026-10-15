@@ -28,7 +28,7 @@ test('signed-in DATA CORE staff shells load the shared versioned visual layer af
 test('public login uses its isolated editorial layer without changing the staff theme',()=>{
   const html=fs.readFileSync('public/data-core/login.html','utf8');
   assert.match(html,/<body class="login-page">/);
-  assert.match(html,/login\.css\?v=20260928-signup/);
+  assert.match(html,/login\.css\?v=20261015-remember/);
   assert.doesNotMatch(html,/layout-theme\.css/);
 });
 

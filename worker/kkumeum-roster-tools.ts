@@ -19,7 +19,7 @@ const EDIT_STATUSES = new Set(["active", "leave", "withdrawn"]);
 const DAY_ORDER = "월화수목금토일";
 const slotRank = (slot: string) => DAY_ORDER.indexOf(slot[0]) * 3 + Number(slot[1]);
 
-function requireManager(context: DataCoreAccessContext, campusId: string) {
+export function requireManager(context: DataCoreAccessContext, campusId: string) {
   requireAuthenticatedAccess(context);
   if (!isManager(context, campusId)) throw new DataCoreAccessError(403, "명단 정리는 캠퍼스 원장·관리자만 할 수 있습니다.");
 }
@@ -29,7 +29,7 @@ function validMonth(value: unknown): string {
   return month;
 }
 
-async function loadRoster(familyDb: D1Database, campusId: string, month: string) {
+export async function loadRoster(familyDb: D1Database, campusId: string, month: string) {
   await ensureKkumeumAttendanceRosterSchema(familyDb);
   const row = await familyDb.prepare("SELECT roster_json, updated_at FROM family_attendance_rosters WHERE campus_id = ? AND year_month = ?")
     .bind(campusId, month).first<{ roster_json: string; updated_at: string }>();
@@ -39,7 +39,7 @@ async function loadRoster(familyDb: D1Database, campusId: string, month: string)
   return { classes, updatedAt: row.updated_at };
 }
 
-async function saveRoster(familyDb: D1Database, context: DataCoreAccessContext, campusId: string, month: string, classes: RosterClass[], updatedAt: string, detail: Record<string, unknown>) {
+export async function saveRoster(familyDb: D1Database, context: DataCoreAccessContext, campusId: string, month: string, classes: RosterClass[], updatedAt: string, detail: Record<string, unknown>) {
   const kept = classes.filter((c) => c.students.length);
   const now = new Date(Math.max(Date.now(), (Date.parse(updatedAt) || 0) + 1)).toISOString();
   const count = kept.reduce((n, c) => n + c.students.length, 0);
@@ -59,7 +59,7 @@ function rosterEntry(classes: RosterClass[], key: unknown, name: unknown) {
   return { group: classes[gi], entry, gi, si };
 }
 
-async function classIdFor(familyDb: D1Database, campusId: string, name: string, now: string): Promise<string> {
+export async function classIdFor(familyDb: D1Database, campusId: string, name: string, now: string): Promise<string> {
   const rows = (await familyDb.prepare("SELECT id, name FROM family_classes WHERE campus_id = ? AND active = 1").bind(campusId).all<{ id: string; name: string }>()).results || [];
   const found = rows.find((c) => norm(c.name) === norm(name));
   if (found) return found.id;

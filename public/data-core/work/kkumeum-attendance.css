@@ -259,3 +259,6 @@
 .kp-num{text-align:right!important}
 .kb-preview{background:#f4f8f7;border:1px dashed #9fc7b8;border-radius:12px;padding:10px 12px;font-size:14px}
 .kb-preview p{margin:6px 0 0;white-space:pre-wrap}
+/* 출석부 → 꿈이음 반영 알림 줄 (아이소식 맨 위) */
+.km-frame .km-sync-banner{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:6px;width:100%;min-height:48px;margin:6px 0 10px;padding:10px 14px;border:1px solid #f1d48a;border-radius:12px;background:#fff8e6;color:#6b4a00;font:inherit;text-align:left;cursor:pointer}
+.km-frame .km-sync-banner b{font-size:15px}.km-frame .km-sync-banner span{font-weight:800;color:#167d79}

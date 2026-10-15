@@ -6,7 +6,7 @@
   <title>DATA CORE 로그인</title>
   <meta name="theme-color" content="#f8faf9">
   <link rel="preload" as="image" href="/data-core/assets/login-highfive-v1.webp">
-  <link rel="stylesheet" href="/data-core/login.css?v=20260928-signup">
+  <link rel="stylesheet" href="/data-core/login.css?v=20261015-remember">
 </head>
 <body class="login-page">
   <main class="login-shell">
@@ -21,6 +21,7 @@
         <form id="loginForm">
           <label>로그인 ID<input id="loginId" name="loginId" autocomplete="username" required></label>
           <label>비밀번호<input id="password" name="password" type="password" autocomplete="current-password" required></label>
+          <label class="remember-row"><input id="rememberLogin" type="checkbox"><span><b>로그인 상태 유지</b><small>이 기기에서 30일 동안 다시 로그인하지 않아도 됩니다. 쓰는 동안 계속 늘어납니다. 여러 사람이 쓰는 컴퓨터에서는 체크하지 마세요.</small></span></label>
           <p class="message" id="message" role="alert"></p>
           <button type="submit">로그인</button>
         </form>
@@ -66,6 +67,6 @@
       <a class="back" href="/data-core/counseling">공개 상담 화면으로 돌아가기</a>
     </section>
   </main>
-  <script type="module" src="/data-core/login.js?v=20260928-signup-mode-home"></script>
+  <script type="module" src="/data-core/login.js?v=20261015-remember"></script>
 </body>
 </html>
