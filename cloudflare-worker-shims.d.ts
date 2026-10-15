@@ -24,6 +24,8 @@ interface R2ObjectBody {
   httpMetadata?: R2PutOptions['httpMetadata'];
   body: ReadableStream;
   httpEtag: string;
+  etag: string;
+  text(): Promise<string>;
   writeHttpMetadata(headers: Headers): void;
   json<T = unknown>(): Promise<T>;
 }
