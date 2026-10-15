@@ -99,21 +99,28 @@
     if (!rows.contains(document.activeElement)) rows.innerHTML = links.map(c => `<div class="blog-feed-link"><label><span>${h(c.campusName)}</span><input type="url" inputmode="url" value="${h(c.blogUrl || '')}" placeholder="https://blog.naver.com/아이디" autocomplete="off"></label><button type="button" class="ghost-btn" data-link="${h(c.campusId)}">저장</button></div>`).join('');
   }
 
-  async function refresh(fresh = false) {
+  // Saved posts show at once; new posts from the campus blogs are fetched after that, then shown.
+  let syncing = false;
+  async function sync(fresh) {
+    if (syncing) return; syncing = true;
+    try { const r = await send(`${API}/sync`, 'POST', { refresh: fresh }); if (r.synced) await refresh(false, true); } catch { /* the saved list stays */ } finally { syncing = false; }
+  }
+
+  async function refresh(fresh = false, afterSync = false) {
     if (!aside || !visible) return;
+    if (fresh) { aside.querySelector('#blogFeedStatus').textContent = '캠퍼스 블로그에서 새 글을 확인하고 있습니다.'; return sync(true); }
     const token = ++loading;
     const status = aside.querySelector('#blogFeedStatus'), list = aside.querySelector('#blogFeedList');
-    if (fresh) status.textContent = '캠퍼스 블로그에서 새 글을 확인하고 있습니다.';
     try {
       const params = new URLSearchParams({ limit: '30' });
       if (campus) params.set('campusId', campus);
-      if (fresh) params.set('refresh', '1');
       if (query) params.set('q', query);
       const response = await fetch(`${API}?${params}`, { credentials: 'include', cache: 'no-store' });
       const body = await response.json().catch(() => ({}));
       if (token !== loading) return;
       if (!response.ok) throw new Error(body.error || '발행 소식을 불러오지 못했습니다.');
       last = body;
+      if (body.syncDue && !afterSync) void sync(false);
       const select = aside.querySelector('#blogFeedCampus');
       const all = (body.campuses || []).reduce((sum, c) => sum + c.count, 0);
       select.innerHTML = `<option value="">전체 캠퍼스 (${all})</option>` + (body.campuses || []).filter(c => c.campusId)

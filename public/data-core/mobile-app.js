@@ -119,10 +119,10 @@
     } catch { state.context = null; }
     renderContext();
     if (!state.context?.authenticated || !state.context.isSuperAdmin) return;
-    try {
-      const response = await fetch('/api/auth/signup-requests', { credentials: 'include', cache: 'no-store' });
-      if (response.ok) state.signups = ((await response.json()).requests || []).length;
-    } catch { /* the count is optional */ }
+    // One request per page for the 직원인증 count, shared with work-navigation.js.
+    const shared = window.__coreSignupRequests ||= fetch('/api/auth/signup-requests', { credentials: 'include', cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);
+    const body = await shared;
+    if (body) state.signups = (body.requests || []).length;
     renderContext();
   }
 

@@ -8,6 +8,8 @@ import { runAutoBillReminders } from "./kkumeum-payments";
 import { handleMarketingApi } from "./data-core-marketing";
 import { DataCoreAccessError } from "./data-core-access";
 import { syncCampusBlogs } from "./blog-publications";
+import { forgetSessionAccess } from "./data-core-auth";
+import { timedDb, withDbTiming } from "./db-timing";
 
 const BILL_REMINDER_CRON = "0 1 * * *";
 
@@ -58,6 +60,15 @@ function androidAssetLinks(request: Request, env: Env): Response | null {
 
 const worker = {
   async fetch(request: Request, env: Env): Promise<Response> {
+    // 속도 측정: D1 calls are counted per request and reported in Server-Timing (worker/db-timing.ts).
+    if (env.DB || env.FAMILY_DB) env = { ...env, DB: timedDb(env.DB), FAMILY_DB: timedDb(env.FAMILY_DB) };
+    const response = await withDbTiming(request, () => worker.route(request, env));
+    // Account, membership and session changes clear the short login memory right away (see standaloneSessionAccess).
+    const path = new URL(request.url).pathname;
+    if (!['GET', 'HEAD'].includes(request.method) && (path.startsWith('/api/auth/') || path.startsWith('/api/data-core/admin/'))) forgetSessionAccess(env.DB);
+    return response;
+  },
+  async route(request: Request, env: Env): Promise<Response> {
     const links = androidAssetLinks(request, env);
     if (links) return links;
     const shell = await familyShell(request, env);

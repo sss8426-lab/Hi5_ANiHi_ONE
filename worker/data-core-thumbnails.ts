@@ -7,12 +7,14 @@ import { PRIVATE_IMAGE_MIMES } from './private-image-response';
 const MAX_BYTES = 256 * 1024;
 
 // Sources have already passed the caller's current authorization. Returned files still recheck it on GET.
+// Thumbnail lookups start from data_records (data_records_derived_from_idx) and then fetch each file by
+// record: CROSS JOIN keeps that order, otherwise SQLite scans every thumbnail by category (~14k rows).
 export async function thumbnailUrls(db:D1Database, sources:Record<string,any>[], prefix='/api/data-core/files/') {
   const urls=new Map<string,string>(), byId=new Map(sources.filter(s=>PRIVATE_IMAGE_MIMES.has(s.mime_type)).map(s=>[s.id,s]));
   const values=[...byId.values()];
   for(let offset=0;offset<values.length;offset+=50){
     const batch=values.slice(offset,offset+50), org=batch[0].organization_id;
-    const rows=(await db.prepare(`SELECT fo.*, dr.metadata_json FROM file_objects fo JOIN data_records dr ON dr.id=fo.data_record_id
+    const rows=(await db.prepare(`SELECT fo.*, dr.metadata_json FROM data_records dr CROSS JOIN file_objects fo ON fo.data_record_id=dr.id
       WHERE fo.organization_id=? AND dr.organization_id=? AND fo.category=? AND dr.record_type=?
       AND fo.deleted_at IS NULL AND dr.deleted_at IS NULL
       AND CASE WHEN json_valid(dr.metadata_json) THEN json_extract(dr.metadata_json,'$.derivedFromFileId') END
@@ -65,7 +67,7 @@ export async function thumbnailInput(request:Request) {
 
 export async function existingThumbnail(db:D1Database, source:Record<string,unknown>) {
   const {validThumbnail}=await import('./data-core-derivative-policy');
-  const rows=(await db.prepare(`SELECT fo.*, dr.metadata_json FROM file_objects fo JOIN data_records dr ON dr.id=fo.data_record_id
+  const rows=(await db.prepare(`SELECT fo.*, dr.metadata_json FROM data_records dr CROSS JOIN file_objects fo ON fo.data_record_id=dr.id
     WHERE fo.organization_id=? AND dr.organization_id=? AND fo.category=? AND dr.record_type=?
     AND fo.deleted_at IS NULL AND dr.deleted_at IS NULL
     AND CASE WHEN json_valid(dr.metadata_json) THEN json_extract(dr.metadata_json,'$.derivedFromFileId') END=?
@@ -90,7 +92,7 @@ export async function createLibraryThumbnail(request:Request, db:D1Database, buc
     return {id:found.row.id,metadata:found.metadata,downloadUrl:`/api/data-core/files/${found.row.id}`,reused:true};
   };
   const existing=await reuse();if(existing)return existing;
-  const previous=await db.prepare(`SELECT fo.id FROM file_objects fo JOIN data_records dr ON dr.id=fo.data_record_id
+  const previous=await db.prepare(`SELECT fo.id FROM data_records dr CROSS JOIN file_objects fo ON fo.data_record_id=dr.id
     WHERE fo.organization_id=? AND dr.record_type=? AND (fo.deleted_at IS NOT NULL OR dr.deleted_at IS NOT NULL)
     AND CASE WHEN json_valid(dr.metadata_json) THEN json_extract(dr.metadata_json,'$.derivedFromFileId') END=?
     ORDER BY fo.created_at DESC,fo.id DESC LIMIT 1`).bind(source.organization_id,THUMBNAIL_RECORD_TYPE,source.id).first<{id:string}>();

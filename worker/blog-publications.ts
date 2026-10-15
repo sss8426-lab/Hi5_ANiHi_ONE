@@ -255,8 +255,9 @@ export async function setCampusBlog(db: D1Database, context: DataCoreAccessConte
 export async function listBlogPublications(db: D1Database, context: DataCoreAccessContext, url: URL) {
   requireWriteAccess(context);
   await ensureBlogPublications(db);
-  // 새로고침 asks for fresh posts, but never more than once every 2 minutes for everyone together.
-  await syncCampusBlogs(db, url.searchParams.get('refresh') === '1' ? 2 * 60_000 : SYNC_EVERY_MS).catch(error => console.warn('blog rss sync', error));
+  // The list answers from D1 at once; collecting new posts from Naver runs as its own request (syncDue).
+  const lastSync = await db.prepare("SELECT value FROM blog_feed_meta WHERE key='rss-sync'").first<{ value: string }>();
+  const syncDue = !lastSync || Date.now() - Date.parse(lastSync.value) >= SYNC_EVERY_MS;
   const campusId = url.searchParams.get('campusId') || '';
   if (campusId.length > 120) fail(400, '캠퍼스를 확인하세요.');
   const limit = Math.min(Math.max(Number(url.searchParams.get('limit')) || BLOG_FEED_LIMIT, 1), BLOG_FEED_LIMIT);
@@ -286,7 +287,7 @@ export async function listBlogPublications(db: D1Database, context: DataCoreAcce
   const me = context.user?.internalUserId;
   const canHide = (r: Row) => context.isSuperAdmin || leadsCampus(context, r.campus_id) || Boolean(me && r.author_user_id === me);
   return {
-    total: Number(total?.n || 0), limit, query: terms.join(' '),
+    total: Number(total?.n || 0), limit, query: terms.join(' '), syncDue,
     campuses: perCampus.map(c => ({ campusId: c.campus_id, campusName: campusDisplayName(c.campus_id, c.campus_id) || '본사', count: Number(c.n) })),
     // Where this person may record a post, and which campus blogs they may connect.
     recordCampuses: campuses.filter(c => context.isSuperAdmin || context.campusIds.includes(String(c.id))).map(c => ({ campusId: c.id, campusName: c.name })),
@@ -322,4 +323,11 @@ export async function convertBlogPublication(env: OpenAiEnv, db: D1Database, con
     source: { title: String(row.title), campusName: campusDisplayName(row.campus_id, row.campus_id) || '다른 캠퍼스', text },
   }, signal);
   return { ...result, source: { id: row.id, title: row.title, url: row.url, campusName: campusDisplayName(row.campus_id, row.campus_id) || '' } };
+}
+
+/** 새 글 가져오기: the panel asks for this after showing the saved list. 새로고침 may ask every 2 minutes. */
+export async function syncBlogPublications(db: D1Database, context: DataCoreAccessContext, input: Row) {
+  requireWriteAccess(context);
+  const result = await syncCampusBlogs(db, input?.refresh === true ? 2 * 60_000 : SYNC_EVERY_MS);
+  return { ok: true, synced: !('skipped' in result) };
 }
