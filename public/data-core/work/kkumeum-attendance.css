@@ -196,6 +196,69 @@
 .kt-snippets li{display:flex;justify-content:space-between;gap:8px;border:1px solid #e5eceb;border-radius:10px;padding:8px 12px}
 .kt-snippets small{display:block;color:#5b6c66;font-size:12.5px;white-space:pre-wrap;margin-top:2px}
 .kt-snippet-form{display:grid;gap:8px}.kt-snippet-form input{min-height:40px;border:1px solid #cfdcd8;border-radius:10px;padding:0 12px;font:inherit}
+/* 신청/동의서 (kkumeum-forms.js) */
+.kf-new{width:100%;margin:6px 0 10px}
+.kf-form fieldset{border:1px solid #dbe5e2;border-radius:14px;padding:12px 14px;margin:0;display:grid;gap:10px}
+.kf-form legend{font-weight:800;padding:0 4px}
+.kf-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.kf-inline{display:inline-flex!important;align-items:center;gap:6px;font-weight:600;min-height:40px;cursor:pointer}
+.kf-inline input{width:20px;height:20px;accent-color:#167d79}
+.kf-question select{min-height:40px;border:1px solid #cfdcd8;border-radius:10px;padding:0 10px;font:inherit;background:#fff}
+.kf-sub{font-size:16px;margin:14px 0 4px}
+.kf-picks{display:grid;gap:6px;max-height:320px;overflow:auto;border-top:1px dashed #dbe5e2;padding-top:8px}
+.kf-group{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center}
+.kf-group b{width:100%;font-size:13px;color:#475a55}
+.kf-summary{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.kf-summary span{background:#f4f8f7;border-radius:999px;padding:5px 12px;font-size:13.5px}
+.kf-tally{display:grid;gap:4px;margin:10px 0}
+.kf-bar{display:grid;grid-template-columns:minmax(70px,140px) 1fr 36px;align-items:center;gap:8px;font-size:13.5px}
+.kf-bar i{display:block;height:10px;border-radius:6px;background:#167d79;min-width:2px}
+.kf-bar em{font-style:normal;font-weight:800;text-align:right}
+.kf-actions{flex-wrap:wrap}
+.kf-table{overflow-x:auto;border:1px solid #e1e8e5;border-radius:12px;margin-top:8px}
+.kf-table table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:420px}
+.kf-table th,.kf-table td{border-bottom:1px solid #eef2f1;padding:8px 10px;text-align:left;vertical-align:top;white-space:pre-wrap;word-break:break-word}
+.kf-table th{background:#f4f8f7;font-weight:800;white-space:nowrap}
+.kf-table .kf-waiting td{color:#a3271d}
+.km-check-row{display:flex!important;align-items:center;gap:8px;font-weight:600}
+.km-check-row input{width:20px;height:20px;accent-color:#167d79}
+.km-frame .kf-form .kf-inline{flex-direction:row!important;align-items:center;gap:8px;font-size:14px}
+.km-frame .kf-form .kf-inline input{width:20px!important;height:20px;min-width:20px;padding:0;flex:none}
+.km-frame .kf-question .kf-row select{width:auto;flex:1 1 160px}
+.km-frame .kf-actions .km-primary{color:#fff!important;min-height:42px;font-weight:800}
+.kf-table td:nth-child(-n+3){white-space:nowrap}
+.km-frame .km-form .km-check-row{flex-direction:row!important}
+.km-frame .km-form .km-check-row input{width:20px!important;padding:0;flex:none}
+/* 수납관리 · 개인별 일괄 전송 (kkumeum-payments.js) */
+.kp-month{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:8px 0}
+.kp-month b{font-size:16px}
+.km-frame .kp-month button{min-width:44px;min-height:40px;border:1px solid #cfdcd8;border-radius:10px;background:#fff;font-size:18px}
+.kf-summary .kp-warn{background:#fdecea;color:#a3271d}
+.kp-bills{display:grid;gap:8px;margin-top:8px}
+.kp-bill{border:1px solid #e1e8e5;border-radius:12px;padding:10px 12px;display:grid;gap:6px;background:#fff}
+.kp-bill.kp-late{border-color:#f0b4ad;box-shadow:inset 4px 0 0 #d93025}
+.kp-bill-top{display:flex;align-items:center;gap:8px}.kp-bill-top b{font-size:15px}.kp-bill-top small{color:#7a8a83;flex:1}
+.kp-bill-mid{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;font-size:14px}.kp-bill-mid b{font-size:15px}.kp-bill-mid small{color:#7a8a83;width:100%}
+.kp-bill-act{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.km-frame .kp-bill-act .km-primary{min-height:38px;color:#fff!important;font-weight:800}
+.kp-paid{font-size:13px;color:#16614f;font-weight:700}
+.kp-edit{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;width:100%;background:#f7faf9;border-radius:10px;padding:10px}
+.kp-edit label{display:grid;gap:4px;font-size:12.5px;font-weight:700}
+.kp-edit input,.kp-edit select{min-height:38px;border:1px solid #cfdcd8;border-radius:8px;padding:0 8px;font:inherit;background:#fff;width:100%;box-sizing:border-box}
+.kp-row{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px}
+.km-frame .kp-row button:not(.km-primary){min-height:40px;border:1px solid #cfdcd8;border-radius:10px;background:#fff;padding:0 12px;font-weight:700}
+.km-frame .kp-row .km-primary{min-height:40px;color:#fff!important}
+.kp-picks{display:grid;gap:10px;max-height:420px;overflow:auto}
+.kp-group{display:grid;gap:4px;border-bottom:1px dashed #dbe5e2;padding-bottom:8px}
+.kp-group-head{font-size:14px}
+.kp-pick{display:grid;grid-template-columns:1fr 130px auto;align-items:center;gap:8px}
+.km-frame .kf-form .kp-amount{width:100%;min-height:38px;padding:0 8px;text-align:right}
+.kp-values{display:grid;gap:6px}
+.kp-values .kp-pick{grid-template-columns:1fr 1.4fr}
+.kp-values .kp-amount{text-align:left!important}
+.kp-num{text-align:right!important}
+.kb-preview{background:#f4f8f7;border:1px dashed #9fc7b8;border-radius:12px;padding:10px 12px;font-size:14px}
+.kb-preview p{margin:6px 0 0;white-space:pre-wrap}
 /* 출석부 → 꿈이음 반영 알림 줄 (아이소식 맨 위) */
 .km-frame .km-sync-banner{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:6px;width:100%;min-height:48px;margin:6px 0 10px;padding:10px 14px;border:1px solid #f1d48a;border-radius:12px;background:#fff8e6;color:#6b4a00;font:inherit;text-align:left;cursor:pointer}
 .km-frame .km-sync-banner b{font-size:15px}.km-frame .km-sync-banner span{font-weight:800;color:#167d79}

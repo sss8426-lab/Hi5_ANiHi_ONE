@@ -73,6 +73,9 @@ import {
   createSnippet, deleteSnippet, getStaffThread, listSnippets, listStaffThreads, readStaffTalkFile, readTalkSettings, saveTalkSettings,
   setStaffThreadStatus, staffThreadMessage, staffThreadSummary,
 } from "./kkumeum-talk";
+import { createBills, dailyPayments, listBills, readPaymentSettings, remindUnpaid, savePaymentSettings, updateBill } from "./kkumeum-payments";
+import { sendBulkMessages } from "./kkumeum-bulk-messages";
+import { createStaffForm, deleteStaffForm, getStaffForm, listStaffForms, remindStaffForm, setStaffFormStatus } from "./kkumeum-forms";
 import { applyRosterSync, rosterSyncPlan } from "./kkumeum-roster-sync";
 export type KkumeumRouterEnv = KkumeumBindings & KkumeumPushEnv & { DB?: D1Database };
 
@@ -318,6 +321,60 @@ export async function handleKkumeumApi(
       await assertKkumeumPilotCampus(familyDb, campusId); return respond(await saveTalkSettings(familyDb, context, campusId, input.settings));
     }
     return respond({ error: "지원하지 않는 문의 운영시간 요청입니다." }, { status: 405 });
+  }
+  // 신청/동의서 (꿈이음 3단계): 만들기 · 제출 현황 · 마감 · 미제출 알림.
+  if (url.pathname === "/api/kkumeum/forms") {
+    if (request.method === "GET") { const campusId = requiredCampusId(url); await assertKkumeumPilotCampus(familyDb, campusId); return respond(await listStaffForms(familyDb, context, campusId)); }
+    if (request.method === "POST") {
+      assertSameOrigin(request); const input = await readJson(request); const campusId = requiredBodyId(input.campusId, "campusId");
+      await assertKkumeumPilotCampus(familyDb, campusId); return respond(await createStaffForm(familyDb, context, env, campusId, input), { status: 201 });
+    }
+    return respond({ error: "지원하지 않는 신청/동의서 요청입니다." }, { status: 405 });
+  }
+  const formRemindMatch = url.pathname.match(/^\/api\/kkumeum\/forms\/([^/]+)\/remind$/);
+  if (formRemindMatch && request.method === "POST") {
+    assertSameOrigin(request); return respond(await remindStaffForm(familyDb, context, env, decodeURIComponent(formRemindMatch[1])));
+  }
+  const formMatch = url.pathname.match(/^\/api\/kkumeum\/forms\/([^/]+)$/);
+  if (formMatch) {
+    const formId = decodeURIComponent(formMatch[1]);
+    if (request.method === "GET") return respond(await getStaffForm(familyDb, context, formId));
+    if (request.method === "PATCH") { assertSameOrigin(request); const input = await readJson(request); return respond(await setStaffFormStatus(familyDb, context, formId, input.status)); }
+    if (request.method === "DELETE") { assertSameOrigin(request); return respond(await deleteStaffForm(familyDb, context, formId)); }
+    return respond({ error: "지원하지 않는 신청/동의서 요청입니다." }, { status: 405 });
+  }
+  // 수납관리 (꿈이음 4단계, 원장·관리자만): 청구 · 수납 처리 · 미납 알림 · 일일 결산 · 납부 안내.
+  if (url.pathname === "/api/kkumeum/bills") {
+    if (request.method === "GET") { const campusId = requiredCampusId(url); await assertKkumeumPilotCampus(familyDb, campusId); return respond(await listBills(familyDb, context, campusId, url.searchParams.get("month"))); }
+    if (request.method === "POST") {
+      assertSameOrigin(request); const input = await readJson(request); const campusId = requiredBodyId(input.campusId, "campusId");
+      await assertKkumeumPilotCampus(familyDb, campusId); return respond(await createBills(familyDb, context, campusId, input), { status: 201 });
+    }
+    return respond({ error: "지원하지 않는 수납 요청입니다." }, { status: 405 });
+  }
+  if (url.pathname === "/api/kkumeum/bills/remind" && request.method === "POST") {
+    assertSameOrigin(request); const input = await readJson(request); const campusId = requiredBodyId(input.campusId, "campusId");
+    await assertKkumeumPilotCampus(familyDb, campusId); return respond(await remindUnpaid(familyDb, context, env, campusId, input.month));
+  }
+  const billMatch = url.pathname.match(/^\/api\/kkumeum\/bills\/([^/]+)$/);
+  if (billMatch && request.method === "PATCH") {
+    assertSameOrigin(request); return respond(await updateBill(familyDb, context, decodeURIComponent(billMatch[1]), await readJson(request)));
+  }
+  if (url.pathname === "/api/kkumeum/payments/daily" && request.method === "GET") {
+    const campusId = requiredCampusId(url); await assertKkumeumPilotCampus(familyDb, campusId); return respond(await dailyPayments(familyDb, context, campusId, url.searchParams.get("date")));
+  }
+  if (url.pathname === "/api/kkumeum/payment-settings") {
+    if (request.method === "GET") { const campusId = requiredCampusId(url); await assertKkumeumPilotCampus(familyDb, campusId); return respond(await readPaymentSettings(familyDb, context, campusId)); }
+    if (request.method === "PUT") {
+      assertSameOrigin(request); const input = await readJson(request); const campusId = requiredBodyId(input.campusId, "campusId");
+      await assertKkumeumPilotCampus(familyDb, campusId); return respond(await savePaymentSettings(familyDb, context, campusId, input.settings));
+    }
+    return respond({ error: "지원하지 않는 납부 안내 요청입니다." }, { status: 405 });
+  }
+  // 개인별 일괄 전송: %이름% · %값%을 학생마다 채운 아이소식.
+  if (url.pathname === "/api/kkumeum/bulk-messages" && request.method === "POST") {
+    assertSameOrigin(request); const input = await readJson(request); const campusId = requiredBodyId(input.campusId, "campusId");
+    await assertKkumeumPilotCampus(familyDb, campusId); return respond(await sendBulkMessages(familyDb, context, env, campusId, input), { status: 201 });
   }
   if (url.pathname === "/api/kkumeum/snippets") {
     if (request.method === "GET") { const campusId = requiredCampusId(url); await assertKkumeumPilotCampus(familyDb, campusId); return respond(await listSnippets(familyDb, context, campusId)); }

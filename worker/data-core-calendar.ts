@@ -42,6 +42,8 @@ type CalendarMetadata = {
   holidayOverride?: boolean;
   // 중요 업무: shown pinned under 고정 업무 until the event has ended.
   important?: boolean;
+  // 꿈이음 학부모 일정: only events marked here (plus holidays) are shown to guardians.
+  familyVisible?: boolean;
 };
 
 function cleanText(value: unknown, maxLength: number): string {
@@ -94,6 +96,8 @@ function calendarMetadata(value: unknown, fallback: Partial<CalendarMetadata> = 
   if (holidayOverride && eventType !== "class") throw new DataCoreAccessError(400, "공휴일 수업 표시는 수업 일정에만 쓸 수 있습니다.");
   const importantValue = input.important === undefined ? fallback.important : input.important;
   if (importantValue !== undefined && typeof importantValue !== 'boolean') throw new DataCoreAccessError(400, '중요 업무 여부가 올바르지 않습니다.');
+  const familyValue = input.familyVisible === undefined ? fallback.familyVisible : input.familyVisible;
+  if (familyValue !== undefined && typeof familyValue !== 'boolean') throw new DataCoreAccessError(400, '학부모 공개 여부가 올바르지 않습니다.');
   return {
     schemaVersion: 1,
     startDate,
@@ -107,6 +111,7 @@ function calendarMetadata(value: unknown, fallback: Partial<CalendarMetadata> = 
     ...(sourceApp ? { sourceApp } : {}),
     ...(holidayOverride ? { holidayOverride } : {}),
     ...(importantValue === true ? { important: true } : {}),
+    ...(familyValue === true ? { familyVisible: true } : {}),
   };
 }
 
@@ -326,4 +331,36 @@ export async function deleteAcademyCalendarEvent(
   const existing = ensureCalendarRecord(await getDataRecord(db, context, recordId));
   if (!(await eventWithCreators(db, existing, context)).canManage) throw new DataCoreAccessError(403, '본인이 쓴 일정만 지울 수 있습니다. 캠퍼스 관리자는 자기 캠퍼스 사람들의 일정을 지울 수 있습니다.');
   return deleteDataRecord(db, context, recordId);
+}
+
+// 꿈이음 학부모 일정: 자녀 캠퍼스의 휴일·공휴일 수업, 그리고 교직원이 "학부모에게도 보이기"를 고른 일정만.
+// 회의·마케팅 같은 내부 일정과 개인 일정은 보호자에게 보이지 않는다. 보호자 화면이 쓰는 최소 정보만 돌려준다.
+export async function listFamilyCalendar(db: D1Database, campusIds: string[], monthValue: unknown) {
+  await ensureDataCoreDatabase(db);
+  const month = /^\d{4}-\d{2}$/.test(String(monthValue || "")) ? String(monthValue) : new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 7);
+  const from = parseDate(`${month}-01`, "month");
+  const last = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
+  const ids = [...new Set(campusIds)].slice(0, 20);
+  const json = "CASE WHEN json_valid(dr.metadata_json) THEN dr.metadata_json ELSE '{}' END";
+  const start = `json_extract(${json}, '$.startDate')`;
+  const end = `COALESCE(NULLIF(json_extract(${json}, '$.endDate'), ''), ${start})`;
+  const type = `COALESCE(json_extract(${json}, '$.eventType'),'other')`;
+  const shown = `(${type}='holiday' OR json_extract(${json}, '$.familyVisible')=1 OR json_extract(${json}, '$.holidayOverride')=1)`;
+  const inCampus = ids.length ? `dr.campus_id IN (${ids.map(() => "?").join(",")})` : "0";
+  const rows = (await db.prepare(`SELECT dr.title, dr.campus_id, dr.metadata_json, c.name AS campus_name FROM data_records dr LEFT JOIN campuses c ON c.id = dr.campus_id
+    WHERE dr.organization_id=? AND dr.record_type=? AND dr.source_app=? AND dr.deleted_at IS NULL AND dr.visibility <> 'private'
+      AND length(${start})=10 AND ${start}<=? AND ${end}>=?
+      AND ${shown} AND ((dr.campus_id IS NULL AND dr.visibility IN ('organization','public')) OR ${inCampus})
+    ORDER BY ${start}, dr.title LIMIT 200`).bind(DEFAULT_ORGANIZATION_ID, CALENDAR_RECORD_TYPE, CALENDAR_SOURCE_APP, last, from, ...ids).all<Record<string, unknown>>()).results || [];
+  const events = rows.flatMap((row) => {
+    let m: CalendarMetadata;
+    try { m = calendarMetadata(JSON.parse(String(row.metadata_json || "{}"))); } catch { return []; }
+    return [{
+      title: String(row.title || ""), startDate: m.startDate, endDate: m.endDate || m.startDate,
+      startTime: m.startTime || "", endTime: m.endTime || "", location: m.location || "",
+      kind: m.holidayOverride ? "class-day" : m.eventType === "holiday" ? "holiday" : "event",
+      campusName: row.campus_id ? String(row.campus_name || "") : "",
+    }];
+  });
+  return { month, events };
 }

@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'kkumeum-family-shell-';
-const CACHE_NAME = `${CACHE_PREFIX}v9`;
+const CACHE_NAME = `${CACHE_PREFIX}v10`;
 const STATIC_SHELL = [
   '/family/',
   '/family/index.html',
@@ -19,6 +19,8 @@ const STATIC_SHELL = [
   '/family/family-news.js',
   '/family/family-talk.js',
   '/family/family-talk.css',
+  '/family/family-forms.js',
+  '/family/family-forms.css',
   '/family/manifest.webmanifest',
   '/family/icon.svg',
   '/family/icon-192.png',
@@ -97,6 +99,29 @@ self.addEventListener('push', (event) => {
     event.waitUntil(self.registration.showNotification(String(payload.title || '꿈이음 · 답장').slice(0, 60), {
       body: String(payload.body || '학원에서 답장이 왔습니다.').slice(0, 160),
       tag: `kkumeum-talk-${route.slice(-40) || 'latest'}`,
+      renotify: true,
+      icon: '/family/icon-192.png',
+      data: { route: route.startsWith('/family/') ? route : '/family/' },
+    }));
+    return;
+  }
+  // 신청/동의서: 제목과 마감일을 보여 주고, 누르면 그 양식이 열린다.
+  // 수납 안내 (납부일 알림): 항목·금액·납부일을 보여 주고, 누르면 수납 안내가 열린다.
+  if (payload?.kind === 'bill') {
+    event.waitUntil(self.registration.showNotification(String(payload.title || '꿈이음 · 납부 안내').slice(0, 60), {
+      body: String(payload.body || '학원에서 납부 안내를 보냈습니다.').slice(0, 160),
+      tag: 'kkumeum-bill',
+      renotify: true,
+      icon: '/family/icon-192.png',
+      data: { route: '/family/?openBills=1' },
+    }));
+    return;
+  }
+  if (payload?.kind === 'form') {
+    const route = String(payload.route || '');
+    event.waitUntil(self.registration.showNotification(String(payload.title || '꿈이음 · 신청/동의서').slice(0, 60), {
+      body: String(payload.body || '학원에서 신청/동의서를 보냈습니다.').slice(0, 160),
+      tag: `kkumeum-form-${route.slice(-40) || 'latest'}`,
       renotify: true,
       icon: '/family/icon-192.png',
       data: { route: route.startsWith('/family/') ? route : '/family/' },

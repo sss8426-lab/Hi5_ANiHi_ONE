@@ -78,7 +78,7 @@
       $('kmSearch').oninput=e=>{state.q=e.target.value;draw();};draw();return;
     }
     const selective=tab==='select-delivery';
-    content.innerHTML=`${selective?`<div class="km-actions"><output id="kmSelected">선택 ${state.selected.size}명</output>${writer()?`<button id="kmScheduleSelected" type="button" data-schedule>${icon('CalendarDays')}일정등록</button><button id="kmWriteSelected" type="button" data-write-selected>${icon('PenLine')}글쓰기</button>`:''}</div>`:search()}<div id="kmGroups"></div>${tab==='kids-news'?`<button type="button" class="km-sort" id="kmSort" title="정렬 기준 변경">${state.sort==='name'?'이름순':'최신순'}</button>`:''}`;
+    content.innerHTML=`${selective?`<div class="km-actions"><output id="kmSelected">선택 ${state.selected.size}명</output>${writer()?`<button id="kmScheduleSelected" type="button" data-schedule>${icon('CalendarDays')}일정등록</button><button id="kmWriteSelected" type="button" data-write-selected>${icon('PenLine')}글쓰기</button><button type="button" data-bulk>${icon('PenLine')}개인별 전송</button>`:''}</div>`:search()}<div id="kmGroups"></div>${tab==='kids-news'?`<button type="button" class="km-sort" id="kmSort" title="정렬 기준 변경">${state.sort==='name'?'이름순':'최신순'}</button>`:''}`;
     if(selective&&!writer()){content.innerHTML=empty('선택전달 작성 권한이 없습니다.');return;}
     if($('kmSearch'))$('kmSearch').oninput=e=>{state.q=e.target.value;renderGroups();};
     if($('kmSort'))$('kmSort').onclick=()=>{state.sort=state.sort==='name'?'latest':'name';$('kmSort').textContent=state.sort==='name'?'이름순':'최신순';renderGroups();};
@@ -141,12 +141,12 @@
   async function calendar() {
     content.innerHTML='<button type="button" class="km-back" data-back>소식으로 돌아가기</button><h2>일정관리</h2><div id="kmCalendarList">불러오는 중...</div>';
     const now=new Date();const from=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;const to=`${now.getFullYear()+1}-12-31`;
-    try{const result=await api(`/api/data-core/calendar?from=${from}&to=${to}`);if(!$('kmCalendarList'))return;$('kmCalendarList').innerHTML=(result.events||[]).map(e=>`<article class="km-group"><h3>${h(e.title)}</h3><p class="km-meta">${h(e.metadata?.startDate)} · ${h(e.campusName||'공통 일정')}</p></article>`).join('')||empty('등록된 일정이 없습니다.');}
+    try{const result=await api(`/api/data-core/calendar?from=${from}&to=${to}`);if(!$('kmCalendarList'))return;$('kmCalendarList').innerHTML=(result.events||[]).map(e=>`<article class="km-group"><h3>${h(e.title)}</h3><p class="km-meta">${h(e.metadata?.startDate)} · ${h(e.campusName||'공통 일정')}${e.metadata?.familyVisible||e.metadata?.eventType==='holiday'?' · 학부모에게 보임':''}</p></article>`).join('')||empty('등록된 일정이 없습니다.');}
     catch{if($('kmCalendarList'))$('kmCalendarList').innerHTML=empty('일정을 불러오지 못했습니다.');}
     if(writer()&&route().view==='calendar')content.insertAdjacentHTML('beforeend','<button type="button" class="km-primary" id="kmCalendarAdd">캠퍼스 공통 일정등록</button>');
     if($('kmCalendarAdd'))$('kmCalendarAdd').onclick=()=>{
-      content.innerHTML='<button type="button" data-back class="km-back">목록</button><form class="km-form" id="kmCalendarForm"><h2>캠퍼스 공통 일정</h2><p class="km-meta">학생·보호자 이름이나 개인 정보는 입력하지 마세요.</p><label>일정명<input name="title" maxlength="240" required></label><label>날짜<input name="date" type="date" required></label><button type="submit" class="km-primary">일정 저장</button><p id="kmFeedback" role="status"></p></form>';
-      $('kmCalendarForm').onsubmit=async e=>{e.preventDefault();if(state.busy)return;state.busy=true;const f=e.currentTarget;f.querySelector('[type=submit]').disabled=true;const d=new FormData(f);try{await api('/api/data-core/calendar',json('POST',{title:d.get('title'),campusId:state.campusId,visibility:'campus',metadata:{schemaVersion:1,startDate:d.get('date'),allDay:true,eventType:'class'}}));await calendar();}catch{feedback('일정을 저장하지 못했습니다.');}finally{state.busy=false;f.querySelector('[type=submit]').disabled=false;}};
+      content.innerHTML='<button type="button" data-back class="km-back">목록</button><form class="km-form" id="kmCalendarForm"><h2>캠퍼스 공통 일정</h2><p class="km-meta">학생·보호자 이름이나 개인 정보는 입력하지 마세요.</p><label>일정명<input name="title" maxlength="240" required></label><label>날짜<input name="date" type="date" required></label><label class="km-check-row"><input name="familyVisible" type="checkbox"> 학부모에게도 보이기 (꿈이음 앱 학원 일정)</label><button type="submit" class="km-primary">일정 저장</button><p id="kmFeedback" role="status"></p></form>';
+      $('kmCalendarForm').onsubmit=async e=>{e.preventDefault();if(state.busy)return;state.busy=true;const f=e.currentTarget;f.querySelector('[type=submit]').disabled=true;const d=new FormData(f);try{await api('/api/data-core/calendar',json('POST',{title:d.get('title'),campusId:state.campusId,visibility:'campus',metadata:{schemaVersion:1,startDate:d.get('date'),allDay:true,eventType:'class',familyVisible:d.get('familyVisible')==='on'}}));await calendar();}catch{feedback('일정을 저장하지 못했습니다.');}finally{state.busy=false;f.querySelector('[type=submit]').disabled=false;}};
     };
   }
   function auxiliary(view) {
@@ -169,6 +169,10 @@
     if(view==='attendance-settings'){if(!manager()){content.innerHTML=empty('출결 설정은 원장·관리자만 할 수 있습니다.');return;}window.KkumeumAttendanceAdmin?.open({state,route});return;}
     // 답변모음 · 문의모음 · 대화 · 문의 운영시간 (kkumeum-talk.js); the server limits teachers to their class students.
     if(['answers','inquiries','thread','talk-settings'].includes(view)){window.KkumeumTalk?.open({state,route,go});return;}
+    // 신청/동의서: 만들기 · 제출 현황 (kkumeum-forms.js).
+    if(['consents','form','form-new'].includes(view)){window.KkumeumForms?.open({state,route,go});return;}
+    // 수납관리 (원장·관리자) · 개인별 일괄 전송 (kkumeum-payments.js).
+    if(['payments','bulk'].includes(view)){if(view==='payments'?!manager():!writer()){content.innerHTML=empty(view==='payments'?'수납관리는 원장·관리자만 할 수 있습니다.':'개인별 전송은 원장·관리자와 담당 선생님만 할 수 있습니다.');return;}window.KkumeumPayments?.open({state,route,go});return;}
     if(view==='notice'){void detail(id);return;}
     if(view==='calendar'){void calendar();return;}
     // 출석부 → 꿈이음 반영 (roster-sync.js): 다른 곳을 학생마다 체크해서 적용.
@@ -191,7 +195,7 @@
     try{const [classes,students]=await Promise.all([api(`/api/kkumeum/classes?${q}`),api(`/api/kkumeum/students?${q}`)]);state.classes=classes.classes||[];state.students=students.students||[];}catch{/* 다음 새로고침 때 다시 불러온다 */}
   }
   function openMore() {
-    const menus=[['attendance-settings','ShieldCheck','출결 설정 · 출결기',manager()],['talk-settings','PenLine','문의 운영시간 · 자주 쓰는 글',writer()],['settings','Settings','설정',manager()],['help','BookOpen','도움말',true],['suggest','PenLine','비트에게 건의/문의',true],['consents','ShieldCheck','신청/동의서',true],['payments','BookOpen','수납관리',manager()],['members','Users','회원등록',manager()],['members','Folder','반관리',manager()],['teachers','Users','선생님 관리',manager()],['calendar','CalendarDays','일정관리',writer()]];
+    const menus=[['attendance-settings','ShieldCheck','출결 설정 · 출결기',manager()],['talk-settings','PenLine','문의 운영시간 · 자주 쓰는 글',writer()],['settings','Settings','설정',manager()],['help','BookOpen','도움말',true],['suggest','PenLine','비트에게 건의/문의',true],['consents','ShieldCheck','신청/동의서',true],['payments','BookOpen','수납관리',manager()],['members','Users','회원등록',manager()],['members','Folder','반관리',manager()],['teachers','Users','선생님 관리',manager()],['calendar','CalendarDays','일정관리',writer()],['bulk','PenLine','개인별 일괄 전송',writer()]];
     $('kmMoreItems').innerHTML=menus.filter(m=>m[3]).map(([view,img,title])=>`<button type="button" data-view="${view}">${icon(img)}<span>${title}</span></button>`).join('');
     $('kmMore').showModal();document.querySelector('[data-menu=more]')?.setAttribute('aria-expanded','true');
   }
@@ -234,6 +238,7 @@
     if(b.dataset.student){go('kids-news','student',b.dataset.student);return;}
     if(b.dataset.classWrite){compose('class-news',[{targetType:'class',targetId:b.dataset.classWrite}]);return;}
     if(b.dataset.childWrite){compose('child-message',[{targetType:'student',targetId:b.dataset.childWrite}]);return;}
+    if(b.hasAttribute('data-bulk')){go(route().tab,'bulk');return;}
     if(b.hasAttribute('data-write-notice')){compose('campus-news',[{targetType:'campus',targetId:state.campusId}]);return;}
     if(b.hasAttribute('data-write-selected')||b.hasAttribute('data-schedule')){if(!state.selected.size)return;compose('selected-delivery',[...state.selected].map(id=>({targetType:'student',targetId:id})),null,b.hasAttribute('data-schedule'));}
   });
