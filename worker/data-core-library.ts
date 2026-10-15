@@ -410,6 +410,9 @@ async function moveFile(tree: LibraryTree, id: string, input: Record<string,unkn
 
 // Files and photos in each folder — with deep, over every depth below it too. Grouped metadata only (one query);
 // each group passes the same ancestry, deleted-folder and read rules as the listing before it is counted.
+const TOTALS_MS = 60_000;
+const totalsCache = new WeakMap<D1Database, Map<string, { at: number; rows: Record<string, unknown>[] }>>();
+export function forgetLibraryTotals(db?: D1Database) { if (db) totalsCache.delete(db); }
 async function folderTotals(tree:LibraryTree, folders:LibraryFolder[], deep = true) {
   const totals = new Map<string,{files:number; images:number}>();
   if (!folders.length) return totals;
@@ -418,7 +421,13 @@ async function folderTotals(tree:LibraryTree, folders:LibraryFolder[], deep = tr
   const campusScope = [campuses.length ? `fo.campus_id IN (${campuses.map(() => '?').join(',')})` : '', shared ? 'fo.campus_id IS NULL' : ''].filter(Boolean).join(' OR ');
   const linked = "dr.record_type IN ('library-folder','hq-library-folder')";
   const effective = `CASE WHEN ${linked} THEN fo.data_record_id END`;
-  const rows = (await tree.db.prepare(`SELECT ${effective} AS data_record_id, fo.data_record_id AS owner_record_id, fo.campus_id, fo.category, fo.source_app,
+  // The grouped counts (≈15,000 file rows read) are the same for everyone; who may see each group is
+  // checked below per person. Kept 60 seconds per worker and cleared by any 자료보관함 change here.
+  const cacheKey = `${campuses.join(',')}|${shared}`;
+  let byDb = totalsCache.get(tree.db);
+  if (!byDb) { byDb = new Map(); totalsCache.set(tree.db, byDb); }
+  const cachedRows = byDb.get(cacheKey);
+  const rows = cachedRows && Date.now() - cachedRows.at < TOTALS_MS ? cachedRows.rows : (await tree.db.prepare(`SELECT ${effective} AS data_record_id, fo.data_record_id AS owner_record_id, fo.campus_id, fo.category, fo.source_app,
     fo.visibility, fo.area, fo.owner_user_id, fo.organization_id, COUNT(*) AS n, SUM(CASE WHEN fo.mime_type LIKE 'image/%' THEN 1 ELSE 0 END) AS images
     FROM file_objects fo LEFT JOIN data_records dr ON dr.id = fo.data_record_id
     WHERE fo.organization_id = ? AND fo.deleted_at IS NULL AND (${campusScope}) AND fo.category IN (${LIBRARY_CATEGORIES.map(() => '?').join(',')})
@@ -427,6 +436,7 @@ async function folderTotals(tree:LibraryTree, folders:LibraryFolder[], deep = tr
     AND COALESCE(dr.source_app,'') NOT LIKE '%family%' AND COALESCE(dr.source_app,'') NOT LIKE '%kkumeum%'
     GROUP BY ${effective}, fo.data_record_id, fo.campus_id, fo.category, fo.source_app, fo.visibility, fo.area, fo.owner_user_id`)
     .bind(ORG, ...campuses, ...LIBRARY_CATEGORIES.map(c => c[0])).all<Record<string,unknown>>()).results || [];
+  if (!cachedRows || cachedRows.rows !== rows) byDb.set(cacheKey, { at: Date.now(), rows });
   await tree.prefetch(rows.map(row => String(row.owner_record_id || '')).filter(Boolean));
   for (const row of rows) {
     try {

@@ -76,16 +76,22 @@ async function listReports(db: D1Database, context: DataCoreAccessContext, url: 
   const month = url.searchParams.get('month') || '';
   if (!MONTH.test(month)) fail(400, '월을 확인하세요.');
   const campusId = url.searchParams.get('campusId') || '';
-  const rows = (await db.prepare(`SELECT r.*, (SELECT COUNT(*) FROM staff_report_reads x WHERE x.report_id=r.id AND x.user_id<>r.author_user_id) AS read_count,
+  // One D1 round trip for the list, campus names and the two counts (was four in a row).
+  const [listed, campusRows, staffRow, submittedRow] = await db.batch([
+    db.prepare(`SELECT r.*, (SELECT COUNT(*) FROM staff_report_reads x WHERE x.report_id=r.id AND x.user_id<>r.author_user_id) AS read_count,
       (SELECT COUNT(*) FROM staff_report_reactions x WHERE x.report_id=r.id) AS reaction_count,
       (SELECT COUNT(*) FROM staff_report_reactions x WHERE x.report_id=r.id AND x.user_id=?) AS reacted,
       (SELECT COUNT(*) FROM staff_report_comments x WHERE x.report_id=r.id AND x.deleted_at IS NULL) AS comment_count,
       (SELECT COUNT(*) FROM staff_report_reads x WHERE x.report_id=r.id AND x.user_id=?) AS read_by_me
     FROM staff_reports r WHERE r.organization_id=? AND r.report_month=? AND r.deleted_at IS NULL AND (?='' OR r.campus_id=?) ORDER BY r.created_at DESC LIMIT 200`)
-    .bind(context.user!.internalUserId, context.user!.internalUserId, ORG, month, campusId, campusId).all<any>()).results || [];
-  const names = await campusNames(db);
-  const staff = await db.prepare(`SELECT COUNT(DISTINCT m.user_id) AS n FROM memberships m JOIN users u ON u.id=m.user_id WHERE m.organization_id=? AND u.status='active'`).bind(ORG).first<{ n: number }>();
-  const submitted = await db.prepare(`SELECT COUNT(DISTINCT author_user_id) AS n FROM staff_reports WHERE organization_id=? AND report_month=? AND deleted_at IS NULL`).bind(ORG, month).first<{ n: number }>();
+      .bind(context.user!.internalUserId, context.user!.internalUserId, ORG, month, campusId, campusId),
+    db.prepare('SELECT id, name FROM campuses WHERE organization_id=?').bind(ORG),
+    db.prepare(`SELECT COUNT(DISTINCT m.user_id) AS n FROM memberships m JOIN users u ON u.id=m.user_id WHERE m.organization_id=? AND u.status='active'`).bind(ORG),
+    db.prepare(`SELECT COUNT(DISTINCT author_user_id) AS n FROM staff_reports WHERE organization_id=? AND report_month=? AND deleted_at IS NULL`).bind(ORG, month),
+  ]);
+  const rows = (listed.results || []) as any[];
+  const names = new Map(((campusRows.results || []) as { id: string; name: string }[]).map(r => [r.id, campusDisplayName(r.id, r.name) || r.name]));
+  const staff = (staffRow.results || [])[0] as { n: number } | undefined, submitted = (submittedRow.results || [])[0] as { n: number } | undefined;
   return {
     month, deadline: reportDeadline(month), submittedCount: submitted?.n || 0, staffCount: staff?.n || 0,
     reports: rows.map(row => presentReport(row, context, names)),
@@ -253,19 +259,26 @@ async function listFixedTasks(db: D1Database, context: DataCoreAccessContext, ur
   const month = url.searchParams.get('month') || '';
   if (!MONTH.test(month)) fail(400, '월을 확인하세요.');
   const [y, m] = month.split('-').map(Number);
-  const rows = (await db.prepare('SELECT * FROM calendar_fixed_tasks WHERE organization_id=? AND deleted_at IS NULL ORDER BY created_at').bind(ORG).all<any>()).results || [];
-  const names = await campusNames(db);
+  // One D1 round trip: tasks, campus names and the 업무보고 counts (were up to four in a row).
+  const reportMonth = shiftMonth(month, -1);
+  const [taskRows, campusRows, submittedRow, staffRow] = await db.batch([
+    db.prepare('SELECT * FROM calendar_fixed_tasks WHERE organization_id=? AND deleted_at IS NULL ORDER BY created_at').bind(ORG),
+    db.prepare('SELECT id, name FROM campuses WHERE organization_id=?').bind(ORG),
+    db.prepare('SELECT COUNT(DISTINCT author_user_id) AS n FROM staff_reports WHERE organization_id=? AND report_month=? AND deleted_at IS NULL').bind(ORG, reportMonth),
+    db.prepare(`SELECT COUNT(DISTINCT m.user_id) AS n FROM memberships m JOIN users u ON u.id=m.user_id WHERE m.organization_id=? AND u.status='active'`).bind(ORG),
+  ]);
+  const rows = (taskRows.results || []) as any[];
+  const names = new Map(((campusRows.results || []) as { id: string; name: string }[]).map(r => [r.id, campusDisplayName(r.id, r.name) || r.name]));
   const tasks = [];
   for (const row of rows.filter(r => visibleTask(context, r.campus_id))) {
     const task: any = { id: row.id, title: row.title, campusId: row.campus_id, campusName: row.campus_id ? names.get(row.campus_id) || '' : '전체 캠퍼스', rule: row.rule, ruleValue: row.rule_value, kind: row.kind || null,
       dates: ruleDates(row.rule, row.rule_value, y, m), canManage: canManageTask(context, row.campus_id) };
     if (row.kind === 'monthly-report') {
       // The deadline shown in this month is for the previous month's 업무보고.
-      task.reportMonth = shiftMonth(month, -1);
+      task.reportMonth = reportMonth;
       task.title = `${Number(task.reportMonth.slice(5))}월 ${row.title}`;
-      const submitted = await db.prepare('SELECT COUNT(DISTINCT author_user_id) AS n FROM staff_reports WHERE organization_id=? AND report_month=? AND deleted_at IS NULL').bind(ORG, task.reportMonth).first<{ n: number }>();
-      const staff = await db.prepare(`SELECT COUNT(DISTINCT m.user_id) AS n FROM memberships m JOIN users u ON u.id=m.user_id WHERE m.organization_id=? AND u.status='active'`).bind(ORG).first<{ n: number }>();
-      task.submittedCount = submitted?.n || 0; task.staffCount = staff?.n || 0;
+      task.submittedCount = Number(((submittedRow.results || [])[0] as { n: number } | undefined)?.n || 0);
+      task.staffCount = Number(((staffRow.results || [])[0] as { n: number } | undefined)?.n || 0);
     }
     tasks.push(task);
   }
