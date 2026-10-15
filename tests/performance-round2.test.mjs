@@ -49,3 +49,22 @@ test('화면: 큰 데이터는 다시 확인(no-cache), 블로그 소식은 목�
   const nav = fs.readFileSync('public/data-core/work-navigation.js', 'utf8'), mobile = fs.readFileSync('public/data-core/mobile-app.js', 'utf8');
   assert.match(nav, /window\.__coreSignupRequests\|\|=/); assert.match(mobile, /window\.__coreSignupRequests \|\|=/);
 });
+
+test('같은 요청 나눠 쓰기: 동시에·1.5초 안의 같은 GET은 한 번만, 저장 요청이 오면 바로 새로', async () => {
+  const vm = await import('node:vm');
+  const calls = [];
+  const window = { fetch: async (input, init = {}) => { calls.push(`${init.method || 'GET'} ${input}`); return new Response(JSON.stringify({ n: calls.length }), { headers: { 'content-type': 'application/json' } }); } };
+  const context = { window, location: { href: 'https://core.test/data-core/kkumeum', origin: 'https://core.test' }, URL, Request, Response, Date, JSON, Map, String };
+  vm.runInNewContext(fs.readFileSync('public/data-core/fetch-share.js', 'utf8'), context);
+  const [a, b, c] = await Promise.all([window.fetch('/api/data-core/context'), window.fetch('/api/data-core/context'), window.fetch('/api/data-core/context')]);
+  assert.deepEqual([await a.json(), await b.json(), await c.json()], [{ n: 1 }, { n: 1 }, { n: 1 }], '세 곳이 한 답을 나눠 읽는다');
+  assert.equal((await (await window.fetch('/api/data-core/context')).json()).n, 1, '1.5초 안에는 다시 묻지 않는다');
+  await window.fetch('/api/kkumeum/classes', { method: 'POST', body: '{}' });
+  assert.equal((await (await window.fetch('/api/data-core/context')).json()).n, 3, '저장한 뒤에는 서버에 다시 묻는다');
+  await window.fetch('/data-core/app.js'); await window.fetch('/data-core/app.js');
+  assert.equal(calls.filter(c => c.endsWith('app.js')).length, 2, 'API가 아닌 파일은 손대지 않는다');
+  for (const page of ['work/kkumeum.html', 'index.html', 'content.html', 'reports.html']) {
+    const html = fs.readFileSync(`public/data-core/${page}`, 'utf8');
+    assert.ok(html.indexOf('fetch-share.js') > 0 && html.indexOf('fetch-share.js') < html.indexOf('<script', html.indexOf('fetch-share.js') + 20) + 1, page);
+  }
+});
