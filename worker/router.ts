@@ -57,6 +57,8 @@ import {
   createStandaloneAccount,
   listStandaloneAccounts,
   loginStandalone,
+  renewRememberedSession,
+  sessionCookie,
   logoutStandalone,
   updateStandaloneAccount,
   recordStandaloneActivity,
@@ -173,18 +175,26 @@ async function handleStandaloneAuthApi(request: Request, env: Env) {
     throw new DataCoreAccessError(403, "첫 로그인 비밀번호를 먼저 변경하세요.");
   }
   if (url.pathname === "/api/auth/login" && request.method === "POST") {
-    const result = await loginStandalone(env.DB, request, await readJson<{ loginId?: unknown; password?: unknown }>(request));
+    const result = await loginStandalone(env.DB, request, await readJson<{ loginId?: unknown; password?: unknown; remember?: unknown }>(request));
     return jsonResponse(
       { authenticated: true, mustChangePassword: result.mustChangePassword, expiresAt: result.session.expiresAt },
-      { headers: { "set-cookie": `${AUTH_COOKIE_NAME}=${result.session.rawToken}; Max-Age=28800; Path=/; Secure; HttpOnly; SameSite=Lax` } },
+      { headers: { "set-cookie": sessionCookie(result.session.rawToken, result.session.maxAge) } },
     );
   }
   if (url.pathname === "/api/auth/logout" && request.method === "POST") {
     const result = await logoutStandalone(env.DB, request);
     return jsonResponse({ ok: true }, { headers: result.headers });
   }
-  if (url.pathname === "/api/auth/session" && request.method === "GET") return jsonResponse(context);
-  if (url.pathname === '/api/auth/activity' && request.method === 'POST') return jsonResponse(await recordStandaloneActivity(env.DB, request, context));
+  // 로그인 상태 유지: 화면을 열거나 쓰는 동안 하루에 한 번 30일로 다시 늘린다.
+  if (url.pathname === "/api/auth/session" && request.method === "GET") {
+    const renewed = context.authenticated ? await renewRememberedSession(env.DB, request) : null;
+    return jsonResponse(context, renewed ? { headers: { "set-cookie": renewed } } : undefined);
+  }
+  if (url.pathname === '/api/auth/activity' && request.method === 'POST') {
+    const result = await recordStandaloneActivity(env.DB, request, context);
+    const renewed = await renewRememberedSession(env.DB, request);
+    return jsonResponse(result, renewed ? { headers: { "set-cookie": renewed } } : undefined);
+  }
   if (url.pathname === '/api/auth/campuses' && request.method === 'GET') return jsonResponse(await campusPresence(env.DB, context));
   if (url.pathname === "/api/auth/password" && request.method === "PUT") {
     const result = await changeStandalonePassword(env.DB, request, context, await readJson(request));
