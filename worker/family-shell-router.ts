@@ -11,6 +11,7 @@ import { syncCampusBlogs } from "./blog-publications";
 import { forgetSessionAccess } from "./data-core-auth";
 import { forgetLibraryTotals } from "./data-core-library";
 import { timedDb, withDbTiming } from "./db-timing";
+import { setSchemaBuild } from "./schema-once";
 
 const BILL_REMINDER_CRON = "0 1 * * *";
 
@@ -19,6 +20,7 @@ interface Env {
   DB?: D1Database;
   FILES?: R2Bucket;
   FAMILY_DB?: D1Database;
+  CF_VERSION_METADATA?: { id?: string };
   FAMILY_FILES?: R2Bucket;
   DATA_CORE_SUPER_ADMIN_EMAILS?: string;
   MARKETING_INGEST_TOKEN?: string;
@@ -61,6 +63,7 @@ function androidAssetLinks(request: Request, env: Env): Response | null {
 
 const worker = {
   async fetch(request: Request, env: Env): Promise<Response> {
+    setSchemaBuild(env.CF_VERSION_METADATA?.id); // schema steps run once per deployment (worker/schema-once.ts)
     // 속도 측정: D1 calls are counted per request and reported in Server-Timing (worker/db-timing.ts).
     if (env.DB || env.FAMILY_DB) env = { ...env, DB: timedDb(env.DB), FAMILY_DB: timedDb(env.FAMILY_DB) };
     const response = await withDbTiming(request, () => worker.route(request, env));
@@ -101,6 +104,7 @@ const worker = {
   // - "0 1 * * *" (오전 10시 KST): 꿈이음 수납 자동 알림 (낮에 보내려고 따로 돈다).
   // - otherwise (18:00 UTC): keep 대한민국 공휴일 in the CORE calendar (출석부 "휴" uses them).
   async scheduled(controller: { cron?: string } | undefined, env: Env, ctx: { waitUntil(promise: Promise<unknown>): void }): Promise<void> {
+    setSchemaBuild(env.CF_VERSION_METADATA?.id);
     if (controller?.cron === BILL_REMINDER_CRON) {
       if (!env.FAMILY_DB) return;
       ctx.waitUntil(runAutoBillReminders(env.FAMILY_DB, env).then(result => console.log("bill reminders", JSON.stringify(result))));

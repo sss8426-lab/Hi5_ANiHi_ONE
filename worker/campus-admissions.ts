@@ -1,5 +1,6 @@
 import { DataCoreAccessError, requireAuthenticatedAccess, requireCampusAccess, type DataCoreAccessContext } from './data-core-access';
 import { CAMPUS_DIRECTORY, canonicalCampusId } from './campus-directory';
+import { schemaOnce } from './schema-once';
 
 type Document = Record<string, unknown>;
 type Scope = { id: string | null; revision: number | null; master: boolean; nextIdBase: number };
@@ -7,14 +8,12 @@ type ScopedDocument = Document & { _campus: Scope };
 function records(doc: Document, key: string): Document[] { return Array.isArray(doc[key]) ? doc[key] as Document[] : []; }
 const collections = ['students', 'cases', 'awardFolders', 'changeLogs'] as const;
 const shared = ['universities', 'admissionGradeRules', 'settings'] as const;
-const schemaReady = new WeakMap<D1Database, Promise<void>>();
 export async function ensureCampusAdmissions(db: D1Database) {
-  if (!schemaReady.has(db)) schemaReady.set(db, db.prepare(`CREATE TABLE IF NOT EXISTS campus_admissions_state (
+  return schemaOnce(db, 'campus-admissions', () => db.prepare(`CREATE TABLE IF NOT EXISTS campus_admissions_state (
     campus_id TEXT PRIMARY KEY NOT NULL REFERENCES campuses(id), payload_json TEXT NOT NULL,
     revision INTEGER NOT NULL DEFAULT 0, created_by TEXT NOT NULL REFERENCES users(id),
     updated_by TEXT NOT NULL REFERENCES users(id), created_at TEXT NOT NULL, updated_at TEXT NOT NULL
-  )`).run().then(() => {}).catch(e => { schemaReady.delete(db); throw e; }));
-  return schemaReady.get(db)!;
+  )`).run().then(() => {}));
 }
 function same(a: unknown, b: unknown): boolean {
   if (a === b) return true;

@@ -1,6 +1,7 @@
 import { DEFAULT_ORGANIZATION_ID as ORG } from './data-core';
 import { DATA_CORE_ROLES, DataCoreAccessError, requireAuthenticatedAccess, requireWriteAccess, type DataCoreAccessContext } from './data-core-access';
 import { jsonWithEtag } from './http-etag';
+import { schemaOnce } from './schema-once';
 
 // 학생 관리 (대학 합격 로드맵): every academy teacher sees and edits the same student list, one row per student.
 // Students used to live inside the whole-document admissions state (legacy R2 doc + campus overlays). They are
@@ -23,14 +24,12 @@ export function requireStudentMember(context: DataCoreAccessContext) {
   if (!studentMember(context)) throw new DataCoreAccessError(403, '학원 선생님 계정만 학생 관리를 볼 수 있습니다.');
 }
 
-const ready = new WeakMap<D1Database, Promise<void>>();
 export function ensureAdmissionStudents(db: D1Database) {
-  if (!ready.has(db)) ready.set(db, db.batch([
+  return schemaOnce(db, 'admission-students', () => db.batch([
     db.prepare(`CREATE TABLE IF NOT EXISTS admission_students (id INTEGER PRIMARY KEY, payload_json TEXT NOT NULL, campus_id TEXT,
       revision INTEGER NOT NULL DEFAULT 1, created_by TEXT, updated_by TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT)`),
     db.prepare(`CREATE TABLE IF NOT EXISTS admission_students_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`),
-  ]).then(() => {}).catch(error => { ready.delete(db); throw error; }));
-  return ready.get(db)!;
+  ]).then(() => {}));
 }
 
 // One-time copy of the students the old whole-document state held (legacy + campus overlays). Idempotent.

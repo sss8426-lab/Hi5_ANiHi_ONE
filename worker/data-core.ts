@@ -1,3 +1,4 @@
+import { schemaOnce } from './schema-once';
 export const DEFAULT_ORGANIZATION_ID = "org-hi5-anihi";
 export const DEFAULT_ORGANIZATION_SLUG = "hi5-anihi";
 export const DEFAULT_ORGANIZATION_NAME = "HI5·ANiHi";
@@ -27,7 +28,6 @@ export interface FileObjectInput {
   createdAt: string;
 }
 
-const schemaReady = new WeakMap<D1Database, Promise<void>>();
 
 export function fileAreaForPurpose(purpose: string): DataCoreFileArea {
   if (purpose === "student-artwork") return "student-private";
@@ -40,14 +40,7 @@ export function visibilityForArea(area: DataCoreFileArea): FileObjectInput["visi
 }
 
 export async function ensureDataCoreDatabase(db: D1Database): Promise<void> {
-  if (!schemaReady.has(db)) {
-    const ready = initializeSchema(db).catch((error) => {
-      schemaReady.delete(db);
-      throw error;
-    });
-    schemaReady.set(db, ready);
-  }
-  return schemaReady.get(db)!;
+  return schemaOnce(db, 'data-core-schema', () => initializeSchema(db));
 }
 
 async function ensureFileObjectSourceAppColumn(db: D1Database) {
