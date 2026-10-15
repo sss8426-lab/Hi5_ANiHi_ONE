@@ -9,6 +9,7 @@ import {ensureDataCoreMigrations} from './data-core-migrations';
 import {PHOTO_SAFETY_LIMIT} from './content-ai-images';
 import {instagramPreserveReason} from '../public/data-core/instagram-source-policy.js';
 import {inspectPost} from '../public/data-core/blog-post-model.js';
+import {recordBlogPublication} from './blog-publications';
 
 const fail = (message:string, status=400):never => { throw new DataCoreAccessError(status,message); };
 const object = (v:any) => v && typeof v==='object' && !Array.isArray(v);
@@ -155,5 +156,7 @@ export async function saveBlogPost(db:D1Database,bucket:R2Bucket,context:DataCor
     if(retry.metadata?.blogSaveRequest===input.requestId&&retry.metadata?.blogSaveHash===fingerprint)return retry;
     fail('동시에 수정된 게시물입니다. 다시 열어 비교하세요.',409);
   }
+  // 블로그 발행 소식: 실제 게시 주소가 있는 글은 모든 캠퍼스가 보는 발행 기록에 남긴다.
+  if(status==='published')await recordBlogPublication(db,id);
   return getContentDraft(db,context,id);
 }

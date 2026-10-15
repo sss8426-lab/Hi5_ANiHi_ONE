@@ -208,6 +208,7 @@ function setSourceApp(sourceApp) {
     link.classList.toggle('active', link.dataset.contentNav === state.sourceApp);
   });
   const pageTitle = state.sourceApp === 'instagram' ? '인스타 자동화' : '블로그 자동화';
+  window.BlogPublishFeed?.show(state.sourceApp === 'blog');
   $('contentPageTitle').textContent = pageTitle;
   document.title = `${pageTitle} · HI5·ANiHi DATA CORE`;
   $('contentLabel').textContent = state.sourceApp === 'instagram' ? '캡션' : '본문';
@@ -416,7 +417,7 @@ function draftPayload() {
 async function saveDraft(event) {
   event.preventDefault();
   if (!canWrite()) return toast('DATA CORE 쓰기 권한이 필요합니다.', 'error');
-  if(state.sourceApp==='blog'&&blogWorkflow){const draft=await blogWorkflow.save();if(draft){savedDraftSnapshot=draftSnapshot();void loadDrafts();}return draft;}
+  if(state.sourceApp==='blog'&&blogWorkflow){const draft=await blogWorkflow.save();if(draft){savedDraftSnapshot=draftSnapshot();void loadDrafts();if(draft.metadata?.publishStatus==='published')void window.BlogPublishFeed?.refresh();}return draft;}
   const button = $('saveDraftBtn');
   button.disabled = true;
   button.textContent = state.editingDraftId ? '수정 중...' : '저장 중...';

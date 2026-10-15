@@ -575,6 +575,10 @@ async function handleContentApi(request: Request, env: Env) {
     const { blogOverlap } = await import('./blog-insights');
     return jsonResponse(await blogOverlap(env.DB, context, await contentJson(request, 130000)), { headers: { 'cache-control': 'private, no-store' } });
   }
+  if (url.pathname === '/api/data-core/content/blog/publications' && request.method === 'GET') {
+    const { listBlogPublications } = await import('./blog-publications');
+    return jsonResponse(await listBlogPublications(env.DB, context, url), { headers: { 'cache-control': 'private, no-store' } });
+  }
   if (url.pathname === '/api/data-core/content/blog/save' && request.method === 'POST') {
     if(!env.FILES)throw new DataCoreAccessError(503,'파일 저장소를 확인하세요.');
     return jsonResponse({draft:await saveBlogPost(env.DB,env.FILES,context,await contentJson(request,200000))});
