@@ -78,7 +78,7 @@
       $('kmSearch').oninput=e=>{state.q=e.target.value;draw();};draw();return;
     }
     const selective=tab==='select-delivery';
-    content.innerHTML=`${selective?`<div class="km-actions"><output id="kmSelected">선택 ${state.selected.size}명</output>${writer()?`<button id="kmScheduleSelected" type="button" data-schedule>${icon('CalendarDays')}일정등록</button><button id="kmWriteSelected" type="button" data-write-selected>${icon('PenLine')}글쓰기</button>`:''}</div>`:search()}<div id="kmGroups"></div>${tab==='kids-news'?`<button type="button" class="km-sort" id="kmSort" title="정렬 기준 변경">${state.sort==='name'?'이름순':'최신순'}</button>`:''}`;
+    content.innerHTML=`${selective?`<div class="km-actions"><output id="kmSelected">선택 ${state.selected.size}명</output>${writer()?`<button id="kmScheduleSelected" type="button" data-schedule>${icon('CalendarDays')}일정등록</button><button id="kmWriteSelected" type="button" data-write-selected>${icon('PenLine')}글쓰기</button><button type="button" data-bulk>${icon('PenLine')}개인별 전송</button>`:''}</div>`:search()}<div id="kmGroups"></div>${tab==='kids-news'?`<button type="button" class="km-sort" id="kmSort" title="정렬 기준 변경">${state.sort==='name'?'이름순':'최신순'}</button>`:''}`;
     if(selective&&!writer()){content.innerHTML=empty('선택전달 작성 권한이 없습니다.');return;}
     if($('kmSearch'))$('kmSearch').oninput=e=>{state.q=e.target.value;renderGroups();};
     if($('kmSort'))$('kmSort').onclick=()=>{state.sort=state.sort==='name'?'latest':'name';$('kmSort').textContent=state.sort==='name'?'이름순':'최신순';renderGroups();};
@@ -171,6 +171,8 @@
     if(['answers','inquiries','thread','talk-settings'].includes(view)){window.KkumeumTalk?.open({state,route,go});return;}
     // 신청/동의서: 만들기 · 제출 현황 (kkumeum-forms.js).
     if(['consents','form','form-new'].includes(view)){window.KkumeumForms?.open({state,route,go});return;}
+    // 수납관리 (원장·관리자) · 개인별 일괄 전송 (kkumeum-payments.js).
+    if(['payments','bulk'].includes(view)){if(view==='payments'?!manager():!writer()){content.innerHTML=empty(view==='payments'?'수납관리는 원장·관리자만 할 수 있습니다.':'개인별 전송은 원장·관리자와 담당 선생님만 할 수 있습니다.');return;}window.KkumeumPayments?.open({state,route,go});return;}
     if(view==='notice'){void detail(id);return;}
     if(view==='calendar'){void calendar();return;}
     // 출석부 → 꿈이음 반영 (roster-sync.js): 다른 곳을 학생마다 체크해서 적용.
@@ -193,7 +195,7 @@
     try{const [classes,students]=await Promise.all([api(`/api/kkumeum/classes?${q}`),api(`/api/kkumeum/students?${q}`)]);state.classes=classes.classes||[];state.students=students.students||[];}catch{/* 다음 새로고침 때 다시 불러온다 */}
   }
   function openMore() {
-    const menus=[['attendance-settings','ShieldCheck','출결 설정 · 출결기',manager()],['talk-settings','PenLine','문의 운영시간 · 자주 쓰는 글',writer()],['settings','Settings','설정',manager()],['help','BookOpen','도움말',true],['suggest','PenLine','비트에게 건의/문의',true],['consents','ShieldCheck','신청/동의서',true],['payments','BookOpen','수납관리',manager()],['members','Users','회원등록',manager()],['members','Folder','반관리',manager()],['teachers','Users','선생님 관리',manager()],['calendar','CalendarDays','일정관리',writer()]];
+    const menus=[['attendance-settings','ShieldCheck','출결 설정 · 출결기',manager()],['talk-settings','PenLine','문의 운영시간 · 자주 쓰는 글',writer()],['settings','Settings','설정',manager()],['help','BookOpen','도움말',true],['suggest','PenLine','비트에게 건의/문의',true],['consents','ShieldCheck','신청/동의서',true],['payments','BookOpen','수납관리',manager()],['members','Users','회원등록',manager()],['members','Folder','반관리',manager()],['teachers','Users','선생님 관리',manager()],['calendar','CalendarDays','일정관리',writer()],['bulk','PenLine','개인별 일괄 전송',writer()]];
     $('kmMoreItems').innerHTML=menus.filter(m=>m[3]).map(([view,img,title])=>`<button type="button" data-view="${view}">${icon(img)}<span>${title}</span></button>`).join('');
     $('kmMore').showModal();document.querySelector('[data-menu=more]')?.setAttribute('aria-expanded','true');
   }
@@ -236,6 +238,7 @@
     if(b.dataset.student){go('kids-news','student',b.dataset.student);return;}
     if(b.dataset.classWrite){compose('class-news',[{targetType:'class',targetId:b.dataset.classWrite}]);return;}
     if(b.dataset.childWrite){compose('child-message',[{targetType:'student',targetId:b.dataset.childWrite}]);return;}
+    if(b.hasAttribute('data-bulk')){go(route().tab,'bulk');return;}
     if(b.hasAttribute('data-write-notice')){compose('campus-news',[{targetType:'campus',targetId:state.campusId}]);return;}
     if(b.hasAttribute('data-write-selected')||b.hasAttribute('data-schedule')){if(!state.selected.size)return;compose('selected-delivery',[...state.selected].map(id=>({targetType:'student',targetId:id})),null,b.hasAttribute('data-schedule'));}
   });

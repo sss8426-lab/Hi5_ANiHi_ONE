@@ -29,6 +29,7 @@ import {
 } from "./kkumeum-talk";
 import { getGuardianForm, guardianScheduleScope, listGuardianForms, submitGuardianForm } from "./kkumeum-forms";
 import { listFamilyCalendar } from "./data-core-calendar";
+import { listGuardianBills } from "./kkumeum-payments";
 import {
   guardianPushStatus,
   subscribeGuardianPush,
@@ -195,6 +196,9 @@ async function handleFamilyGuardianFeedApi(request: Request, env: Env): Promise<
   }
   const formMatch = url.pathname.match(/^\/api\/family\/forms\/([^/]+)$/);
   if (formMatch && request.method === "GET") return privateJsonResponse(await getGuardianForm(env.FAMILY_DB, request, decodeURIComponent(formMatch[1])));
+  if (url.pathname === "/api/family/bills" && request.method === "GET") {
+    return privateJsonResponse(await listGuardianBills(env.FAMILY_DB, request));
+  }
   if (url.pathname === "/api/family/schedule" && request.method === "GET") {
     const scope = await guardianScheduleScope(env.FAMILY_DB, request);
     if (!env.DB) return privateJsonResponse({ month: url.searchParams.get("month") || "", events: [], unavailable: true });

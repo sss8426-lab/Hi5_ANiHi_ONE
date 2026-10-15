@@ -45,6 +45,7 @@ jobs:
           node --check public/family/family-mobile.js
           node --check public/family/family-forms.js
           node --check public/data-core/work/kkumeum-forms.js
+          node --check public/data-core/work/kkumeum-payments.js
           node --check public/data-core/work/roster-sync.js
           node --check public/data-core/app.js
           node --check public/data-core/image-gallery.js
