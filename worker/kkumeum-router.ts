@@ -73,6 +73,7 @@ import {
   createSnippet, deleteSnippet, getStaffThread, listSnippets, listStaffThreads, readStaffTalkFile, readTalkSettings, saveTalkSettings,
   setStaffThreadStatus, staffThreadMessage, staffThreadSummary,
 } from "./kkumeum-talk";
+import { applyRosterSync, rosterSyncPlan } from "./kkumeum-roster-sync";
 export type KkumeumRouterEnv = KkumeumBindings & KkumeumPushEnv & { DB?: D1Database };
 
 type JsonResponder = (value: unknown, init?: ResponseInit) => Response;
@@ -278,7 +279,10 @@ export async function handleKkumeumApi(
       await assertKkumeumPilotCampus(familyDb, requiredBodyId(input.campusId, "campusId"));
       const saved = await saveKkumeumAttendanceRoster(familyDb, context, input);
       // New students get their 등하원 번호 right away; existing numbers never change.
-      return respond({ ...saved, codesAssigned: await fillCheckinCodes(familyDb, String(input.campusId)) });
+      const codesAssigned = await fillCheckinCodes(familyDb, String(input.campusId));
+      // 출석부와 꿈이음 반·학생이 다른 곳 (출석부 화면이 바로 "꿈이음 반영" 표를 연다).
+      const sync = await rosterSyncPlan(familyDb, context, String(input.campusId), saved.month, true).catch(() => null);
+      return respond({ ...saved, codesAssigned, sync });
     }
     return respond({ error: "지원하지 않는 출석부 연동 요청입니다." }, { status: 405 });
   }
@@ -326,6 +330,19 @@ export async function handleKkumeumApi(
   const snippetMatch = url.pathname.match(/^\/api\/kkumeum\/snippets\/([^/]+)$/);
   if (snippetMatch && request.method === "DELETE") { assertSameOrigin(request); return respond(await deleteSnippet(familyDb, context, decodeURIComponent(snippetMatch[1]))); }
   // 명단 정리 (원장·관리자): 동명이인 연결, 새 학생 등록, 반 이동·수업요일, 재원·휴원·퇴원.
+  // 출석부 → 꿈이음 반영: 다른 곳을 학생마다 보여 주고, 체크한 것만 적용 (원장·관리자).
+  if (url.pathname === "/api/kkumeum/attendance/roster-sync") {
+    if (request.method === "GET") {
+      const campusId = requiredCampusId(url); await assertKkumeumPilotCampus(familyDb, campusId);
+      return respond(await rosterSyncPlan(familyDb, context, campusId, url.searchParams.get("month"), url.searchParams.get("summary") === "1"));
+    }
+    if (request.method === "POST") {
+      assertSameOrigin(request); const input = await readJson(request);
+      await assertKkumeumPilotCampus(familyDb, requiredBodyId(input.campusId, "campusId"));
+      return respond(await applyRosterSync(familyDb, context, input));
+    }
+    return respond({ error: "지원하지 않는 출석부 반영 요청입니다." }, { status: 405 });
+  }
   if (url.pathname === "/api/kkumeum/attendance/roster-review") {
     if (request.method === "GET") {
       const campusId = requiredCampusId(url); await assertKkumeumPilotCampus(familyDb, campusId);
