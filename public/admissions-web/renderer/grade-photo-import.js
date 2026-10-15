@@ -87,7 +87,7 @@
     return uploaded;
   }
   async function listStudents() {
-    const response = await fetch('/api/admissions/students', { cache: 'no-store', credentials: 'same-origin' });
+    const response = await fetch('/api/admissions/students', { cache: 'no-cache', credentials: 'same-origin' });
     if (!response.ok) throw Error('학생 목록을 불러오지 못했습니다.');
     return (await response.json()).students || [];
   }

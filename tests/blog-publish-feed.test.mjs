@@ -70,7 +70,7 @@ test('화면: 블로그 자동화 오른쪽 발행 소식 패널, 인스타에�
   const html = fs.readFileSync('public/data-core/content.html', 'utf8');
   const script = fs.readFileSync('public/data-core/blog-publish-feed.js', 'utf8');
   const content = fs.readFileSync('public/data-core/content.js', 'utf8');
-  assert.match(html, /blog-publish-feed\.js\?v=20261015-convert/);
+  assert.match(html, /blog-publish-feed\.js\?v=20261015-speed2/);
   assert.match(html, /blog-publish-feed\.css\?v=20261015-convert/);
   assert.match(script, /블로그 발행 소식/);
   assert.match(script, /limit: '30'/);

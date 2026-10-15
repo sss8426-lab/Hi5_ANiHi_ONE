@@ -58,6 +58,10 @@ export function libraryDefaultFolder(folder: LibraryFolder) {
     folder.row?.record_type === HQ_FOLDER && HQ_DEFAULTS.some(([key]) => key === libraryMetadata(folder.row!).folderKey);
 }
 
+const CAMPUS_LIST_MS = 60_000;
+const campusLists = new WeakMap<D1Database, { at: number; rows: Row[] }>();
+export function forgetLibraryCampuses(db?: D1Database) { if (db) campusLists.delete(db); }
+
 export class LibraryTree {
   rows = new Map<string, Row | null>();
   folders = new Map<string, LibraryFolder>();
@@ -65,7 +69,13 @@ export class LibraryTree {
   constructor(public db: D1Database, public context: DataCoreAccessContext) {}
   async init() {
     requireLibraryAccess(this.context);
-    this.campuses = presentCampuses((await this.db.prepare("SELECT id, code, name FROM campuses WHERE organization_id = ? AND status = 'active' ORDER BY name").bind(ORG).all<Row>()).results || [], true);
+    // The campus list changes a few times a year; every 자료보관함 request asked for it (≈4,400 times a day).
+    const cached = campusLists.get(this.db);
+    if (cached && Date.now() - cached.at < CAMPUS_LIST_MS) this.campuses = cached.rows;
+    else {
+      this.campuses = presentCampuses((await this.db.prepare("SELECT id, code, name FROM campuses WHERE organization_id = ? AND status = 'active' ORDER BY name").bind(ORG).all<Row>()).results || [], true);
+      campusLists.set(this.db, { at: Date.now(), rows: this.campuses });
+    }
     return this;
   }
   async row(id: string) {

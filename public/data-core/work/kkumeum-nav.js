@@ -1,7 +1,7 @@
 (() => {
   const KKUMEUM_HREF = '/data-core/kkumeum';
   const HQ_LIBRARY_SRC = '/data-core/work/hq-library.js?v=20261015-speed';
-  const MODE_ARTWORK_SRC = '/data-core/mode-home-artwork.js?v=20260908-mode-home';
+  const MODE_ARTWORK_SRC = '/data-core/mode-home-artwork.js?v=20261015-cache';
 
   function addWorkSidebarLink() {
     const workNav = document.querySelector('[data-nav-scope="work"]');

@@ -36,9 +36,10 @@
   async function showSignupCount(){
     if(signupChecked||typeof fetch!=='function')return;signupChecked=true;
     try{
-      const response=await fetch('/api/auth/signup-requests',{credentials:'include',cache:'no-store'});
-      if(!response.ok)return;
-      const count=((await response.json()).requests||[]).length;
+      // One request per page for the 직원인증 count, shared with mobile-app.js.
+      const body=await (window.__coreSignupRequests||=fetch('/api/auth/signup-requests',{credentials:'include',cache:'no-store'}).then(r=>r.ok?r.json():null).catch(()=>null));
+      if(!body)return;
+      const count=(body.requests||[]).length;
       document.querySelectorAll('[data-work-menu="accounts"]').forEach(node=>{
         node.querySelector('.nav-badge')?.remove();
         if(!count)return;

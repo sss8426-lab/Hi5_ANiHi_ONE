@@ -458,7 +458,7 @@ async function handleCompetitionSourceApi(request: Request, env: Env) {
   if (request.method !== "POST") return jsonResponse({ error: "지원하지 않는 외부 소식 요청입니다." }, { status: 405 });
   const context = await resolveDataCoreAccess(request, env.DB, env.DATA_CORE_SUPER_ADMIN_EMAILS);
   const body = match[2] === "preview"
-    ? await previewCompetitionSource(env.DB, context, match[1])
+    ? await previewCompetitionSource(env.DB, context, match[1], url.searchParams.get('fresh') === '1')
     : await importCompetitionSource(request, env.DB, context, match[1]);
   return jsonResponse(body, { headers: { "cache-control": "private, no-store" } });
 }
@@ -581,6 +581,7 @@ async function handleContentApi(request: Request, env: Env) {
     if (url.pathname === '/api/data-core/content/blog/campus-blogs' && request.method === 'PUT') return jsonResponse(await feed.setCampusBlog(env.DB, context, await contentJson(request)), noStore);
     if (url.pathname === '/api/data-core/content/blog/publications' && request.method === 'GET') return jsonResponse(await feed.listBlogPublications(env.DB, context, url), noStore);
     if (url.pathname === '/api/data-core/content/blog/publications' && request.method === 'POST') return jsonResponse(await feed.addBlogPublication(env.DB, context, await contentJson(request)), noStore);
+    if (url.pathname === '/api/data-core/content/blog/publications/sync' && request.method === 'POST') return jsonResponse(await feed.syncBlogPublications(env.DB, context, await contentJson(request)), noStore);
     const convert = url.pathname.match(/^\/api\/data-core\/content\/blog\/publications\/([^/]+)\/convert$/);
     if (convert && request.method === 'POST') {
       const input = await contentJson(request, 65000), scope = contentScope(context, { sourceApp: 'blog', campusId: input.campusId });

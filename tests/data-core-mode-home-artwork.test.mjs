@@ -25,7 +25,7 @@ assert.match(styles, /\.photographic-modes \.mode-card img \{[\s\S]*?aspect-rati
 assert.match(html, /href="\/data-core\/counseling" data-mode-card="counseling"/);
 assert.match(html, /href="\/data-core\/work" data-mode-card="work"/);
 assert.match(html, /mode-artwork-arrow/);
-assert.match(html, /mode-home-artwork\.js\?v=20260921-calendar/);
+assert.match(html, /mode-home-artwork\.js\?v=20261015-cache/);
 assert.doesNotMatch(app, /querySelectorAll\('\[data-mode-card\]'\)/);
 assert.match(styles, /object-fit:\s*cover/);
 assert.match(styles, /mode-sidebar\.svg\?v=20260908-mode-home/);

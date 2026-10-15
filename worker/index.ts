@@ -54,6 +54,7 @@ import {
   searchDataCore,
   setDataRecordContent,
 } from "./data-core-search";
+import { jsonWithEtag } from './http-etag';
 
 const STATE_ID = "main";
 const STATE_OBJECT_KEY = "state/admissions-data.json";
@@ -124,11 +125,21 @@ async function defaultData(request: Request, env: Env) {
   return response.json();
 }
 
+// The legacy admissions document is large (~11MB). Keep its text per worker instance and ask R2 only
+// whether it changed (etag); a fresh parse every time keeps callers from sharing one mutable object.
+let legacyText: { etag: string; text: string } | null = null;
 async function readAppData(request: Request, env: Env) {
   await ensureDatabase(env);
   if (env.FILES) {
-    const object = await env.FILES.get(STATE_OBJECT_KEY);
-    if (object) return object.json();
+    const object = legacyText ? await env.FILES.get(STATE_OBJECT_KEY, { onlyIf: { etagDoesNotMatch: legacyText.etag } }) : await env.FILES.get(STATE_OBJECT_KEY);
+    // A not-modified answer is metadata only (no text()); reading .body would consume the stream.
+    if (object && typeof (object as { text?: unknown }).text === 'function') {
+      const body = object as R2ObjectBody, text = await body.text();
+      legacyText = { etag: body.etag, text };
+      return JSON.parse(text);
+    }
+    if (object && legacyText && object.etag === legacyText.etag) return JSON.parse(legacyText.text);
+    if (object) { legacyText = null; const fresh = await env.FILES.get(STATE_OBJECT_KEY); if (fresh) { const text = await fresh.text(); legacyText = { etag: fresh.etag, text }; return JSON.parse(text); } }
   }
 
   if (env.DB) {
@@ -520,7 +531,8 @@ async function handleApi(request: Request, env: Env) {
             await students.importStudentsOnce(env.DB, () => allLegacyStudents(env.DB!, legacy));
             data.students = await students.listStudents(env.DB);
           }
-          return Response.json({...data, _students: {canManage: students.studentManager(context), trackOptions: students.studentMember(context) ? await students.trackOptions(env.DB) : []}, ...await universityScopeData(env.DB,context,data.universities), _universityEvidence: await universityEvidenceData(env.DB,context)}, {headers:{'cache-control':'private, no-store'}});
+          // ~11MB: the browser keeps a copy and asks "changed?" (If-None-Match); unchanged answers are 304 with no body.
+          return jsonWithEtag(request, {...data, _students: {canManage: students.studentManager(context), trackOptions: students.studentMember(context) ? await students.trackOptions(env.DB) : []}, ...await universityScopeData(env.DB,context,data.universities), _universityEvidence: await universityEvidenceData(env.DB,context)});
         }
         if (request.method === 'PUT') {
           const input = await request.json() as Record<string,unknown>;

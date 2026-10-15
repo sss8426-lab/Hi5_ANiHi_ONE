@@ -18,7 +18,7 @@ test('competition news auto-loads active source previews and renders source stat
   assert.match(ui, /접수중/);
   assert.match(ui, /예정/);
   assert.match(ui, /setTimeout\(\(\) => refreshLiveNews\(false\), 700\)/);
-  assert.match(loader, /competition-live-enhancement\.js\?v=20260921-calendar/);
+  assert.match(loader, /competition-live-enhancement\.js\?v=20261015-cache/);
 });
 
 test('calendar redraw reuses exactly two observers without orphan subscriptions', () => {

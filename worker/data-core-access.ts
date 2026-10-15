@@ -192,21 +192,18 @@ async function resolveDataCoreAccessNow(
     user = { ...identity, internalUserId };
   } else {
     // Dynamic import keeps the OAI access helper usable without a module cycle.
-    const { ensureStandaloneAuthSchema, standaloneSessionIdentity } = await import("./data-core-auth");
+    const { ensureStandaloneAuthSchema, standaloneSessionAccess } = await import("./data-core-auth");
     await ensureStandaloneAuthSchema(db);
-    const sessionIdentity = await standaloneSessionIdentity(db, request);
-    if (!sessionIdentity) {
-      return {
+    const access = await standaloneSessionAccess(db, request, DEFAULT_ORGANIZATION_ID);
+    if (access) return contextFromMemberships(access.identity, access.identity.mustChangePassword, access.memberships);
+    return {
         authenticated: false,
         database: true,
         memberships: [],
         isSuperAdmin: false,
         campusIds: [],
-        canWrite: false,
-      };
-    }
-    user = sessionIdentity;
-    mustChangePassword = sessionIdentity.mustChangePassword;
+      canWrite: false,
+    };
   }
 
   const result = await db
@@ -241,13 +238,19 @@ async function resolveDataCoreAccessNow(
       role: DataCoreRole;
     }>();
 
-  const memberships: DataCoreMembership[] = (result.results || []).map((item) => ({
+  return contextFromMemberships(user, mustChangePassword, result.results || []);
+}
+
+// Fresh objects every time: the session cache shares its rows, never a context someone could change.
+function contextFromMemberships(user: NonNullable<DataCoreAccessContext["user"]>, mustChangePassword: boolean,
+  rows: { id: string; organization_id: string; campus_id: string | null; campus_name: string | null; role: string }[]): DataCoreAccessContext {
+  const memberships: DataCoreMembership[] = rows.map((item) => ({
     id: item.id,
     organizationId: item.organization_id,
     campusId: item.campus_id,
     campusName: campusDisplayName(item.campus_id, item.campus_name),
     campusCode: CAMPUS_DIRECTORY.find(c => c.id === item.campus_id)?.code || null,
-    role: item.role,
+    role: item.role as DataCoreRole,
   }));
   const isSuperAdmin = memberships.some((item) => isMasterRole(item.role));
   const campusIds = Array.from(
@@ -257,7 +260,7 @@ async function resolveDataCoreAccessNow(
   return {
     authenticated: true,
     database: true,
-    user,
+    user: { ...user },
     memberships,
     isSuperAdmin,
     campusIds,

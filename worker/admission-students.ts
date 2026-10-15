@@ -1,5 +1,6 @@
 import { DEFAULT_ORGANIZATION_ID as ORG } from './data-core';
 import { DATA_CORE_ROLES, DataCoreAccessError, requireAuthenticatedAccess, requireWriteAccess, type DataCoreAccessContext } from './data-core-access';
+import { jsonWithEtag } from './http-etag';
 
 // 학생 관리 (대학 합격 로드맵): every academy teacher sees and edits the same student list, one row per student.
 // Students used to live inside the whole-document admissions state (legacy R2 doc + campus overlays). They are
@@ -157,7 +158,7 @@ export async function handleAdmissionStudentsApi(request: Request, db: D1Databas
       throw new DataCoreAccessError(403, '같은 사이트에서만 요청할 수 있습니다.');
     await importStudentsOnce(db, source);
     const id = match[1];
-    if (!id && request.method === 'GET') return json({ students: await listStudents(db), canManage: studentManager(context), trackOptions: await trackOptions(db) });
+    if (!id && request.method === 'GET') return jsonWithEtag(request, { students: await listStudents(db), canManage: studentManager(context), trackOptions: await trackOptions(db) });
     if (id === 'track-options') {
       if (request.method === 'GET') return json({ trackOptions: await trackOptions(db) });
       if (request.method === 'POST') { let body: unknown = {}; try { body = await request.json(); } catch { body = {}; } return json({ trackOptions: await addTrackOption(db, context, body) }, 201); }

@@ -61,3 +61,14 @@
   Cache-Control: public, max-age=86400, stale-while-revalidate=604800
 /kiosk/*.svg
   Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+# 상담용 대학 합격 로드맵 화면 파일도 같은 규칙(이전엔 열 때마다 다시 확인).
+/admissions-web/*.js
+  Cache-Control: public, max-age=300, stale-while-revalidate=604800
+/admissions-web/*.css
+  Cache-Control: public, max-age=300, stale-while-revalidate=604800
+/admissions-web/*.webp
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/admissions-web/*.png
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+/admissions-web/*.svg
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800

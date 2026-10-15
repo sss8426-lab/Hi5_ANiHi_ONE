@@ -125,7 +125,7 @@ test('꿈·전공 로드맵 · 수상작 화면 주소 규칙, 그리고 다른 
 test('every DATA CORE page loads the rule first, and the folder screens register their parents', () => {
   for (const page of ['index.html', 'content.html', 'reports.html', 'accounts.html', 'operations.html', 'work/kkumeum.html', 'roadmap.html']) {
     const html = fs.readFileSync(`public/data-core/${page}`, 'utf8');
-    const at = html.indexOf('/data-core/up-history.js'), firstOther = html.search(/<script(?![^>]*(up-history|phone-entry))/);
+    const at = html.indexOf('/data-core/up-history.js'), firstOther = html.search(/<script(?![^>]*(up-history|phone-entry|fetch-share))/);
     assert.ok(at > 0 && at < firstOther, `${page} loads up-history.js before other scripts`);
   }
   assert.match(fs.readFileSync('public/data-core/app.js', 'utf8'), /DataCoreUpHistory\?\.resolve\(url => \{\r?\n {2}const id = url\.searchParams\.get\('awardFolder'\)/);

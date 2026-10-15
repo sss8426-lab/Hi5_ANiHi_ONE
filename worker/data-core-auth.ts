@@ -134,6 +134,45 @@ async function initializeStandaloneAuthSchema(db: D1Database) {
   }
 }
 
+// 로그인 확인 한 번에: the session and its memberships are read together in one D1 round trip, and the
+// answer is kept for a few seconds in this worker instance so the 10+ requests of one page load do not
+// each ask again. Any account, membership or session change through /api/auth/* or
+// /api/data-core/admin/* clears it at once (forgetSessionAccess); other instances catch up within 10s.
+const SESSION_CACHE_MS = 10_000;
+type SessionAccess = { identity: { userId: string; internalUserId: string; email: string; displayName: string; loginId: string; mustChangePassword: boolean };
+  expiresAt: string; remember: boolean; memberships: { id: string; organization_id: string; campus_id: string | null; campus_name: string | null; role: string }[] };
+const sessionCache = new WeakMap<D1Database, Map<string, { at: number; value: SessionAccess }>>();
+export function forgetSessionAccess(db?: D1Database) { if (db) sessionCache.delete(db); }
+export const MEMBERSHIP_ORDER = `CASE m.role WHEN 'SUPER_ADMIN' THEN 0 WHEN 'MASTER' THEN 0 WHEN 'CAMPUS_ADMIN' THEN 1 WHEN 'CAMPUS_DIRECTOR' THEN 1 WHEN 'TEACHER' THEN 2 ELSE 3 END, c.name`;
+export async function standaloneSessionAccess(db: D1Database, request: Request, organizationId: string): Promise<SessionAccess | null> {
+  const rawToken = sessionToken(request);
+  if (!rawToken) return null;
+  const tokenHash = await sha256(rawToken);
+  let cache = sessionCache.get(db);
+  if (!cache) { cache = new Map(); sessionCache.set(db, cache); }
+  const hit = cache.get(tokenHash), now = new Date();
+  if (hit && Date.now() - hit.at < SESSION_CACHE_MS && hit.value.expiresAt > now.toISOString()) return hit.value;
+  const iso = now.toISOString();
+  const [session, members] = await db.batch([
+    db.prepare(`SELECT s.id AS session_id, s.expires_at, s.remember, u.id AS user_id, u.email, u.display_name, a.login_id, a.must_change_password
+      FROM auth_sessions s INNER JOIN users u ON u.id = s.user_id INNER JOIN auth_accounts a ON a.user_id = u.id
+      WHERE s.token_hash = ? AND s.revoked_at IS NULL AND s.expires_at > ? AND a.status = 'active' AND u.status = 'active'`).bind(tokenHash, iso),
+    db.prepare(`SELECT m.id, m.organization_id, m.campus_id, m.role, c.name AS campus_name
+      FROM auth_sessions s INNER JOIN memberships m ON m.user_id = s.user_id LEFT JOIN campuses c ON c.id = m.campus_id
+      WHERE s.token_hash = ? AND s.revoked_at IS NULL AND s.expires_at > ? AND m.organization_id = ? AND (m.campus_id IS NULL OR c.status = 'active')
+      ORDER BY ${MEMBERSHIP_ORDER}`).bind(tokenHash, iso, organizationId),
+  ]);
+  const row = (session.results || [])[0] as { expires_at: string; remember: number | null; user_id: string; email: string | null; display_name: string; login_id: string; must_change_password: number } | undefined;
+  if (!row) { cache.delete(tokenHash); return null; }
+  const value: SessionAccess = {
+    identity: { userId: row.user_id, internalUserId: row.user_id, email: row.email || row.user_id, displayName: row.display_name, loginId: row.login_id, mustChangePassword: Boolean(row.must_change_password) },
+    expiresAt: row.expires_at, remember: Number(row.remember) === 1, memberships: (members.results || []) as SessionAccess['memberships'],
+  };
+  if (cache.size > 2000) cache.clear();
+  cache.set(tokenHash, { at: Date.now(), value });
+  return value;
+}
+
 export async function standaloneSessionIdentity(db: D1Database, request: Request) {
   const rawToken = sessionToken(request);
   if (!rawToken) return null;
@@ -206,10 +245,15 @@ export async function renewRememberedSession(db: D1Database, request: Request): 
   await ensureStandaloneAuthSchema(db);
   const now = new Date();
   const renewBefore = new Date(now.getTime() + (REMEMBER_MAX_AGE_SECONDS - REMEMBER_RENEW_AFTER_SECONDS) * 1000).toISOString();
+  // Usually nothing to do: skip the write unless this remembered session is due (once a day).
+  const known = sessionCache.get(db)?.get(await sha256(rawToken));
+  if (known && Date.now() - known.at < SESSION_CACHE_MS && (!known.value.remember || known.value.expiresAt >= renewBefore)) return null;
   const expiresAt = new Date(now.getTime() + REMEMBER_MAX_AGE_SECONDS * 1000).toISOString();
   const result = await db.prepare(`UPDATE auth_sessions SET expires_at = ? WHERE token_hash = ? AND remember = 1 AND revoked_at IS NULL
     AND expires_at > ? AND expires_at < ?`).bind(expiresAt, await sha256(rawToken), now.toISOString(), renewBefore).run();
-  return Number(result.meta?.changes || 0) ? cookie(rawToken, REMEMBER_MAX_AGE_SECONDS) : null;
+  if (!Number(result.meta?.changes || 0)) return null;
+  if (known) known.value = { ...known.value, expiresAt };
+  return cookie(rawToken, REMEMBER_MAX_AGE_SECONDS);
 }
 
 export async function loginStandalone(db: D1Database, request: Request, body: { loginId?: unknown; password?: unknown; remember?: unknown }) {

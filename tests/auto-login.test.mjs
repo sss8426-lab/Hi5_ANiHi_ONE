@@ -35,6 +35,8 @@ test('로그인 상태 유지: 체크하면 30일, 안 하면 8시간; 쓰는 �
     // 20일이 지난 것처럼 만들면, 화면을 열 때 30일로 다시 늘고 쿠키도 새로 준다.
     const soon = new Date(Date.now() + 10 * DAY * 1000).toISOString();
     await h.env.DB.prepare('UPDATE auth_sessions SET expires_at = ? WHERE remember = 1').bind(soon).run();
+    // 로그인 확인은 10초 동안 기억된다. 시간이 지난 것처럼 그 기억을 비운다(인증 변경 요청은 모두 기억을 비움).
+    await h.request('POST', '/api/auth/logout', null, {}, 'http://localhost');
     const renewed = await session(h, cookieOf(kept));
     assert.equal(renewed.body.authenticated, true); assert.equal(maxAgeOf(renewed), 30 * DAY);
     const after = await h.env.DB.prepare('SELECT expires_at FROM auth_sessions WHERE remember = 1').first();
@@ -44,6 +46,7 @@ test('로그인 상태 유지: 체크하면 30일, 안 하면 8시간; 쓰는 �
 
     // 8시간 세션은 늘리지 않는다.
     await h.env.DB.prepare("UPDATE auth_sessions SET expires_at = ? WHERE remember = 0 AND revoked_at IS NULL").bind(new Date(Date.now() + 3600_000).toISOString()).run();
+    await h.request('POST', '/api/auth/logout', null, {}, 'http://localhost');
     assert.equal((await session(h, cookieOf(normal))).headers.get('set-cookie'), null);
 
     // 로그아웃하면 30일 세션도 바로 끝나고, 늘어나지 않는다.

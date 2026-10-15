@@ -37,7 +37,7 @@
 
 
   async function readData() {
-    const response = await fetch(dataUrl(), { cache: 'no-store', credentials: 'same-origin' });
+    const response = await fetch(dataUrl(), { cache: 'no-cache', credentials: 'same-origin' }); // 304 when unchanged (ETag)
     if (response.status === 401) { location.assign('/data-core/login?next=' + encodeURIComponent(location.pathname + location.search + location.hash)); throw new Error('로그인이 필요합니다.'); }
     if (!response.ok) throw new Error('입시 데이터를 불러오지 못했습니다. 로그인과 연결 상태를 확인하세요.');
     const data = normalizeData(await response.json());
@@ -57,7 +57,7 @@
 
   async function studentRequest(path, method, body) {
     const response = await fetch('/api/admissions/students' + path, {
-      method, credentials: 'same-origin', cache: 'no-store',
+      method, credentials: 'same-origin', cache: 'no-cache',
       headers: body ? { 'content-type': 'application/json' } : undefined,
       body: body ? JSON.stringify(body) : undefined,
     });

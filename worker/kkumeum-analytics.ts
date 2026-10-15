@@ -184,23 +184,39 @@ export async function computeKkumeumAnalyticsPreview(
   const yearMonth = normalizeAnalyticsYearMonth(yearMonthValue);
   await ensureKkumeumPhase2Schema(familyDb);
 
-  const active = await familyDb
-    .prepare("SELECT COUNT(*) AS count FROM family_students WHERE campus_id = ? AND status = 'active'")
-    .bind(campusId)
-    .first<{ count: number }>();
-  const activeStudentCount = numeric(active?.count);
-
-  const reportRows = await familyDb
-    .prepare(
+  // One D1 round trip for the four counts (they were asked one after another), growth skills alongside.
+  const [batch, growthSkills] = await Promise.all([familyDb.batch([
+    familyDb.prepare("SELECT COUNT(*) AS count FROM family_students WHERE campus_id = ? AND status = 'active'").bind(campusId),
+    familyDb.prepare(
       `SELECT r.status, COUNT(*) AS count
        FROM monthly_reports r
        INNER JOIN family_students s ON s.id = r.student_id
        WHERE r.campus_id = ? AND r.year_month = ?
          AND s.campus_id = ? AND s.status = 'active'
        GROUP BY r.status`,
-    )
-    .bind(campusId, yearMonth, campusId)
-    .all<{ status: string; count: number }>();
+    ).bind(campusId, yearMonth, campusId),
+    familyDb.prepare(
+      `SELECT COUNT(*) AS count
+       FROM student_artworks a
+       INNER JOIN family_students s ON s.id = a.student_id
+       INNER JOIN family_files f ON f.id = a.family_file_id
+       WHERE a.campus_id = ? AND s.campus_id = ? AND s.status = 'active'
+         AND f.deleted_at IS NULL
+         AND substr(COALESCE(NULLIF(a.lesson_date, ''), a.created_at), 1, 7) = ?`,
+    ).bind(campusId, campusId, yearMonth),
+    familyDb.prepare(
+      `SELECT COALESCE(NULLIF(TRIM(c.stage), ''), '미지정') AS stage, COUNT(*) AS count
+       FROM family_students s
+       LEFT JOIN family_classes c
+         ON c.id = s.current_class_id AND c.campus_id = s.campus_id
+       WHERE s.campus_id = ? AND s.status = 'active'
+       GROUP BY COALESCE(NULLIF(TRIM(c.stage), ''), '미지정')
+       ORDER BY stage`,
+    ).bind(campusId),
+  ]), computeGrowthSkillBreakdown(familyDb, campusId, yearMonth)]);
+  const active = (batch[0].results || [])[0] as { count: number } | undefined;
+  const activeStudentCount = numeric(active?.count);
+  const reportRows = batch[1] as D1Result<{ status: string; count: number }>;
   const reportCounts = { draft: 0, ready: 0, sent: 0 };
   for (const row of reportRows.results || []) {
     if (row.status === "draft" || row.status === "ready" || row.status === "sent") {
@@ -209,33 +225,8 @@ export async function computeKkumeumAnalyticsPreview(
   }
   const reportTotal = reportCounts.draft + reportCounts.ready + reportCounts.sent;
   const missing = Math.max(0, activeStudentCount - reportTotal);
-
-  const artworks = await familyDb
-    .prepare(
-      `SELECT COUNT(*) AS count
-       FROM student_artworks a
-       INNER JOIN family_students s ON s.id = a.student_id
-       INNER JOIN family_files f ON f.id = a.family_file_id
-       WHERE a.campus_id = ? AND s.campus_id = ? AND s.status = 'active'
-         AND f.deleted_at IS NULL
-         AND substr(COALESCE(NULLIF(a.lesson_date, ''), a.created_at), 1, 7) = ?`,
-    )
-    .bind(campusId, campusId, yearMonth)
-    .first<{ count: number }>();
-  const artworkCount = numeric(artworks?.count);
-
-  const stageRows = await familyDb
-    .prepare(
-      `SELECT COALESCE(NULLIF(TRIM(c.stage), ''), '미지정') AS stage, COUNT(*) AS count
-       FROM family_students s
-       LEFT JOIN family_classes c
-         ON c.id = s.current_class_id AND c.campus_id = s.campus_id
-       WHERE s.campus_id = ? AND s.status = 'active'
-       GROUP BY COALESCE(NULLIF(TRIM(c.stage), ''), '미지정')
-       ORDER BY stage`,
-    )
-    .bind(campusId)
-    .all<{ stage: string; count: number }>();
+  const artworkCount = numeric(((batch[2].results || [])[0] as { count: number } | undefined)?.count);
+  const stageRows = batch[3] as D1Result<{ stage: string; count: number }>;
   const rawStageBuckets = (stageRows.results || []).map((row) => ({
     stage: cleanText(row.stage, 120) || "미지정",
     studentCount: numeric(row.count),
@@ -243,7 +234,6 @@ export async function computeKkumeumAnalyticsPreview(
   const suppressStages = rawStageBuckets.some(
     (bucket) => bucket.studentCount > 0 && bucket.studentCount < KKUMEUM_ANALYTICS_MIN_COHORT_SIZE,
   );
-  const growthSkills = await computeGrowthSkillBreakdown(familyDb, campusId, yearMonth);
 
   return {
     schemaVersion: KKUMEUM_ANALYTICS_SCHEMA_VERSION,

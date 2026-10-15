@@ -67,18 +67,17 @@ export async function computeKkumeumAnalyticsTrend(
 ): Promise<KkumeumAnalyticsTrend> {
   const campusId = requireAnalyticsPreviewAccess(context, campusIdValue);
   const range = normalizeAnalyticsTrendRange(fromValue, toValue);
-  const months: KkumeumAnalyticsTrend["months"] = [];
-
-  for (const yearMonth of range.months) {
+  // Months are independent reads: ask for all of them at once instead of one D1 round trip after another.
+  const months: KkumeumAnalyticsTrend["months"] = await Promise.all(range.months.map(async (yearMonth) => {
     const preview = await computeKkumeumAnalyticsPreview(familyDb, context, campusId, yearMonth);
-    months.push({
+    return {
       yearMonth,
       activeStudentCount: preview.activeStudentCount,
       reportCompletionRate: preview.reports.completionRate,
       artworkAveragePerActiveStudent: preview.artworks.averagePerActiveStudent,
       growthSkills: preview.growthSkills,
-    });
-  }
+    };
+  }));
 
   return {
     schemaVersion: KKUMEUM_ANALYTICS_TREND_SCHEMA_VERSION,
