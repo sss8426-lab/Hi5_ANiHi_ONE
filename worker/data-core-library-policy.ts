@@ -82,21 +82,35 @@ export class LibraryTree {
     if (!this.rows.has(id)) this.rows.set(id, await this.db.prepare('SELECT * FROM data_records WHERE id = ? AND organization_id = ? AND deleted_at IS NULL').bind(id, ORG).first<Row>());
     return this.rows.get(id);
   }
+  // Every requested folder and all of its ancestors in ONE query (a recursive walk up parentFolderId),
+  // instead of one D1 round trip per folder level (deep trees cost up to 16 trips, ~55ms each).
   async prefetch(ids: string[]) {
-    let pending = [...new Set(ids)].filter(id => id && !this.rows.has(id));
-    for (let depth = 0; pending.length && depth < 16; depth++) {
-      const next = new Set<string>();
-      for (let i = 0; i < pending.length; i += 80) {
-        const batch = pending.slice(i, i + 80);
-        const rows = (await this.db.prepare(`SELECT * FROM data_records WHERE organization_id=? AND deleted_at IS NULL AND id IN (${batch.map(() => '?').join(',')})`).bind(ORG, ...batch).all<Row>()).results || [];
-        for (const id of batch) this.rows.set(id, null);
-        for (const row of rows) {
-          this.rows.set(row.id, row);
-          const parent = libraryMetadata(row).parentFolderId;
-          if (typeof parent === 'string' && !this.rows.has(parent)) next.add(parent);
-        }
+    const pending = [...new Set(ids)].filter(id => id && !this.rows.has(id));
+    if (!pending.length) return;
+    const found = new Map<string, Row>();
+    for (let i = 0; i < pending.length; i += 400) {
+      const rows = (await this.db.prepare(`WITH RECURSIVE anc(id, depth) AS (
+          SELECT value, 0 FROM json_each(?)
+          UNION
+          SELECT CASE WHEN json_valid(r.metadata_json) THEN json_extract(r.metadata_json, '$.parentFolderId') END, anc.depth + 1
+          FROM data_records r JOIN anc ON r.id = anc.id
+          WHERE r.organization_id = ? AND r.deleted_at IS NULL AND anc.depth < 16)
+        SELECT * FROM data_records WHERE organization_id = ? AND deleted_at IS NULL AND id IN (SELECT id FROM anc WHERE id IS NOT NULL)`)
+        .bind(JSON.stringify(pending.slice(i, i + 400)), ORG, ORG).all<Row>()).results || [];
+      for (const row of rows) found.set(String(row.id), row);
+    }
+    // Same bookkeeping as walking level by level: every id looked up is known afterwards (null when missing).
+    let level = pending;
+    for (let depth = 0; level.length && depth < 16; depth++) {
+      const next: string[] = [];
+      for (const id of level) {
+        if (this.rows.has(id)) continue;
+        const row = found.get(id) || null;
+        this.rows.set(id, row);
+        const parent = row ? libraryMetadata(row).parentFolderId : null;
+        if (typeof parent === 'string' && !this.rows.has(parent)) next.push(parent);
       }
-      pending = [...next];
+      level = next;
     }
   }
   async resolve(id = 'root', seen = new Set<string>()): Promise<LibraryFolder> {
