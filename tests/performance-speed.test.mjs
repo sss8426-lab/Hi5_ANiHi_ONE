@@ -74,7 +74,7 @@ test('업로드 전 이름 확인은 이름만 한 번에, 권한 밖 폴더는 
 
 test('static cache rules: app JS/CSS/images only, never HTML; upload window closes after success', () => {
   const rules = fs.readFileSync('public/_headers', 'utf8');
-  const patterns = rules.split('\n').filter(l => l.startsWith('/'));
+  const patterns = rules.split(/\r?\n/).filter(l => l.startsWith('/'));
   assert.ok(patterns.includes('/data-core/*.js') && patterns.includes('/family/*.css') && patterns.includes('/_next/static/*'));
   assert.ok(patterns.every(p => !/html|\/\*$/.test(p) || p === '/_next/static/*'), 'no rule covers HTML pages');
   assert.ok(patterns.length <= 100);
