@@ -11,6 +11,7 @@ test('signed-in DATA CORE staff shells load the shared versioned visual layer af
     assert.ok(sharedIndex>0);
     // The phone shell layer comes last so it can restyle each page under body.mobile-app.
     if(['index','content','accounts','operations'].includes(file))assert.match(styles.pop(),/mobile-app\.css\?v=/);
+    if(file==='content')assert.match(styles.pop(),/blog-publish-feed\.css\?v=/);
     if(file==='content')assert.match(styles.pop(),/blog-workflow\.css\?v=/);
     if(file==='content')assert.match(styles.pop(),/content-text-presets\.css\?v=/);
     if(file==='index')assert.match(styles.pop(),/calendar\.css\?v=/);
