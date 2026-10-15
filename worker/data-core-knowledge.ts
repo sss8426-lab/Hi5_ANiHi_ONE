@@ -7,6 +7,7 @@ import {
   requireWriteAccess,
 } from "./data-core-access";
 import { ensureDataCoreMigrations } from "./data-core-migrations";
+import { schemaOnce } from './schema-once';
 
 export const KNOWLEDGE_NODE_TYPES = [
   "career",
@@ -190,18 +191,9 @@ async function audit(
     .run();
 }
 
-const knowledgeSchemaReady = new WeakMap<D1Database, Promise<void>>();
 
 export async function ensureKnowledgeSchema(db: D1Database) {
-  let ready = knowledgeSchemaReady.get(db);
-  if (!ready) {
-    ready = initializeKnowledgeSchema(db).catch((error) => {
-      knowledgeSchemaReady.delete(db);
-      throw error;
-    });
-    knowledgeSchemaReady.set(db, ready);
-  }
-  return ready;
+  return schemaOnce(db, 'knowledge-schema', () => initializeKnowledgeSchema(db));
 }
 
 async function initializeKnowledgeSchema(db: D1Database) {

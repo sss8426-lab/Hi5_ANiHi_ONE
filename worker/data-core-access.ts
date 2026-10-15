@@ -5,6 +5,7 @@ import {
   syncRequestUser,
 } from "./data-core";
 import { CAMPUS_DIRECTORY, canonicalCampusId, campusDisplayName, presentCampuses } from './campus-directory';
+import { schemaOnce } from './schema-once';
 
 export const DATA_CORE_ROLES = [
   "MASTER",
@@ -65,10 +66,8 @@ export class DataCoreAccessError extends Error {
   }
 }
 
-const campusSeedReady = new WeakMap<D1Database, Promise<void>>();
 export async function ensureDefaultCampuses(db: D1Database): Promise<void> {
-  if (!campusSeedReady.has(db)) campusSeedReady.set(db, seedDefaultCampuses(db).catch(error => { campusSeedReady.delete(db); throw error; }));
-  return campusSeedReady.get(db)!;
+  return schemaOnce(db, 'default-campuses', () => seedDefaultCampuses(db));
 }
 async function seedDefaultCampuses(db: D1Database): Promise<void> {
   await ensureDataCoreDatabase(db);

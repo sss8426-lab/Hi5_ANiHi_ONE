@@ -1,17 +1,10 @@
 import { ensureDataCoreDatabase } from "./data-core";
 import { ensureStandaloneAuthSchema } from "./data-core-auth";
+import { schemaOnce } from './schema-once';
 
-const migrationsReady = new WeakMap<D1Database, Promise<void>>();
 
 export async function ensureDataCoreMigrations(db: D1Database): Promise<void> {
-  if (!migrationsReady.has(db)) {
-    const ready = runMigrations(db).catch((error) => {
-      migrationsReady.delete(db);
-      throw error;
-    });
-    migrationsReady.set(db, ready);
-  }
-  return migrationsReady.get(db)!;
+  return schemaOnce(db, 'data-core-migrations', () => runMigrations(db));
 }
 
 async function runMigrations(db: D1Database) {

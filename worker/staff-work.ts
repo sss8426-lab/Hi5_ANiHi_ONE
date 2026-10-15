@@ -5,6 +5,7 @@ import { DEFAULT_ORGANIZATION_ID as ORG } from './data-core';
 import { DataCoreAccessContext, DataCoreAccessError, requireWriteAccess, isCampusAdmin, managesCampus } from './data-core-access';
 import { ruleDates, reportDeadline, shiftMonth } from '../public/data-core/fixed-task-rules.js';
 import { campusDisplayName } from './campus-directory';
+import { schemaOnce } from './schema-once';
 
 const fail = (status: number, message: string): never => { throw new DataCoreAccessError(status, message); };
 const now = () => new Date().toISOString();
@@ -15,9 +16,8 @@ const RULES = ['first-saturday', 'month-end', 'month-day', 'weekday'];
 const PHOTO_LIMIT = 20, PHOTO_BYTES = 4 * 1024 * 1024;
 const MONTHLY_REPORT_TASK = 'fixed-monthly-report';
 
-const ready = new WeakMap<D1Database, Promise<unknown>>();
 function ensureTables(db: D1Database) {
-  if (!ready.has(db)) ready.set(db, db.batch([
+  return schemaOnce(db, 'staff-work', () => db.batch([
     db.prepare(`CREATE TABLE IF NOT EXISTS staff_reports (id TEXT PRIMARY KEY NOT NULL, organization_id TEXT NOT NULL, campus_id TEXT, author_user_id TEXT NOT NULL,
       author_name TEXT NOT NULL, report_month TEXT NOT NULL, body_json TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT)`),
     db.prepare(`CREATE INDEX IF NOT EXISTS staff_reports_month_idx ON staff_reports(organization_id, report_month, created_at)`),
@@ -30,8 +30,7 @@ function ensureTables(db: D1Database) {
     // The one fixed task every staff member has from day one: the 월간 업무보고 deadline (MASTER can change it).
     db.prepare(`INSERT OR IGNORE INTO calendar_fixed_tasks (id, organization_id, campus_id, title, rule, rule_value, kind, created_by, created_at, updated_at)
       VALUES (?, ?, NULL, '월간 업무보고 마감', 'first-saturday', NULL, 'monthly-report', NULL, ?, ?)`).bind(MONTHLY_REPORT_TASK, ORG, '2026-10-08T00:00:00.000Z', '2026-10-08T00:00:00.000Z'),
-  ]).catch(error => { ready.delete(db); throw error; }));
-  return ready.get(db)!;
+  ]).then(() => {}));
 }
 
 const text = (value: unknown, max: number) => typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().slice(0, max) : '';

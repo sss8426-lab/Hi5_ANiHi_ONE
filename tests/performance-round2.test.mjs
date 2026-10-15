@@ -68,3 +68,29 @@ test('같은 요청 나눠 쓰기: 동시에·1.5초 안의 같은 GET은 한 �
     assert.ok(html.indexOf('fetch-share.js') > 0 && html.indexOf('fetch-share.js') < html.indexOf('<script', html.indexOf('fetch-share.js') + 20) + 1, page);
   }
 });
+
+test('새 작업자 첫 요청: 같은 배포에서 이미 준비한 표는 다시 만들지 않는다(배포마다 한 번)', async () => {
+  const h = await libraryHarness();
+  try {
+    const raw = h.env.DB;
+    const freshWorker = () => new Proxy(raw, { get(t, k) { const v = Reflect.get(t, k); return typeof v === 'function' ? v.bind(t) : v; } });
+    const queries = async (path, user = users.teacher) => { const r = await h.raw('GET', path, user); await r.arrayBuffer(); return Number(/desc="(\d+) queries"/.exec(r.headers.get('server-timing'))[1]); };
+    const path = '/api/data-core/staff-reports?month=2026-10';
+    h.env.CF_VERSION_METADATA = { id: 'deploy-A' };
+    h.env.DB = freshWorker();
+    const first = await queries(path);              // first worker of deploy A prepares everything
+    h.env.DB = freshWorker();
+    const second = await queries(path);             // a new worker of the same deploy only reads the stamps
+    h.env.DB = freshWorker();
+    const warm = (await queries(path), await queries(path));
+    assert.ok(second < first, `same deploy, new worker: ${second} < ${first}`);
+    assert.ok(second <= warm + 2, `new worker costs about one extra read: ${second} vs warm ${warm}`);
+    const stamps = await raw.prepare("SELECT COUNT(*) AS n FROM core_schema_stamps WHERE build='deploy-A'").first();
+    assert.ok(stamps.n >= 3, 'steps written down for deploy A');
+    h.env.CF_VERSION_METADATA = { id: 'deploy-B' };
+    h.env.DB = freshWorker();
+    const redeploy = await queries(path);
+    assert.ok(redeploy > second, 'a new deploy prepares again once');
+    assert.equal((await raw.prepare("SELECT COUNT(*) AS n FROM core_schema_stamps WHERE build='deploy-A'").first()).n, 0, '지난 배포 기록은 지운다');
+  } finally { await h.mf.dispose(); }
+});

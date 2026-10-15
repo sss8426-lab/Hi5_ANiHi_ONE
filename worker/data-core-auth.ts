@@ -1,6 +1,7 @@
 import { DEFAULT_ORGANIZATION_ID } from "./data-core";
 import { DATA_CORE_ROLES, isMasterRole, DataCoreAccessError, requireAuthenticatedAccess, requireSignedInAccess, type DataCoreAccessContext, type DataCoreRole } from "./data-core-access";
 import { canonicalCampusId, HEARTBEAT_MINUTES, campusDisplayName, isSelectableCampus, presentCampuses } from './campus-directory';
+import { schemaOnce } from './schema-once';
 
 export const AUTH_COOKIE_NAME = "data_core_session";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 8;
@@ -87,10 +88,8 @@ function assertSameOrigin(request: Request) {
   }
 }
 
-const authSchemaReady = new WeakMap<D1Database, Promise<void>>();
 export async function ensureStandaloneAuthSchema(db: D1Database) {
-  if (!authSchemaReady.has(db)) authSchemaReady.set(db, initializeStandaloneAuthSchema(db).catch(error => { authSchemaReady.delete(db); throw error; }));
-  return authSchemaReady.get(db)!;
+  return schemaOnce(db, 'standalone-auth-schema', () => initializeStandaloneAuthSchema(db));
 }
 async function initializeStandaloneAuthSchema(db: D1Database) {
   await db.batch([
