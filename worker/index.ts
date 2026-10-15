@@ -1,4 +1,5 @@
 /** Cloudflare Worker entry point for the admissions consulting web app. */
+import { schemaOnce } from "./schema-once";
 import { syncPublicHolidaysForAdmin } from "./data-core-public-holidays";
 import {
   DEFAULT_ORGANIZATION_ID,
@@ -100,11 +101,14 @@ function appShell() {
 
 async function ensureDatabase(env: Env) {
   if (!env.DB) return;
-  await env.DB
-    .prepare(
-      "CREATE TABLE IF NOT EXISTS app_state (id TEXT PRIMARY KEY NOT NULL, json TEXT NOT NULL, updated_at TEXT NOT NULL)",
-    )
-    .run();
+  const db = env.DB;
+  await schemaOnce(db, "app_state", async () => {
+    await db
+      .prepare(
+        "CREATE TABLE IF NOT EXISTS app_state (id TEXT PRIMARY KEY NOT NULL, json TEXT NOT NULL, updated_at TEXT NOT NULL)",
+      )
+      .run();
+  });
 }
 
 async function fetchAsset(request: Request, env: Env, pathname?: string) {

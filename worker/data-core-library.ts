@@ -3,7 +3,7 @@ import { DataCoreAccessContext, DataCoreAccessError } from './data-core-access';
 import { uploadDataCoreFile, deleteDataCoreFile } from './data-core-files';
 import { THUMBNAIL_CATEGORY, thumbnailSource } from './data-core-derivative-policy';
 import { createLibraryThumbnail, thumbnailUrls } from './data-core-thumbnails';
-import { privateImageResponse } from './private-image-response';
+import { privateImageResponse, conditionalImageGet } from './private-image-response';
 import { instagramPreserveReason } from '../public/data-core/instagram-source-policy.js';
 import { isSelectableCampus } from './campus-directory';
 import { LibraryTree, LibraryFolder, LIBRARY_FOLDER, HQ_FOLDER, LIBRARY_SOURCE, LIBRARY_CATEGORIES, HQ_DEFAULTS,
@@ -316,6 +316,30 @@ async function listFiles(tree: LibraryTree, folder: LibraryFolder, url: URL) {
   return { files:files.map(file=>({...file,thumbnailUrl:thumbnails.get(file.id) || null})), hasMore, page:locatedPage||page, navigationHidden: Boolean(folder.navigationHidden) };
 }
 
+// 업로드 전 같은 이름 확인용: 이 폴더 파일 이름만 한 번에. 목록 화면과 같은 폴더·읽기 권한 규칙을 쓰고,
+// 썸네일·개수·쪽 나누기를 하지 않아 큰 폴더도 빠르다.
+async function fileNames(tree: LibraryTree, folder: LibraryFolder) {
+  if (!folder.category) return { names: [] as string[] };
+  const legacy = folder.id.startsWith('category:');
+  const names: string[] = [];
+  for (let offset = 0; offset < 20000; offset += 500) {
+    const rows: Record<string,any>[] = (await tree.db.prepare(`SELECT fo.* FROM file_objects fo
+      WHERE fo.organization_id = ? AND fo.campus_id IS ? AND fo.deleted_at IS NULL AND fo.category = ?
+      AND (fo.data_record_id = ? OR (? = 1 AND NOT EXISTS (SELECT 1 FROM data_records dr WHERE dr.id = fo.data_record_id AND dr.record_type IN (?, ?))))
+      ORDER BY fo.id LIMIT 500 OFFSET ?`)
+      .bind(ORG, folder.campusId, folder.category, folder.id, legacy ? 1 : 0, LIBRARY_FOLDER, HQ_FOLDER, offset).all<Record<string, any>>()).results || [];
+    await tree.prefetch(rows.map(row=>row.data_record_id).filter(Boolean));
+    for (const row of rows) {
+      try {
+        const sourceFolder = await fileFolder(tree, row);
+        if (sourceFolder.id === folder.id && libraryFileReadable(tree.context, sourceFolder, row)) names.push(String(row.original_file_name || ''));
+      } catch (e) { if (!(e instanceof DataCoreAccessError)) throw e; }
+    }
+    if (rows.length < 500) break;
+  }
+  return { names };
+}
+
 async function recentFiles(tree: LibraryTree, folder: LibraryFolder) {
   const placeholders = LIBRARY_FILE_CATEGORIES.map(() => '?').join(',');
   const campusNames = new Map(tree.campuses.map(c => [c.id, c.name]));
@@ -453,7 +477,7 @@ async function folderCounts(tree:LibraryTree, folders:LibraryFolder[]) {
   for(let start=0;start<folders.length;start+=60){
     const ids=folders.slice(start,start+60).map(f=>f.id);
     const rows=(await tree.db.prepare(`SELECT * FROM data_records WHERE organization_id=? AND source_app=? AND record_type=? AND deleted_at IS NULL
-      AND json_valid(metadata_json) AND json_extract(metadata_json,'$.parentFolderId') IN (${ids.map(()=>'?').join(',')})`).bind(ORG,LIBRARY_SOURCE,LIBRARY_FOLDER,...ids).all<Record<string,unknown>>()).results||[];
+      AND CASE WHEN json_valid(metadata_json) THEN json_extract(metadata_json,'$.parentFolderId') END IN (${ids.map(()=>'?').join(',')})`).bind(ORG,LIBRARY_SOURCE,LIBRARY_FOLDER,...ids).all<Record<string,unknown>>()).results||[];
     for(const row of rows)tree.rows.set(String(row.id),row);
     for(const row of rows){try{const f=await tree.resolve(String(row.id));if(f.parentId&&wanted.has(f.parentId)&&!f.archived&&!f.navigationHidden&&!libraryMetadata(row).rootProjection)counts.set(f.parentId,(counts.get(f.parentId)||0)+1);}catch(e){if(!(e instanceof DataCoreAccessError))throw e;}}
   }
@@ -535,6 +559,9 @@ export async function handleLibraryApi(request: Request, db: D1Database, bucket:
   if (uploadMatch && request.method === 'DELETE') return json(await abortLibraryMultipartUpload(db, bucket, tree, context,
     decodeURIComponent(uploadMatch[1])));
 
+  if (url.pathname === '/api/data-core/library/file-names' && request.method === 'GET') {
+    return json(await fileNames(tree, await tree.resolve(text(url.searchParams.get('folderId')) || 'root')));
+  }
   if (url.pathname === '/api/data-core/library/files' && request.method === 'GET') {
     const folder = await tree.resolve(text(url.searchParams.get('folderId')) || 'root');
     const listing = await listFiles(tree, folder, url);
@@ -585,7 +612,7 @@ export async function handleLibraryApi(request: Request, db: D1Database, bucket:
     }
     if (request.method === 'GET' || request.method === 'HEAD') {
       if (row.category === THUMBNAIL_CATEGORY && !await bucket.head(source.r2_key)) error(404,'원본 파일을 찾을 수 없습니다.');
-      const object = request.method==='HEAD'?await bucket.head(row.r2_key):await bucket.get(row.r2_key);
+      const object = request.method==='HEAD'?await bucket.head(row.r2_key):await conditionalImageGet(bucket,row.r2_key,request,row.mime_type,!match[2]&&previewableFile(row));
       if (!object) error(404, '원본 파일을 찾을 수 없습니다.');
       const preview = previewableFile(row);
       const disposition = match[2] || !preview ? 'attachment' : 'inline';

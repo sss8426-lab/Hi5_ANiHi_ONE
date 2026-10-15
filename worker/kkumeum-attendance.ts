@@ -1,3 +1,4 @@
+import { schemaOnce } from "./schema-once";
 import { DataCoreAccessContext, DataCoreAccessError, requireAuthenticatedAccess } from "./data-core-access";
 import { requireKkumeumStudentAccess } from "./kkumeum-core";
 import { getGuardianChild } from "./kkumeum-guardian-feed";
@@ -24,7 +25,10 @@ type EventRow = {
   created_at: string; canceled_at: string | null;
 };
 
-export async function ensureKkumeumAttendanceSchema(familyDb: D1Database): Promise<void> {
+export function ensureKkumeumAttendanceSchema(familyDb: D1Database): Promise<void> {
+  return schemaOnce(familyDb, "ensureKkumeumAttendanceSchema", () => ensureKkumeumAttendanceSchemaNow(familyDb));
+}
+async function ensureKkumeumAttendanceSchemaNow(familyDb: D1Database): Promise<void> {
   await ensureKkumeumGuardianAuthSchema(familyDb);
   await familyDb.batch([
     familyDb.prepare(`CREATE TABLE IF NOT EXISTS family_attendance_events (

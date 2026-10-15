@@ -129,6 +129,12 @@ async function initializeSchema(db: D1Database): Promise<void> {
       FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE SET NULL
     )`,
     `CREATE INDEX IF NOT EXISTS data_records_type_idx ON data_records(record_type)`,
+    // 속도: 썸네일 찾기(derivedFromFileId)와 하위 폴더 찾기(parentFolderId)가 전체 기록을 읽지 않도록.
+    // json_valid로 감싼 식이라 JSON이 잘못된 기록이 있어도 저장은 실패하지 않는다. 질의도 같은 식을 쓴다.
+    `CREATE INDEX IF NOT EXISTS data_records_derived_from_idx ON data_records(record_type,
+      (CASE WHEN json_valid(metadata_json) THEN json_extract(metadata_json,'$.derivedFromFileId') END))`,
+    `CREATE INDEX IF NOT EXISTS data_records_parent_folder_idx ON data_records(record_type,
+      (CASE WHEN json_valid(metadata_json) THEN json_extract(metadata_json,'$.parentFolderId') END))`,
     `CREATE INDEX IF NOT EXISTS data_records_campus_idx ON data_records(campus_id)`,
     `CREATE INDEX IF NOT EXISTS data_records_source_app_idx ON data_records(source_app)`,
     `CREATE TABLE IF NOT EXISTS file_objects (

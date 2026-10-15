@@ -1,4 +1,4 @@
-import { setupUploads } from './library-upload-panel.js?v=20260928-library-names';
+import { setupUploads } from './library-upload-panel.js?v=20261015-speed';
 import { open as openPreview } from './library-preview.js';
 import { setupTree } from './library-tree.js?v=20261009-mock';
 import { downloadFiles } from './library-download.js?v=20261009-mock';
