@@ -77,3 +77,14 @@
 .report-editor .report-counts input{width:100%;min-width:0!important;min-height:34px!important;height:34px;padding:2px!important;border:0!important;border-radius:4px!important;box-shadow:none!important;background:#fafbfa!important;text-align:center}
 /* 진행·예정업무 분야별 묶음 */
 .report-group{display:grid;grid-template-columns:58px minmax(0,1fr);column-gap:10px;padding:8px 0;border-top:1px dashed #e3e9e6}.report-sec h4+.report-group{border-top:0;padding-top:2px}.report-group-head{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding-top:3px}.report-group-head small{font-size:11px;color:#7a8a84}.report-group ul{margin:0;padding:0;list-style:none}.report-group li{position:relative;padding-left:12px;font-size:13.5px;line-height:1.7;overflow-wrap:anywhere}.report-group li::before{content:'';position:absolute;left:2px;top:.75em;width:4px;height:4px;border-radius:50%;background:#9fb3ab}
+
+/* 연간 합계: 신입·수상 1위 선생님, 접히는 월별 표 */
+.report-champ{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;align-items:baseline;padding:10px 0;border-top:1px solid #eef2f1}
+.report-champ>span{grid-row:span 3;font-size:13px;font-weight:800;color:#475467;white-space:nowrap}
+.report-champ b{font-size:15px}.report-champ small{color:#667085;font-size:12px;grid-column:2}
+.report-months{border-top:1px solid #eef2f1;padding-top:8px}
+.report-months summary{cursor:pointer;font-size:13px;font-weight:700;color:#16614f;min-height:32px;display:flex;align-items:center}
+.report-months table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
+.report-months th,.report-months td{padding:5px 4px;text-align:right;border-bottom:1px solid #f2f4f3}
+.report-months thead th{color:#667085;font-weight:700}.report-months tbody th{text-align:left;font-weight:700}
+.report-months tr.now{background:#f1f8f6}

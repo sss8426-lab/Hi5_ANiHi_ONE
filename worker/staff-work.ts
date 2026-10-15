@@ -152,10 +152,45 @@ async function saveReport(db: D1Database, context: DataCoreAccessContext, input:
   return newId;
 }
 
+// 연간 합계: 1월~12월 신입·퇴원·수상, 달마다 합계, 신입·수상 1위 선생님. Every member sees every campus (like the reports).
+async function yearTotals(db: D1Database, url: URL) {
+  const year = url.searchParams.get('year') || '';
+  if (!/^\d{4}$/.test(year)) fail(400, '연도를 확인하세요.');
+  const campusId = url.searchParams.get('campusId') || '';
+  const rows = (await db.prepare(`SELECT author_user_id, author_name, campus_id, report_month, body_json FROM staff_reports
+    WHERE organization_id=? AND deleted_at IS NULL AND report_month LIKE ? AND (?='' OR campus_id=?) ORDER BY report_month, created_at`)
+    .bind(ORG, `${year}-%`, campusId, campusId).all<any>()).results || [];
+  const names = await campusNames(db);
+  const sum = (v: any) => REPORT_GRADES.reduce((n, g) => n + (Number(v?.[g]) || 0), 0);
+  const awards = (list: any) => (Array.isArray(list) ? list : []).reduce((n: number, a: any) => n + (Number(a?.count) || 1), 0);
+  const months = Array.from({ length: 12 }, (_, i) => ({ month: `${year}-${String(i + 1).padStart(2, '0')}`, reports: 0, joins: 0, leaves: 0, awards: 0 }));
+  const people = new Map<string, { name: string; campusName: string; joins: number; awards: number }>();
+  for (const row of rows) {
+    let body: any = {}; try { body = JSON.parse(row.body_json); } catch { body = {}; }
+    const m = months[Number(String(row.report_month).slice(5)) - 1];
+    const j = sum(body.joins), l = sum(body.leaves), a = awards(body.awards);
+    m.reports++; m.joins += j; m.leaves += l; m.awards += a;
+    const p = people.get(row.author_user_id) || { name: row.author_name, campusName: names.get(row.campus_id) || '', joins: 0, awards: 0 };
+    p.name = row.author_name || p.name; p.campusName = names.get(row.campus_id) || p.campusName; p.joins += j; p.awards += a;
+    people.set(row.author_user_id, p);
+  }
+  // 1위: the highest total; everyone tied for it is shown (up to 3). Nobody when the top is 0.
+  const top = (key: 'joins' | 'awards') => {
+    const best = Math.max(0, ...[...people.values()].map(p => p[key]));
+    return best ? [...people.values()].filter(p => p[key] === best).slice(0, 3).map(p => ({ name: p.name, campusName: p.campusName, count: best })) : [];
+  };
+  return {
+    year, campusId: campusId || null, reports: rows.length,
+    totals: { joins: months.reduce((n, m) => n + m.joins, 0), leaves: months.reduce((n, m) => n + m.leaves, 0), awards: months.reduce((n, m) => n + m.awards, 0) },
+    months, topJoins: top('joins'), topAwards: top('awards'),
+  };
+}
+
 async function handleReports(request: Request, url: URL, db: D1Database, bucket: R2Bucket | undefined, context: DataCoreAccessContext) {
   const path = url.pathname.slice('/api/data-core/staff-reports'.length);
   const json = async () => { try { return await request.json(); } catch { return fail(400, '요청 내용을 확인하세요.'); } };
   if (path === '' && request.method === 'GET') return listReports(db, context, url);
+  if (path === '/year' && request.method === 'GET') return yearTotals(db, url);
   if (path === '' && request.method === 'POST') return reportDetail(db, context, await saveReport(db, context, await json()), false);
   if (path === '/photos' && request.method === 'POST') {
     if (!bucket) fail(503, '사진 보관소가 연결되지 않았습니다.');
