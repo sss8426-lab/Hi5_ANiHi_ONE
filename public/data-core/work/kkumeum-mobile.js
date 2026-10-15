@@ -141,12 +141,12 @@
   async function calendar() {
     content.innerHTML='<button type="button" class="km-back" data-back>소식으로 돌아가기</button><h2>일정관리</h2><div id="kmCalendarList">불러오는 중...</div>';
     const now=new Date();const from=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;const to=`${now.getFullYear()+1}-12-31`;
-    try{const result=await api(`/api/data-core/calendar?from=${from}&to=${to}`);if(!$('kmCalendarList'))return;$('kmCalendarList').innerHTML=(result.events||[]).map(e=>`<article class="km-group"><h3>${h(e.title)}</h3><p class="km-meta">${h(e.metadata?.startDate)} · ${h(e.campusName||'공통 일정')}</p></article>`).join('')||empty('등록된 일정이 없습니다.');}
+    try{const result=await api(`/api/data-core/calendar?from=${from}&to=${to}`);if(!$('kmCalendarList'))return;$('kmCalendarList').innerHTML=(result.events||[]).map(e=>`<article class="km-group"><h3>${h(e.title)}</h3><p class="km-meta">${h(e.metadata?.startDate)} · ${h(e.campusName||'공통 일정')}${e.metadata?.familyVisible||e.metadata?.eventType==='holiday'?' · 학부모에게 보임':''}</p></article>`).join('')||empty('등록된 일정이 없습니다.');}
     catch{if($('kmCalendarList'))$('kmCalendarList').innerHTML=empty('일정을 불러오지 못했습니다.');}
     if(writer()&&route().view==='calendar')content.insertAdjacentHTML('beforeend','<button type="button" class="km-primary" id="kmCalendarAdd">캠퍼스 공통 일정등록</button>');
     if($('kmCalendarAdd'))$('kmCalendarAdd').onclick=()=>{
-      content.innerHTML='<button type="button" data-back class="km-back">목록</button><form class="km-form" id="kmCalendarForm"><h2>캠퍼스 공통 일정</h2><p class="km-meta">학생·보호자 이름이나 개인 정보는 입력하지 마세요.</p><label>일정명<input name="title" maxlength="240" required></label><label>날짜<input name="date" type="date" required></label><button type="submit" class="km-primary">일정 저장</button><p id="kmFeedback" role="status"></p></form>';
-      $('kmCalendarForm').onsubmit=async e=>{e.preventDefault();if(state.busy)return;state.busy=true;const f=e.currentTarget;f.querySelector('[type=submit]').disabled=true;const d=new FormData(f);try{await api('/api/data-core/calendar',json('POST',{title:d.get('title'),campusId:state.campusId,visibility:'campus',metadata:{schemaVersion:1,startDate:d.get('date'),allDay:true,eventType:'class'}}));await calendar();}catch{feedback('일정을 저장하지 못했습니다.');}finally{state.busy=false;f.querySelector('[type=submit]').disabled=false;}};
+      content.innerHTML='<button type="button" data-back class="km-back">목록</button><form class="km-form" id="kmCalendarForm"><h2>캠퍼스 공통 일정</h2><p class="km-meta">학생·보호자 이름이나 개인 정보는 입력하지 마세요.</p><label>일정명<input name="title" maxlength="240" required></label><label>날짜<input name="date" type="date" required></label><label class="km-check-row"><input name="familyVisible" type="checkbox"> 학부모에게도 보이기 (꿈이음 앱 학원 일정)</label><button type="submit" class="km-primary">일정 저장</button><p id="kmFeedback" role="status"></p></form>';
+      $('kmCalendarForm').onsubmit=async e=>{e.preventDefault();if(state.busy)return;state.busy=true;const f=e.currentTarget;f.querySelector('[type=submit]').disabled=true;const d=new FormData(f);try{await api('/api/data-core/calendar',json('POST',{title:d.get('title'),campusId:state.campusId,visibility:'campus',metadata:{schemaVersion:1,startDate:d.get('date'),allDay:true,eventType:'class',familyVisible:d.get('familyVisible')==='on'}}));await calendar();}catch{feedback('일정을 저장하지 못했습니다.');}finally{state.busy=false;f.querySelector('[type=submit]').disabled=false;}};
     };
   }
   function auxiliary(view) {
@@ -169,6 +169,8 @@
     if(view==='attendance-settings'){if(!manager()){content.innerHTML=empty('출결 설정은 원장·관리자만 할 수 있습니다.');return;}window.KkumeumAttendanceAdmin?.open({state,route});return;}
     // 답변모음 · 문의모음 · 대화 · 문의 운영시간 (kkumeum-talk.js); the server limits teachers to their class students.
     if(['answers','inquiries','thread','talk-settings'].includes(view)){window.KkumeumTalk?.open({state,route,go});return;}
+    // 신청/동의서: 만들기 · 제출 현황 (kkumeum-forms.js).
+    if(['consents','form','form-new'].includes(view)){window.KkumeumForms?.open({state,route,go});return;}
     if(view==='notice'){void detail(id);return;}
     if(view==='calendar'){void calendar();return;}
     // 출석부 → 꿈이음 반영 (roster-sync.js): 다른 곳을 학생마다 체크해서 적용.

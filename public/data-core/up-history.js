@@ -53,7 +53,7 @@
     if (path === '/data-core/kkumeum' || path === '/data-core/work/kkumeum.html') {
       const view = query.get('view');
       if (!view) return '/data-core/work';
-      const up = { 'attendance-settings': 'attendance', 'talk-settings': 'inquiries', thread: 'answers' }[view];
+      const up = { 'attendance-settings': 'attendance', 'talk-settings': 'inquiries', thread: 'answers', form: 'consents', 'form-new': 'consents' }[view];
       const next = new URL('/data-core/kkumeum', location.origin);
       if (query.get('tab')) next.searchParams.set('tab', query.get('tab'));
       if (up) next.searchParams.set('view', up);

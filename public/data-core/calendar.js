@@ -392,7 +392,7 @@
     $('calendarEventId').value=copy?'':event?.id||'';$('calendarTitle').value=event?.title||'';
     $('calendarStartDate').value=copy?'':m.startDate||state.calendarSelectedDate||range().from;
     $('calendarEndDate').value=copy?'':m.endDate||'';$('calendarEventType').value=m.eventType||'other';$('calendarSummary').value=event?.summary||'';
-    $('calendarLocation').value=m.location||'';$('calendarImportant').checked=m.important===true;$('calendarTimeMode').value=copy?'unspecified':m.allDay===true?'allDay':m.startTime?'time':'unspecified';
+    $('calendarLocation').value=m.location||'';$('calendarImportant').checked=m.important===true;if($('calendarFamilyVisible'))$('calendarFamilyVisible').checked=m.familyVisible===true;$('calendarTimeMode').value=copy?'unspecified':m.allDay===true?'allDay':m.startTime?'time':'unspecified';
     $('calendarStartTime').value=copy?'':m.startTime||'';$('calendarEndTime').value=copy?'':m.endTime||'';$('calendarTimeMode').onchange();
     $('calendarCampus').innerHTML=(isSuperAdmin()?'<option value="">조직 공통</option>':'')+campuses.map(c=>`<option value="${h(c.id)}">${h(campusDisplayName(c))}</option>`).join('');
     $('calendarCampus').value=event&&!copy?event.campusId||'':isSuperAdmin()?'':campuses[0]?.id||'';
@@ -412,7 +412,7 @@
     if(timed&&(!end||end===start)&&$('calendarEndTime').value&&$('calendarEndTime').value<$('calendarStartTime').value){errorLabel.textContent='종료 시간은 시작 시간과 같거나 이후여야 합니다.';return;}
     const id=$('calendarEventId').value,campusId=$('calendarCampus').value||null;
     const payload={title:$('calendarTitle').value.trim(),summary:$('calendarSummary').value.trim()||null,campusId,visibility:campusId?'campus':'organization',
-      metadata:{startDate:start,endDate:end||'',eventType:$('calendarEventType').value,allDay:$('calendarTimeMode').value==='allDay',startTime:timed?$('calendarStartTime').value:'',endTime:timed?$('calendarEndTime').value:'',location:$('calendarLocation').value.trim(),important:$('calendarImportant').checked}};
+      metadata:{startDate:start,endDate:end||'',eventType:$('calendarEventType').value,allDay:$('calendarTimeMode').value==='allDay',startTime:timed?$('calendarStartTime').value:'',endTime:timed?$('calendarEndTime').value:'',location:$('calendarLocation').value.trim(),important:$('calendarImportant').checked,familyVisible:$('calendarFamilyVisible')?.checked===true}};
     const controls=[...$('calendarForm').elements],disabled=controls.map(control=>control.disabled),identity=ui.identity;
     state.calendarSaving=true;controls.forEach(control=>{control.disabled=true;});$('calendarSubmitBtn').textContent='저장 중...';$('calendarForm').setAttribute('aria-busy','true');
     try {
