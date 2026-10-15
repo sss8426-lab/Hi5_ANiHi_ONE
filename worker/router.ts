@@ -458,7 +458,7 @@ async function handleCompetitionSourceApi(request: Request, env: Env) {
   if (request.method !== "POST") return jsonResponse({ error: "지원하지 않는 외부 소식 요청입니다." }, { status: 405 });
   const context = await resolveDataCoreAccess(request, env.DB, env.DATA_CORE_SUPER_ADMIN_EMAILS);
   const body = match[2] === "preview"
-    ? await previewCompetitionSource(env.DB, context, match[1])
+    ? await previewCompetitionSource(env.DB, context, match[1], url.searchParams.get('fresh') === '1')
     : await importCompetitionSource(request, env.DB, context, match[1]);
   return jsonResponse(body, { headers: { "cache-control": "private, no-store" } });
 }

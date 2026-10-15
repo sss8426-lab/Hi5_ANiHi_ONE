@@ -71,8 +71,8 @@
     }
   }
 
-  async function previewSource(source) {
-    const response = await fetch(`/api/data-core/competition-sources/${encodeURIComponent(source)}/preview`, {
+  async function previewSource(source, fresh = false) {
+    const response = await fetch(`/api/data-core/competition-sources/${encodeURIComponent(source)}/preview${fresh ? '?fresh=1' : ''}`, {
       method: 'POST',
       credentials: 'include',
       cache: 'no-store',
@@ -150,7 +150,7 @@
     const button = document.getElementById('refreshCompetitionSourcesBtn');
     if (button) button.disabled = true;
     if (status) status.textContent = '공모전 소식을 확인하고 있습니다.';
-    const results = await Promise.allSettled(SOURCES.map((source) => previewSource(source)));
+    const results = await Promise.allSettled(SOURCES.map((source) => previewSource(source, force)));
     const errors = [];
     let items = [...liveItems];
     results.forEach((result, index) => {

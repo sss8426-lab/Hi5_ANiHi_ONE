@@ -59,6 +59,8 @@ async function children(tree: LibraryTree, parent: LibraryFolder, includeArchive
     catch (e) { if (!(e instanceof DataCoreAccessError)) throw e; }
   }
   if (['root','hq'].includes(parent.id)) {
+    // One query for the 본원 default folders instead of one round trip each.
+    await tree.prefetch(HQ_DEFAULTS.map(([key]) => `hq-default:${key}`));
     for (const [key] of HQ_DEFAULTS) {
       if (rows.some(r => libraryMetadata(r).folderKey === key)) continue;
       try { output.push(await tree.resolve(`hq-default:${key}`)); } catch (e) { if (!(e instanceof DataCoreAccessError)) throw e; }

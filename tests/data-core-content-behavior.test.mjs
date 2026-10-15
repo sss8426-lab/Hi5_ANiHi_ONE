@@ -1305,7 +1305,7 @@ test("competition source failures and ambiguous matches never replace existing D
     assert.equal(beforeFailure.body.competitions.length, 2);
 
     globalThis.fetch = async () => { throw new Error("synthetic timeout"); };
-    const failedPreview = await h.request("POST", "/api/data-core/competition-sources/artmd/preview", users.admin, undefined, origin);
+    const failedPreview = await h.request("POST", "/api/data-core/competition-sources/artmd/preview?fresh=1", users.admin, undefined, origin);
     assert.equal(failedPreview.response.status, 502);
     const afterFailure = await h.request("GET", "/api/data-core/competitions?limit=10", users.admin);
     assert.equal(afterFailure.body.competitions.length, 2);
@@ -1448,7 +1448,7 @@ test('live news isolates exact row status, ignores comments, reports three pages
     assert.equal(mgood.body.pages[1].open,1); assert.equal(mgood.body.pages[1].upcoming,2);
     assert.equal(mgood.body.pages[1].excluded,1);
     failOther = true;
-    const partial = await h.request('POST','/api/data-core/competition-sources/mgood/preview',users.admin);
+    const partial = await h.request('POST','/api/data-core/competition-sources/mgood/preview?fresh=1',users.admin);
     assert.equal(partial.response.status,200); assert.equal(partial.body.pages[0].ok,true); assert.equal(partial.body.pages[1].ok,false);
     const records = await h.request('GET','/api/data-core/competitions',users.admin);
     assert.equal(records.body.competitions.length,0);

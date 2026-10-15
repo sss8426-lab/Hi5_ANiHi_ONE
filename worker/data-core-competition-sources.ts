@@ -457,10 +457,24 @@ function sourcePayload(item: NormalizedCompetition, existing?: Record<string, un
   };
 }
 
-export async function previewCompetitionSource(db: D1Database, context: DataCoreAccessContext, sourceValue: string) {
+// 공모전 소식 is public and the same for everyone: keep each source's fetch for 30 minutes per worker
+// instead of visiting the outside site on every 업무용 홈 (1–1.7초). 반영(import) always fetches fresh.
+const PREVIEW_MS = 30 * 60_000;
+const previewCache = new Map<string, { at: number; result: Promise<Awaited<ReturnType<typeof fetchSource>>> }>();
+function cachedSource(source: ReturnType<typeof sourceFrom>) {
+  const hit = previewCache.get(source);
+  if (hit && Date.now() - hit.at < PREVIEW_MS) return hit.result;
+  const result = fetchSource(source);
+  previewCache.set(source, { at: Date.now(), result });
+  result.catch(() => previewCache.delete(source));
+  return result;
+}
+
+export async function previewCompetitionSource(db: D1Database, context: DataCoreAccessContext, sourceValue: string, fresh = false) {
   hasCompetitionReadPermission(context);
   const source = sourceFrom(sourceValue);
-  const { items, pages } = await fetchSource(source);
+  if (fresh) previewCache.delete(source); // 전체 새로고침
+  const { items, pages } = await cachedSource(source);
   const existing = await listCompetitions(db, context, new URL("https://data-core.invalid/api/data-core/competitions?limit=100")) as Record<string, unknown>[];
   return {
     source,
@@ -476,7 +490,9 @@ export async function importCompetitionSource(request: Request, db: D1Database, 
   hasCompetitionPermission(context);
   if (!context.isSuperAdmin) throw new DataCoreAccessError(403, "외부 대회 소식 반영은 마스터 관리자만 할 수 있습니다.");
   const source = sourceFrom(sourceValue);
-  const { items } = await fetchSource(source);
+  const fresh = fetchSource(source);
+  previewCache.set(source, { at: Date.now(), result: fresh });
+  const { items } = await fresh;
   const existing = await listCompetitions(db, context, new URL("https://data-core.invalid/api/data-core/competitions?limit=100")) as Record<string, unknown>[];
   const summary = { created: 0, updated: 0, unchanged: 0, ambiguous: 0 };
 
