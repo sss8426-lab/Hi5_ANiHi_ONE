@@ -1,3 +1,4 @@
+import { schemaOnce } from "./schema-once";
 import { DataCoreAccessContext, DataCoreAccessError, requireAuthenticatedAccess } from "./data-core-access";
 import { ensureKkumeumPhase1Schema } from "./kkumeum-schema";
 
@@ -101,7 +102,10 @@ export function matchRosterStudent(students: StudentRow[], className: string, na
   return { studentId: null, reason: candidates.length ? "inactive" : "missing" };
 }
 
-export async function ensureKkumeumAttendanceRosterSchema(familyDb: D1Database): Promise<void> {
+export function ensureKkumeumAttendanceRosterSchema(familyDb: D1Database): Promise<void> {
+  return schemaOnce(familyDb, "ensureKkumeumAttendanceRosterSchema", () => ensureKkumeumAttendanceRosterSchemaNow(familyDb));
+}
+async function ensureKkumeumAttendanceRosterSchemaNow(familyDb: D1Database): Promise<void> {
   await ensureKkumeumPhase1Schema(familyDb);
   await familyDb.batch([
     familyDb.prepare(`CREATE TABLE IF NOT EXISTS family_attendance_rosters (

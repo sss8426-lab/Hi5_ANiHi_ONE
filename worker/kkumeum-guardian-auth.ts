@@ -1,3 +1,4 @@
+import { schemaOnce } from "./schema-once";
 import { DataCoreAccessError } from "./data-core-access";
 import { ensureKkumeumPhase1Schema } from "./kkumeum-schema";
 import { assertInternalGuardianBeta } from "./kkumeum-pilot";
@@ -106,7 +107,10 @@ function assertSameOrigin(request: Request): void {
   }
 }
 
-export async function ensureKkumeumGuardianAuthSchema(familyDb: D1Database): Promise<void> {
+export function ensureKkumeumGuardianAuthSchema(familyDb: D1Database): Promise<void> {
+  return schemaOnce(familyDb, "ensureKkumeumGuardianAuthSchema", () => ensureKkumeumGuardianAuthSchemaNow(familyDb));
+}
+async function ensureKkumeumGuardianAuthSchemaNow(familyDb: D1Database): Promise<void> {
   await ensureKkumeumPhase1Schema(familyDb);
   await familyDb.batch([
     familyDb.prepare(`CREATE TABLE IF NOT EXISTS family_guardians (

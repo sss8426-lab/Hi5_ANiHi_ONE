@@ -1,3 +1,4 @@
+import { schemaOnce } from "./schema-once";
 import { DataCoreAccessContext, DataCoreAccessError, requireAuthenticatedAccess } from "./data-core-access";
 import {
   ensureKkumeumGuardianAuthSchema,
@@ -28,7 +29,10 @@ function newCode(): string {
 }
 export const displayInviteCode = (code: string) => `${code.slice(0, 4)}-${code.slice(4)}`;
 
-export async function ensureKkumeumInviteSchema(familyDb: D1Database): Promise<void> {
+export function ensureKkumeumInviteSchema(familyDb: D1Database): Promise<void> {
+  return schemaOnce(familyDb, "ensureKkumeumInviteSchema", () => ensureKkumeumInviteSchemaNow(familyDb));
+}
+async function ensureKkumeumInviteSchemaNow(familyDb: D1Database): Promise<void> {
   await ensureKkumeumGuardianAuthSchema(familyDb);
   await familyDb.batch([
     familyDb.prepare(`CREATE TABLE IF NOT EXISTS family_invite_codes (

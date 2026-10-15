@@ -1,3 +1,4 @@
+import { schemaOnce } from "./schema-once";
 import { DataCoreAccessError } from "./data-core-access";
 import { ensureKkumeumAnnouncementSchema, guardianCanViewPublishedAnnouncement } from "./kkumeum-announcements";
 import { kkumeumGuardianSessionIdentity, type KkumeumGuardianIdentity } from "./kkumeum-guardian-auth";
@@ -222,7 +223,10 @@ async function decrypt(value: string, key: Uint8Array): Promise<string> {
   return new TextDecoder().decode(plain);
 }
 
-export async function ensureKkumeumPushSchema(familyDb: D1Database): Promise<void> {
+export function ensureKkumeumPushSchema(familyDb: D1Database): Promise<void> {
+  return schemaOnce(familyDb, "ensureKkumeumPushSchema", () => ensureKkumeumPushSchemaNow(familyDb));
+}
+async function ensureKkumeumPushSchemaNow(familyDb: D1Database): Promise<void> {
   await ensureKkumeumAnnouncementSchema(familyDb);
   await familyDb.batch([
     familyDb.prepare(`CREATE TABLE IF NOT EXISTS push_subscriptions (

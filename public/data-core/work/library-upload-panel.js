@@ -20,7 +20,11 @@ export function setupUploads({host,state,api,load}){
   const error=message=>{panel.hidden=false;panel.querySelector('[data-error]').textContent=message;panel.classList.remove('lb-collapsed');};
   const expand=()=>{clearTimeout(collapseTimer);panel.hidden=false;panel.classList.remove('lb-collapsed');};
   panel.querySelector('[data-toggle]').onclick=()=>{pinned=!panel.classList.contains('lb-collapsed');panel.classList.toggle('lb-collapsed');};
-  function scheduleCollapse(){clearTimeout(collapseTimer);if(active||pinned||panel.matches(':hover')||panel.contains(document.activeElement)||batches.some(b=>b.queue.items.some(i=>['failed','cancelled'].includes(i.status)))||panel.querySelector('[data-error]').textContent)return;collapseTimer=setTimeout(()=>{if(!active&&!panel.matches(':hover')&&!panel.contains(document.activeElement))panel.classList.add('lb-collapsed');},2000);}
+  // 모두 성공하면 2.5초 뒤 진행창을 닫는다(끝난 묶음도 비움). 실패·취소가 있으면 재시도할 수 있게 열어 둔다.
+  function scheduleCollapse(){clearTimeout(collapseTimer);if(active||pinned||panel.matches(':hover')||panel.contains(document.activeElement)||batches.some(b=>b.queue.items.some(i=>['failed','cancelled'].includes(i.status)))||panel.querySelector('[data-error]').textContent)return;
+    const allDone=batches.length>0&&batches.every(b=>b.queue.items.every(i=>i.status==='done'));
+    collapseTimer=setTimeout(()=>{if(active||panel.matches(':hover')||panel.contains(document.activeElement))return;
+      if(allDone){panel.hidden=true;panel.classList.remove('lb-collapsed');batches.length=0;render();}else panel.classList.add('lb-collapsed');},allDone?2500:2000);}
   panel.addEventListener('pointerenter',()=>clearTimeout(collapseTimer));panel.addEventListener('pointerleave',scheduleCollapse);panel.addEventListener('focusin',()=>clearTimeout(collapseTimer));panel.addEventListener('focusout',()=>setTimeout(scheduleCollapse));
   function render(){
     const items=batches.flatMap(b=>b.queue.items),done=items.filter(i=>i.status==='done').length,failed=items.filter(i=>i.status==='failed').length,total=items.reduce((s,i)=>s+i.total,0),bytes=items.reduce((s,i)=>s+Math.min(i.loaded,i.total),0);
@@ -62,7 +66,8 @@ export function setupUploads({host,state,api,load}){
         if(!found.canWrite)throw Error('하위 폴더에 업로드할 권한이 없습니다.');paths.set(path,found.id);
       }
       const names=new Map(),entries=[];let skipped=0;
-      for(const inputFile of input.files){const parts=inputFile.path.split('/');parts.pop();const folderId=paths.get(parts.join('/'));if(!names.has(folderId)){const set=new Set();let page=1;while(true){const listing=await api(`/api/data-core/library/files?folderId=${encodeURIComponent(folderId)}&page=${page++}`);for(const f of listing.files)set.add(f.fileName.normalize('NFC'));if(!listing.hasMore)break;}names.set(folderId,set);}
+      for(const inputFile of input.files){const parts=inputFile.path.split('/');parts.pop();const folderId=paths.get(parts.join('/'));if(!names.has(folderId)){// 같은 이름 확인: 폴더 파일 이름만 한 번에 받는다 (목록을 쪽마다 받지 않음).
+const listing=await api(`/api/data-core/library/file-names?folderId=${encodeURIComponent(folderId)}`);names.set(folderId,new Set(listing.names.map(n=>String(n).normalize('NFC'))));}
         const set=names.get(folderId);let file=inputFile.file,name=file.name.normalize('NFC');
         if(set.has(name)){if(!choices){choices=await choose(target.title+' · 같은 이름의 파일이 있습니다.');if(!choices)return;}if(choices.files==='skip'){skipped++;continue;}const dot=name.lastIndexOf('.'),base=dot>0?name.slice(0,dot):name,ext=dot>0?name.slice(dot):'';let n=2;while(set.has(name))name=`${base} (${n++})${ext}`;file=new File([file],name,{type:file.type,lastModified:file.lastModified});}set.add(name);
         entries.push({file,target:{recordId:folderId,libraryScoped:true,uploadRequestId:crypto.randomUUID()}});

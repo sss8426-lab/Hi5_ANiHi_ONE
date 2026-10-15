@@ -44,6 +44,12 @@ interface R2Object {
   key: string;
   size: number;
   etag: string;
+  httpEtag: string;
+  writeHttpMetadata(headers: Headers): void;
+}
+
+interface R2GetOptions {
+  onlyIf?: { etagMatches?: string; etagDoesNotMatch?: string };
 }
 
 interface R2Objects {
@@ -69,6 +75,8 @@ interface R2Bucket {
   head(key: string): Promise<R2Object | null>;
   put(key: string, value: unknown, options?: R2PutOptions): Promise<unknown>;
   get(key: string): Promise<R2ObjectBody | null>;
+  // With onlyIf, a failed precondition returns the object's metadata without a body.
+  get(key: string, options: R2GetOptions): Promise<R2ObjectBody | R2Object | null>;
   list(options?: { cursor?: string }): Promise<R2Objects>;
   delete(keys: string | string[]): Promise<void>;
   createMultipartUpload(key: string, options?: R2PutOptions): Promise<R2MultipartUpload>;
