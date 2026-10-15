@@ -581,6 +581,11 @@ async function handleContentApi(request: Request, env: Env) {
     if (url.pathname === '/api/data-core/content/blog/campus-blogs' && request.method === 'PUT') return jsonResponse(await feed.setCampusBlog(env.DB, context, await contentJson(request)), noStore);
     if (url.pathname === '/api/data-core/content/blog/publications' && request.method === 'GET') return jsonResponse(await feed.listBlogPublications(env.DB, context, url), noStore);
     if (url.pathname === '/api/data-core/content/blog/publications' && request.method === 'POST') return jsonResponse(await feed.addBlogPublication(env.DB, context, await contentJson(request)), noStore);
+    const convert = url.pathname.match(/^\/api\/data-core\/content\/blog\/publications\/([^/]+)\/convert$/);
+    if (convert && request.method === 'POST') {
+      const input = await contentJson(request, 65000), scope = contentScope(context, { sourceApp: 'blog', campusId: input.campusId });
+      return jsonResponse(await withAiRequest(env.DB, context, input.requestId, scope.campusId, () => feed.convertBlogPublication(env, env.DB!, context, decodeURIComponent(convert[1]), input, request.signal)), noStore);
+    }
     const hide = url.pathname.match(/^\/api\/data-core\/content\/blog\/publications\/([^/]+)$/);
     if (hide && request.method === 'DELETE') return jsonResponse(await feed.hideBlogPublication(env.DB, context, decodeURIComponent(hide[1])), noStore);
     throw new DataCoreAccessError(405, '허용되지 않은 요청입니다.');

@@ -70,12 +70,14 @@ test('화면: 블로그 자동화 오른쪽 발행 소식 패널, 인스타에�
   const html = fs.readFileSync('public/data-core/content.html', 'utf8');
   const script = fs.readFileSync('public/data-core/blog-publish-feed.js', 'utf8');
   const content = fs.readFileSync('public/data-core/content.js', 'utf8');
-  assert.match(html, /blog-publish-feed\.js\?v=20261015-collect/);
-  assert.match(html, /blog-publish-feed\.css\?v=20261015-collect/);
+  assert.match(html, /blog-publish-feed\.js\?v=20261015-convert/);
+  assert.match(html, /blog-publish-feed\.css\?v=20261015-convert/);
   assert.match(script, /블로그 발행 소식/);
   assert.match(script, /limit: '30'/);
   assert.match(script, /rel="noopener noreferrer"/);
   assert.match(content, /BlogPublishFeed\?\.show\(state\.sourceApp === 'blog'\)/);
+  assert.match(script, /id="blogFeedSearch"/); assert.match(script, /AI로 변환하기/); assert.doesNotMatch(script, /id="blogFeedAddOpen"/);
+  assert.match(content, /window\.BlogConvert = convertPublication/);
 });
 
 // Fake Naver: one campus blog RSS and one post page. Every other address fails like an outage would.
@@ -144,4 +146,63 @@ test('발행 주소 넣기: 자기 캠퍼스에만, 제목·요약·게시일은
     assert.ok(await h.env.DB.prepare('SELECT hidden_at FROM blog_publications WHERE id=?').bind(item.id).first(), '숨겨도 기록은 남는다');
     assert.equal((await add(users.foreign, { campusId: B, url: 'https://blog.naver.com/synthetic_b/224000000010', date: '2026-10-01' })).status, 200, '네이버 글을 못 읽어도 주소와 날짜는 기록');
   } finally { naver.restore(); await h.mf.dispose(); }
+});
+
+const SOURCE_TEXT = '## 공모전 준비는 언제부터 할까요?\n\n[사진]\n\n광진 캠퍼스 학생들은 여름방학 동안 포스터 공모전을 준비했습니다. 주제를 먼저 정하고 아이디어 스케치를 열 장 넘게 그렸어요.\n\n> 처음 떠오른 생각보다 세 번째 생각이 더 좋을 때가 많아요.\n\n## 색은 이렇게 골랐어요\n\n보색 대비로 시선을 모으고, 글자는 크게 두었습니다. 상담은 언제든 편하게 문의해 주세요.';
+async function seedPost(h, id, campusId, title, { body = SOURCE_TEXT, tags = '[]', date = '2026-10-01', summary = '' } = {}) {
+  const now = new Date().toISOString();
+  await h.env.DB.prepare(`INSERT INTO blog_publications (id, organization_id, record_id, campus_id, title, url, published_date, hashtags_json, summary, body_text, recorded_at, updated_at, source)
+    VALUES (?, 'org-hi5-anihi', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'rss')`).bind(id, id, campusId, title, `https://blog.naver.com/synthetic/${id.replace(/\D/g, '') || '224000000500'}`, date, tags, summary, body, now, now).run();
+}
+
+test('블로그 글 검색: 저장된 모든 글에서 찾고 제목·해시태그가 맞는 글이 먼저', async () => {
+  const h = await libraryHarness();
+  try {
+    await feed(h, users.teacher); // 표 준비
+    await seedPost(h, 'naver:s/224000000501', B, '여름방학 포스터 공모전 준비기', { date: '2026-08-01' });
+    await seedPost(h, 'naver:s/224000000502', A, '원근법 수업 이야기', { body: '복도에서 소실점을 찾았어요. 공모전 이야기는 다음에 할게요.'.repeat(3), date: '2026-10-10' });
+    await seedPost(h, 'naver:s/224000000503', A, '오픈 소식', { tags: '["#공모전","#신규캠퍼스"]', date: '2026-09-01' });
+    await seedPost(h, 'naver:s/224000000504', A, '전혀 다른 글', { body: '수채화 번짐 연습을 했습니다.'.repeat(5) });
+    const found = await feed(h, users.teacher, '?q=' + encodeURIComponent('공모전'));
+    assert.equal(found.status, 200, JSON.stringify(found.body));
+    assert.deepEqual(found.body.items.map(i => i.title), ['여름방학 포스터 공모전 준비기', '오픈 소식', '원근법 수업 이야기'], '제목 > 해시태그 > 본문 순');
+    assert.equal(found.body.total, 3); assert.equal(found.body.query, '공모전');
+    assert.deepEqual((await feed(h, users.teacher, `?campusId=${A}&q=${encodeURIComponent('#공모전')}`)).body.items.map(i => i.title), ['오픈 소식', '원근법 수업 이야기']);
+    assert.equal((await feed(h, users.teacher, '?q=' + encodeURIComponent('100%_없는말'))).body.items.length, 0, '% _ 는 글자 그대로');
+  } finally { await h.mf.dispose(); }
+});
+
+test('AI로 변환하기: 다른 캠퍼스 글의 구조만 따라 내 캠퍼스 글을 새로 쓰고, 문장이 많이 겹치면 한 번 더 쓴다', async () => {
+  const h = await libraryHarness(), real = globalThis.fetch, prompts = [];
+  const answer = (lead, body) => ({ status: 'completed', usage: { input_tokens: 10, output_tokens: 10 }, output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify({
+    strategy: { primaryTopic: '공모전 준비', searchIntent: '공모전 준비 방법', nextQuestion: '언제 시작?', readerProblem: '막막함' },
+    titles: { search: '애니 입시본원 공모전 준비 방법', homefeed: '공모전 준비 언제부터?', balanced: '공모전 준비, 이렇게 시작해요', list: '공모전 준비 3단계', curious: '공모전 준비가 빨라진 이유' },
+    selectedTitleKind: 'balanced', lead, body, hashtags: ['공모전'], cta: '', nextTopics: [], photoCaptions: [], missingInfo: ['공모전 이름'],
+    outline: ['도입: 질문으로 시작', '소제목 1: 준비 과정 · 사진 1장', '인용구: 강사 한마디', '소제목 2: 색 고르기', '마무리: 상담 안내'] }) }] }] });
+  globalThis.fetch = async (input, init) => {
+    const url = String(input?.url || input);
+    if (!url.startsWith('https://api.openai.com/')) return real(input, init);
+    prompts.push(JSON.parse(init.body));
+    // 첫 답은 원문을 거의 베껴서 다시 쓰게 만든다.
+    return Response.json(prompts.length === 1 ? answer('공모전 준비는 언제부터 할까요? 우리 학생들도 시작했어요.', SOURCE_TEXT)
+      : answer('공모전 준비, 이렇게 시작해요. 우리 캠퍼스는 [수업 이름] 시간에 주제부터 정합니다.', '## 주제를 먼저 정해요\n\n아이디어를 여러 장 그려 보며 고릅니다.\n\n## 색 고르기\n\n대비를 살려 눈에 띄게 만듭니다.'));
+  };
+  h.env.OPENAI_API_KEY = 'synthetic-key';
+  try {
+    await feed(h, users.teacher);
+    await seedPost(h, 'naver:s/224000000601', B, '여름방학 포스터 공모전 준비기');
+    const convert = (user, campusId, id = 'naver:s/224000000601') => h.request('POST', `/api/data-core/content/blog/publications/${encodeURIComponent(id)}/convert`, user, { campusId, requestId: randomUUID(), strategyMode: 'balanced' });
+    assert.equal((await convert(users.teacher, B)).status, 403, '남의 캠퍼스 글로는 못 쓴다');
+    const r = await convert(users.teacher, A);
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.equal(prompts.length, 2, '많이 겹쳐서 한 번 더 썼다');
+    assert.ok(r.body.copiedPercent <= 20); assert.equal(r.body.generated.selectedTitleKind, 'balanced');
+    assert.match(r.body.generated.lead, /\[수업 이름\]/); assert.deepEqual(r.body.generated.missingInfo, ['공모전 이름']);
+    assert.equal(r.body.outline.length, 5); assert.equal(r.body.source.title, '여름방학 포스터 공모전 준비기');
+    const sent = JSON.stringify(prompts[0]);
+    assert.match(sent, /구조\(도입 방식/); assert.match(sent, /referencePost/); assert.match(sent, /세 번째 생각/, '원문 구조를 AI에 보냈다');
+    assert.match(JSON.stringify(prompts[1]), /겹쳤습니다/);
+    await seedPost(h, 'naver:s/224000000602', B, '본문 없는 글', { body: '' });
+    assert.equal((await convert(users.teacher, A, 'naver:s/224000000602')).status, 422);
+  } finally { globalThis.fetch = real; await h.mf.dispose(); }
 });

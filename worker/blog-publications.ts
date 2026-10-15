@@ -11,6 +11,8 @@ import { DEFAULT_ORGANIZATION_ID as ORG } from './data-core';
 import { DataCoreAccessContext, DataCoreAccessError, leadsCampus, requireCampusAccess, requireWriteAccess } from './data-core-access';
 import { campusDisplayName, presentCampuses } from './campus-directory';
 import { schemaOnce } from './schema-once';
+import { convertBlogFromReference, type OpenAiEnv } from './content-openai-provider';
+import { blogSeo, HI5_CONTENT_BRAND_CONTEXT } from './data-core-content-generation';
 
 export const BLOG_FEED_LIMIT = 30;
 const SYNC_EVERY_MS = 30 * 60_000;
@@ -148,7 +150,42 @@ export async function syncCampusBlogs(db: D1Database, minAgeMs = SYNC_EVERY_MS) 
       return { campusId: blog.campusId, error: error instanceof Error ? error.message : String(error) };
     }
   }));
-  return { blogs: blogs.length, results };
+  const texts = await fillPostTexts(db, minAgeMs === 0 ? 60 : 10).catch(() => 0);
+  return { blogs: blogs.length, results, texts };
+}
+
+/** The post's text in reading order, with its structure: "## 소제목", "> 인용", "[사진]", "---". */
+export function naverPostText(html: string) {
+  const lines: string[] = [];
+  for (const part of html.split('class="se-component se-').slice(1)) {
+    const kind = (/^[a-zA-Z]+/.exec(part) || [''])[0];
+    const inner = part.slice(part.indexOf('>') + 1);
+    const text = (chunk: string) => decode(chunk.replace(/<\/p>|<br\s*\/?>/gi, '\n')).split('\n').map(line => line.replace(/[\s​ ]+/g, ' ').trim()).filter(Boolean);
+    if (kind === 'documentTitle' || kind === 'oglink' || kind === 'placesMap') continue;
+    if (kind === 'image' || kind === 'imageStrip' || kind === 'imageGroup' || kind === 'video') { lines.push('[사진]'); continue; }
+    if (kind === 'horizontalLine') { lines.push('---'); continue; }
+    const body = text(inner);
+    if (!body.length) continue;
+    if (kind === 'sectionTitle') lines.push('## ' + body.join(' '));
+    else if (kind === 'quotation') lines.push('> ' + body.join(' '));
+    else lines.push(body.join('\n'));
+  }
+  return lines.join('\n\n').slice(0, 20000);
+}
+async function fetchPostText(post: NonNullable<ReturnType<typeof naverPost>>) {
+  return naverPostText(await fetchText(`https://m.blog.naver.com/${post.blogId}/${post.logNo}`));
+}
+// Auto-collected posts arrive with only a short summary; their full text is read in the background so
+// search and AI 변환 see the whole post. '' marks a post that could not be read (not retried each time).
+async function fillPostTexts(db: D1Database, max: number) {
+  const rows = (await db.prepare("SELECT id, url FROM blog_publications WHERE organization_id=? AND body_text IS NULL ORDER BY published_date DESC LIMIT ?").bind(ORG, max).all<Row>()).results || [];
+  await Promise.all(rows.map(async row => {
+    const post = naverPost(row.url);
+    let text = '';
+    try { if (post) text = await fetchPostText(post); } catch { text = ''; }
+    await db.prepare('UPDATE blog_publications SET body_text=? WHERE id=? AND body_text IS NULL').bind(text, row.id).run();
+  }));
+  return rows.length;
 }
 
 // 2. 발행 주소 넣기: title, summary and (when shown) the date come from the public post page.
@@ -157,9 +194,9 @@ async function postPage(post: NonNullable<ReturnType<typeof naverPost>>) {
     const html = await fetchText(`https://m.blog.naver.com/${post.blogId}/${post.logNo}`);
     const meta = (name: string) => decode((new RegExp(`<meta[^>]+property="og:${name}"[^>]+content="([^"]*)"`).exec(html) || [])[1] || '');
     const shown = /se_publishDate[^>]*>\s*(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})\./.exec(html);
-    return { title: clip(meta('title'), 240), summary: clip(meta('description'), 180),
+    return { title: clip(meta('title'), 240), summary: clip(meta('description'), 180), text: naverPostText(html),
       date: shown ? `${shown[1]}-${shown[2].padStart(2, '0')}-${shown[3].padStart(2, '0')}` : null };
-  } catch { return { title: '', summary: '', date: null }; }
+  } catch { return { title: '', summary: '', text: null as string | null, date: null }; }
 }
 
 export async function addBlogPublication(db: D1Database, context: DataCoreAccessContext, input: Row) {
@@ -178,7 +215,7 @@ export async function addBlogPublication(db: D1Database, context: DataCoreAccess
       author_name=COALESCE(blog_publications.author_name, excluded.author_name), campus_id=COALESCE(blog_publications.campus_id, excluded.campus_id),
       hidden_at=NULL, hidden_by=NULL, updated_at=excluded.updated_at`)
     .bind(post.key, ORG, `manual:${post.key}`, campusId, me.internalUserId, clip(me.displayName || me.loginId, 80) || null, title, post.url,
-      date || page.date || kstDay(), null, null, 0, '[]', page.summary, null, null, null, now, now, 'manual', null).run();
+      date || page.date || kstDay(), null, null, 0, '[]', page.summary, page.text || null, null, null, now, now, 'manual', null).run();
   return { ok: true, id: post.key };
 }
 
@@ -224,16 +261,32 @@ export async function listBlogPublications(db: D1Database, context: DataCoreAcce
   if (campusId.length > 120) fail(400, '캠퍼스를 확인하세요.');
   const limit = Math.min(Math.max(Number(url.searchParams.get('limit')) || BLOG_FEED_LIMIT, 1), BLOG_FEED_LIMIT);
   const where = `organization_id=? AND hidden_at IS NULL AND (?='' OR campus_id=?)`;
-  const rows = (await db.prepare(`SELECT id, record_id, campus_id, author_user_id, author_name, title, url, published_date, title_kind, photo_count, hashtags_json, summary, views, source, category
-    FROM blog_publications WHERE ${where} ORDER BY published_date DESC, recorded_at DESC LIMIT ?`).bind(ORG, campusId, campusId, limit).all<Row>()).results || [];
-  const total = await db.prepare(`SELECT COUNT(*) AS n FROM blog_publications WHERE ${where}`).bind(ORG, campusId, campusId).first<{ n: number }>();
+  const fields = 'id, record_id, campus_id, author_user_id, author_name, title, url, published_date, title_kind, photo_count, hashtags_json, summary, views, source, category';
+  // 블로그 글 검색: every saved post (not only the newest 30), most related first.
+  const terms = [...new Set(String(url.searchParams.get('q') || '').replace(/#/g, ' ').split(/\s+/).map(t => t.trim().slice(0, 30)).filter(t => t.length >= 1))].slice(0, 6);
+  let rows: Row[], total: { n: number } | null;
+  if (terms.length) {
+    const like = terms.map(() => `(title LIKE ? ESCAPE '!' OR summary LIKE ? ESCAPE '!' OR hashtags_json LIKE ? ESCAPE '!' OR category LIKE ? ESCAPE '!' OR body_text LIKE ? ESCAPE '!')`).join(' OR ');
+    const values = terms.flatMap(t => { const v = '%' + t.replace(/[!%_]/g, c => '!' + c) + '%'; return [v, v, v, v, v]; });
+    const found = (await db.prepare(`SELECT ${fields}, body_text FROM blog_publications WHERE ${where} AND (${like}) ORDER BY published_date DESC LIMIT 400`).bind(ORG, campusId, campusId, ...values).all<Row>()).results || [];
+    const score = (r: Row) => terms.reduce((sum, t) => {
+      const has = (v: unknown, w: number) => String(v || '').toLowerCase().includes(t.toLowerCase()) ? w : 0;
+      const inBody = String(r.body_text || '').toLowerCase().split(t.toLowerCase()).length - 1;
+      return sum + has(r.title, 6) + has(r.hashtags_json, 4) + has(r.category, 3) + has(r.summary, 2) + Math.min(inBody, 5);
+    }, 0) + (terms.every(t => [r.title, r.summary, r.hashtags_json, r.category, r.body_text].some(v => String(v || '').toLowerCase().includes(t.toLowerCase()))) ? 10 : 0);
+    rows = found.map(r => ({ ...r, score: score(r) }) as Row).sort((a, b) => b.score - a.score || String(b.published_date).localeCompare(String(a.published_date))).slice(0, limit);
+    total = { n: found.length };
+  } else {
+    rows = (await db.prepare(`SELECT ${fields} FROM blog_publications WHERE ${where} ORDER BY published_date DESC, recorded_at DESC LIMIT ?`).bind(ORG, campusId, campusId, limit).all<Row>()).results || [];
+    total = await db.prepare(`SELECT COUNT(*) AS n FROM blog_publications WHERE ${where}`).bind(ORG, campusId, campusId).first<{ n: number }>();
+  }
   const perCampus = (await db.prepare('SELECT campus_id, COUNT(*) AS n FROM blog_publications WHERE organization_id=? AND hidden_at IS NULL GROUP BY campus_id').bind(ORG).all<{ campus_id: string | null; n: number }>()).results || [];
   const campuses = presentCampuses((await db.prepare("SELECT id, code, name FROM campuses WHERE organization_id=? AND status='active' ORDER BY name").bind(ORG).all<Row>()).results || []);
   const linked = new Map((await campusBlogs(db)).map(b => [b.campusId, `https://blog.naver.com/${b.blogId}`]));
   const me = context.user?.internalUserId;
   const canHide = (r: Row) => context.isSuperAdmin || leadsCampus(context, r.campus_id) || Boolean(me && r.author_user_id === me);
   return {
-    total: Number(total?.n || 0), limit,
+    total: Number(total?.n || 0), limit, query: terms.join(' '),
     campuses: perCampus.map(c => ({ campusId: c.campus_id, campusName: campusDisplayName(c.campus_id, c.campus_id) || '본사', count: Number(c.n) })),
     // Where this person may record a post, and which campus blogs they may connect.
     recordCampuses: campuses.filter(c => context.isSuperAdmin || context.campusIds.includes(String(c.id))).map(c => ({ campusId: c.id, campusName: c.name })),
@@ -246,4 +299,27 @@ export async function listBlogPublications(db: D1Database, context: DataCoreAcce
       summary: r.summary || '', views: r.views ?? null, mine: Boolean(me && r.author_user_id === me), canHide: canHide(r),
     })),
   };
+}
+
+/** AI로 변환하기: this post's structure and story, rewritten for the caller's campus (same rules as 글 만들기). */
+export async function convertBlogPublication(env: OpenAiEnv, db: D1Database, context: DataCoreAccessContext, id: string, input: Row, signal?: AbortSignal) {
+  requireWriteAccess(context);
+  await ensureBlogPublications(db);
+  const campusId = String(input?.campusId || '');
+  requireCampusAccess(context, campusId);
+  const row = await db.prepare('SELECT * FROM blog_publications WHERE id=? AND organization_id=? AND hidden_at IS NULL').bind(id, ORG).first<Row>() || fail(404, '발행 기록을 찾을 수 없습니다.');
+  let text = String(row.body_text || '');
+  if (text.length < 200) {
+    const post = naverPost(row.url);
+    try { if (post) { const fresh = await fetchPostText(post); if (fresh.length > text.length) { text = fresh; await db.prepare('UPDATE blog_publications SET body_text=? WHERE id=?').bind(text, id).run(); } } } catch { /* use what was saved */ }
+  }
+  if (text.replace(/\s|\[사진\]/g, '').length < 80) fail(422, '이 글의 본문을 읽지 못했습니다. 네이버에서 글이 비공개이거나 지워졌는지 확인해 주세요.');
+  const recentTitles = Array.isArray(input?.recentTitles) ? input.recentTitles.filter((t: unknown) => typeof t === 'string').map((t: string) => t.slice(0, 200)).slice(0, 20) : [];
+  const keywordTags = Array.isArray(input?.keywordTags) ? input.keywordTags : [];
+  const result = await convertBlogFromReference(env, db, context, {
+    campusName: campusDisplayName(campusId), seo: await blogSeo(db, campusId, input?.keywordBrand, keywordTags), brandContext: HI5_CONTENT_BRAND_CONTEXT,
+    strategyMode: input?.strategyMode, recentTitles, notes: clip(input?.notes, 2000),
+    source: { title: String(row.title), campusName: campusDisplayName(row.campus_id, row.campus_id) || '다른 캠퍼스', text },
+  }, signal);
+  return { ...result, source: { id: row.id, title: row.title, url: row.url, campusName: campusDisplayName(row.campus_id, row.campus_id) || '' } };
 }
