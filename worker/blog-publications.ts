@@ -114,7 +114,9 @@ async function fetchText(url: string, ms = 6000) {
 }
 
 async function campusBlogs(db: D1Database) {
-  const rows = (await db.prepare('SELECT campus_id, metadata_json FROM data_records WHERE organization_id=? AND record_type=? AND deleted_at IS NULL').bind(ORG, PROFILE).all<Row>()).results || [];
+  return blogsFrom((await db.prepare('SELECT campus_id, metadata_json FROM data_records WHERE organization_id=? AND record_type=? AND deleted_at IS NULL').bind(ORG, PROFILE).all<Row>()).results || []);
+}
+function blogsFrom(rows: Row[]) {
   return rows.map(r => ({ campusId: String(r.campus_id), blogUrl: parse(r.metadata_json).channels?.blog || null }))
     .map(r => ({ ...r, blogId: naverBlogId(r.blogUrl) })).filter(r => r.blogId) as { campusId: string; blogUrl: string; blogId: string }[];
 }
@@ -255,9 +257,6 @@ export async function setCampusBlog(db: D1Database, context: DataCoreAccessConte
 export async function listBlogPublications(db: D1Database, context: DataCoreAccessContext, url: URL) {
   requireWriteAccess(context);
   await ensureBlogPublications(db);
-  // The list answers from D1 at once; collecting new posts from Naver runs as its own request (syncDue).
-  const lastSync = await db.prepare("SELECT value FROM blog_feed_meta WHERE key='rss-sync'").first<{ value: string }>();
-  const syncDue = !lastSync || Date.now() - Date.parse(lastSync.value) >= SYNC_EVERY_MS;
   const campusId = url.searchParams.get('campusId') || '';
   if (campusId.length > 120) fail(400, '캠퍼스를 확인하세요.');
   const limit = Math.min(Math.max(Number(url.searchParams.get('limit')) || BLOG_FEED_LIMIT, 1), BLOG_FEED_LIMIT);
@@ -265,25 +264,35 @@ export async function listBlogPublications(db: D1Database, context: DataCoreAcce
   const fields = 'id, record_id, campus_id, author_user_id, author_name, title, url, published_date, title_kind, photo_count, hashtags_json, summary, views, source, category';
   // 블로그 글 검색: every saved post (not only the newest 30), most related first.
   const terms = [...new Set(String(url.searchParams.get('q') || '').replace(/#/g, ' ').split(/\s+/).map(t => t.trim().slice(0, 30)).filter(t => t.length >= 1))].slice(0, 6);
-  let rows: Row[], total: { n: number } | null;
+  const like = terms.map(() => `(title LIKE ? ESCAPE '!' OR summary LIKE ? ESCAPE '!' OR hashtags_json LIKE ? ESCAPE '!' OR category LIKE ? ESCAPE '!' OR body_text LIKE ? ESCAPE '!')`).join(' OR ');
+  const values = terms.flatMap(t => { const v = '%' + t.replace(/[!%_]/g, c => '!' + c) + '%'; return [v, v, v, v, v]; });
+  // Everything this panel needs in one D1 round trip (was six, one after another).
+  const [meta, listed, counted, perCampusResult, campusResult, profileResult] = await db.batch([
+    db.prepare("SELECT value FROM blog_feed_meta WHERE key='rss-sync'"),
+    terms.length
+      ? db.prepare(`SELECT ${fields}, body_text FROM blog_publications WHERE ${where} AND (${like}) ORDER BY published_date DESC LIMIT 400`).bind(ORG, campusId, campusId, ...values)
+      : db.prepare(`SELECT ${fields} FROM blog_publications WHERE ${where} ORDER BY published_date DESC, recorded_at DESC LIMIT ?`).bind(ORG, campusId, campusId, limit),
+    db.prepare(`SELECT COUNT(*) AS n FROM blog_publications WHERE ${where}`).bind(ORG, campusId, campusId),
+    db.prepare('SELECT campus_id, COUNT(*) AS n FROM blog_publications WHERE organization_id=? AND hidden_at IS NULL GROUP BY campus_id').bind(ORG),
+    db.prepare("SELECT id, code, name FROM campuses WHERE organization_id=? AND status='active' ORDER BY name").bind(ORG),
+    db.prepare('SELECT campus_id, metadata_json FROM data_records WHERE organization_id=? AND record_type=? AND deleted_at IS NULL').bind(ORG, PROFILE),
+  ]);
+  // The list answers from D1 at once; collecting new posts from Naver runs as its own request (syncDue).
+  const lastSync = (meta.results || [])[0] as { value: string } | undefined;
+  const syncDue = !lastSync || Date.now() - Date.parse(lastSync.value) >= SYNC_EVERY_MS;
+  let rows = (listed.results || []) as Row[], total = { n: Number(((counted.results || [])[0] as { n: number } | undefined)?.n || 0) };
   if (terms.length) {
-    const like = terms.map(() => `(title LIKE ? ESCAPE '!' OR summary LIKE ? ESCAPE '!' OR hashtags_json LIKE ? ESCAPE '!' OR category LIKE ? ESCAPE '!' OR body_text LIKE ? ESCAPE '!')`).join(' OR ');
-    const values = terms.flatMap(t => { const v = '%' + t.replace(/[!%_]/g, c => '!' + c) + '%'; return [v, v, v, v, v]; });
-    const found = (await db.prepare(`SELECT ${fields}, body_text FROM blog_publications WHERE ${where} AND (${like}) ORDER BY published_date DESC LIMIT 400`).bind(ORG, campusId, campusId, ...values).all<Row>()).results || [];
     const score = (r: Row) => terms.reduce((sum, t) => {
       const has = (v: unknown, w: number) => String(v || '').toLowerCase().includes(t.toLowerCase()) ? w : 0;
       const inBody = String(r.body_text || '').toLowerCase().split(t.toLowerCase()).length - 1;
       return sum + has(r.title, 6) + has(r.hashtags_json, 4) + has(r.category, 3) + has(r.summary, 2) + Math.min(inBody, 5);
     }, 0) + (terms.every(t => [r.title, r.summary, r.hashtags_json, r.category, r.body_text].some(v => String(v || '').toLowerCase().includes(t.toLowerCase()))) ? 10 : 0);
-    rows = found.map(r => ({ ...r, score: score(r) }) as Row).sort((a, b) => b.score - a.score || String(b.published_date).localeCompare(String(a.published_date))).slice(0, limit);
-    total = { n: found.length };
-  } else {
-    rows = (await db.prepare(`SELECT ${fields} FROM blog_publications WHERE ${where} ORDER BY published_date DESC, recorded_at DESC LIMIT ?`).bind(ORG, campusId, campusId, limit).all<Row>()).results || [];
-    total = await db.prepare(`SELECT COUNT(*) AS n FROM blog_publications WHERE ${where}`).bind(ORG, campusId, campusId).first<{ n: number }>();
+    total = { n: rows.length };
+    rows = rows.map(r => ({ ...r, score: score(r) }) as Row).sort((a, b) => b.score - a.score || String(b.published_date).localeCompare(String(a.published_date))).slice(0, limit);
   }
-  const perCampus = (await db.prepare('SELECT campus_id, COUNT(*) AS n FROM blog_publications WHERE organization_id=? AND hidden_at IS NULL GROUP BY campus_id').bind(ORG).all<{ campus_id: string | null; n: number }>()).results || [];
-  const campuses = presentCampuses((await db.prepare("SELECT id, code, name FROM campuses WHERE organization_id=? AND status='active' ORDER BY name").bind(ORG).all<Row>()).results || []);
-  const linked = new Map((await campusBlogs(db)).map(b => [b.campusId, `https://blog.naver.com/${b.blogId}`]));
+  const perCampus = (perCampusResult.results || []) as { campus_id: string | null; n: number }[];
+  const campuses = presentCampuses((campusResult.results || []) as Row[]);
+  const linked = new Map(blogsFrom((profileResult.results || []) as Row[]).map(b => [b.campusId, `https://blog.naver.com/${b.blogId}`]));
   const me = context.user?.internalUserId;
   const canHide = (r: Row) => context.isSuperAdmin || leadsCampus(context, r.campus_id) || Boolean(me && r.author_user_id === me);
   return {

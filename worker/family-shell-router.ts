@@ -9,6 +9,7 @@ import { handleMarketingApi } from "./data-core-marketing";
 import { DataCoreAccessError } from "./data-core-access";
 import { syncCampusBlogs } from "./blog-publications";
 import { forgetSessionAccess } from "./data-core-auth";
+import { forgetLibraryTotals } from "./data-core-library";
 import { timedDb, withDbTiming } from "./db-timing";
 
 const BILL_REMINDER_CRON = "0 1 * * *";
@@ -66,6 +67,8 @@ const worker = {
     // Account, membership and session changes clear the short login memory right away (see standaloneSessionAccess).
     const path = new URL(request.url).pathname;
     if (!['GET', 'HEAD'].includes(request.method) && (path.startsWith('/api/auth/') || path.startsWith('/api/data-core/admin/'))) forgetSessionAccess(env.DB);
+    // Any file or folder change clears the 60-second 자료보관함 counts kept in this worker.
+    if (!['GET', 'HEAD'].includes(request.method) && /^\/api\/(data-core\/(library|files|trash|awards|records|content)|upload|admissions\/)/.test(path)) forgetLibraryTotals(env.DB);
     return response;
   },
   async route(request: Request, env: Env): Promise<Response> {
