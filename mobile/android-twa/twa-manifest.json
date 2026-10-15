@@ -1,0 +1,23 @@
+{
+  "packageId": "com.hi5anihi.kkumeum",
+  "host": "hi5-anihi-one.sss8426.workers.dev",
+  "name": "꿈이음 - HI5·ANiHi 보호자 앱",
+  "launcherName": "꿈이음",
+  "display": "standalone",
+  "orientation": "portrait",
+  "themeColor": "#173a68",
+  "navigationColor": "#173a68",
+  "backgroundColor": "#f5f7fb",
+  "enableNotifications": true,
+  "startUrl": "/family/",
+  "iconUrl": "https://hi5-anihi-one.sss8426.workers.dev/family/icon-512.png",
+  "maskableIconUrl": "https://hi5-anihi-one.sss8426.workers.dev/family/icon-maskable-512.png",
+  "webManifestUrl": "https://hi5-anihi-one.sss8426.workers.dev/family/manifest.webmanifest",
+  "fallbackType": "customtabs",
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "minSdkVersion": 21,
+  "signingKey": { "path": "./android.keystore", "alias": "kkumeum" },
+  "fullScopeUrl": "https://hi5-anihi-one.sss8426.workers.dev/family/",
+  "generatorApp": "bubblewrap-cli"
+}
