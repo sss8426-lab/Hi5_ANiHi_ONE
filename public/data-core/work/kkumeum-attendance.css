@@ -196,3 +196,6 @@
 .kt-snippets li{display:flex;justify-content:space-between;gap:8px;border:1px solid #e5eceb;border-radius:10px;padding:8px 12px}
 .kt-snippets small{display:block;color:#5b6c66;font-size:12.5px;white-space:pre-wrap;margin-top:2px}
 .kt-snippet-form{display:grid;gap:8px}.kt-snippet-form input{min-height:40px;border:1px solid #cfdcd8;border-radius:10px;padding:0 12px;font:inherit}
+/* 출석부 → 꿈이음 반영 알림 줄 (아이소식 맨 위) */
+.km-frame .km-sync-banner{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:6px;width:100%;min-height:48px;margin:6px 0 10px;padding:10px 14px;border:1px solid #f1d48a;border-radius:12px;background:#fff8e6;color:#6b4a00;font:inherit;text-align:left;cursor:pointer}
+.km-frame .km-sync-banner b{font-size:15px}.km-frame .km-sync-banner span{font-weight:800;color:#167d79}

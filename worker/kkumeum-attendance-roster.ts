@@ -137,6 +137,8 @@ export async function saveKkumeumAttendanceRoster(familyDb: D1Database, context:
   if (!isManager(context, campusId)) throw new DataCoreAccessError(403, "출석체크 명단 연동은 캠퍼스 원장·관리자만 할 수 있습니다.");
   const month = validMonth(input.month);
   const classes = normalizeRoster(input.classes);
+  // autoCreate:false (출석부 화면): 새 반·학생을 바로 만들지 않고, 저장 뒤 "꿈이음 반영" 표에서 체크해서 적용한다.
+  const autoCreate = input.autoCreate !== false;
   await ensureKkumeumAttendanceRosterSchema(familyDb);
 
   const now = new Date().toISOString();
@@ -151,7 +153,7 @@ export async function saveKkumeumAttendanceRoster(familyDb: D1Database, context:
 
   for (const [index, group] of classes.entries()) {
     let cls = classRows.find((c) => c.active && norm(c.name) === norm(group.name));
-    if (!cls) {
+    if (!cls && autoCreate) {
       cls = { id: crypto.randomUUID(), name: group.name, active: 1, sort_order: index };
       classRows.push(cls);
       created.classes++;
@@ -167,7 +169,7 @@ export async function saveKkumeumAttendanceRoster(familyDb: D1Database, context:
       if (match.reason === "matched" && taken.size && norm(students.find((s) => s.id === match.studentId)?.class_name) !== norm(group.name)) {
         match = { studentId: null, reason: "missing" };
       }
-      if (match.reason === "missing") {
+      if (match.reason === "missing" && autoCreate && cls) {
         const id = crypto.randomUUID();
         students.push({ id, name: entry.name, display_name: null, status: "active", current_class_id: cls.id, class_name: group.name });
         created.students++;

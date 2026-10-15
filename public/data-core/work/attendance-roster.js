@@ -71,7 +71,7 @@ export function mountRosterAttendance(host,{campusId='',campusName=''}={}){
     $('arGenerate').disabled=busy||blocked();$('arGenerate').textContent=busy?'처리 중...':'반별 출석부 Excel 생성';
     $('arDownload').disabled=busy||!result;
   }
-  function invalidate(){result=null;linkTicket++;$('arLink').hidden=true;$('arLink').replaceChildren();$('arResult').hidden=true;$('arSheets').replaceChildren();for(const url of urls)URL.revokeObjectURL(url);urls.clear();sync();}
+  function invalidate(){result=null;linkTicket++;document.getElementById('arSync')?.replaceChildren();$('arLink').hidden=true;$('arLink').replaceChildren();$('arResult').hidden=true;$('arSheets').replaceChildren();for(const url of urls)URL.revokeObjectURL(url);urls.clear();sync();}
   function showRoster(fileName){
     const mismatch=campusName&&roster.campus.replace(/\s+/g,'')!==campusName.replace(/\s+/g,'');
     $('arSummary').innerHTML=`<strong>${h(fileName)}</strong>
@@ -199,7 +199,7 @@ export function mountRosterAttendance(host,{campusId='',campusName=''}={}){
       registered:s.registered?{serial:s.registered.serial||null,text:s.registered.text||''}:null}))}));
     try{
       const response=await fetch('/api/kkumeum/attendance/roster',{method:'PUT',credentials:'same-origin',headers:{'content-type':'application/json'},
-        body:JSON.stringify({campusId,month:`${year}-${String(month).padStart(2,'0')}`,sourceName:rosterFile,classes})});
+        body:JSON.stringify({campusId,month:`${year}-${String(month).padStart(2,'0')}`,sourceName:rosterFile,classes,autoCreate:false})});
       const body=await response.json().catch(()=>({}));
       if(disposed||epoch!==linkTicket)return;
       if(!response.ok)throw Error(body.error||'명단을 저장하지 못했습니다.');
@@ -207,13 +207,26 @@ export function mountRosterAttendance(host,{campusId='',campusName=''}={}){
       box.className='ar-link ar-link-ok';
       box.innerHTML=`<strong>출석체크 연동 완료</strong> ${h(label)} 명단 ${body.students}명을 꿈이음 출석체크에 넣었습니다. 날짜와 요일에 맞춰 그날 수업하는 학생이 자동으로 나옵니다.`
         +(body.codesAssigned?` <span>출결기 등하원 번호 ${body.codesAssigned}명 새로 부여.</span>`:'')
+        +(body.sync?.pending?` <span><b>아래 "출석부 → 꿈이음 반영" 표에서 다른 곳 ${body.sync.pending}곳을 확인해 주세요.</b> 새 학생은 적용한 뒤에 출석체크에 나옵니다.</span>`:'')
         +` <a href="/data-core/kkumeum?tab=kids-news&view=attendance-settings">출결 설정 · 등하원 번호 · 보호자 연결 열기</a>`
-        +(body.created?.students?` <span>꿈이음에 없던 학생 ${body.created.students}명${body.created.classes?`과 반 ${body.created.classes}개`:''}를 새로 등록했습니다.</span>`:'')
-        +(body.unmatched?.length?`<details><summary>확인이 필요한 학생 ${body.unmatched.length}명</summary><ul>${body.unmatched.map(u=>`<li>${h(u.className)} · ${h(u.name)}: ${h(reasons[u.reason]||'연결하지 못함')}</li>`).join('')}</ul></details>`:'');
+        +(body.created?.students?` <span>꿈이음에 없던 학생 ${body.created.students}명${body.created.classes?`과 반 ${body.created.classes}개`:''}를 새로 등록했습니다.</span>`:'');
+      // 출석부 → 꿈이음 반영: 다른 곳을 학생마다 체크해서 적용 (roster-sync.js).
+      void showRosterSync(`${year}-${String(month).padStart(2,'0')}`,body.unmatched,reasons);
     }catch(error){
       if(disposed||epoch!==linkTicket)return;
       box.className='ar-link ar-link-warn';
       box.textContent=`출석체크 연동은 하지 못했습니다: ${error.message||'잠시 후 다시 시도해 주세요.'} Excel 출석부는 정상적으로 만들어졌습니다.`;
+    }
+  }
+  async function showRosterSync(monthKey,unmatched,reasons){
+    let host=document.getElementById('arSync');
+    if(!host){host=document.createElement('div');host.id='arSync';$('arLink').after(host);}
+    try{
+      if(!window.RosterSync)await new Promise((resolve,reject)=>{const s=document.createElement('script');s.charset='utf-8';s.src='/data-core/work/roster-sync.js?v=20261015-sync';s.onload=resolve;s.onerror=reject;document.head.append(s);});
+      if(disposed)return;
+      window.RosterSync.mount(host,{campusId,month:monthKey});
+    }catch{
+      host.innerHTML=unmatched?.length?`<details class="ar-link ar-link-warn"><summary>확인이 필요한 학생 ${unmatched.length}명</summary><ul>${unmatched.map(u=>`<li>${h(u.className)} · ${h(u.name)}: ${h(reasons[u.reason]||'꿈이음에 없음')}</li>`).join('')}</ul></details>`:'';
     }
   }
   $('arDownload').onclick=()=>{
