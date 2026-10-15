@@ -7,6 +7,7 @@ import { syncPublicHolidays } from "./data-core-public-holidays";
 import { runAutoBillReminders } from "./kkumeum-payments";
 import { handleMarketingApi } from "./data-core-marketing";
 import { DataCoreAccessError } from "./data-core-access";
+import { syncCampusBlogs } from "./blog-publications";
 
 const BILL_REMINDER_CRON = "0 1 * * *";
 
@@ -93,6 +94,8 @@ const worker = {
     }
     if (!env.DB) return;
     ctx.waitUntil(syncPublicHolidays(env.DB).then(result => console.log("public holidays synced", JSON.stringify(result))));
+    // 블로그 발행 소식: 캠퍼스 블로그 새 글도 매일 한 번 가져온다(화면을 열 때도 30분마다 갱신).
+    ctx.waitUntil(syncCampusBlogs(env.DB, 0).then(result => console.log("campus blogs synced", JSON.stringify(result))).catch(error => console.warn("campus blogs", error)));
   },
 };
 

@@ -5,9 +5,14 @@
 - 보이는 사람: 업무용 계정(모든 캠퍼스 선생님·직원·원장·마스터). 네이버에 이미 공개된 글이라 캠퍼스 구분 없이 봅니다.
 - 보이는 개수: 최신 게시일 순 최대 30개. 캠퍼스별로 골라 볼 수 있습니다(캠퍼스마다 발행 수 표시).
 - 카드 내용: 캠퍼스, 게시일, 제목, 작성한 선생님, 사진 수, 제목 종류, 첫 문단 요약, 해시태그, 네이버에서 보기.
-- 언제 기록되나: 글을 '발행' 상태로 저장하면서 실제 네이버 주소와 게시일을 넣을 때.
+- 글이 들어오는 세 가지 길 (같은 네이버 글은 한 줄로 합쳐짐, 키 = 블로그아이디/글번호):
+  1. **자동 수집** — 원장·마스터가 패널의 ‘캠퍼스 블로그 연결’에 캠퍼스 네이버 블로그 주소를 넣으면, 그 블로그의 공개 RSS에서
+     새 글(최근 30개)을 가져옵니다. 화면을 열 때 30분마다, ‘새로고침’은 2분마다, 매일 새벽 한 번 자동. 주소는 AI 마케팅 모니터링과 같은 채널 정보에 저장.
+  2. **발행 주소 넣기** — 선생님이 올린 글 주소를 붙여 넣으면 제목·첫 문장·게시일을 네이버 글에서 가져옵니다(자기 캠퍼스만).
+  3. **블로그 자동화 저장** — 글을 ‘발행’ 상태로 실제 주소·게시일과 함께 저장할 때. 가장 자세한 기록이라 1·2보다 우선합니다.
+- 숨기기: 넣은 사람·그 캠퍼스 원장·마스터. 숨겨도 기록은 남습니다(hidden_at).
 - 저장: `blog_publications` 표(D1)에 제목·주소·게시일·캠퍼스·작성자·사진 수·해시태그·본문 전체·조회수를 남깁니다.
   원래 글을 지우거나 고쳐도 발행 기록은 지워지지 않습니다. 주소를 바꿔 다시 올리면 기록이 하나 더 생깁니다.
   이 기능 전에 발행으로 저장된 글도 처음 열 때 한 번 옮겨 담습니다.
-- API: `GET /api/data-core/content/blog/publications?campusId=&limit=30` (worker/blog-publications.ts)
+- API (worker/blog-publications.ts): `GET /api/data-core/content/blog/publications?campusId=&limit=30&refresh=1`, `POST …/publications` {campusId,url,date}, `DELETE …/publications/:id`, `PUT /api/data-core/content/blog/campus-blogs` {campusId, blogUrl}
 - 테스트: tests/blog-publish-feed.test.mjs
