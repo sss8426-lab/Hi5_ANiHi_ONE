@@ -53,6 +53,30 @@ function renderCampusChips() {
   $('reportCampuses').innerHTML = chips.map(([id, name]) => `<button type="button" class="report-chip" data-campus="${h(id)}" aria-pressed="${state.campus === id}">${h(name)}</button>`).join('');
 }
 
+// 연간 합계 (1월~12월): fetched once per year and campus filter, shown above the month's 합계.
+const yearCache = new Map();
+async function loadYear() {
+  const year = state.month.slice(0, 4), key = `${year}|${state.campus}`;
+  if (!yearCache.has(key)) {
+    const params = new URLSearchParams({ year }); if (state.campus) params.set('campusId', state.campus);
+    yearCache.set(key, api('/api/data-core/staff-reports/year?' + params).catch(error => { yearCache.delete(key); throw error; }));
+  }
+  try { renderYear(await yearCache.get(key)); } catch (error) { $('reportYear').innerHTML = `<h3>${h(year)}년 합계</h3><p class="report-hint">${h(error.message)}</p>`; }
+}
+function renderYear(data) {
+  if (data.year !== state.month.slice(0, 4) || (data.campusId || '') !== state.campus) return;
+  const champ = (label, icon, list, unit) => `<div class="report-champ"><span>${icon} ${label} 1위</span>${list.length
+    ? list.map(p => `<b>${h(p.name)}</b><small>${h(p.campusName)} · ${p.count}${unit}</small>`).join('') : '<small>아직 없음</small>'}</div>`;
+  const now = state.month;
+  $('reportYear').innerHTML = `<h3>${h(data.year)}년 합계 <small>1월~12월 · ${state.campus ? '선택한 캠퍼스' : '전체 캠퍼스'}</small></h3>
+    <div class="report-row"><span>신입</span><b class="ok">+${data.totals.joins}명</b></div>
+    <div class="report-row"><span>퇴원</span><b class="warn">−${data.totals.leaves}명</b></div>
+    <div class="report-row"><span>수상·입상</span><b>${data.totals.awards}건</b></div>
+    ${champ('신입', '🏅', data.topJoins, '명')}${champ('수상·입상', '🏆', data.topAwards, '건')}
+    <details class="report-months"><summary>월별 보기</summary><table><thead><tr><th>월</th><th>신입</th><th>퇴원</th><th>수상</th></tr></thead><tbody>${data.months.map(m =>
+      `<tr${m.month === now ? ' class="now"' : ''}><th>${Number(m.month.slice(5))}월</th><td>${m.reports ? `+${m.joins}` : '-'}</td><td>${m.reports ? `−${m.leaves}` : '-'}</td><td>${m.reports ? m.awards : '-'}</td></tr>`).join('')}</tbody></table></details>`;
+}
+
 async function load() {
   $('reportFeed').innerHTML = '<p class="report-empty">불러오는 중…</p>';
   try {
@@ -60,6 +84,7 @@ async function load() {
     state.data = await api('/api/data-core/staff-reports?' + params);
   } catch (error) { $('reportFeed').innerHTML = `<p class="report-empty">${h(error.message)}</p>`; return; }
   render();
+  void loadYear();
 }
 
 const matches = report => {
@@ -222,7 +247,7 @@ async function uploadPhotos(files) {
 
 // ---------- events ----------
 $('reportMonth').addEventListener('change', () => { if (/^\d{4}-\d{2}$/.test($('reportMonth').value)) { state.month = $('reportMonth').value; state.open.clear(); void load(); } });
-$('reportCampuses').addEventListener('click', event => { const b = event.target.closest('[data-campus]'); if (!b) return; state.campus = b.dataset.campus; renderCampusChips(); render(); });
+$('reportCampuses').addEventListener('click', event => { const b = event.target.closest('[data-campus]'); if (!b) return; state.campus = b.dataset.campus; renderCampusChips(); render(); void loadYear(); });
 $('reportCategory').addEventListener('change', () => { state.category = $('reportCategory').value; render(); });
 $('reportSearch').addEventListener('input', () => { state.q = $('reportSearch').value.trim(); render(); });
 $('reportWriteBtn').addEventListener('click', () => openEditor());
