@@ -47,7 +47,7 @@ export async function moveLibraryItems(tree:LibraryTree,input:Record<string,unkn
     if(!compatible(root,target))fail(400,'같은 캠퍼스와 보호 범위의 폴더를 선택하세요.');
     if(root.parentId===target.id)fail(409,'이미 같은 폴더에 있습니다.');
     const rows=(await tree.db.prepare(`WITH RECURSIVE subtree(id) AS (SELECT ? UNION SELECT r.id FROM data_records r JOIN subtree s
-      ON json_valid(r.metadata_json) AND json_extract(r.metadata_json,'$.parentFolderId')=s.id WHERE r.organization_id=? AND r.record_type=? AND r.deleted_at IS NULL)
+      ON CASE WHEN json_valid(r.metadata_json) THEN json_extract(r.metadata_json,'$.parentFolderId') END=s.id WHERE r.organization_id=? AND r.record_type=? AND r.deleted_at IS NULL)
       SELECT r.* FROM data_records r JOIN subtree s ON r.id=s.id LIMIT 251`).bind(root.id,ORG,LIBRARY_FOLDER).all<Row>()).results||[];
     if(rows.length>250||folderRows.length+rows.length>250)fail(413,'한 번에 250개 이하의 하위 폴더를 이동할 수 있습니다. 변경된 항목은 없습니다.');
     if(rows.some(r=>r.id===target.id))fail(409,'자신이나 하위 폴더로 이동할 수 없습니다.');
@@ -74,7 +74,7 @@ export async function moveLibraryItems(tree:LibraryTree,input:Record<string,unkn
   }
   const names=roots.map(f=>f.title.normalize('NFC'));
   if(new Set(names).size!==names.length)fail(409,'같은 이름의 폴더가 선택되었습니다.');
-  const siblings=(await tree.db.prepare(`SELECT title FROM data_records WHERE organization_id=? AND record_type=? AND deleted_at IS NULL AND json_valid(metadata_json) AND json_extract(metadata_json,'$.parentFolderId')=?`).bind(ORG,LIBRARY_FOLDER,target.id).all<{title:string}>()).results||[];
+  const siblings=(await tree.db.prepare(`SELECT title FROM data_records WHERE organization_id=? AND record_type=? AND deleted_at IS NULL AND CASE WHEN json_valid(metadata_json) THEN json_extract(metadata_json,'$.parentFolderId') END=?`).bind(ORG,LIBRARY_FOLDER,target.id).all<{title:string}>()).results||[];
   if(siblings.some(s=>names.includes(s.title.normalize('NFC'))))fail(409,'대상 위치에 같은 이름의 폴더가 있습니다.');
   target=await materialize(tree,target);
   const sourceFolders=[...roots,...standalone.map(f=>sources.get(String(f.id))!)];
@@ -90,7 +90,7 @@ export async function moveLibraryItems(tree:LibraryTree,input:Record<string,unkn
     guard(`(SELECT COUNT(*) FROM file_objects WHERE organization_id=? AND data_record_id IN (SELECT value FROM json_each(?)))=?`,[ORG,folderIds,inside.length]),
     guard(`NOT EXISTS(SELECT 1 FROM data_records WHERE organization_id=? AND record_type=? AND deleted_at IS NULL AND json_valid(metadata_json) AND json_extract(metadata_json,'$.parentFolderId') IN (SELECT value FROM json_each(?)) AND id NOT IN(SELECT value FROM json_each(?)))`,[ORG,LIBRARY_FOLDER,folderIds,folderIds]),
     guard(`NOT EXISTS(SELECT 1 FROM data_records WHERE organization_id=? AND record_type IN ('library-upload-session','library-write-lease') AND deleted_at IS NULL AND status IN ('pending','uploading','failed') AND json_valid(metadata_json) AND json_extract(metadata_json,'$.folderId') IN (SELECT value FROM json_each(?)))`,[ORG,JSON.stringify([...nested,target.id])]),
-    guard(`NOT EXISTS(SELECT 1 FROM data_records WHERE organization_id=? AND record_type=? AND deleted_at IS NULL AND json_valid(metadata_json) AND json_extract(metadata_json,'$.parentFolderId')=? AND title IN(SELECT value FROM json_each(?)))`,[ORG,LIBRARY_FOLDER,target.id,JSON.stringify(roots.map(f=>f.title))]),
+    guard(`NOT EXISTS(SELECT 1 FROM data_records WHERE organization_id=? AND record_type=? AND deleted_at IS NULL AND CASE WHEN json_valid(metadata_json) THEN json_extract(metadata_json,'$.parentFolderId') END=? AND title IN(SELECT value FROM json_each(?)))`,[ORG,LIBRARY_FOLDER,target.id,JSON.stringify(roots.map(f=>f.title))]),
     guard(`NOT EXISTS(SELECT 1 FROM file_objects WHERE organization_id=? AND data_record_id=? AND deleted_at IS NULL AND original_file_name IN(SELECT value FROM json_each(?)))`,[ORG,target.id,JSON.stringify(standalone.map(f=>f.original_file_name))]),
   ];
   if(moves.length)statements.push(tree.db.prepare(`UPDATE data_records SET metadata_json=(SELECT json_extract(value,'$.metadata') FROM json_each(?) WHERE json_extract(value,'$.id')=data_records.id),updated_at=? WHERE organization_id=? AND id IN(SELECT value FROM json_each(?))`).bind(JSON.stringify(moves),now,ORG,folderIds),guard('changes()=?',[moves.length]));

@@ -37,7 +37,8 @@
     img.removeAttribute('src');img.hidden=true;img.parentElement.classList.add('lb-image-fallback');
   }
   function observeImages() {
-    imageCache ||= new window.DataCorePrivateImageCache({onUnauthorized:clearImages});
+    // 폴더를 오가도 썸네일을 다시 받지 않도록 더 많이·오래(15분) 들고, 6장씩 동시에 받는다.
+    imageCache ||= new window.DataCorePrivateImageCache({maxEntries:400,ttl:15*60*1000,concurrency:6,onUnauthorized:clearImages});
     const generation=imageGeneration;
     if('IntersectionObserver' in window){
       observer ||= new IntersectionObserver(entries=>{for(const entry of entries)if(entry.isIntersecting){observer?.unobserve(entry.target);void showImage(entry.target.querySelector('img'),generation);}},{rootMargin:'200px'});
@@ -416,5 +417,5 @@
     dialog.addEventListener('click',e=>{const close=pressedOutside&&e.target===dialog&&outside(e);pressedOutside=false;if(close&&dialog.id!=='libraryProgressDialog')dialog.close();});
   }
   window.DataCoreLibrary={refresh:load};
-  import('/data-core/work/library-manager.js?v=20261009-mock').then(module=>{enhancements=module.setup({host,state,api,navigate,load,locationState,cachedOriginal:file=>imageCache?.peek(file.previewUrl)});enhancements.render();}).catch(()=>{$('libraryStatus').textContent='추가 파일 관리 기능을 불러오지 못했습니다. 새로고침해 주세요.';});
+  import('/data-core/work/library-manager.js?v=20261015-speed').then(module=>{enhancements=module.setup({host,state,api,navigate,load,locationState,cachedOriginal:file=>imageCache?.peek(file.previewUrl)});enhancements.render();}).catch(()=>{$('libraryStatus').textContent='추가 파일 관리 기능을 불러오지 못했습니다. 새로고침해 주세요.';});
 })();

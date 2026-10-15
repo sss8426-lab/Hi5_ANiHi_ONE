@@ -31,6 +31,20 @@ async function resumeActiveSession() {
   }
 }
 
+// 로그인 상태 유지: 이 기기에서 고른 값과 아이디를 기억해 다음에 미리 채운다 (비밀번호는 저장하지 않음).
+const REMEMBER_KEY = 'core.login.remember', LOGIN_ID_KEY = 'core.login.id';
+try {
+  $('rememberLogin').checked = localStorage.getItem(REMEMBER_KEY) === '1';
+  const savedId = localStorage.getItem(LOGIN_ID_KEY);
+  if (savedId && !$('loginId').value) { $('loginId').value = savedId; }
+} catch { /* 이 브라우저에 저장할 수 없으면 매번 직접 고른다. */ }
+function rememberChoice() {
+  try {
+    if ($('rememberLogin').checked) { localStorage.setItem(REMEMBER_KEY, '1'); localStorage.setItem(LOGIN_ID_KEY, $('loginId').value.trim().toLowerCase()); }
+    else { localStorage.removeItem(REMEMBER_KEY); localStorage.removeItem(LOGIN_ID_KEY); }
+  } catch { /* ignore */ }
+}
+
 $('loginForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   authAttempt++;
@@ -41,8 +55,9 @@ $('loginForm').addEventListener('submit', async (event) => {
     const result = await request('/api/auth/login', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ loginId: $('loginId').value, password: $('password').value }),
+      body: JSON.stringify({ loginId: $('loginId').value, password: $('password').value, remember: $('rememberLogin').checked }),
     });
+    rememberChoice();
     if (result.mustChangePassword) showPasswordChange($('loginId').value.trim().toLowerCase());
     else location.assign(nextPath);
   } catch (error) {
