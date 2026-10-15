@@ -13,6 +13,8 @@ import { getKkumeumPilotSettings } from "./kkumeum-pilot";
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const CODE_LENGTH = 8;
 const MAX_FAILURES = 10;
+// 한 인증키로 연결할 수 있는 보호자 수(어머니·아버지·조부모). 넘으면 학원에서 새 인증키를 받는다.
+export const MAX_INVITE_REDEMPTIONS = 4;
 const FAILURE_WINDOW_MS = 15 * 60_000;
 const RELATIONSHIPS = new Set(["어머니", "아버지", "할머니", "할아버지", "보호자"]);
 
@@ -144,13 +146,16 @@ export async function redeemKkumeumInviteCode(familyDb: D1Database, request: Req
   const key = await attemptKey(request);
   await assertNotThrottled(familyDb, key);
   const code = normalizeInviteCode(input.code);
-  const invite = code.length === CODE_LENGTH ? await familyDb.prepare(`SELECT i.id, i.campus_id, i.student_id, s.name, s.display_name
+  const invite = code.length === CODE_LENGTH ? await familyDb.prepare(`SELECT i.id, i.campus_id, i.student_id, i.redeemed_count, s.name, s.display_name
       FROM family_invite_codes i JOIN family_students s ON s.id = i.student_id
       WHERE i.code_hash = ? AND i.revoked_at IS NULL AND s.status = 'active' LIMIT 1`)
-    .bind(await sha256(code)).first<{ id: string; campus_id: string; student_id: string; name: string; display_name: string | null }>() : null;
+    .bind(await sha256(code)).first<{ id: string; campus_id: string; student_id: string; redeemed_count: number; name: string; display_name: string | null }>() : null;
   if (!invite) {
     await recordFailure(familyDb, key);
     throw new DataCoreAccessError(401, "인증키를 다시 확인해 주세요. 학원에서 받은 8자리 인증키입니다.");
+  }
+  if (Number(invite.redeemed_count || 0) >= MAX_INVITE_REDEMPTIONS) {
+    throw new DataCoreAccessError(409, `이 인증키는 이미 ${MAX_INVITE_REDEMPTIONS}번 사용되었습니다. 학원에서 새 인증키를 받아 주세요.`);
   }
   const relationship = RELATIONSHIPS.has(String(input.relationship)) ? String(input.relationship) : "보호자";
   const now = new Date().toISOString();

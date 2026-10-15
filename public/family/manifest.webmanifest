@@ -1,7 +1,7 @@
 {
   "name": "꿈이음 | HI5·ANiHi",
   "short_name": "꿈이음",
-  "description": "우리 아이의 등·하원 알림, 소식, 작품과 성장기록을 이어보는 HI5·ANiHi 보호자 앱",
+  "description": "우리 아이 등·하원 알림, 학원 소식과 문의, 작품과 성장기록, 신청서·동의서, 학원 일정과 수납 안내를 이어보는 HI5·ANiHi 보호자 앱",
   "lang": "ko-KR",
   "start_url": "/family/",
   "scope": "/family/",
@@ -35,5 +35,8 @@
     }
   ],
   "id": "/family/",
-  "orientation": "portrait"
+  "orientation": "portrait",
+  "categories": [
+    "education"
+  ]
 }

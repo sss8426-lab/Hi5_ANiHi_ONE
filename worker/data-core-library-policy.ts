@@ -1,5 +1,5 @@
 import { DEFAULT_ORGANIZATION_ID as ORG } from './data-core';
-import { DataCoreAccessContext, DataCoreAccessError, requireWriteAccess, requireCampusAccess, managesCampus } from './data-core-access';
+import { DataCoreAccessContext, DataCoreAccessError, requireWriteAccess, requireCampusAccess, managesCampus, leadsCampus } from './data-core-access';
 import { canReadBaseFile } from './data-core-derivative-policy';
 import { presentCampuses } from './campus-directory';
 
@@ -36,17 +36,18 @@ export function requireLibraryWrite(context: DataCoreAccessContext, folder: Libr
   if (!libraryCanWrite(context, folder)) fail();
   if (folder.campusId) requireCampusAccess(context, folder.campusId);
 }
+// 지우기·옮기기: 올린 사람 본인, 그 캠퍼스 원장(캠퍼스 관리자), 마스터만. Teachers cannot remove colleagues' uploads.
 export function libraryCanDelete(context: DataCoreAccessContext, folder: LibraryFolder, owner: unknown) {
-  if (folder.campusId && folder.shareMode !== 'restricted' && !['student-artwork', 'counseling-material'].includes(folder.category || '')) return libraryCanWrite(context, folder);
-  return libraryCanWrite(context, folder) && (context.isSuperAdmin || managesCampus(context, folder.campusId) || context.user?.internalUserId === owner ||
-    context.memberships.some(m => m.organizationId === ORG && m.campusId === folder.campusId && m.role === 'CAMPUS_DIRECTOR'));
+  return libraryCanWrite(context, folder) && (context.isSuperAdmin || leadsCampus(context, folder.campusId) ||
+    Boolean(owner && context.user?.internalUserId === owner));
 }
 export function libraryFolderScope(folder: LibraryFolder) {
   if (folder.campusId) return 'campus';
   return folder.id === 'root' || libraryMetadata(folder.row || {}).libraryScope === 'organization' ? 'organization' : 'hq';
 }
 export function libraryCanDeleteFolder(context: DataCoreAccessContext, folder: LibraryFolder) {
-  if (libraryDefaultFolder(folder)) return libraryCanWrite(context, folder);
+  // 기본 분류 폴더를 숨기면 그 안의 모든 사람 자료가 가려지므로 원장·마스터만.
+  if (libraryDefaultFolder(folder)) return libraryCanWrite(context, folder) && (context.isSuperAdmin || leadsCampus(context, folder.campusId));
   return !folder.virtual && !folder.systemManaged && Boolean(folder.row) &&
     (folder.parentId !== 'root' || context.isSuperAdmin) && libraryCanDelete(context, folder, folder.row?.created_by_user_id);
 }

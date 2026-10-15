@@ -47,8 +47,13 @@
       });
     }catch{/* the badge is optional */}
   }
+  // 꿈이음은 마스터·캠퍼스 관리자·원장·선생님만 쓴다(직원 계정은 서버에서 막히므로 메뉴도 숨긴다).
+  const KKUMEUM_ROLES=['MASTER','SUPER_ADMIN','CAMPUS_ADMIN','CAMPUS_DIRECTOR','TEACHER'];
   function setContext(context){
     document.querySelectorAll('[data-work-navigation="admin"]').forEach(node=>node.classList.toggle('hidden',!context?.authenticated||!context.isSuperAdmin));
+    const kkumeum=Boolean(context?.authenticated&&(context.isSuperAdmin||(context.memberships||[]).some(m=>KKUMEUM_ROLES.includes(m.role))));
+    document.documentElement?.classList?.toggle('core-no-kkumeum',Boolean(context?.authenticated)&&!kkumeum);
+    if(document.head&&document.getElementById&&!document.getElementById('core-no-kkumeum-style')){const style=document.createElement('style');style.id='core-no-kkumeum-style';style.textContent='html.core-no-kkumeum [data-kkumeum-nav],html.core-no-kkumeum [data-kkumeum-card],html.core-no-kkumeum [data-work-menu="kkumeum"],html.core-no-kkumeum [data-ma-go="kkumeum"]{display:none!important}';document.head.append(style);}
     if(context?.authenticated&&context.isSuperAdmin)void showSignupCount();
   }
   select(entries.find(item=>item[2]===location.pathname)?.[0]);
