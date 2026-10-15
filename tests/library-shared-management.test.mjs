@@ -30,11 +30,19 @@ test('library shared read versus campus write, safe rename/move/delete and priva
         for(const campus of user===users.master||user===users.admin?[A,B]:[A]){
           const parent=`category:${campus}:promotion-material`;
           const from=await h.folder(parent,`__synthetic_from_${user.id}_${campus}`,user);ok(from,201);
-          const to=await h.folder(parent,`__synthetic_to_${user.id}_${campus}`,users.admin);ok(to,201);
+          const to=await h.folder(parent,`__synthetic_to_${user.id}_${campus}`,user);ok(to,201);
           const id=from.body.folder.id,target=to.body.folder.id;
           ok(await h.request('PATCH',folderRoute(id),user,{title:'__synthetic_renamed'}));
           assert.equal((await h.browse(id,user)).body.folder.title,'__synthetic_renamed');
-          const upload=await h.upload(id,users.admin);ok(upload,201);const fid=upload.body.file.id,before=await h.file(fid);
+          // 2026-10-15: 선생님·직원은 본인이 올린 것만 옮기고 지운다. 원장·마스터는 모두.
+          const others=await h.upload(id,users.admin);ok(others,201);
+          const lead=[users.master,users.admin,users.campusAdmin,users.director].includes(user);
+          assert.equal((await h.request('PATCH',route(others.body.file.id),user,{folderId:target})).status,lead?200:403);
+          if(lead)ok(await h.request('PATCH',route(others.body.file.id),user,{folderId:id}));
+          assert.equal((await h.request('DELETE',route(others.body.file.id),user)).status,lead?200:403);
+          if(lead)ok(await h.request('POST',`/api/data-core/trash/files/${others.body.file.id}/restore`,users.master));
+          ok(await h.request('DELETE',route(others.body.file.id),users.master));
+          const upload=await h.upload(id,user);ok(upload,201);const fid=upload.body.file.id,before=await h.file(fid);
           ok(await h.request('PATCH',route(fid),user,{folderId:target}));
           assert.deepEqual(await h.file(fid),{...before,data_record_id:target});
           const count=(await h.browse(parent,user)).body.folders.find(f=>f.id===target).fileCount;assert.equal(count,1);

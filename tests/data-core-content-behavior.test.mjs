@@ -1092,7 +1092,9 @@ test("award folder files are shared across academy campuses and retain bytes aft
     assert.equal((await h.request("GET", `/api/data-core/files/${fileId}`, users.b)).response.status, 200);
     const otherList = await h.request("GET", `/api/data-core/files?recordId=${folderId}`, users.b);
     assert.equal(otherList.body.files.length, 2);
-    assert.equal((await h.request("DELETE", `/api/data-core/records/${folderId}`, users.b)).response.status, 200);
+    // 수상작 최상위 폴더는 마스터만 지운다(2026-10-15).
+    assert.equal((await h.request("DELETE", `/api/data-core/records/${folderId}`, users.b)).response.status, 403);
+    assert.equal((await h.request("DELETE", `/api/data-core/records/${folderId}`, users.admin)).response.status, 200);
     assert.equal((await h.request("DELETE", `/api/data-core/records/${folderId}`, users.a)).response.status, 404);
     const retained = await h.request("GET", `/api/data-core/files?recordId=${folderId}`, users.a);
     assert.equal(retained.response.status, 200);
@@ -1345,7 +1347,8 @@ test('award uploads preserve original names; explicit admin purge protects refer
     const softPath = `/api/data-core/files/${originals[0].id}?awardFolderId=${folder.id}`;
     assert.equal((await h.request('DELETE',softPath.replace(folder.id,other.id),users.admin)).response.status,403);
     assert.equal((await h.request('DELETE',softPath,users.a,undefined,{origin:'https://attacker.example'})).response.status,403);
-    assert.equal((await h.request('DELETE',softPath,users.b)).response.status,200);
+    assert.equal((await h.request('DELETE',softPath,users.b)).response.status,403,'남이 올린 수상작은 못 지운다');
+    assert.equal((await h.request('DELETE',softPath,users.a)).response.status,200);
     assert.ok(await h.env.FILES.get(originals[0].r2_key));
     const path = `/api/data-core/trash/files/${originals[0].id}`;
     assert.equal((await h.request('DELETE',path,users.b)).response.status,403);

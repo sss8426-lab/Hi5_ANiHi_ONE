@@ -172,7 +172,8 @@ export function mountInstagramProduction({state,api,$,toast,canWrite,text=()=>({
         renderCustomLogos();syncLogoChoice();renderLayerAssets();$('igCustomLogoStatus').textContent=logoType==='none'?'목록에서 삭제했습니다 · 로고 없음으로 바뀌었습니다.':'목록에서 삭제했습니다.';
       }catch(error){$('igCustomLogoStatus').textContent=error.message;}
     };
-    actions.append(rename,remove);card.append(button,actions);
+    // 다른 선생님이 올린 이미지는 쓰기만 하고, 이름 바꾸기·지우기는 올린 사람·원장·마스터만.
+    if(item.canManage!==false)actions.append(rename,remove);card.append(button,actions);
     return card;
   }
   function renderCustomLogos(){

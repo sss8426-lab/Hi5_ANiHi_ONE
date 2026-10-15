@@ -36,7 +36,8 @@ function ensureTables(db: D1Database) {
 
 const text = (value: unknown, max: number) => typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().slice(0, max) : '';
 // Photo paths use a file-safe form of the user id (ids may contain ':').
-const photoOwner = (context: DataCoreAccessContext) => context.user!.internalUserId.replace(/[^\w-]/g, '_');
+const photoOwner = (context: DataCoreAccessContext) => photoFolder(context.user!.internalUserId);
+const photoFolder = (userId: string) => String(userId).replace(/[^\w-]/g, '_');
 const author = (context: DataCoreAccessContext) => context.user!.displayName || context.user!.loginId || '직원';
 async function campusNames(db: D1Database) {
   const rows = (await db.prepare('SELECT id, name FROM campuses WHERE organization_id=?').bind(ORG).all<{ id: string; name: string }>()).results || [];
@@ -44,7 +45,7 @@ async function campusNames(db: D1Database) {
 }
 
 // ---------- 월간 업무보고 ----------
-function reportBody(input: any, uploader: string) { // uploader: photoOwner()
+function reportBody(input: any, uploaders: string[]) { // uploaders: photoOwner() of the author (and the editor)
   const lines = (list: unknown, withCategory: boolean) => (Array.isArray(list) ? list : []).slice(0, 60).map((item: any) => {
     const t = text(withCategory ? item?.text : item?.text ?? item, 300);
     if (!t) return null;
@@ -59,8 +60,8 @@ function reportBody(input: any, uploader: string) { // uploader: photoOwner()
   }));
   const awards = (Array.isArray(input?.awards) ? input.awards : []).slice(0, 40).map((a: any) => ({ contest: text(a?.contest, 120), prize: text(a?.prize, 60), count: Math.max(0, Math.min(999, Number.parseInt(a?.count, 10) || 0)) })).filter((a: any) => a.contest);
   const photos = (Array.isArray(input?.photos) ? input.photos : []).slice(0, PHOTO_LIMIT).map((key: unknown) => String(key));
-  // A report may only point at photos its own author uploaded.
-  if (photos.some((key: string) => !key.startsWith(`staff-reports/${uploader}/`) || !/^staff-reports\/[\w-]+\/[\w-]+\.(webp|jpg|png)$/.test(key))) fail(400, '사진 정보를 확인하세요.');
+  // A report may only point at photos its author (or the master editing it) uploaded.
+  if (photos.some((key: string) => !uploaders.some(u => key.startsWith(`staff-reports/${u}/`)) || !/^staff-reports\/[\w-]+\/[\w-]+\.(webp|jpg|png)$/.test(key))) fail(400, '사진 정보를 확인하세요.');
   return { done: lines(input?.done, true), planned: lines(input?.planned, true), classes: lines(input?.classes, false), joins: counts(input?.joins), leaves: counts(input?.leaves), awards, photos };
 }
 
@@ -130,12 +131,15 @@ async function reportDetail(db: D1Database, context: DataCoreAccessContext, id: 
 async function saveReport(db: D1Database, context: DataCoreAccessContext, input: any, id?: string) {
   const month = String(input?.month || '');
   if (!MONTH.test(month)) fail(400, '보고할 달을 확인하세요.');
-  const body = reportBody(input, photoOwner(context));
+  const row = id ? await reportRow(db, id) : null;
+  if (row && row.author_user_id !== context.user!.internalUserId && !context.isSuperAdmin) fail(403, '본인이 쓴 업무보고만 고칠 수 있습니다.');
+  const body = reportBody(input, row ? [photoFolder(row.author_user_id), photoOwner(context)] : [photoOwner(context)]);
   if (!body.done.length && !body.planned.length && !body.classes.length && !body.awards.length) fail(400, '진행업무·예정업무·수업내용 중 하나 이상을 적어 주세요.');
   const at = now(), json = JSON.stringify(body);
-  if (id) {
-    const row = await reportRow(db, id);
-    if (row.author_user_id !== context.user!.internalUserId && !context.isSuperAdmin) fail(403, '본인이 쓴 업무보고만 고칠 수 있습니다.');
+  if (id && row) {
+    // 달을 바꿔도 한 사람당 한 달에 한 개.
+    if (month !== row.report_month && await db.prepare('SELECT id FROM staff_reports WHERE organization_id=? AND author_user_id=? AND report_month=? AND deleted_at IS NULL AND id<>?').bind(ORG, row.author_user_id, month, id).first())
+      fail(409, '그 달의 업무보고가 이미 있습니다. 기존 보고서를 고쳐 주세요.');
     await db.prepare('UPDATE staff_reports SET report_month=?, body_json=?, updated_at=? WHERE id=?').bind(month, json, at, id).run();
     return id;
   }

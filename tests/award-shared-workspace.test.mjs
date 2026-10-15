@@ -25,7 +25,9 @@ test('six academy roles share folders/uploads; anonymous and nonmembers cannot e
         const dl=await h.raw('POST',`${base}/files/${file.id}/download`,users.foreign);
         assert.equal(dl.status,200);assert.deepEqual(Buffer.from(await dl.arrayBuffer()),png);
         const row=await h.file(file.id);
-        assert.equal((await h.request('DELETE',`${base}/folders/${root.id}`,users.teacher)).status,200);
+        // 최상위 모음은 마스터만 지운다(2026-10-15 권한 보강).
+        assert.equal((await h.request('DELETE',`${base}/folders/${root.id}`,users.teacher)).status,403);
+        assert.equal((await h.request('DELETE',`${base}/folders/${root.id}`,users.admin)).status,200);
         assert.equal((await h.request('GET','/api/data-core/files/'+file.id,user)).status,403);
         assert.deepEqual(await h.file(file.id),row);
         assert.deepEqual(Buffer.from(await (await h.env.FILES.get(row.r2_key)).arrayBuffer()),png);
@@ -96,11 +98,12 @@ test('original filenames and collisions preserved, downloads audited, previews n
     assert.equal(JSON.parse(stored.metadata_json).folderId,child.id);
     const file=files[0];
     assert.equal((await h.request('DELETE',`/api/data-core/files/${file.id}?awardFolderId=${root.id}`,users.teacher)).status,403);
-    assert.equal((await h.request('DELETE',`/api/data-core/files/${file.id}?awardFolderId=${child.id}`,users.staff)).status,200);
+    assert.equal((await h.request('DELETE',`/api/data-core/files/${file.id}?awardFolderId=${child.id}`,users.staff)).status,403,'남이 올린 수상작은 못 지운다');
+    assert.equal((await h.request('DELETE',`/api/data-core/files/${file.id}?awardFolderId=${child.id}`,users.teacher)).status,200);
     assert.ok((await h.file(file.id)).deleted_at);assert.ok(await h.env.FILES.head(file.r2_key));
     assert.equal((await h.request('POST',`/api/data-core/trash/files/${file.id}/restore`,users.admin,undefined,'https://evil.example')).status,403);
     assert.equal((await h.request('POST',`/api/data-core/trash/files/${file.id}/restore`,users.admin)).status,200);
-    assert.equal((await h.request('DELETE',`${base}/folders/${root.id}`,users.teacher)).status,200);
+    assert.equal((await h.request('DELETE',`${base}/folders/${root.id}`,users.admin)).status,200);
     const after=(await h.request('GET',base+'/activity',users.teacher)).body.events;
     assert.equal(after.filter(e=>e.action==='folder.delete').length,1);
     assert.equal((await h.request('DELETE',base+'/activity',users.admin)).status,405);

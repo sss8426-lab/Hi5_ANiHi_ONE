@@ -1,5 +1,5 @@
 import { DEFAULT_ORGANIZATION_ID as ORG, recordFileObject } from './data-core';
-import { DataCoreAccessContext, DataCoreAccessError, requireCampusAccess } from './data-core-access';
+import { DataCoreAccessContext, DataCoreAccessError, requireCampusAccess, leadsCampus } from './data-core-access';
 import { canonicalCampusId } from './campus-directory';
 import { canReadRegisteredFile } from './data-core-derivative-policy';
 
@@ -13,6 +13,15 @@ function scopedCampusId(context: DataCoreAccessContext, campusId: unknown) {
   if (!id) throw new DataCoreAccessError(400, '캠퍼스를 선택하세요.');
   requireCampusAccess(context, id);
   return id;
+}
+
+// 이름 바꾸기·지우기: 올린 사람, 그 캠퍼스 원장, 마스터만. Everyone in the campus can still use every logo.
+function canManageLogo(context: DataCoreAccessContext, row: { campus_id?: unknown; owner_user_id?: unknown }) {
+  return context.isSuperAdmin || leadsCampus(context, row.campus_id) || Boolean(row.owner_user_id && row.owner_user_id === context.user?.internalUserId);
+}
+function requireManageLogo(context: DataCoreAccessContext, row: { campus_id?: unknown; owner_user_id?: unknown }) {
+  requireCampusAccess(context, String(row.campus_id || ''));
+  if (!canManageLogo(context, row)) throw new DataCoreAccessError(403, '본인이 올린 이미지만 바꾸거나 지울 수 있습니다.');
 }
 
 // Names are what people search by; LIKE wildcards typed by the user are matched literally.
@@ -32,18 +41,18 @@ export async function listCustomLogos(db: D1Database, context: DataCoreAccessCon
   const where = `organization_id=? AND campus_id=? AND category=? AND deleted_at IS NULL${like ? " AND original_file_name LIKE ? ESCAPE '\\'" : ''}`;
   const args: unknown[] = [ORG, id, CUSTOM_LOGO_CATEGORY, ...(like ? [like] : [])];
   const statement = before && row
-    ? db.prepare(`SELECT id, original_file_name, mime_type, size_bytes, created_at FROM file_objects
+    ? db.prepare(`SELECT id, original_file_name, mime_type, size_bytes, created_at, campus_id, owner_user_id FROM file_objects
         WHERE ${where} AND (created_at < ? OR (created_at = ? AND id < ?)) ORDER BY created_at DESC, id DESC LIMIT ?`)
         .bind(...args, row.created_at, row.created_at, row.id, PAGE_SIZE + 1)
-    : db.prepare(`SELECT id, original_file_name, mime_type, size_bytes, created_at FROM file_objects
+    : db.prepare(`SELECT id, original_file_name, mime_type, size_bytes, created_at, campus_id, owner_user_id FROM file_objects
         WHERE ${where} ORDER BY created_at DESC, id DESC LIMIT ?`)
         .bind(...args, PAGE_SIZE + 1);
-  const rows = await statement.all<{ id: string; original_file_name: string; mime_type: string; size_bytes: number; created_at: string }>();
+  const rows = await statement.all<{ id: string; original_file_name: string; mime_type: string; size_bytes: number; created_at: string; campus_id: string; owner_user_id: string | null }>();
   const list = rows.results || [];
   const hasMore = list.length > PAGE_SIZE;
   const page = hasMore ? list.slice(0, PAGE_SIZE) : list;
   return {
-    logos: page.map(r => ({ id: r.id, name: r.original_file_name, mimeType: r.mime_type, sizeBytes: r.size_bytes, createdAt: r.created_at })),
+    logos: page.map(r => ({ id: r.id, name: r.original_file_name, mimeType: r.mime_type, sizeBytes: r.size_bytes, createdAt: r.created_at, canManage: canManageLogo(context, r) })),
     nextCursor: hasMore ? page[page.length - 1].id : null,
   };
 }
@@ -68,7 +77,7 @@ export async function uploadCustomLogo(db: D1Database, files: R2Bucket, context:
     await files.delete(key).catch(() => {});
     throw error;
   }
-  return { id: fileId, name: fileName, mimeType: String(mime), sizeBytes: bytes.length, createdAt: now };
+  return { id: fileId, name: fileName, mimeType: String(mime), sizeBytes: bytes.length, createdAt: now, canManage: true };
 }
 
 export async function deleteCustomLogo(db: D1Database, context: DataCoreAccessContext, id: unknown) {
@@ -76,7 +85,7 @@ export async function deleteCustomLogo(db: D1Database, context: DataCoreAccessCo
   const row = await db.prepare('SELECT * FROM file_objects WHERE id=? AND organization_id=? AND category=? AND deleted_at IS NULL')
     .bind(id, ORG, CUSTOM_LOGO_CATEGORY).first<Record<string, unknown>>();
   if (!row) throw new DataCoreAccessError(404, '로고를 찾을 수 없습니다.');
-  requireCampusAccess(context, String(row.campus_id || ''));
+  requireManageLogo(context, row);
   // Deletion only ever hides this one row — it must never cascade to a completed image that already
   // composited this logo (that render is a separate, independent file_objects row).
   await db.prepare('UPDATE file_objects SET deleted_at=? WHERE id=?').bind(new Date().toISOString(), id).run();
@@ -86,10 +95,10 @@ export async function renameCustomLogo(db: D1Database, context: DataCoreAccessCo
   const fileName = cleanName(name);
   if (typeof id !== 'string' || !id) throw new DataCoreAccessError(400, '이름을 바꿀 이미지를 확인하세요.');
   if (!fileName) throw new DataCoreAccessError(400, '이미지 이름을 입력하세요.');
-  const row = await db.prepare('SELECT campus_id FROM file_objects WHERE id=? AND organization_id=? AND category=? AND deleted_at IS NULL')
-    .bind(id, ORG, CUSTOM_LOGO_CATEGORY).first<{ campus_id: string | null }>();
+  const row = await db.prepare('SELECT campus_id, owner_user_id FROM file_objects WHERE id=? AND organization_id=? AND category=? AND deleted_at IS NULL')
+    .bind(id, ORG, CUSTOM_LOGO_CATEGORY).first<{ campus_id: string | null; owner_user_id: string | null }>();
   if (!row) throw new DataCoreAccessError(404, '이미지를 찾을 수 없습니다.');
-  requireCampusAccess(context, String(row.campus_id || ''));
+  requireManageLogo(context, row);
   // Only the label changes; the stored pixels (and every composite already made from them) stay as they are.
   await db.prepare('UPDATE file_objects SET original_file_name=? WHERE id=? AND organization_id=? AND deleted_at IS NULL').bind(fileName, id, ORG).run();
   return { id, name: fileName };

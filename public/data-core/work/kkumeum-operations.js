@@ -223,7 +223,7 @@
     try{
       const s=await api(`/api/kkumeum/students/${encodeURIComponent(sid)}/invite-code?campusId=${encodeURIComponent(campusId())}`);
       if(state.student?.id!==sid)return;
-      box.innerHTML=`<div class="kk-invite-head"><div><strong>인증키</strong><small>${s.active?`${escapeHtml(kstDay(s.createdAt))} 발급 · 이 인증키로 ${s.redeemedCount}번 연결 · 연결된 보호자 ${s.connectedGuardians}명`:'아직 발급하지 않았습니다. 발급해서 보호자에게 보내면 앱에서 바로 연결됩니다.'}</small></div><div><button type="button" data-invite-issue>${s.active?'새로 발급':'인증키 발급'}</button>${s.active?'<button type="button" data-invite-stop>사용 중지</button>':''}</div></div><div data-invite-result></div>`;
+      box.innerHTML=`<div class="kk-invite-head"><div><strong>인증키</strong><small>${s.active?`${escapeHtml(kstDay(s.createdAt))} 발급 · 이 인증키로 ${s.redeemedCount}/4번 연결${s.redeemedCount>=4?" (다 써서 새로 발급 필요)":""} · 연결된 보호자 ${s.connectedGuardians}명`:'아직 발급하지 않았습니다. 발급해서 보호자에게 보내면 앱에서 바로 연결됩니다.'}</small></div><div><button type="button" data-invite-issue>${s.active?'새로 발급':'인증키 발급'}</button>${s.active?'<button type="button" data-invite-stop>사용 중지</button>':''}</div></div><div data-invite-result></div>`;
       box.querySelector('[data-invite-issue]').onclick=()=>issueInvite(s.active);
       const stop=box.querySelector('[data-invite-stop]'); if(stop) stop.onclick=stopInvite;
     }catch(error){box.textContent=error.message||'인증키 상태를 확인하지 못했습니다.';}

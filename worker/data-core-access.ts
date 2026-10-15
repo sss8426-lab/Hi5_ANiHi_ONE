@@ -316,6 +316,12 @@ export function managesCampus(context: DataCoreAccessContext, campusId: unknown)
   return Boolean(id && context.memberships.some(m => m.organizationId === DEFAULT_ORGANIZATION_ID && m.role === 'CAMPUS_ADMIN' && m.campusId === id));
 }
 
+/** 원장: CAMPUS_ADMIN or CAMPUS_DIRECTOR of this campus. They may delete anything their staff put there. */
+export function leadsCampus(context: DataCoreAccessContext, campusId: unknown) {
+  const id = canonicalCampusId(campusId);
+  return Boolean(id && context.memberships.some(m => m.organizationId === DEFAULT_ORGANIZATION_ID && ['CAMPUS_ADMIN', 'CAMPUS_DIRECTOR'].includes(m.role) && m.campusId === id));
+}
+
 export function campusForWrite(context: DataCoreAccessContext, value: unknown) {
   const id = canonicalCampusId(value) || (isCampusAdmin(context) && context.campusIds.length === 1 ? context.campusIds[0] : null);
   if (!context.isSuperAdmin) requireCampusAccess(context, id);

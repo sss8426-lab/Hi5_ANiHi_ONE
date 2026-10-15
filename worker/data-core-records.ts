@@ -352,7 +352,8 @@ export async function createDataRecord(
   }
 
   const visibility = normalizeVisibility(input.visibility);
-  if (!context.isSuperAdmin && (visibility === "organization" || (isCampusAdmin(context) && visibility === 'public'))) {
+  // '전체 공개'(public)는 캠퍼스 밖·소속 없는 계정에도 보이므로 마스터만 정할 수 있다.
+  if (!context.isSuperAdmin && (visibility === "organization" || visibility === 'public')) {
     // 캠퍼스 사용자가 생성한 자료는 기본적으로 캠퍼스 공유 범위로 제한한다.
     input.visibility = "campus";
   }
@@ -433,7 +434,7 @@ export async function updateDataRecord(
     input.visibility === undefined
       ? (existing.visibility as DataRecordVisibility)
       : normalizeVisibility(input.visibility);
-  if (!context.isSuperAdmin && (nextVisibility === "organization" || (isCampusAdmin(context) && nextVisibility === 'public'))) nextVisibility = "campus";
+  if (!context.isSuperAdmin && (nextVisibility === "organization" || nextVisibility === 'public' && existing.visibility !== 'public')) nextVisibility = "campus";
   const nextSummary =
     input.summary === undefined ? (existing.summary as string | null) : cleanText(input.summary, 10_000) || null;
   const nextMetadata =

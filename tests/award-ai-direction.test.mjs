@@ -55,7 +55,7 @@ test('universities merge collections and aliases; types come from folders below 
     assert.deepEqual(merged.body.works.map(work => work.id).sort(), [files.alias.id, files.full.id].sort());
     // Deleted folders drop out of the lists.
     const deleted = await h.request('GET', base + '/folders?collectionType=admitted', users.teacher);
-    await h.request('DELETE', base + '/folders/' + deleted.body.folders[0].id, users.teacher);
+    await h.request('DELETE', base + '/folders/' + deleted.body.folders[0].id, users.admin);
     assert.equal((await h.request('GET', ai + '/universities', users.teacher)).body.universities[0].count, 1);
     for (const [user, status] of [[null, 401], [users.outsider, 403]]) {
       assert.equal((await h.request('GET', ai + '/universities', user)).status, status);

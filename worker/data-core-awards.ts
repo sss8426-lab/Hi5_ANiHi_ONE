@@ -107,8 +107,19 @@ export async function updateAwardFolder(db: D1Database, context: DataCoreAccessC
     awardAudit(db,context,'folder.classify',row,{...row,metadata_json:JSON.stringify(next)},now,true)]);
   return presentAward({...row,metadata_json:JSON.stringify(next),updated_at:now});
 }
+// 폴더 지우기: 마스터, 또는 만든 사람 본인(최상위 모음 제외, 안에 다른 사람 자료가 없을 때만).
 export async function deleteAwardFolder(db: D1Database, context: DataCoreAccessContext, id: string) {
   const path = await awardPath(db,context,id), row = path.at(-1)!, now = new Date().toISOString();
+  if (!context.isSuperAdmin) {
+    if (row.created_by_user_id !== context.user?.internalUserId) throw new DataCoreAccessError(403, '본인이 만든 폴더만 삭제할 수 있습니다.');
+    if (path.length === 1) throw new DataCoreAccessError(403, '최상위 폴더는 마스터 관리자만 삭제할 수 있습니다.');
+    const others = await db.prepare(`SELECT
+        (SELECT COUNT(*) FROM data_records WHERE organization_id=? AND record_type=? AND deleted_at IS NULL
+          AND CASE WHEN json_valid(metadata_json) THEN json_extract(metadata_json,'$.parentFolderId') END=? AND created_by_user_id IS NOT ?) +
+        (SELECT COUNT(*) FROM file_objects WHERE organization_id=? AND data_record_id=? AND deleted_at IS NULL AND owner_user_id IS NOT ?) AS n`)
+      .bind(ORG,AWARD_FOLDER,id,context.user!.internalUserId,ORG,id,context.user!.internalUserId).first<{n:number}>();
+    if (Number(others?.n)) throw new DataCoreAccessError(409, '다른 선생님이 올린 자료가 있어 삭제할 수 없습니다. 마스터 관리자에게 요청해주세요.');
+  }
   await db.batch([db.prepare("UPDATE data_records SET status='deleted',deleted_at=?,updated_at=? WHERE id=? AND deleted_at IS NULL").bind(now,now,id),
     awardAudit(db,context,'folder.delete',row,{...row,auditRestricted:path.some(p=>p.visibility==='private'),metadata_json:JSON.stringify({...awardMetadata(row),collectionType:collection(awardMetadata(path[0]).collectionType)})},now,true)]);
   return {ok:true,id,deletedAt:now,recoverable:true};

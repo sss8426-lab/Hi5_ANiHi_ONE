@@ -1034,7 +1034,7 @@ async function init() {
     void loadDefaults();void loadAiStatus();
     const listing=loadFiles();
     if(state.sourceApp==='instagram'){
-      const {mountInstagramProduction}=await import('/data-core/instagram-carousel.js?v=20260930-logos');
+      const {mountInstagramProduction}=await import('/data-core/instagram-carousel.js?v=20261015-perm');
       instagramProduction=mountInstagramProduction({state,api,$,toast,canWrite,text:()=>textPresets.values(),renderSelection:()=>{renderSelectedFiles();renderFilePicker();}});
       instagramProduction.applyDefaults(lastInstagramSettings);
       instagramProduction.refresh();
