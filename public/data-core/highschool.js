@@ -1,8 +1,11 @@
 // 고교 진학 상담 화면: 이름·학교·주소·캠퍼스·1~5지망·성적표 사진만 넣으면 → A4 9쪽 상담 자료 → PDF·이미지로 바로 저장.
 // 성적표 사진은 학년·학기를 스스로 나눠 채우고, 통학은 상담 자료를 만들 때 카카오맵으로 자동 계산한다.
 // 화면 상태는 주소 #의 뒷부분으로 나눈다(#new, #edit=ID, #report=ID). 뒤로 가기가 한 단계씩 돌아간다.
-import { renderReport, gradeBook, pickByAverage, isGirlsMiddle, WISH_RULES, SEMS, SUBJECTS, esc } from './highschool-report.js?v=20261017-hs8';
-import { savePdf, saveImages } from './highschool-export.js?v=20261017-hs8';
+import { renderReport, gradeBook, pickByAverage, isGirlsMiddle, WISH_RULES, SEMS, SUBJECTS, esc } from './highschool-report.js?v=20261017-hs9';
+import { savePdf, saveImages } from './highschool-export.js?v=20261017-hs9';
+import { reportLogo } from './highschool-logo.js?v=20261017-hs9';
+import { LOGOS, getInstagramCampusLogoLabel } from './instagram-brand-policy.js?v=20260923-logoup';
+import { drawLogo } from './instagram-layout.js?v=20260924-layers';
 
 const API = '/api/data-core/highschool';
 const $ = (id) => document.getElementById(id);
@@ -58,6 +61,61 @@ function renderCampus(selected) {
   $('hsCampus').innerHTML = campuses().map((c) => `<button type="button" class="hs-campus-chip" role="radio" aria-checked="${c.campusId === selected}" data-campus="${esc(c.campusId)}">${esc(c.name)}</button>`).join('');
 }
 const selectedCampus = () => $('hsCampus').querySelector('[aria-checked=true]')?.dataset.campus || '';
+
+// ── 로고 선택: 지금 로고(ANiHi 만화학원) + 인스타그램과 같은 기본 로고 6가지 + 캠퍼스가 올린 로고 ──
+// 기본 로고는 고른 캠퍼스 이름이 들어간 모양으로 그린다. 올린 로고는 인스타그램 '로고 올리기'와 같은 목록을 쓴다.
+const logoLabel = (campusId) => getInstagramCampusLogoLabel(campusName(campusId));
+let logoEpoch = 0;
+function logoCard(value, label, visual) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'hs-logo-choice'; b.dataset.logo = value; b.setAttribute('role', 'radio');
+  b.setAttribute('aria-checked', String((state.logo || '') === value));
+  const name = document.createElement('span'); name.textContent = label;
+  b.append(visual, name);
+  return b;
+}
+async function renderLogos() {
+  const campusId = selectedCampus(), epoch = ++logoEpoch, box = $('hsLogos');
+  const cards = [logoCard('', 'ANiHi 만화학원 (지금 로고)', Object.assign(document.createElement('img'), { src: '/data-core/assets/anihi-academy-logo.png', alt: '' }))];
+  for (const [id, spec] of Object.entries(LOGOS)) {
+    if (id === 'none') { cards.push(logoCard('none', spec.label, Object.assign(document.createElement('span'), { className: 'hs-no-logo', textContent: '로고 없이' }))); continue; }
+    const canvas = document.createElement('canvas');
+    cards.push(logoCard(id, spec.label, canvas));
+    if (campusId) drawLogo(canvas, id, logoLabel(campusId)).catch(() => canvas.replaceWith(Object.assign(document.createElement('img'), { src: spec.src, alt: '' })));
+    else canvas.replaceWith(Object.assign(document.createElement('img'), { src: spec.src, alt: '' }));
+  }
+  box.replaceChildren(...cards);
+  if (!campusId) return;
+  try {
+    const r = await fetch(`/api/data-core/content/instagram-logos?campusId=${encodeURIComponent(campusId)}`, { cache: 'no-store' }).then((res) => (res.ok ? res.json() : { logos: [] }));
+    if (epoch !== logoEpoch) return;
+    for (const item of r.logos || []) box.append(logoCard(`custom:${item.id}`, item.name, Object.assign(document.createElement('img'), { src: `/api/data-core/files/${encodeURIComponent(item.id)}`, alt: '', loading: 'lazy' })));
+  } catch { /* 올린 로고를 못 불러와도 기본 로고는 고를 수 있다 */ }
+}
+function chooseLogo(value) {
+  state.logo = value; state.dirty = true;
+  for (const b of $('hsLogos').children) b.setAttribute('aria-checked', String(b.dataset.logo === value));
+}
+$('hsLogos').addEventListener('click', (e) => { const b = e.target.closest('[data-logo]'); if (b) chooseLogo(b.dataset.logo); });
+$('hsLogoUpload').addEventListener('click', () => { if (!selectedCampus()) { $('hsLogoStatus').textContent = '캠퍼스를 먼저 골라 주세요.'; return; } $('hsLogoFile').click(); });
+$('hsLogoFile').addEventListener('change', async (e) => {
+  const file = e.target.files[0]; e.target.value = '';
+  if (!file) return;
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) { $('hsLogoStatus').textContent = 'PNG·JPG·WebP 이미지만 올릴 수 있습니다.'; return; }
+  if (file.size > 5 * 1024 * 1024) { $('hsLogoStatus').textContent = '이미지는 5MB 이하로 올려 주세요.'; return; }
+  $('hsLogoUpload').disabled = true; $('hsLogoStatus').textContent = '올리는 중…';
+  try {
+    const body = new FormData();
+    body.set('campusId', selectedCampus()); body.set('file', file); body.set('name', file.name.replace(/\.[^.]+$/, ''));
+    const res = await fetch('/api/data-core/content/instagram-logos', { method: 'POST', body });
+    const r = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(r.error || '로고를 올리지 못했습니다.');
+    state.logo = `custom:${r.logo.id}`; state.dirty = true;
+    await renderLogos();
+    $('hsLogoStatus').textContent = '올렸습니다 · 이 로고로 골랐습니다(인스타그램 로고 목록에도 함께 보입니다).';
+  } catch (error) { $('hsLogoStatus').textContent = error.message; }
+  finally { $('hsLogoUpload').disabled = false; }
+});
 function renderGradeStatus(s) {
   const book = gradeBook(s);
   $('hsPhotoStatus').textContent = book.sems.length
@@ -74,7 +132,7 @@ function readForm() {
     // 자동으로 고르기 칸: 규칙이 그대로면 지난번에 고른 학교를 유지하고, 바뀌면 자료를 만들 때 다시 고른다
     wishRules: [...form.querySelectorAll('[data-wish]')].map((el) => (el.value.startsWith('auto:') ? el.value.slice(5) : '')),
     wishes: [...form.querySelectorAll('[data-wish]')].map((el, i) => (el.value.startsWith('auto:') ? (base.wishRules?.[i] === el.value.slice(5) ? base.wishes?.[i] || '' : '') : el.value)),
-    grades: base.grades || {}, commute: base.commute || {},
+    grades: base.grades || {}, commute: base.commute || {}, logo: state.logo || '',
   };
 }
 function fillForm(s) {
@@ -85,6 +143,8 @@ function fillForm(s) {
   renderCampus(s.campusId || (campuses().length === 1 ? campuses()[0].campusId : ''));
   $('hsWishes').innerHTML = [0, 1, 2, 3, 4].map((i) => `<label><span>${i + 1}지망</span><select data-wish="${i}">${schoolOptions((s.wishes || [])[i] || '', i, (s.wishRules || [])[i] || '')}</select></label>`).join('');
   renderGradeStatus(s);
+  state.logo = s.logo || ''; $('hsLogoStatus').textContent = '';
+  void renderLogos();
   state.dirty = false;
 }
 
@@ -202,8 +262,12 @@ async function makeReport() {
 
 // ── 결과: 9쪽 → PDF·이미지 저장 ──
 let reportPages = [];
-function showReport(s) {
-  const { pages } = renderReport(s, state.schools);
+async function showReport(s) {
+  // 고른 로고를 그림으로 만들어 넣는다(못 그리면 예전 로고로)
+  let logo = null;
+  try { logo = await reportLogo(s.logo || '', logoLabel(s.campusId)); } catch { notice('고른 로고를 불러오지 못해 기본 로고로 보여 줍니다.', 'warn'); }
+  if (state.current?.id !== s.id) return;
+  const { pages } = renderReport(s, state.schools, { logo });
   const box = $('hsReport');
   box.innerHTML = pages.map((p) => p.html).join('\n');
   reportPages = [...box.children].map((section, i) => ({ name: pages[i].name, section }));
@@ -245,7 +309,7 @@ function route() {
     $('hsActions').innerHTML = `<button class="secondary-btn" type="button" data-act="list">목록</button><a class="secondary-btn" href="#edit=${encodeURIComponent(found.id)}">입력 고치기</a><button class="secondary-btn" type="button" data-act="images">이미지 저장</button><button class="primary-btn" type="button" data-act="pdf">PDF 저장</button>`;
     state.current = found; state.dirty = false;
     $('hsSaveStatus').textContent = '';
-    showReport(found);
+    void showReport(found);
     show('report');
   } else {
     $('hsTitle').textContent = '고교 진학 상담';
@@ -258,7 +322,7 @@ function route() {
 
 document.addEventListener('click', async (event) => {
   const chip = event.target.closest('[data-campus]');
-  if (chip) { for (const b of $('hsCampus').children) b.setAttribute('aria-checked', String(b === chip)); state.dirty = true; return; }
+  if (chip) { for (const b of $('hsCampus').children) b.setAttribute('aria-checked', String(b === chip)); state.dirty = true; void renderLogos(); return; }
   const act = event.target.closest('[data-act]')?.dataset.act;
   if (!act) return;
   try {

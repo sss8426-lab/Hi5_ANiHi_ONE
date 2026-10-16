@@ -113,3 +113,13 @@
 
 .hs-photo-box{transition:background .15s,border-color .15s}
 .hs-photo-box.hs-drop-active{border:2px dashed #1E4B3E;background:#E9F5EE}
+/* 로고 선택(인스타그램 '로고 선택'과 같은 모양): 4칸 격자, 고른 로고는 초록 테두리 */
+.hs-logo-box{position:relative;min-width:0}
+.hs-logo-head{display:flex;justify-content:flex-end;margin:-4px 0 8px}
+.hs-logo-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:4px}
+.hs-logo-choice{display:flex;flex-direction:column;justify-content:center;gap:6px;min-width:0;background:#fff;border:1px solid var(--line,#d9ddd9);border-radius:8px;padding:10px;color:var(--text,#222);cursor:pointer;font:inherit}
+.hs-logo-choice[aria-checked=true]{outline:2px solid #1E4B3E;outline-offset:1px;background:#F3F8F5}
+.hs-logo-choice :is(canvas,img){width:100%;max-width:100%;min-width:0;height:56px;object-fit:contain}
+.hs-logo-choice .hs-no-logo{height:56px;display:grid;place-items:center;color:#888;border:1px dashed #ccc;border-radius:6px;font-size:13px}
+.hs-logo-choice>span:last-child{font-size:12.5px;overflow-wrap:anywhere;text-align:center}
+@media(max-width:900px){.hs-logo-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}

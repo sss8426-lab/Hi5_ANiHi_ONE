@@ -10,8 +10,8 @@
   <link rel="stylesheet" href="/data-core/design-tokens.css?v=20260913-soft-premium">
   <link rel="stylesheet" href="/data-core/design-system.css?v=20260928-approved-logo">
   <link rel="stylesheet" href="/data-core/mobile-app.css?v=20261009-mobile-app">
-  <link rel="stylesheet" href="/data-core/highschool.css?v=20261017-hs8">
-  <link rel="stylesheet" href="/data-core/highschool-report.css?v=20261017-hs8">
+  <link rel="stylesheet" href="/data-core/highschool.css?v=20261017-hs9">
+  <link rel="stylesheet" href="/data-core/highschool-report.css?v=20261017-hs9">
 </head>
 <body class="data-core-layout hs-page">
   <div class="app-shell">
@@ -54,6 +54,12 @@
           </div>
         </fieldset>
 
+        <fieldset class="hs-box hs-logo-box"><legend>로고 선택 <small>상담 자료 모든 쪽의 로고 자리에 들어갑니다</small></legend>
+          <div class="hs-logo-head"><input type="file" id="hsLogoFile" accept="image/png,image/jpeg,image/webp" hidden><button type="button" class="ghost-btn" id="hsLogoUpload">로고 올리기</button></div>
+          <div class="hs-logo-grid" id="hsLogos" role="radiogroup" aria-label="로고 선택"></div>
+          <p class="hs-hint" id="hsLogoStatus" role="status"></p>
+        </fieldset>
+
         <fieldset class="hs-box"><legend>지망 학교 <small>1~5지망</small></legend>
           <div class="hs-wishes" id="hsWishes"></div>
         </fieldset>
@@ -72,6 +78,6 @@
       </section>
     </main>
   </div>
-  <script type="module" src="/data-core/highschool.js?v=20261017-hs8"></script>
+  <script type="module" src="/data-core/highschool.js?v=20261017-hs9"></script>
 </body>
 </html>

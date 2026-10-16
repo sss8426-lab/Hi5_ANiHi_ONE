@@ -555,21 +555,31 @@ ${body}
 }
 
 // 9쪽 전체. pages의 name은 이미지로 저장할 때 파일 이름(01_표지.png …)이 된다.
-export function renderReport(student, data, { withGuide = true } = {}) {
+// 로고 선택(새 상담 화면): logo = { src, band } 그림 주소. src는 쪽 위 로고·5~9쪽 아래 작은 로고, band는 1~4쪽 어두운 띠에 넣는 흰 로고.
+// { none: true }는 로고 없이, 아무것도 안 주면 예전처럼 ANiHi 만화학원 로고.
+function applyLogo(html, logo) {
+  if (!logo) return html;
+  if (logo.none) return html.replace(/<img class="logo\d*" src="[^"]*" alt="[^"]*">/g, '').replace('<b class="fl">ANiHi</b>', '').replace('<span>ANiHi 만화학원</span>', '<span></span>');
+  const tall = logo.tall ? ' tall' : '';
+  return html.replace(/<img class="(logo\d*)" src="[^"]*" alt="ANiHi 만화학원">/g, (m, cls) => `<img class="${cls}${tall}" src="${logo.src}" alt="로고">`)
+    .replace(/<b class="fl">ANiHi<\/b><span>[^<]*<\/span>/, `<img class="fl-img${tall}" src="${logo.band || logo.src}" alt="로고">`)
+    .replace('<span>ANiHi 만화학원</span>', `<span><img class="fm${tall}" src="${logo.src}" alt="로고"></span>`);
+}
+export function renderReport(student, data, { withGuide = true, logo = null } = {}) {
   const A = analyze(student, data);
   const C = compare(A, student);
   const rec = recommendation(A, C);
-  const foot = (html) => html.replaceAll('{{CAMPUS}}', esc(academyOf(student, data)?.name || '부천입시본원'));
+  const foot = (html) => applyLogo(html.replaceAll('{{CAMPUS}}', esc(academyOf(student, data)?.name || '부천입시본원')), logo);
   const pages = [{ name: '표지', html: foot(coverPage(student)) }];
   if (withGuide) {
     const guide = INFO_PAGES.split(/\n(?=<section)/);
     ['수능변화', '내신변화', '등급제개편'].forEach((name, i) => pages.push({ name, html: foot(guide[i]) }));
   }
-  pages.push({ name: '상담표', html: counselPage(student, A, data) });
-  if (A.rows.length) pages.push({ name: '학교비교표', html: comparePage(student, A, C, data) });
+  pages.push({ name: '상담표', html: foot(counselPage(student, A, data)) });
+  if (A.rows.length) pages.push({ name: '학교비교표', html: foot(comparePage(student, A, C, data)) });
   const region = regionPage(student, A, data);
-  if (region) pages.push({ name: '지역평균표', html: region });
-  pages.push({ name: '성적변화_추천학교', html: gradeReportPage(student, A, rec) });
-  if (A.rows.length) pages.push({ name: '통학시간_차이', html: timePage(student, rec) });
+  if (region) pages.push({ name: '지역평균표', html: foot(region) });
+  pages.push({ name: '성적변화_추천학교', html: foot(gradeReportPage(student, A, rec)) });
+  if (A.rows.length) pages.push({ name: '통학시간_차이', html: foot(timePage(student, rec)) });
   return { html: pages.map((p) => p.html).join('\n'), pages, analysis: A, comparison: C, recommendation: rec };
 }
