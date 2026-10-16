@@ -1,8 +1,8 @@
 // 고교 진학 상담 화면: 이름·학교·주소·캠퍼스·1~5지망·성적표 사진만 넣으면 → A4 9쪽 상담 자료 → PDF·이미지로 바로 저장.
 // 성적표 사진은 학년·학기를 스스로 나눠 채우고, 통학은 상담 자료를 만들 때 카카오맵으로 자동 계산한다.
 // 화면 상태는 주소 #의 뒷부분으로 나눈다(#new, #edit=ID, #report=ID). 뒤로 가기가 한 단계씩 돌아간다.
-import { renderReport, gradeBook, SEMS, SUBJECTS, esc } from './highschool-report.js?v=20261016-hs4';
-import { savePdf, saveImages } from './highschool-export.js?v=20261016-hs4';
+import { renderReport, gradeBook, SEMS, SUBJECTS, esc } from './highschool-report.js?v=20261016-hs5';
+import { savePdf, saveImages } from './highschool-export.js?v=20261016-hs5';
 
 const API = '/api/data-core/highschool';
 const $ = (id) => document.getElementById(id);
@@ -92,12 +92,17 @@ async function save(s) {
 }
 
 // 성적표 사진: 2400px JPEG로 줄여 한 장씩 읽고, 학년·학기·과목 칸에 채운다
-async function shrink(file) {
+// rotate: 시계 방향 각도(0·90·180·270). 옆으로 눕혀 찍은 성적증명서를 똑바로 세워 다시 읽을 때 쓴다.
+async function shrink(file, rotate = 0) {
   const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
   const scale = Math.min(1, 2400 / Math.max(bitmap.width, bitmap.height));
+  const w = Math.round(bitmap.width * scale), h = Math.round(bitmap.height * scale), side = rotate === 90 || rotate === 270;
   const canvas = document.createElement('canvas');
-  canvas.width = Math.round(bitmap.width * scale); canvas.height = Math.round(bitmap.height * scale);
-  canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  canvas.width = side ? h : w; canvas.height = side ? w : h;
+  const ctx = canvas.getContext('2d');
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.rotate((rotate * Math.PI) / 180);
+  ctx.drawImage(bitmap, -w / 2, -h / 2, w, h);
   bitmap.close?.();
   return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('사진을 줄이지 못했습니다.'))), 'image/jpeg', 0.86));
 }
@@ -117,10 +122,18 @@ async function readPhotos(files) {
   for (const [i, file] of [...files].entries()) {
     status.textContent = `사진 ${i + 1}/${files.length} 읽는 중… (한 장에 20~40초)`;
     try {
-      const body = new FormData();
-      body.append('image', await shrink(file), 'grade.jpg');
-      body.append('gradeHint', `지금 중학교 ${s.grade || 3}학년, ${(s.entryYear || ENTRY_YEAR) - 1}학년도`);
-      const r = await api('/grade-photo', { method: 'POST', body });
+      const read = async (rotate) => {
+        const body = new FormData();
+        body.append('image', await shrink(file, rotate), 'grade.jpg');
+        body.append('gradeHint', `지금 중학교 ${s.grade || 3}학년, ${(s.entryYear || ENTRY_YEAR) - 1}학년도`);
+        return api('/grade-photo', { method: 'POST', body });
+      };
+      let r = await read(0);
+      // 옆으로 눕거나 뒤집혀 찍힌 사진: 똑바로 세워 한 번 더 읽고, 그 결과를 쓴다(줄이 섞이는 것을 막음)
+      if (r.kind === 'report' && r.rotation) {
+        status.textContent = `사진 ${i + 1}/${files.length} 방향을 바로 세워 다시 읽는 중…`;
+        try { const again = await read(r.rotation); if (again.kind === 'report' && again.rows.length) r = again; } catch { /* 첫 결과를 쓴다 */ }
+      }
       if (r.kind !== 'report') { notes.push(`${i + 1}번째 사진은 성적표가 아닌 것 같습니다`); continue; }
       if (!form.elements.middleSchool.value && r.school) form.elements.middleSchool.value = r.school;
       for (const row of r.rows) {
@@ -137,16 +150,18 @@ async function readPhotos(files) {
   if (notes.length) status.textContent += ` — ${notes.join(' / ')}`;
 }
 
-// 통학: 주소·캠퍼스·지망이 바뀌었거나 아직 없으면 카카오맵으로 다시 찾는다
+// 통학: 주소·캠퍼스·지망이 바뀌었거나 아직 없으면 카카오맵으로 다시 찾는다.
+// 서버가 희망 학교 외에 집에서 가까운 같은 지역 일반고를 채워 모두 5곳을 비교한다(예전 상담 자료와 같은 규칙).
 async function ensureRoutes(s) {
   const names = [...new Set(s.wishes.filter(Boolean))];
-  const key = `${s.address}|${s.campusId}`;
+  const key = `${s.address}|${s.campusId}|${names.join(',')}|fill5`;
   const have = s.commute?.key === key && names.every((n) => s.commute.schools?.[n]?.home);
   if (!state.kakao || !s.address || !names.length || have) return s;
   const r = await api('/routes', { method: 'POST', body: JSON.stringify({ address: s.address, campusId: s.campusId, schools: names }) });
+  const extras = Array.isArray(r.extras) ? r.extras : [];
   const schools = {};
-  for (const n of names) if (r.schools[n]) schools[n] = { home: r.schools[n].home, academy: r.schools[n].academy };
-  return { ...s, commute: { key, checkedAt: r.checkedAt, back: r.back, schools } };
+  for (const n of [...names, ...extras]) if (r.schools[n]) schools[n] = { home: r.schools[n].home, academy: r.schools[n].academy };
+  return { ...s, extras, commute: { key, checkedAt: r.checkedAt, back: r.back, schools } };
 }
 async function makeReport() {
   let s = readForm();

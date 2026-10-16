@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { encode } from 'fast-png';
 import { libraryHarness, users, A, B } from './support/library-harness.mjs';
 import { renderReport, analyze, compare, gradeBook, bandOf, regionFromAddress, segment } from '../public/data-core/highschool-report.js';
 import { makePdf } from '../public/data-core/highschool-export.js';
@@ -134,6 +135,15 @@ test('API: 카카오맵 대중교통 길찾기 (가짜 응답) — 캠퍼스 학
     assert.ok(r.body.schools.없는고.academy, '목록에 없는 학교는 학교→학원도 찾는다');
     assert.ok(seen.some(([path, q]) => path === '/v2/local/search/address.json' && q === '경기도 부천시 원미구 상동로 109'), '학원 주소로 위치를 찾는다');
     assert.ok(seen.every(([, , auth]) => auth === 'KakaoAK test-key'));
+    // 비교 학교 채우기: 희망 3곳 + 같은 지역(부천) 일반고 중 가까운 곳으로 모두 5곳. 여고·특성화고는 자동으로 넣지 않음
+    assert.equal(r.body.extras.length, 2, JSON.stringify(r.body.extras));
+    for (const name of r.body.extras) {
+      const school = data.schools.find((s) => s.name === name);
+      assert.ok(school && school.region === '부천' && !school.special && !school.girls, name);
+      assert.ok(r.body.schools[name].home, `${name} 통학도 함께 찾는다`);
+    }
+    const five = await h.request('POST', '/api/data-core/highschool/routes', users.teacher, body(A, ['상원고', '중원고', '부명고', '상일고', '심원고']));
+    assert.deepEqual(five.body.extras, [], '희망이 5곳이면 채우지 않는다');
     const ansan = await h.request('POST', '/api/data-core/highschool/routes', users.master, body('campus-ansan'));
     assert.ok(ansan.body.schools.상원고.academy, '다른 캠퍼스는 학교→학원도 카카오로 찾는다');
   } finally { globalThis.fetch = realFetch; await h.mf.dispose(); }
@@ -145,7 +155,7 @@ test('화면: 이름·학교·주소·캠퍼스·지망·성적표 사진만, �
   assert.ok(a > 0 && a < b && b < c, '대학합격 로드맵 바로 아래');
   const page = fs.readFileSync('public/data-core/highschool.html', 'utf8');
   const js = fs.readFileSync('public/data-core/highschool.js', 'utf8');
-  assert.match(page, /highschool\.js\?v=20261016-hs4/);
+  assert.match(page, /highschool\.js\?v=20261016-hs5/);
   assert.deepEqual([...page.matchAll(/<input name="(\w+)"/g)].map((m) => m[1]), ['name', 'middleSchool', 'address']);
   assert.match(page, /id="hsCampus" role="radiogroup"/);
   assert.match(page, /id="hsPhoto"/);
@@ -155,4 +165,36 @@ test('화면: 이름·학교·주소·캠퍼스·지망·성적표 사진만, �
   assert.match(js, /data-act="images">이미지 저장/);
   const css = fs.readFileSync('public/data-core/highschool.css', 'utf8');
   assert.match(css, /@media \(max-width:1100px\)\{[^}]*\.hs-page \.app-shell\{display:block\}\s*\.hs-page \.sidebar\{display:none!important\}/, '태블릿에서 왼쪽 메뉴가 화면을 덮지 않게');
+});
+
+test('성적표 사진 읽기: 찍힌 칸 그대로("82/77.0", "B(168)")로 점수·평균·성취도를 나누고, 옆으로 찍힌 사진은 돌릴 각도를 알려 준다', async () => {
+  const h = await libraryHarness();
+  const realFetch = globalThis.fetch;
+  let sent = null;
+  globalThis.fetch = async (input, init) => {
+    const url = String(typeof input === 'string' ? input : input.url ?? input);
+    if (!url.startsWith('https://api.openai.com/')) return realFetch(input, init);
+    sent = JSON.parse(init.body);
+    const reading = { kind: 'report', rotation: '90', studentName: '', school: '가상중학교', uncertain: [], rows: [
+      // AI가 원점수·평균을 섞어 "82.7"로 옮겨도 찍힌 칸 "82/77.0"이 이긴다
+      { academicYear: '', schoolYear: '1학년', semester: '2학기', subject: '국어', printedName: '국어', scoreCell: '82/77.0', achievementCell: 'B(168)', rawScore: '82.7', average: '', achievement: '' },
+      { academicYear: '', schoolYear: '1학년', semester: '2학기', subject: '수학', printedName: '수학', scoreCell: '45/64.4', achievementCell: 'E(168)', rawScore: '45', average: '64.4', achievement: 'E' },
+      { academicYear: '2026', schoolYear: '3학년', semester: '1학기', subject: '영어', printedName: '영어', scoreCell: '89', achievementCell: '', rawScore: '89', average: '76.7', achievement: 'B' },
+      { academicYear: '', schoolYear: '1학년', semester: '1학기', subject: '국어', printedName: '국어', scoreCell: '해당없음', achievementCell: 'P', rawScore: '', average: '', achievement: '' },
+    ] };
+    return Response.json({ status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(reading) }] }] });
+  };
+  try {
+    h.env.OPENAI_API_KEY = 'synthetic-test-only';
+    const form = new FormData();
+    form.set('image', new Blob([encode({ width: 40, height: 60, channels: 4, depth: 8, data: new Uint8Array(40 * 60 * 4).fill(200) })], { type: 'image/png' }), 'grade.png');
+    form.set('gradeHint', '지금 중학교 3학년, 2026학년도');
+    const r = await h.request('POST', '/api/data-core/highschool/grade-photo', users.teacher, form);
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.equal(r.body.rotation, 90);
+    assert.deepEqual(r.body.rows.map((x) => [x.grade, x.semester, x.subject, x.s, x.m, x.a]), [[1, 2, '국어', 82, 77, 'B'], [1, 2, '수학', 45, 64.4, 'E'], [3, 1, '영어', 89, 76.7, 'B']], '자유학기(P·해당없음)는 빠진다');
+    assert.match(sent.instructions, /같은 행의 칸끼리만 짝지으세요/);
+    assert.match(sent.instructions, /성적증명서·생활기록부 형식/);
+    assert.ok(sent.text.format.schema.required.includes('rotation'));
+  } finally { globalThis.fetch = realFetch; await h.mf.dispose(); }
 });
