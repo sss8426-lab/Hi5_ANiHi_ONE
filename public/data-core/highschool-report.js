@@ -63,6 +63,20 @@ export function usesSangdongTimes(student, data) {
   return /상동로\s*109/.test(academyOf(student, data)?.address || '');
 }
 
+// 4·5지망 자동으로 고르기: 내신평균(고1·고2 국·영·수) 높은 학교 / 낮은 학교 / 거리 최우선(서버가 집에서 가까운 순으로 고름)
+export const WISH_RULES = { high: '내신평균 높은 학교', low: '내신평균 낮은 학교', near: '거리 최우선' };
+// 여중 학생이면 여고도 후보에 넣는다(성별 입력이 없어 중학교 이름으로만 본다)
+export const isGirlsMiddle = (middleSchool) => /여중|여자중/.test(String(middleSchool || ''));
+export function pickByAverage(data, student, rule, exclude, count = 1) {
+  const M = model(data);
+  const region = student.region || regionFromAddress(student.address);
+  if (!region || !['high', 'low'].includes(rule)) return [];
+  const female = isGirlsMiddle(student.middleSchool);
+  return (data.schools || []).filter((s) => s.region === region && !s.special && (female || !s.girls) && !exclude.includes(s.name))
+    .map((s) => ({ name: s.name, base: M.baseOf(s.name) })).filter((s) => s.base != null)
+    .sort((a, b) => (rule === 'high' ? b.base - a.base : a.base - b.base)).slice(0, count).map((s) => s.name);
+}
+
 export function model(data) {
   const schools = new Map((data.schools || []).map((s) => [s.name, s]));
   const semesters = data.semesters || [];
@@ -256,7 +270,7 @@ export function counselPage(student, A, data) {
   const head = `${logoImg()}
 <div class="tt"><h1>고교 진학 상담표</h1><span>${esc(academyOf(student, data)?.name || academy)}</span></div>
 <div class="meta"><div><i>학생</i><b>${esc(student.name)}</b></div><div><i>학교</i>${esc(`${String(student.middleSchool || '').replace(/중학교$/, '중')} ${student.grade || 3}학년`.trim())}</div><div class="ad"><i>주소</i>${esc(student.address || '')}</div></div>
-<p class="info">기존 희망순서: ${wishes.length ? wishes.map((s) => esc(M.dn(s))).join(' → ') : '미기재'}</p>`;
+<p class="info">기존 희망순서: ${wishes.length ? (student.wishes || []).map((s, i) => (s ? esc(M.dn(s)) + (WISH_RULES[student.wishRules?.[i]] ? `(${WISH_RULES[student.wishRules[i]]})` : '') : '')).filter(Boolean).join(' → ') : '미기재'}</p>`;
   if (!rows.length) return `<section class="page">${head}<p class="box">희망 학교가 아직 없어 통학·성적 비교를 하지 못했습니다. 희망 학교(1~5지망)를 넣으면 바로 작성합니다.</p></section>`;
   const cellHtml = (c) => (c ? `<b>${esc(c.head)}</b>${c.sub ? `<small>${esc(c.sub)}</small>` : ''}` : '<span class="na">미확인</span>');
   const unknown = rows.filter((x) => x.total == null).map((x) => M.dn(x.s));
@@ -351,7 +365,7 @@ ${ranked.length ? `<table class="t cmp2"><tr><th rowspan="2">학교명</th><th r
 <p class="note">${semNote} · * 표시는 같은 교과 과목이 여러 개라 평균을 낸 값${nodata.length ? ` · ${nodata.map(esc).join('·')}는 공시 성적 미수집` : ''}${others.length ? ` · ${others.map(esc).join('·')}는 1쪽 통학표 참고` : ''}${ranked.length > 3 ? ` · 자세한 표는 추천 상위 3곳만` : ''}${sp.length ? ` · 특성화고(${sp.map(esc).join('·')})는 학과·전형으로 따로 검토` : ''}</p>
 <h3>&lt;설명&gt;</h3>
 <ol class="ex"><li><b>평균</b>: 그 과목을 들은 학생 전체의 평균 점수입니다.</li><li><b>A 비율</b>: 성취도 A를 받은 학생 비율입니다. 학교마다 A 기준이 달라 그대로 비교하지 않습니다.</li><li><b>A는 절대평가</b>: 기준 점수를 넘으면 모두 A입니다. A가 많아도 1등급(상위 10%)과는 다릅니다.</li><li><b>등급은 상대평가</b>: 상위 10% 1등급, 34% 2등급, 66% 3등급, 90% 4등급, 나머지 5등급입니다.</li></ol>
-${ranked.length >= 2 && grp.length === 1 ? `<div class="band"><p class="bh">□ 성적대별 순서</p><p>□ ${orderFor('상위권')}</p><p class="why">이유: 후보 학교가 지역 평균 기준으로 같은 단계라, 성적대(상위·중위·하위권)와 관계없이 순서가 같습니다. 통학이 짧은 학교를 앞에 둡니다.</p></div>` : ''}${ranked.length >= 2 && grp.length > 1 ? BANDS.map((b) => `<div class="band${b === band ? ' me' : ''}"><p class="bh">□ 성적 ${b}${b === '상위권' ? ' (중학교 성적 상~중상)' : ''}</p><p>□ ${orderFor(b)}</p><p class="why">이유: ${why[b]}</p></div>`).join('') : ''}
+${ranked.length >= 2 && grp.length === 1 ? `<div class="band"><p class="bh">□ 성적대별 순서</p><p>□ ${orderFor('상위권')}</p><p class="why">이유: ${COUNT[ranked.length] || ranked.length} 학교가 지역 평균 기준으로 같은 단계라, 성적대(상위·중위·하위권)와 관계없이 순서가 같습니다. 통학이 짧은 학교를 앞에 둡니다.</p></div>` : ''}${ranked.length >= 2 && grp.length > 1 ? BANDS.map((b) => `<div class="band"><p class="bh">□ 성적 ${b}${b === '상위권' ? ' (중학교 성적 상~중상)' : ''}</p><p>□ ${orderFor(b)}</p><p class="why">이유: ${why[b]}</p></div>`).join('') : ''}
 ${finalHtml}
 <footer><span>출처: ${esc(data.disclosure || '학교알리미 학업성취사항')}, 카카오맵 통학 조회</span><span>ANiHi 만화학원</span></footer></section>`;
 }

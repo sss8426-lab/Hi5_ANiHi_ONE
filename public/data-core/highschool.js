@@ -1,8 +1,8 @@
 // 고교 진학 상담 화면: 이름·학교·주소·캠퍼스·1~5지망·성적표 사진만 넣으면 → A4 9쪽 상담 자료 → PDF·이미지로 바로 저장.
 // 성적표 사진은 학년·학기를 스스로 나눠 채우고, 통학은 상담 자료를 만들 때 카카오맵으로 자동 계산한다.
 // 화면 상태는 주소 #의 뒷부분으로 나눈다(#new, #edit=ID, #report=ID). 뒤로 가기가 한 단계씩 돌아간다.
-import { renderReport, gradeBook, SEMS, SUBJECTS, esc } from './highschool-report.js?v=20261016-hs4';
-import { savePdf, saveImages } from './highschool-export.js?v=20261016-hs4';
+import { renderReport, gradeBook, pickByAverage, isGirlsMiddle, WISH_RULES, SEMS, SUBJECTS, esc } from './highschool-report.js?v=20261016-hs6';
+import { savePdf, saveImages } from './highschool-export.js?v=20261016-hs6';
 
 const API = '/api/data-core/highschool';
 const $ = (id) => document.getElementById(id);
@@ -45,10 +45,13 @@ function renderList() {
 }
 
 // ── 입력 ──
-function schoolOptions(selected) {
+// 4·5지망(slot 3·4)은 학교 대신 '내신평균 높은 학교 / 낮은 학교 / 거리 최우선'을 고를 수 있다(자료를 만들 때 학교를 고름).
+function schoolOptions(selected, slot = 0, rule = '') {
   const groups = [['부천', (s) => s.region === '부천' && !s.special], ['인천', (s) => s.region === '인천' && !s.special], ['특성화고', (s) => s.special]];
-  const known = !selected || schoolList().some((s) => s.name === selected);
-  return `<option value="">선택 안 함</option>${known ? '' : `<option selected>${esc(selected)}</option>`}${groups.map(([label, f]) => `<optgroup label="${label}">${schoolList().filter(f).map((s) => `<option value="${esc(s.name)}"${s.name === selected ? ' selected' : ''}>${esc(s.display || s.name)}</option>`).join('')}</optgroup>`).join('')}`;
+  const known = rule || !selected || schoolList().some((s) => s.name === selected);
+  const auto = slot >= 3 ? `<optgroup label="자동으로 고르기">${Object.entries(WISH_RULES).map(([k, label]) => `<option value="auto:${k}"${rule === k ? ' selected' : ''}>${label}</option>`).join('')}</optgroup>` : '';
+  if (rule) selected = '';
+  return `<option value="">선택 안 함</option>${auto}${known ? '' : `<option selected>${esc(selected)}</option>`}${groups.map(([label, f]) => `<optgroup label="${label}">${schoolList().filter(f).map((s) => `<option value="${esc(s.name)}"${s.name === selected ? ' selected' : ''}>${esc(s.display || s.name)}</option>`).join('')}</optgroup>`).join('')}`;
 }
 function renderCampus(selected) {
   $('hsCampus').innerHTML = campuses().map((c) => `<button type="button" class="hs-campus-chip" role="radio" aria-checked="${c.campusId === selected}" data-campus="${esc(c.campusId)}">${esc(c.name)}</button>`).join('');
@@ -67,7 +70,9 @@ function readForm() {
     ...base,
     name: String(f.get('name') || '').trim(), middleSchool: String(f.get('middleSchool') || '').trim(), address: String(f.get('address') || '').trim(),
     campusId: selectedCampus(), grade: base.grade || 3, entryYear: base.entryYear || ENTRY_YEAR,
-    wishes: [...form.querySelectorAll('[data-wish]')].map((el) => el.value),
+    // 자동으로 고르기 칸: 규칙이 그대로면 지난번에 고른 학교를 유지하고, 바뀌면 자료를 만들 때 다시 고른다
+    wishRules: [...form.querySelectorAll('[data-wish]')].map((el) => (el.value.startsWith('auto:') ? el.value.slice(5) : '')),
+    wishes: [...form.querySelectorAll('[data-wish]')].map((el, i) => (el.value.startsWith('auto:') ? (base.wishRules?.[i] === el.value.slice(5) ? base.wishes?.[i] || '' : '') : el.value)),
     grades: base.grades || {}, commute: base.commute || {},
   };
 }
@@ -77,7 +82,7 @@ function fillForm(s) {
   form.elements.middleSchool.value = s.middleSchool || '';
   form.elements.address.value = s.address || '';
   renderCampus(s.campusId || (campuses().length === 1 ? campuses()[0].campusId : ''));
-  $('hsWishes').innerHTML = [0, 1, 2, 3, 4].map((i) => `<label><span>${i + 1}지망</span><select data-wish="${i}">${schoolOptions((s.wishes || [])[i] || '')}</select></label>`).join('');
+  $('hsWishes').innerHTML = [0, 1, 2, 3, 4].map((i) => `<label><span>${i + 1}지망</span><select data-wish="${i}">${schoolOptions((s.wishes || [])[i] || '', i, (s.wishRules || [])[i] || '')}</select></label>`).join('');
   renderGradeStatus(s);
   state.dirty = false;
 }
@@ -92,12 +97,17 @@ async function save(s) {
 }
 
 // 성적표 사진: 2400px JPEG로 줄여 한 장씩 읽고, 학년·학기·과목 칸에 채운다
-async function shrink(file) {
+// rotate: 시계 방향 각도(0·90·180·270). 옆으로 눕혀 찍은 성적증명서를 똑바로 세워 다시 읽을 때 쓴다.
+async function shrink(file, rotate = 0) {
   const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
   const scale = Math.min(1, 2400 / Math.max(bitmap.width, bitmap.height));
+  const w = Math.round(bitmap.width * scale), h = Math.round(bitmap.height * scale), side = rotate === 90 || rotate === 270;
   const canvas = document.createElement('canvas');
-  canvas.width = Math.round(bitmap.width * scale); canvas.height = Math.round(bitmap.height * scale);
-  canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  canvas.width = side ? h : w; canvas.height = side ? w : h;
+  const ctx = canvas.getContext('2d');
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.rotate((rotate * Math.PI) / 180);
+  ctx.drawImage(bitmap, -w / 2, -h / 2, w, h);
   bitmap.close?.();
   return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('사진을 줄이지 못했습니다.'))), 'image/jpeg', 0.86));
 }
@@ -117,10 +127,18 @@ async function readPhotos(files) {
   for (const [i, file] of [...files].entries()) {
     status.textContent = `사진 ${i + 1}/${files.length} 읽는 중… (한 장에 20~40초)`;
     try {
-      const body = new FormData();
-      body.append('image', await shrink(file), 'grade.jpg');
-      body.append('gradeHint', `지금 중학교 ${s.grade || 3}학년, ${(s.entryYear || ENTRY_YEAR) - 1}학년도`);
-      const r = await api('/grade-photo', { method: 'POST', body });
+      const read = async (rotate) => {
+        const body = new FormData();
+        body.append('image', await shrink(file, rotate), 'grade.jpg');
+        body.append('gradeHint', `지금 중학교 ${s.grade || 3}학년, ${(s.entryYear || ENTRY_YEAR) - 1}학년도`);
+        return api('/grade-photo', { method: 'POST', body });
+      };
+      let r = await read(0);
+      // 옆으로 눕거나 뒤집혀 찍힌 사진: 똑바로 세워 한 번 더 읽고, 그 결과를 쓴다(줄이 섞이는 것을 막음)
+      if (r.kind === 'report' && r.rotation) {
+        status.textContent = `사진 ${i + 1}/${files.length} 방향을 바로 세워 다시 읽는 중…`;
+        try { const again = await read(r.rotation); if (again.kind === 'report' && again.rows.length) r = again; } catch { /* 첫 결과를 쓴다 */ }
+      }
       if (r.kind !== 'report') { notes.push(`${i + 1}번째 사진은 성적표가 아닌 것 같습니다`); continue; }
       if (!form.elements.middleSchool.value && r.school) form.elements.middleSchool.value = r.school;
       for (const row of r.rows) {
@@ -137,16 +155,32 @@ async function readPhotos(files) {
   if (notes.length) status.textContent += ` — ${notes.join(' / ')}`;
 }
 
-// 통학: 주소·캠퍼스·지망이 바뀌었거나 아직 없으면 카카오맵으로 다시 찾는다
+// 통학: 주소·캠퍼스·지망이 바뀌었거나 아직 없으면 카카오맵으로 다시 찾는다.
+// 서버가 희망 학교 외에 집에서 가까운 같은 지역 일반고를 채워 모두 5곳을 비교한다(예전 상담 자료와 같은 규칙).
 async function ensureRoutes(s) {
-  const names = [...new Set(s.wishes.filter(Boolean))];
-  const key = `${s.address}|${s.campusId}`;
-  const have = s.commute?.key === key && names.every((n) => s.commute.schools?.[n]?.home);
-  if (!state.kakao || !s.address || !names.length || have) return s;
-  const r = await api('/routes', { method: 'POST', body: JSON.stringify({ address: s.address, campusId: s.campusId, schools: names }) });
+  const rules = s.wishRules || [];
+  const nearSlots = rules.map((r, i) => (r === 'near' ? i : -1)).filter((i) => i >= 0);
+  const names = [...new Set(s.wishes.filter((w, i) => w && rules[i] !== 'near'))];
+  const key = `${s.address}|${s.campusId}|${names.join(',')}|near${nearSlots.length}|fill5`;
+  const have = s.commute?.key === key && names.every((n) => s.commute.schools?.[n]?.home) && nearSlots.every((i) => s.wishes[i]);
+  if (!state.kakao || !s.address || (!names.length && !nearSlots.length) || have) return s;
+  const r = await api('/routes', { method: 'POST', body: JSON.stringify({ address: s.address, campusId: s.campusId, schools: names, near: nearSlots.length, female: isGirlsMiddle(s.middleSchool) }) });
+  const near = Array.isArray(r.near) ? r.near : [], extras = Array.isArray(r.extras) ? r.extras : [];
+  const wishes = [...s.wishes];
+  nearSlots.forEach((slot, k) => { wishes[slot] = near[k] || ''; });
   const schools = {};
-  for (const n of names) if (r.schools[n]) schools[n] = { home: r.schools[n].home, academy: r.schools[n].academy };
-  return { ...s, commute: { key, checkedAt: r.checkedAt, back: r.back, schools } };
+  for (const n of [...names, ...near, ...extras]) if (r.schools[n]) schools[n] = { home: r.schools[n].home, academy: r.schools[n].academy };
+  return { ...s, wishes, extras, commute: { key, checkedAt: r.checkedAt, back: r.back, schools } };
+}
+// 내신평균 높은/낮은 학교 칸: 같은 지역 일반고 중 고1·고2 국·영·수 평균이 가장 높은/낮은 학교(이미 고른 학교 제외)
+function resolveAverageWishes(s) {
+  const rules = s.wishRules || [];
+  const wishes = s.wishes.map((w, i) => (rules[i] === 'high' || rules[i] === 'low' ? '' : w));
+  for (const i of [3, 4]) {
+    if (rules[i] !== 'high' && rules[i] !== 'low') continue;
+    wishes[i] = pickByAverage(state.schools, s, rules[i], wishes.filter((w, j) => w && rules[j] !== 'near'))[0] || '';
+  }
+  return { ...s, wishes };
 }
 async function makeReport() {
   let s = readForm();
@@ -157,6 +191,8 @@ async function makeReport() {
   try {
     if (state.reading) { notice('성적표 사진을 다 읽을 때까지 기다리는 중…'); await state.reading; s = readForm(); }
     notice('통학 시간을 찾고 자료를 만드는 중…');
+    s = resolveAverageWishes(s);
+    if ((s.wishRules || []).some((r, i) => (r === 'high' || r === 'low') && !s.wishes[i])) notice('주소에서 부천·인천 지역을 알 수 없어 내신평균으로 학교를 고르지 못했습니다. 도로명주소를 확인해 주세요.', 'warn');
     try { s = await ensureRoutes(s); } catch (error) { notice(`통학 시간을 찾지 못했습니다: ${error.message} (통학은 ‘미확인’으로 나옵니다)`, 'warn'); }
     const saved = await save(s);
     location.hash = `report=${encodeURIComponent(saved.id)}`;
@@ -239,11 +275,23 @@ $('hsNewBtn').addEventListener('click', () => { state.current = null; state.dirt
 $('hsSearch').addEventListener('input', renderList);
 $('hsCampusFilter').addEventListener('change', renderList);
 // 사진을 읽는 동안 '상담 자료 만들기'를 누르면 다 읽을 때까지 기다렸다가 만든다(성적이 빠지지 않게)
-$('hsPhoto').addEventListener('change', (e) => {
-  const files = [...e.target.files]; e.target.value = '';
-  if (!files.length) return;
+// 성적표 사진을 성적표 칸에 끌어다 놓아도 넣을 수 있다
+const photoBox = $('hsPhotoBox');
+for (const type of ['dragenter', 'dragover']) photoBox.addEventListener(type, (e) => { if ([...(e.dataTransfer?.types || [])].includes('Files')) { e.preventDefault(); photoBox.classList.add('hs-drop-active'); } });
+photoBox.addEventListener('dragleave', (e) => { if (!photoBox.contains(e.relatedTarget)) photoBox.classList.remove('hs-drop-active'); });
+photoBox.addEventListener('drop', (e) => {
+  e.preventDefault(); photoBox.classList.remove('hs-drop-active');
+  const files = [...(e.dataTransfer?.files || [])].filter((f) => ['image/jpeg', 'image/png', 'image/webp'].includes(f.type));
+  if (!files.length) { $('hsPhotoStatus').textContent = 'JPG·PNG·WebP 사진만 넣을 수 있습니다.'; return; }
+  queuePhotos(files);
+});
+function queuePhotos(files) {
   const reading = (state.reading || Promise.resolve()).then(() => readPhotos(files)).finally(() => { if (state.reading === reading) state.reading = null; });
   state.reading = reading;
+}
+$('hsPhoto').addEventListener('change', (e) => {
+  const files = [...e.target.files]; e.target.value = '';
+  if (files.length) queuePhotos(files);
 });
 form.addEventListener('input', () => { state.dirty = true; });
 form.addEventListener('change', () => { state.dirty = true; });
