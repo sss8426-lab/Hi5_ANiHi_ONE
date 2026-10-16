@@ -1,0 +1,108 @@
+/* 고교 진학 상담 자료: A4 210×297mm 쪽. 2026-10 상담 자료(gen7·page2·info·report_all·time_page)와 같은 모양. */
+@page{size:A4;margin:0}
+.hs-report{color:#111;font-family:"Malgun Gothic","Apple SD Gothic Neo",sans-serif;font-size:12.5px;line-height:1.45;background:#e5e5e5;padding:12px 0}
+.hs-report *{box-sizing:border-box}
+.hs-report .page,.hs-report .ip{background:#fff;width:210mm;height:297mm;overflow:hidden;margin:12px auto;page-break-after:always;break-after:page;display:flex;flex-direction:column;box-shadow:0 2px 10px rgba(0,0,0,.12)}
+.hs-report .page{padding:8mm 14mm 7mm}
+.hs-report .logo{display:block;height:10mm;margin:0 auto 1.5mm}
+.hs-report .tt{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #111;padding-bottom:3mm}
+.hs-report .tt h1{font-size:24px;margin:0;letter-spacing:1px}.hs-report .tt span{color:#666;font-size:12px}
+.hs-report .meta{display:grid;grid-template-columns:1fr 1fr 1fr 1.2fr;gap:4mm;margin:3mm 0 1.5mm}
+.hs-report .meta .ad{grid-column:span 2}.hs-report .meta div{border-bottom:1px solid #999;padding:1.5mm 0;font-size:14px}.hs-report .meta i{font-style:normal;color:#666;font-size:12px;margin-right:2.5mm}
+.hs-report .info{margin:2mm 0 3mm;color:#222;padding-bottom:2mm;border-bottom:1px solid #ccc}
+.hs-report .page h2{font-size:15px;margin:2.2mm 0 1.2mm}.hs-report .page h2 span{font-size:11.5px;color:#666;font-weight:normal;margin-left:2mm}
+.hs-report table.t{width:100%;border-collapse:collapse;border:1.5px solid #888}
+.hs-report .t th,.hs-report .t td{border:1px solid #aaa;padding:.8mm 2.2mm;vertical-align:middle}
+.hs-report .t th{background:#f0f0f0;text-align:left;font-size:12.5px}
+.hs-report .t small{display:block;color:#666;font-size:11px;margin-top:.5mm}
+.hs-report .route td b{font-size:13.5px}.hs-report .route .c1{width:27%}.hs-report .route td small{display:block;margin:0}.hs-report .route .c1 small{display:inline;margin-left:1.5mm}
+.hs-report .route.dense td{padding-top:.4mm;padding-bottom:.4mm;line-height:1.25}.hs-report .dense-page .rv td{font-size:10px;line-height:1.28}.hs-report .dense-page h2{margin-top:2.5mm}.hs-report .route.dense td b{font-size:12.5px}.hs-report .route.dense td small{font-size:10px}
+.hs-report .gr th,.hs-report .gr td{text-align:center}.hs-report .gr .c1{text-align:left;width:18%}.hs-report .gr b{font-size:15px}
+.hs-report .fav .c1{width:15%;white-space:nowrap}.hs-report .fav{table-layout:fixed}.hs-report .rv td{font-size:10.5px;line-height:1.32;padding-top:.5mm;padding-bottom:.5mm}.hs-report .rv .c1{font-size:12.5px}.hs-report .fav td{line-height:1.3}.hs-report .fav b{font-size:11.5px}
+.hs-report .box{border:1.5px solid #888;padding:2.5mm 3mm;margin:2.5mm 0 1mm}
+.hs-report .ach{background:#f7f7f7;font-size:10.5px;line-height:1.45;padding:1.5mm 2.5mm}
+.hs-report .note{color:#666;font-size:11px;margin:1.2mm 0}
+.hs-report .na{color:#aaa}
+.hs-report .p2 .who{text-align:right;margin:0 0 1mm;font-size:13px}.hs-report .p2 .cap{text-align:center;margin:0 0 2mm;font-size:12px;line-height:1.5}
+.hs-report .cmp2{font-size:10px;line-height:1.3}.hs-report .cmp2 th,.hs-report .cmp2 td{text-align:center;padding:.3mm .8mm}.hs-report .cmp2 .nm{text-align:center;font-size:12px}.hs-report .cmp2 .lv{font-size:12px;font-weight:bold}
+.hs-report .avg{font-size:11px;margin:0 auto 2mm;width:auto}.hs-report .avg th,.hs-report .avg td{text-align:center;padding:.2mm 1.6mm}.hs-report .cmp2 .lv small,.hs-report .cmp2 .nm small{font-weight:normal}
+.hs-report .cmp2 .a{color:#666}.hs-report .cmp2 .sm{font-size:9.5px;color:#555}
+.hs-report .p2 h3{font-size:13px;margin:2mm 0 .5mm}.hs-report .p2 .ex{margin:0 0 1.5mm;padding-left:18px;font-size:11px;line-height:1.38}.hs-report .p2 .ex li{margin:.2mm 0}
+.hs-report .band{margin:.4mm 0;font-size:11px;line-height:1.38}.hs-report .band p{margin:0}.hs-report .band .bh{color:#c0392b}.hs-report .band .why{color:#333}.hs-report .band.me{background:#f3f3f3;padding:1mm 2mm;border-left:3px solid #c0392b}
+.hs-report .final{margin:2mm 0 1mm;padding:1.5mm 2.5mm;border:1.5px solid #111}.hs-report .final .fh{margin:0 0 .5mm;font-weight:bold;font-size:12.5px}.hs-report .final .fh span{font-weight:normal;color:#666;font-size:10.5px}.hs-report .final ol{margin:.3mm 0;padding-left:18px;font-size:11.5px;line-height:1.35}.hs-report .final .why{margin:.5mm 0 0;font-size:10.5px;color:#444}
+.hs-report h2.rt{text-align:center;font-size:17px;margin:1mm 0 2mm}.hs-report .rtab{font-size:11px}.hs-report .rtab th,.hs-report .rtab td{text-align:center;padding:.9mm 1mm}.hs-report .rtab .sc{text-align:left;padding-left:2.5mm}.hs-report .rtab .bs{font-weight:bold}.hs-report .rtab tr.grp td{background:#eee;text-align:left;font-weight:bold;padding-left:2.5mm}.hs-report .rtab tr.mine td{background:#fff6d6}
+.hs-report footer{margin-top:auto;border-top:1px solid #999;padding-top:1.5mm;display:flex;justify-content:space-between;color:#777;font-size:10.5px}
+
+/* 표지·안내 3쪽 */
+.hs-report .ip{font-family:"Malgun Gothic","Apple SD Gothic Neo",sans-serif;color:#333}
+.hs-report .ip .in{padding:16mm 13mm 0;flex:1}
+.hs-report .ip h1{font-size:25px;margin:0 0 9mm;color:#3a3a3a;letter-spacing:-.5px}.hs-report .ip h1:before,.hs-report .ip h1:after{content:"▪";margin:0 6px;font-size:16px;vertical-align:middle}
+.hs-report .ip h2{color:#ad3a28;font-size:20px;margin:0 0 5mm}
+.hs-report .ip ul.bl{list-style:none;padding:0;margin:0 0 6mm;font-size:13px;line-height:1.8}.hs-report .ip ul.bl li:before{content:"· "}.hs-report .ip ul.bl li.ns:before{content:""}
+.hs-report .ip .r{color:#ad3a28}
+.hs-report .ip .ft{background:#3b3d40;height:15mm;display:flex;align-items:center;justify-content:center;gap:3mm;color:#fff;font-size:11px}
+.hs-report .ip .ft .fl{font-size:17px;letter-spacing:1px;font-weight:900}
+.hs-report .ip table{border-collapse:collapse;width:100%}
+.hs-report .t1 th{background:#e9e9ea;font-size:13px;padding:2.5mm;font-weight:normal}.hs-report .t1 th.cur{background:#f9eded}.hs-report .t1 th.new{background:#ad3a28;color:#fff}
+.hs-report .t1 td{border-top:1px solid #bbb;text-align:center;padding:2.2mm 2mm;font-size:11.5px;line-height:1.5;vertical-align:middle}
+.hs-report .t1 td.k{background:#e9e9ea;font-size:20px;font-weight:bold;color:#333;width:22%}.hs-report .t1 td.k2{background:#e9e9ea;font-size:18px;font-weight:bold;width:9%}.hs-report .t1 td.kt{width:13%}
+.hs-report .t1 td.m{border-left:1px solid #ccc}
+.hs-report .t1 b{font-size:15.5px;display:block;margin-bottom:1mm}.hs-report .t1 b.gap{margin-top:2mm}.hs-report .t1 .dash td{border-top:1px dashed #aaa}.hs-report .t1 .abs{font-size:11px;font-weight:normal}
+.hs-report .ip .t2 th{background:#ad3a28;color:#fff;font-size:12.5px;padding:2mm;font-weight:normal;border-left:1px dashed rgba(255,255,255,.6)}.hs-report .ip .t2 th.e{background:#e9e9ea;width:15%}
+.hs-report .ip .t2 td{border-top:1px solid #bbb;border-left:1px solid #ccc;text-align:center;height:19mm;font-size:16px}.hs-report .ip .t2 td.k{background:#e9e9ea;font-size:13px;border-left:0}
+.hs-report .ip .t2 .o{display:inline-block;width:8mm;height:8mm;border:1.5px solid #333;border-radius:50%}.hs-report .ip .t2 .ro{border-color:#ad3a28}
+.hs-report .ip .lead{font-weight:bold;font-size:14px;margin:5mm 0 3mm}.hs-report .ip .lead2{font-weight:bold;font-size:16px;margin:0 0 2mm}
+.hs-report .ip .p14{font-size:14px;margin:0}.hs-report .ip .p14.mb6{margin:0 0 6mm}.hs-report .ip .p115{font-size:11.5px;margin:1mm 0 3mm 4mm}
+.hs-report .t3 th{font-size:13.5px;padding:2.5mm;background:#e9e9ea;font-weight:normal}.hs-report .t3 th.new{background:#ad3a28;color:#fff}.hs-report .t3 th.old{background:#f9eded}
+.hs-report .t3 td{text-align:center;padding:1.9mm;font-size:14.5px;border-top:1px dashed #ccc}.hs-report .t3 td.n{color:#ad3a28;font-weight:bold}
+.hs-report .t3pair{display:flex;gap:8mm;margin-top:6mm}.hs-report .t3pair .w14{flex:1.4}.hs-report .t3pair .w10{flex:1}
+.hs-report .box5{display:flex;gap:4mm;margin:0 0 7mm}.hs-report .box5 div{flex:1;background:#e9e9ea;border-radius:3mm;text-align:center;padding:4mm 0;font-size:15px}.hs-report .box5 b{display:block;font-size:22px;margin-top:1mm}.hs-report .box5 i{color:#ad3a28;font-style:normal;display:block;font-weight:bold}
+.hs-report .cv{justify-content:space-between}.hs-report .cv .top{padding:30mm 18mm 0}.hs-report .cv .logo2{height:14mm}
+.hs-report .cv .tt{margin-top:42mm;border-top:3px solid #ad3a28;padding-top:6mm}.hs-report .cv .tt p{margin:0;color:#777;font-size:14px}.hs-report .cv .tt h1{font-size:34px;margin:2mm 0 0}.hs-report .cv .tt h1:before,.hs-report .cv .tt h1:after{content:none}
+.hs-report .cv .who{margin-top:22mm;font-size:16px;line-height:2.1}.hs-report .cv .who b{display:inline-block;width:26mm;color:#777;font-weight:normal}
+.hs-report .cv .toc{margin-top:16mm;font-size:13.5px;line-height:2}.hs-report .cv .toc h3{font-size:14px;color:#ad3a28;margin:0 0 1mm}
+.hs-report .note2{font-size:11.5px;color:#555;margin:4mm 0 0;line-height:1.7}
+
+/* 성적 변화 정리(.gp)·통학 시간 차이(.tp) */
+.hs-report .gp,.hs-report .tp{padding:8mm 13mm 7mm;font-size:12px}
+.hs-report .gp .logo13,.hs-report .tp .logo13{display:block;height:13mm;margin:0 auto 1mm}
+.hs-report .gp .who,.hs-report .tp .who{text-align:right;margin:0;font-size:13px}
+.hs-report .gp h1,.hs-report .tp h1{text-align:center;font-size:18px;margin:0 0 1mm}
+.hs-report .gp .sub,.hs-report .tp .sub{text-align:center;color:#555;margin:0 0 2.5mm;font-size:11.5px}.hs-report .tp .sub{margin-bottom:3mm}
+.hs-report .gp h2,.hs-report .tp h2{font-size:13.5px;margin:2.6mm 0 1.2mm;padding-left:2mm;border-left:4px solid #c0392b}.hs-report .tp h2{margin:4mm 0 1.5mm}
+.hs-report .gp h2 span{font-weight:normal;color:#777;font-size:11px;margin-left:0}
+.hs-report .gp table,.hs-report .tp table{border-collapse:collapse;width:100%}
+.hs-report .gp th,.hs-report .gp td{border:1px solid #bbb;padding:.6mm 1mm;text-align:center}.hs-report .gp thead th,.hs-report .tp thead th{background:#eee}
+.hs-report .gp tbody th{background:#f6f6f6;width:17mm}.hs-report .gp td small{color:#777;font-size:9.5px}.hs-report .gp .sc{font-size:12.5px}
+.hs-report .g{display:inline-block;width:5mm;border-radius:1mm;color:#fff;font-size:10px}.hs-report .gA{background:#1f7a3a}.hs-report .gB{background:#5b8e2f}.hs-report .gC{background:#b08900}.hs-report .gD{background:#d0661b}.hs-report .gE{background:#c0392b}
+.hs-report .gp i{font-style:normal;font-size:9px;margin-left:1mm}.hs-report .gp i.u{color:#1f7a3a}.hs-report .gp i.d{color:#c0392b}.hs-report .gp i.s{color:#999}
+.hs-report .gp .na{color:#bbb}.hs-report .gp .fl{font-weight:bold;font-size:11px;width:27mm}.hs-report .fl.up{color:#1f7a3a}.hs-report .fl.down{color:#c0392b}.hs-report .fl.wave{color:#d0661b}.hs-report .fl.keep{color:#555}
+.hs-report .pri{border:1.5px solid #111;padding:1.5mm 2.5mm}.hs-report .pri .ph{margin:0 0 1mm;font-weight:bold;font-size:13px}.hs-report .pri .ph span{font-weight:normal;color:#777;font-size:10.5px;margin-left:2mm}
+.hs-report .pg{display:grid;grid-template-columns:repeat(4,1fr);gap:1.5mm}.hs-report .pg div{border:1px solid #ccc;border-radius:1.5mm;padding:1mm 2mm;line-height:1.35}
+.hs-report .pg em{font-style:normal;display:inline-block;width:5mm;height:5mm;line-height:5mm;text-align:center;border-radius:50%;background:#111;color:#fff;font-size:10.5px;margin-right:1.5mm}
+.hs-report .pg b{font-size:12.5px}.hs-report .pg span{display:block;color:#555;font-size:10.5px}.hs-report .pg strong{display:block;font-size:11px}
+.hs-report .pg .good strong{color:#1f7a3a}.hs-report .pg .mid strong{color:#d0661b}.hs-report .pg .bad{border-color:#c0392b;background:#fff4f2}.hs-report .pg .bad strong{color:#c0392b}
+.hs-report .graph{display:block;width:100%;height:40mm;flex:none}
+.hs-report .sp25{height:2.5mm;flex:none}
+.hs-report .rec{border:1.5px solid #111;padding:1.5mm 3mm}.hs-report .rec .rh{margin:0 0 .5mm;font-weight:bold;font-size:12.5px}.hs-report .rec .rh span{font-weight:normal;color:#666;font-size:10.5px}
+.hs-report .rec ol{margin:.5mm 0;padding-left:5mm;font-size:12px}.hs-report .rec .basis{margin:.3mm 0;font-size:11px;color:#333}
+.hs-report .plan{border:1px solid #bbb;padding:1.2mm 3mm}.hs-report .plan p{margin:.6mm 0}.hs-report .plan b.t{color:#c0392b}
+.hs-report .gp .note,.hs-report .tp .note{color:#666;font-size:10.5px;margin:1mm 0 0}.hs-report .tp .note{margin-top:2mm}
+.hs-report .gp .box,.hs-report .tp .box{border:1px solid #bbb;background:#f6f6f6;padding:3mm;margin:2mm 0}
+.hs-report .tp th,.hs-report .tp td{border:1px solid #bbb;padding:1.4mm 1.2mm;text-align:center}
+.hs-report .tp td.nm{text-align:left;padding-left:2.5mm}.hs-report .tp td small{display:block;color:#777;font-size:10px}.hs-report .tp td.nm small{display:inline;margin-left:1.5mm;color:#c0392b}
+.hs-report .tp tr.best td{background:#f0f7f1}.hs-report .tp .bm{color:#1f7a3a;font-weight:bold}.hs-report .tp .dd{color:#c0392b;font-weight:bold}
+.hs-report .tp .t2 td{font-size:11.5px}.hs-report .tp th small{display:block;font-weight:normal;font-size:10px;color:#555}.hs-report .tp td:first-child,.hs-report .tp td.nm{white-space:nowrap}
+.hs-report .bars{border:1px solid #ddd;padding:2.5mm 3mm}.hs-report .bar{display:flex;align-items:center;gap:2mm;margin:1.2mm 0}.hs-report .bl{width:34mm;font-weight:bold}.hs-report .bw{flex:1;background:#f2f2f2;height:5mm;border-radius:1mm;overflow:hidden}.hs-report .bw i{display:block;height:100%}
+.hs-report .b0{background:#2e8b57}.hs-report .b1{background:#d0a020}.hs-report .b2{background:#c0392b}.hs-report .bv{width:48mm;text-align:right;font-size:11px;color:#333}
+.hs-report .sum{border:1.5px solid #111;padding:2mm 3mm;margin-top:3mm}.hs-report .sum .sh{font-weight:bold;margin:0 0 1mm;font-size:12.5px}.hs-report .sum p{margin:0;line-height:1.6}
+.hs-report .many h2{margin:2.4mm 0 1mm}.hs-report .many th,.hs-report .many td{padding:.55mm 1mm;font-size:11px}.hs-report .many .t2 td{font-size:10.5px}.hs-report .many td small{font-size:9.5px}.hs-report .many .bar{margin:.5mm 0}.hs-report .many .bw{height:4mm}.hs-report .many .bars{padding:1.5mm 3mm}.hs-report .many .sum{margin-top:2mm;padding:1.5mm 3mm}.hs-report .many .sum p{line-height:1.45}
+
+@media print{
+  body.hs-printing>*:not(.hs-print-root){display:none!important}
+  body.hs-printing{background:#fff!important;margin:0!important}
+  .hs-report{background:#fff;padding:0}
+  .hs-report .page,.hs-report .ip{margin:0;box-shadow:none}
+  .hs-report *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+@media screen and (max-width:860px){.hs-report-scroll{overflow-x:auto}}

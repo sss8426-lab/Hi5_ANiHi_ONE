@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="/data-core/fetch-share.js?v=20261015-share"></script>
+  <title>고교 진학 상담 · HI5·ANiHi DATA CORE</title>
+  <link rel="stylesheet" href="/data-core/styles.css?v=20260928-signup">
+  <link rel="stylesheet" href="/data-core/layout-theme.css?v=20260909-bright-layout">
+  <link rel="stylesheet" href="/data-core/design-tokens.css?v=20260913-soft-premium">
+  <link rel="stylesheet" href="/data-core/design-system.css?v=20260928-approved-logo">
+  <link rel="stylesheet" href="/data-core/mobile-app.css?v=20261009-mobile-app">
+  <link rel="stylesheet" href="/data-core/highschool.css?v=20261016-hs1">
+  <link rel="stylesheet" href="/data-core/highschool-report.css?v=20261016-hs1">
+</head>
+<body class="data-core-layout hs-page">
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="/data-core/counseling"><img class="core-logo" src="/data-core/assets/hi5-data-core-approved-v1.png" alt="Hi5·ANiHi DATA CORE" width="48" height="48"><div><strong>HI5·ANiHi</strong><small>DATA CORE</small></div></a>
+      <nav class="nav" aria-label="상담용 메뉴">
+        <div class="nav-group">
+          <a class="nav-item" href="/data-core/counseling"><span class="nav-icon">⌂</span><span>상담용 홈</span></a>
+          <a class="nav-item" href="/data-core/counseling/competitions"><span class="nav-icon">☆</span><span>공모전·실기대회</span></a>
+          <a class="nav-item" href="/data-core/roadmap"><span class="nav-icon">◇</span><span>꿈·전공 로드맵</span></a>
+          <a class="nav-item" href="/"><span class="nav-icon">◎</span><span>대학합격 로드맵</span></a>
+          <a class="nav-item active" href="/data-core/highschool" aria-current="page"><span class="nav-icon">▣</span><span>고교 진학 상담</span></a>
+          <a class="nav-item" href="/data-core/curriculum"><span class="nav-icon">◫</span><span>꿈을 향한 커리큘럼</span></a>
+        </div>
+      </nav>
+      <div class="sidebar-bottom"><a class="back-link" href="/data-core/counseling">상담용 홈으로 돌아가기</a></div>
+    </aside>
+    <main class="main" id="main">
+      <header class="topbar hs-topbar"><div><a class="hs-home" href="/data-core/counseling">← 상담용 홈</a><p class="eyebrow">HI5·ANiHi DATA CORE · 상담용</p><h1 id="hsTitle">고교 진학 상담</h1></div>
+        <div class="hs-actions" id="hsActions"></div>
+      </header>
+      <p class="notice hidden" id="hsNotice" role="status" aria-live="polite"></p>
+
+      <section id="hsList" aria-labelledby="hsTitle">
+        <div class="hs-toolbar">
+          <label class="hs-search"><span>찾기</span><input type="search" id="hsSearch" maxlength="40" placeholder="학생 이름·중학교·지망 학교"></label>
+          <button class="secondary-btn" type="button" id="hsSchoolsBtn">학교 평가·학원 거리</button>
+          <button class="primary-btn" type="button" id="hsNewBtn">＋ 새 상담</button>
+        </div>
+        <div class="hs-rows" id="hsRows"><p class="hs-empty">불러오는 중…</p></div>
+        <p class="hs-help">모든 캠퍼스·모든 선생님이 같은 목록을 봅니다. 삭제는 만든 선생님과 원장·마스터만 할 수 있습니다.</p>
+      </section>
+
+      <form id="hsForm" class="hs-form" hidden novalidate>
+        <fieldset class="hs-box"><legend>학생</legend>
+          <div class="hs-grid">
+            <label class="c3"><span>이름 <b class="req">필수</b></span><input name="name" maxlength="60" autocomplete="off" required></label>
+            <label class="c3"><span>중학교</span><input name="middleSchool" maxlength="40" placeholder="예: 상동중학교" autocomplete="off"></label>
+            <label class="c2"><span>학년</span><select name="grade"><option value="3">3학년</option><option value="2">2학년</option><option value="1">1학년</option></select></label>
+            <label class="c4"><span>진학 연도</span><select name="entryYear" id="hsEntryYear"></select></label>
+            <label class="c6"><span>집 주소 <small>통학 시간 계산에만 씁니다 · 도로명주소</small></span><input name="address" maxlength="120" autocomplete="off" placeholder="예: 경기도 부천시 원미구 ○○로 00"></label>
+            <label class="c3"><span>지역 <small id="hsRegionAuto"></small></span><select name="region"><option value="">주소에서 자동</option><option>부천</option><option>인천</option><option>서울</option></select></label>
+            <label class="c3"><span>상담일</span><input name="consultDate" maxlength="20" placeholder="예: 10/16 (방문)"></label>
+            <label class="c6"><span>캠퍼스 · 반 <small>상담표 오른쪽 위에 찍힘</small></span><input name="campusLabel" maxlength="40" list="hsCampusLabels" placeholder="상동 본원 · 입시기초반"></label>
+            <datalist id="hsCampusLabels"><option value="상동 본원 · 입시기초반"><option value="상동 본원 · 예비반"></datalist>
+          </div>
+        </fieldset>
+
+        <fieldset class="hs-box"><legend>지망 학교 <small>1~5지망 · 학교 공시 성적이 있는 학교에서 고릅니다</small></legend>
+          <div class="hs-wishes" id="hsWishes"></div>
+          <details class="hs-more"><summary>비교할 학교 더 넣기 (최대 3곳)</summary><div class="hs-wishes" id="hsExtras"></div></details>
+          <label class="hs-check"><input type="checkbox" name="fixedOrder"> 상담에서 희망 순서를 확정했어요 <small>(일반고 최종 추천을 희망 순서 그대로)</small></label>
+        </fieldset>
+
+        <fieldset class="hs-box"><legend>성적표</legend>
+          <div class="hs-photo">
+            <label class="hs-photo-pick"><span>사진 학기</span><select id="hsPhotoSem"><option value="">사진에서 자동</option></select></label>
+            <label class="primary-btn hs-file">성적표 사진 넣기<input type="file" id="hsPhoto" accept="image/jpeg,image/png,image/webp" multiple></label>
+            <p class="hs-hint" id="hsPhotoStatus">성적통지표를 찍어 올리면 과목별 원점수·과목평균·성취도를 읽어 아래 표에 채웁니다. 틀린 칸은 바로 고치세요.</p>
+          </div>
+          <div class="hs-table-wrap"><table class="hs-grades" id="hsGrades"></table></div>
+          <div class="hs-sem-add"><select id="hsSemAdd" aria-label="학기 추가"></select><button class="secondary-btn" type="button" id="hsSemAddBtn">학기 추가</button></div>
+          <div class="hs-band" id="hsBand"></div>
+          <label class="hs-inline"><span>성적대 직접 고르기</span><select name="bandManual"><option value="">성적표로 자동</option><option>상위권</option><option>중위권</option><option>하위권</option></select><small>성적표가 없거나 상담 때 확인한 수준을 쓸 때</small></label>
+        </fieldset>
+
+        <fieldset class="hs-box"><legend>통학 시간 <small>집→학교 · 학교→학원 · 학원→집 · 버스 기다리는 시간 빠짐</small></legend>
+          <div class="hs-route-tools"><button class="secondary-btn" type="button" id="hsRouteBtn">카카오맵으로 자동 계산</button><span class="hs-hint" id="hsRouteStatus"></span></div>
+          <div class="hs-table-wrap"><table class="hs-commute" id="hsCommute"></table></div>
+          <label class="hs-inline wide"><span>통학 메모</span><input name="commuteNote" maxlength="200" placeholder="예: 주소 지번이 지도에 없어 동 중심으로 계산"></label>
+        </fieldset>
+
+        <fieldset class="hs-box"><legend>상담 메모 <small>자료에는 나오지 않습니다</small></legend>
+          <textarea name="memo" rows="3" maxlength="1000"></textarea>
+        </fieldset>
+      </form>
+
+      <section id="hsReportView" hidden aria-label="상담 자료">
+        <div class="hs-report-bar">
+          <label class="hs-check"><input type="checkbox" id="hsWithGuide" checked> 안내 3쪽(2028 수능·내신·5등급제) 넣기</label>
+          <span class="hs-hint">인쇄 창에서 ‘PDF로 저장’을 고르면 한 파일로 저장됩니다.</span>
+        </div>
+        <div class="hs-report-scroll"><div class="hs-report" id="hsReport"></div></div>
+      </section>
+
+      <dialog class="hs-dialog" id="hsSchoolsDialog" aria-labelledby="hsSchoolsTitle">
+        <form method="dialog" class="hs-dialog-body">
+          <h2 id="hsSchoolsTitle">학교 평가 · 학교→학원 시간</h2>
+          <p class="hs-hint">재원생 학교 평가와 학교에서 상동 본원까지 시간은 모든 상담 자료에 함께 쓰입니다. 원장·마스터만 고칠 수 있습니다.</p>
+          <div class="hs-schools" id="hsSchools"></div>
+          <div class="hs-dialog-actions"><button class="secondary-btn" value="close">닫기</button></div>
+        </form>
+      </dialog>
+    </main>
+  </div>
+  <div id="hsPrint" class="hs-print-root hs-report" aria-hidden="true"></div>
+  <script type="module" src="/data-core/highschool.js?v=20261016-hs1"></script>
+</body>
+</html>

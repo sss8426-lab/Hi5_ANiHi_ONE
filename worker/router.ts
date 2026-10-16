@@ -136,6 +136,9 @@ function isProtectedDataCoreUiPath(pathname: string) {
     pathname === "/data-core/roadmap" ||
     pathname === "/data-core/roadmap/" ||
     pathname === "/data-core/roadmap.html" ||
+    pathname === "/data-core/highschool" ||
+    pathname === "/data-core/highschool/" ||
+    pathname === "/data-core/highschool.html" ||
     pathname === "/data-core/readiness" ||
     pathname === "/data-core/readiness/" ||
     pathname === "/data-core/readiness.html"
@@ -831,6 +834,13 @@ const worker = {
           env,
         );
       }
+      if (url.pathname === "/data-core/highschool" || url.pathname === "/data-core/highschool/") {
+        url.pathname = "/data-core/highschool.html";
+        const page = await baseWorker.fetch(new Request(url.toString(), { headers: request.headers }), env);
+        const response = new Response(page.body, page);
+        response.headers.set("cache-control", "private, no-store");
+        return response;
+      }
       if (url.pathname === "/data-core/reports" || url.pathname === "/data-core/reports/") {
         url.pathname = "/data-core/reports.html";
         return baseWorker.fetch(new Request(url.toString(), { headers: request.headers }), env);
@@ -901,6 +911,13 @@ const worker = {
         const { handleStaffWorkApi } = await import('./staff-work');
         const staffResponse = await handleStaffWorkApi(request, env.DB, env.FILES, context);
         if (staffResponse) return staffResponse;
+      }
+
+      if (env.DB && url.pathname.startsWith('/api/data-core/highschool')) {
+        const context = await resolveDataCoreAccess(request, env.DB, env.DATA_CORE_SUPER_ADMIN_EMAILS);
+        const { handleHighschoolApi } = await import('./highschool-counsel');
+        const highschoolResponse = await handleHighschoolApi(request, env as unknown as import('./highschool-counsel').HighschoolEnv, env.DB, context);
+        if (highschoolResponse) return highschoolResponse;
       }
 
       if (env.DB && env.FILES && url.pathname.startsWith('/api/data-core/awards/ai-direction/')) {
