@@ -50,6 +50,12 @@ test('성적대·지역: 최근 두 학기 국어·영어·사탐, 성취도만 
   assert.equal(regionFromAddress('인천광역시 부평구 가상로 2'), '인천');
   assert.equal(segment({ min: 18, mode: 'transit', bus: '7호선,16', transfers: 1, walk: 4 }).head, '7호선 등 / 18분', '지하철에는 버스를 붙이지 않는다');
   assert.equal(segment({ min: 17, mode: 'transit', bus: '5' }).head, '버스 5 / 17분');
+  const withAcademies = { ...data, academies: [{ campusId: 'campus-anihi-admission', name: '부천 애니 입시본원', address: '경기도 부천시 원미구 상동로 109' }, { campusId: 'campus-ansan', name: '안산 입시본원', address: '경기도 안산시 단원구 고잔로 88' }] };
+  assert.equal(analyze(student({ campusId: 'campus-anihi-admission' }), withAcademies).rows.every((x) => x.total != null), true, '상동 본원은 정리해 둔 학교→학원 시간을 쓴다');
+  const ansan = analyze(student({ campusId: 'campus-ansan' }), withAcademies);
+  assert.equal(ansan.sangdong, false);
+  assert.ok(ansan.rows.every((x) => x.total == null), '다른 캠퍼스는 학교→학원 시간을 따로 넣어야 한다');
+  assert.ok(renderReport(student({ campusId: 'campus-ansan' }), withAcademies).html.includes('안산 입시본원 · 입시기초반'));
   const fixed = student({ fixedOrder: true });
   const C = compare(analyze(fixed, data), fixed);
   assert.deepEqual(C.genList.map((x) => x.s), ['상원고', '중원고', '부명고', '상일고'], '상담에서 확정한 희망 순서');
@@ -86,6 +92,14 @@ test('API: 모든 캠퍼스 선생님이 보고 고치고, 삭제는 만든 사�
     assert.equal(after.review, '원장이 고친 평가');
     assert.deepEqual(after.academy, { transit: null, walkMin: 9 });
     assert.equal((await h.request('POST', '/api/data-core/highschool/routes', users.teacher, { address: '부천', schools: ['상원고'] })).status, 503, '카카오 키가 없으면 직접 입력');
+    const acad = listed.body.schools.academies;
+    assert.equal(acad.length, 10);
+    assert.equal(acad.find((a) => a.campusId === 'campus-anihi-admission').address, '경기도 부천시 원미구 상동로 109, 상동프라자 5층 506호·507호');
+    assert.ok(acad.every((a) => a.address && !/\.co\.kr|naver/.test(a.address)), '홈페이지 주소 없이 주소만');
+    assert.equal(listed.body.myCampusId, 'campus-gwangjin');
+    assert.equal((await h.request('PATCH', '/api/data-core/highschool/academies', users.teacher, { campusId: 'campus-paju', address: '고침' })).status, 403);
+    const moved = await h.request('PATCH', '/api/data-core/highschool/academies', users.director, { campusId: 'campus-paju', address: '경기도 파주시 가상로 9' });
+    assert.equal(moved.body.academies.find((a) => a.campusId === 'campus-paju').address, '경기도 파주시 가상로 9');
   } finally { await h.mf.dispose(); }
 });
 
@@ -103,7 +117,10 @@ test('API: 카카오맵 대중교통 길찾기로 집→학교·학원→집 채
   };
   try {
     h.env.KAKAO_REST_KEY = 'test-key';
-    const r = await h.request('POST', '/api/data-core/highschool/routes', users.teacher, { address: '경기도 부천시 원미구 가상로 1', schools: ['상원고', '없는고'] });
+    assert.equal((await h.request('POST', '/api/data-core/highschool/routes', users.teacher, { address: '경기도 부천시 원미구 가상로 1', schools: ['상원고'] })).status, 400, '캠퍼스를 골라야 학원 기준이 생긴다');
+    const other = await h.request('POST', '/api/data-core/highschool/routes', users.teacher, { address: '경기도 부천시 원미구 가상로 1', campusId: 'campus-ansan', schools: ['상원고'] });
+    assert.ok(other.body.schools.상원고.academy, '상동 본원이 아닌 캠퍼스는 학교→학원도 카카오로 찾는다');
+    const r = await h.request('POST', '/api/data-core/highschool/routes', users.teacher, { address: '경기도 부천시 원미구 가상로 1', campusId: 'campus-anihi-admission', schools: ['상원고', '없는고'] });
     assert.equal(r.status, 200, JSON.stringify(r.body));
     assert.deepEqual(r.body.schools.상원고.home, { min: 25, mode: 'transit', bus: '83', transfers: 1, walk: 10, auto: true });
     assert.equal(r.body.schools.상원고.academy, null, '학교→학원은 정리된 기본값을 쓴다');
@@ -121,7 +138,7 @@ test('메뉴와 화면: 대학합격 로드맵 바로 아래 고교 진학 상�
   assert.ok(a > 0 && a < b && b < c);
   assert.match(index, /href="\/data-core\/highschool"/);
   const page = fs.readFileSync('public/data-core/highschool.html', 'utf8');
-  assert.match(page, /highschool\.js\?v=20261016-hs2/);
+  assert.match(page, /highschool\.js\?v=20261016-hs3/);
   const css = fs.readFileSync('public/data-core/highschool.css', 'utf8');
   assert.match(css, /@media \(max-width:1100px\)\{[^}]*\.hs-page \.app-shell\{display:block\}\s*\.hs-page \.sidebar\{display:none!important\}/, '태블릿에서 왼쪽 메뉴가 화면을 덮지 않게');
   assert.match(page, /aria-current="page"><span class="nav-icon">▣<\/span><span>고교 진학 상담/);

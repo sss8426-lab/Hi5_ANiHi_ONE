@@ -54,6 +54,15 @@ export function academyDefault(school) {
   return null;
 }
 
+// 고른 캠퍼스 학원 주소. 정리해 둔 학교→학원 시간은 상동 본원(상동로 109) 기준이라 그 캠퍼스일 때만 기본값으로 쓴다.
+export function academyOf(student, data) {
+  return (data.academies || []).find((a) => a.campusId === student.campusId) || null;
+}
+export function usesSangdongTimes(student, data) {
+  if (!student.campusId) return true; // 캠퍼스를 고르기 전에 만든 상담(상동 본원)
+  return /상동로\s*109/.test(academyOf(student, data)?.address || '');
+}
+
 export function model(data) {
   const schools = new Map((data.schools || []).map((s) => [s.name, s]));
   const semesters = data.semesters || [];
@@ -122,11 +131,12 @@ export function analyze(student, data) {
   const inRegion = (s) => M.special(s) || !region || !M.regionOf(s) || M.regionOf(s) === region;
   const out = wishes.filter((s) => !inRegion(s));
   const back = segment(student.commute?.back);
+  const sangdong = usesSangdongTimes(student, data);
   const names = [...new Set([...wishes, ...extras])].filter(inRegion).slice(0, 8);
   let rows = names.map((s) => {
     const c = student.commute?.schools?.[s] || {};
     const a = segment(c.home);
-    const b = segment(c.academy) || segment(academyDefault(M.schools.get(s)));
+    const b = segment(c.academy) || (sangdong ? segment(academyDefault(M.schools.get(s))) : null);
     const total = a && b && back ? a.min + b.min + back.min : null;
     return { s, a, b, wish: wishes.indexOf(s) + 1, total };
   });
@@ -142,7 +152,7 @@ export function analyze(student, data) {
   const bd = bandOf(book);
   const bandManual = BANDS.includes(student.bandManual) ? student.bandManual : '';
   const band = bandManual || (bd && bd.band) || (!p ? null : p.gap >= 3 ? '상위권' : p.gap >= -10 ? '중위권' : '하위권');
-  return { M, wishes, extras, region, out, back, rows, book, latest, cur, p, bd, band, bandManual };
+  return { M, wishes, extras, region, out, back, rows, book, latest, cur, p, bd, band, bandManual, sangdong };
 }
 
 // 2쪽 학교 비교의 계산(page2.js와 같은 규칙). 순서가 필요한 다른 쪽에서도 쓴다.
@@ -244,7 +254,7 @@ export function counselPage(student, A, data) {
   const { M, rows, back, out, book, latest, cur, wishes } = A;
   const academy = data.academyName || '상동 본원';
   const head = `${logoImg()}
-<div class="tt"><h1>고교 진학 상담표</h1><span>${esc(student.campusLabel || `${academy} · 입시기초반`)}</span></div>
+<div class="tt"><h1>고교 진학 상담표</h1><span>${esc(student.campusLabel || `${academyOf(student, data)?.name || academy} · 입시기초반`)}</span></div>
 <div class="meta"><div><i>학생</i><b>${esc(student.name)}</b></div><div><i>학교</i>${esc(`${String(student.middleSchool || '').replace(/중학교$/, '중')} ${student.grade || 3}학년`.trim())}</div><div class="ad"><i>주소</i>${esc(student.address || '')}</div></div>
 <p class="info">기존 희망순서: ${wishes.length ? wishes.map((s) => esc(M.dn(s))).join(' → ') : '미기재'}</p>`;
   if (!rows.length) return `<section class="page">${head}<p class="box">희망 학교가 아직 없어 통학·성적 비교를 하지 못했습니다. 희망 학교(1~5지망)를 넣으면 바로 작성합니다.</p></section>`;

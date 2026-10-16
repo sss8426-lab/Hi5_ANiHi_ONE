@@ -9,6 +9,7 @@ import { sanitizeAiImage } from './content-ai-images';
 import { callOpenAi, ContentAiError, aiModels, unavailable, type OpenAiEnv } from './content-openai-provider';
 import { recordAiCall } from './content-ai-usage';
 import SCHOOL_DATA from './highschool-schools.json';
+import { CAMPUS_DIRECTORY } from './campus-directory';
 
 type Row = Record<string, unknown>;
 type School = { name: string; display?: string; region: string; special: boolean; girls: boolean; address: string; sem: Row; academy: Row | null; review: string };
@@ -18,7 +19,42 @@ const STUDENT_BYTES = 96 * 1024, LIST_LIMIT = 2000;
 const SEMS = ['1-1', '1-2', '2-1', '2-2', '3-1', '3-2'];
 const ACH = ['A', 'B', 'C', 'D', 'E'];
 const BANDS = ['상위권', '중위권', '하위권'];
-const ACADEMY_ADDRESS = '경기도 부천시 원미구 상동로 109';
+// 캠퍼스 학원 주소(2026-10-16 사용자 제공). 학교→학원·학원→집 길찾기의 기준. 원장·마스터가 화면에서 고치면 meta가 이긴다.
+export const ACADEMY_ADDRESSES: Record<string, string> = {
+  'campus-design-admission': '경기도 부천시 원미구 길주로 181, 7층',
+  'campus-anihi-admission': '경기도 부천시 원미구 상동로 109, 상동프라자 5층 506호·507호',
+  'campus-beombak': '경기도 부천시 소사구 범안로 117, 4층 403호',
+  'campus-wonjong': '경기도 부천시 오정구 소사로 708, 5층',
+  'campus-jungdong': '경기도 부천시 원미구 부흥로303번길 56, 우성프라자 201호',
+  'campus-okgil': '경기도 부천시 소사구 옥길로 110-11, 8층 812호·813호',
+  'campus-gwangjin': '서울특별시 광진구 광나루로 607, 4층·5층',
+  'campus-ulsan': '울산광역시 북구 화산로 123, 골드테라스1 7층',
+  'campus-ansan': '경기도 안산시 단원구 고잔로 88, 지스타빌딩 705호',
+  'campus-paju': '경기도 파주시 청암로17번길 55, 센트럴프라자 3층',
+};
+// 정리해 둔 학교→학원 시간(highschool-schools.json)은 상동로 109(상동 본원) 기준이라 그 주소일 때만 기본값으로 쓴다.
+export const isSangdong = (address: unknown) => /상동로\s*109/.test(String(address || ''));
+async function academies(db: D1Database) {
+  const row = await db.prepare(`SELECT value FROM highschool_counsel_meta WHERE key='academies'`).first<{ value: string }>();
+  let edits: Record<string, string> = {};
+  try { edits = JSON.parse(row?.value || '{}'); } catch { edits = {}; }
+  return [...CAMPUS_DIRECTORY].sort((a, b) => a.displayOrder - b.displayOrder)
+    .map((c) => ({ campusId: c.id, name: c.displayName, address: edits[c.id] || ACADEMY_ADDRESSES[c.id] || '' }));
+}
+async function saveAcademy(db: D1Database, context: DataCoreAccessContext, input: Row) {
+  if (!studentManager(context)) throw new DataCoreAccessError(403, '학원 주소는 원장·마스터만 고칠 수 있습니다.');
+  const campusId = text(input.campusId, 60);
+  if (!CAMPUS_DIRECTORY.some((c) => c.id === campusId)) throw new DataCoreAccessError(404, '캠퍼스를 찾을 수 없습니다.');
+  const address = text(input.address, 120);
+  if (!address) throw new DataCoreAccessError(400, '학원 주소를 입력해주세요.');
+  const row = await db.prepare(`SELECT value FROM highschool_counsel_meta WHERE key='academies'`).first<{ value: string }>();
+  let edits: Record<string, string> = {};
+  try { edits = JSON.parse(row?.value || '{}'); } catch { edits = {}; }
+  edits[campusId] = address;
+  await db.prepare(`INSERT INTO highschool_counsel_meta (key,value,updated_by,updated_at) VALUES ('academies',?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_by=excluded.updated_by, updated_at=excluded.updated_at`)
+    .bind(JSON.stringify(edits), context.user!.internalUserId, new Date().toISOString()).run();
+  return academies(db);
+}
 
 export function ensureHighschool(db: D1Database) {
   return schemaOnce(db, 'highschool-counsel', () => db.batch([
@@ -78,6 +114,7 @@ export function cleanStudent(input: unknown) {
   const student = {
     name, middleSchool: text(v.middleSchool, 40), grade: [1, 2, 3].includes(Number(v.grade)) ? Number(v.grade) : 3,
     address: text(v.address, 120), campusLabel: text(v.campusLabel, 40),
+    campusId: CAMPUS_DIRECTORY.some((c) => c.id === v.campusId) ? String(v.campusId) : '',
     entryYear: Number.isInteger(entryYear) && entryYear >= 2020 && entryYear <= 2100 ? entryYear : '',
     region: ['부천', '인천', '서울'].includes(String(v.region)) ? String(v.region) : '',
     consultDate: text(v.consultDate, 20),
@@ -246,14 +283,17 @@ async function findRoutes(request: Request, env: HighschoolEnv, db: D1Database, 
   const data = await schoolData(db);
   const home = await locate(env, address, '', request.signal);
   if (!home) throw new DataCoreAccessError(404, '주소를 지도에서 찾지 못했습니다. 도로명주소로 다시 입력해주세요.');
-  const academy = await locate(env, ACADEMY_ADDRESS, '애니하이 만화학원 상동', request.signal);
+  const campus = (await academies(db)).find((c) => c.campusId === text(input.campusId, 60));
+  if (!campus || !campus.address) throw new DataCoreAccessError(400, '캠퍼스를 고르고 학원 주소를 먼저 넣어주세요.');
+  const sangdong = isSangdong(campus.address);
+  const academy = await locate(env, campus.address.replace(/,.*$/, ''), campus.name, request.signal);
   const result: Record<string, Row | null> = {};
   for (const name of names) {
     const school = data.schools.find((s) => s.name === name);
     const full = name.replace(/고$/, '고등학교').replace(/여고$/, '여자고등학교');
     try {
       const at = await locate(env, school?.address || '', full, request.signal);
-      result[name] = at ? { home: await transit(env, home, at, request.signal), academy: school?.academy || !academy ? null : await transit(env, at, academy, request.signal) } : null;
+      result[name] = at ? { home: await transit(env, home, at, request.signal), academy: (sangdong && school?.academy) || !academy ? null : await transit(env, at, academy, request.signal) } : null;
     } catch (error) {
       if (error instanceof DataCoreAccessError && error.status === 503) throw error;
       result[name] = null;
@@ -266,7 +306,7 @@ async function findRoutes(request: Request, env: HighschoolEnv, db: D1Database, 
 
 export async function handleHighschoolApi(request: Request, env: HighschoolEnv, db: D1Database, context: DataCoreAccessContext) {
   const url = new URL(request.url);
-  const match = url.pathname.match(/^\/api\/data-core\/highschool(?:\/(students|schools|grade-photo|routes)(?:\/([A-Za-z0-9-]{8,40}))?)?$/);
+  const match = url.pathname.match(/^\/api\/data-core\/highschool(?:\/(students|schools|academies|grade-photo|routes)(?:\/([A-Za-z0-9-]{8,40}))?)?$/);
   if (!match) return null;
   const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { 'cache-control': 'private, no-store' } });
   try {
@@ -278,7 +318,7 @@ export async function handleHighschoolApi(request: Request, env: HighschoolEnv, 
     const me = context.user!.internalUserId;
     if (!part && request.method === 'GET') {
       const rows = (await db.prepare('SELECT * FROM highschool_counsel_students WHERE deleted_at IS NULL ORDER BY updated_at DESC LIMIT ?').bind(LIST_LIMIT).all<Row>()).results || [];
-      return json({ students: rows.map(present), schools: await schoolData(db), canManage: studentManager(context), me, kakao: Boolean(env.KAKAO_REST_KEY) });
+      return json({ students: rows.map(present), schools: { ...(await schoolData(db)), academies: await academies(db) }, canManage: studentManager(context), me, myCampusId: context.memberships.find((m) => m.campusId)?.campusId || '', kakao: Boolean(env.KAKAO_REST_KEY) });
     }
     if (request.method === 'GET') return json({ error: '허용되지 않은 요청입니다.' }, 405);
     requireWriteAccess(context);
@@ -287,6 +327,7 @@ export async function handleHighschoolApi(request: Request, env: HighschoolEnv, 
     try { body = await request.json() as Row; } catch { if (request.method !== 'DELETE') throw new DataCoreAccessError(400, '요청 형식이 올바르지 않습니다.'); }
     if (part === 'routes' && !id && request.method === 'POST') return json(await findRoutes(request, env, db, body));
     if (part === 'schools' && !id && request.method === 'PATCH') return json({ schools: await saveSchool(db, context, body) });
+    if (part === 'academies' && !id && request.method === 'PATCH') return json({ academies: await saveAcademy(db, context, body) });
     if (part !== 'students') return json({ error: '허용되지 않은 요청입니다.' }, 405);
     const now = new Date().toISOString();
     if (!id && request.method === 'POST') {

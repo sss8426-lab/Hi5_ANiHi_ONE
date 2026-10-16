@@ -10,8 +10,8 @@
   <link rel="stylesheet" href="/data-core/design-tokens.css?v=20260913-soft-premium">
   <link rel="stylesheet" href="/data-core/design-system.css?v=20260928-approved-logo">
   <link rel="stylesheet" href="/data-core/mobile-app.css?v=20261009-mobile-app">
-  <link rel="stylesheet" href="/data-core/highschool.css?v=20261016-hs2">
-  <link rel="stylesheet" href="/data-core/highschool-report.css?v=20261016-hs2">
+  <link rel="stylesheet" href="/data-core/highschool.css?v=20261016-hs3">
+  <link rel="stylesheet" href="/data-core/highschool-report.css?v=20261016-hs3">
 </head>
 <body class="data-core-layout hs-page">
   <div class="app-shell">
@@ -55,8 +55,8 @@
             <label class="c6"><span>집 주소 <small>통학 시간 계산에만 씁니다 · 도로명주소</small></span><input name="address" maxlength="120" autocomplete="off" placeholder="예: 경기도 부천시 원미구 ○○로 00"></label>
             <label class="c3"><span>지역 <small id="hsRegionAuto"></small></span><select name="region"><option value="">주소에서 자동</option><option>부천</option><option>인천</option><option>서울</option></select></label>
             <label class="c3"><span>상담일</span><input name="consultDate" maxlength="20" placeholder="예: 10/16 (방문)"></label>
-            <label class="c6"><span>캠퍼스 · 반 <small>상담표 오른쪽 위에 찍힘</small></span><input name="campusLabel" maxlength="40" list="hsCampusLabels" placeholder="상동 본원 · 입시기초반"></label>
-            <datalist id="hsCampusLabels"><option value="상동 본원 · 입시기초반"><option value="상동 본원 · 예비반"></datalist>
+            <label class="c6"><span>캠퍼스 <small id="hsAcademyAddr">학교→학원·학원→집 계산 기준</small></span><select name="campusId" id="hsCampus"></select></label>
+            <label class="c6"><span>상담표에 찍을 캠퍼스 · 반 <small>상담표 오른쪽 위</small></span><input name="campusLabel" maxlength="40" placeholder="부천 애니 입시본원 · 입시기초반"></label>
           </div>
         </fieldset>
 
@@ -99,15 +99,16 @@
 
       <dialog class="hs-dialog" id="hsSchoolsDialog" aria-labelledby="hsSchoolsTitle">
         <form method="dialog" class="hs-dialog-body">
-          <h2 id="hsSchoolsTitle">학교 평가 · 학교→학원 시간</h2>
-          <p class="hs-hint">재원생 학교 평가와 학교에서 상동 본원까지 시간은 모든 상담 자료에 함께 쓰입니다. 원장·마스터만 고칠 수 있습니다.</p>
-          <div class="hs-schools" id="hsSchools"></div>
+          <h2 id="hsSchoolsTitle">학원 주소 · 학교 평가 · 학교→학원 시간</h2>
+          <p class="hs-hint">캠퍼스 학원 주소는 통학 길찾기 기준입니다. 재원생 학교 평가와 학교→상동 본원 시간은 모든 상담 자료에 함께 쓰입니다. 원장·마스터만 고칠 수 있습니다.</p>
+          <h3 class="hs-sub">캠퍼스 학원 주소</h3><div class="hs-academies" id="hsAcademies"></div>
+          <h3 class="hs-sub">학교</h3><div class="hs-schools" id="hsSchools"></div>
           <div class="hs-dialog-actions"><button class="secondary-btn" value="close">닫기</button></div>
         </form>
       </dialog>
     </main>
   </div>
   <div id="hsPrint" class="hs-print-root hs-report" aria-hidden="true"></div>
-  <script type="module" src="/data-core/highschool.js?v=20261016-hs2"></script>
+  <script type="module" src="/data-core/highschool.js?v=20261016-hs3"></script>
 </body>
 </html>

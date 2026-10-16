@@ -1,11 +1,11 @@
 // 고교 진학 상담 화면: 상담 학생 목록 → 입력(학생·지망·성적표 사진·통학) → A4 9쪽 상담 자료(인쇄·PDF).
 // 화면 상태는 주소 #의 뒷부분으로 나눈다(#new, #edit=ID, #report=ID). 뒤로 가기가 한 단계씩 돌아간다.
-import { renderReport, analyze, gradeBook, bandOf, academyDefault, segment, regionFromAddress, SEMS, SUBJECTS, ACHIEVEMENTS, esc } from './highschool-report.js?v=20261016-hs2';
+import { renderReport, analyze, gradeBook, bandOf, academyDefault, segment, regionFromAddress, SEMS, SUBJECTS, ACHIEVEMENTS, esc } from './highschool-report.js?v=20261016-hs3';
 
 const API = '/api/data-core/highschool';
 const $ = (id) => document.getElementById(id);
 const form = $('hsForm');
-const state = { students: [], schools: null, canManage: false, me: '', kakao: false, current: null, dirty: false };
+const state = { students: [], schools: null, canManage: false, me: '', myCampusId: '', kakao: false, current: null, dirty: false };
 const SEM_LABEL = { '1-1': '중1 1학기', '1-2': '중1 2학기', '2-1': '중2 1학기', '2-2': '중2 2학기', '3-1': '중3 1학기', '3-2': '중3 2학기' };
 
 async function api(path, init = {}) {
@@ -24,6 +24,9 @@ function notice(message, kind = '') {
 const schoolList = () => state.schools?.schools || [];
 const schoolByName = (name) => schoolList().find((s) => s.name === name);
 const dn = (name) => schoolByName(name)?.display || name;
+const academyList = () => state.schools?.academies || [];
+const DEFAULT_CAMPUS = 'campus-anihi-admission';
+const defaultLabel = (campusId) => `${academyList().find((a) => a.campusId === campusId)?.name || ''} · 입시기초반`;
 
 // ── 목록 ──
 function statusChips(s) {
@@ -89,7 +92,7 @@ function renderCommute(s) {
   const kakaoLink = (name) => `https://map.kakao.com/?sName=${encodeURIComponent(s.address || '')}&eName=${encodeURIComponent(name.replace(/여고$/, '여자고등학교').replace(/고$/, '고등학교'))}`;
   const rows = names.map((name) => {
     const c = s.commute?.schools?.[name] || {};
-    const def = segment(academyDefault(schoolByName(name)));
+    const def = A.sangdong ? segment(academyDefault(schoolByName(name))) : null;
     const row = A.rows.find((x) => x.s === name);
     const out = A.out.includes(name);
     return `<tr data-school="${esc(name)}"><th>${esc(dn(name))}${out ? '<small>다른 지역 · 자료에서 빠짐</small>' : ''}</th><td>${segFields(c.home, `${name} 집→학교`)}</td><td>${segFields(c.academy, `${name} 학교→학원`)}${def && !c.academy ? `<small class="hs-def">비우면 기본 ${esc(def.head)}</small>` : ''}</td><td class="hs-total">${row && row.total != null ? `<b>${row.total}분</b>` : '<span class="hs-miss">미확인</span>'}</td><td><a href="${kakaoLink(name)}" target="_blank" rel="noopener">카카오맵</a></td></tr>`;
@@ -126,6 +129,7 @@ function readForm() {
     name: String(f.get('name') || '').trim(), middleSchool: String(f.get('middleSchool') || '').trim(), grade: Number(f.get('grade') || 3),
     entryYear: Number(f.get('entryYear')) || '', address: String(f.get('address') || '').trim(), region: String(f.get('region') || ''),
     consultDate: String(f.get('consultDate') || '').trim(), campusLabel: String(f.get('campusLabel') || '').trim(),
+    campusId: String(f.get('campusId') || ''),
     wishes: [...form.querySelectorAll('[data-wish]')].map((el) => el.value), extras: [...form.querySelectorAll('[data-extra]')].map((el) => el.value).filter(Boolean),
     fixedOrder: f.get('fixedOrder') === 'on', bandManual: String(f.get('bandManual') || ''),
     grades, commute: { checkedAt: base.commute?.checkedAt || '', back: readSeg(form.querySelector('.hs-back .hs-seg')), schools },
@@ -144,7 +148,13 @@ function fillForm(s) {
   form.elements.address.value = s.address || '';
   form.elements.region.value = s.region || '';
   form.elements.consultDate.value = s.consultDate || '';
-  form.elements.campusLabel.value = s.campusLabel || '상동 본원 · 입시기초반';
+  // 캠퍼스를 고르기 전에 만든 상담은 상동 본원(부천 애니 입시본원) 기준이었다
+  const campusId = s.campusId || (s.id ? DEFAULT_CAMPUS : state.myCampusId || DEFAULT_CAMPUS);
+  $('hsCampus').innerHTML = academyList().map((a) => `<option value="${esc(a.campusId)}">${esc(a.name)}</option>`).join('');
+  form.elements.campusId.value = campusId;
+  s.campusId = form.elements.campusId.value;
+  form.elements.campusLabel.value = s.campusLabel || defaultLabel(s.campusId);
+  renderAcademyAddr();
   form.elements.fixedOrder.checked = Boolean(s.fixedOrder);
   form.elements.bandManual.value = s.bandManual || '';
   form.elements.commuteNote.value = s.commuteNote || '';
@@ -155,6 +165,18 @@ function fillForm(s) {
 function renderRegion() {
   const auto = regionFromAddress(form.elements.address.value);
   $('hsRegionAuto').textContent = auto ? `주소로 보면 ${auto}` : '';
+}
+function renderAcademyAddr() {
+  const a = academyList().find((x) => x.campusId === form.elements.campusId.value);
+  $('hsAcademyAddr').textContent = a ? (a.address ? `학원 주소: ${a.address}` : '학원 주소가 없습니다. 원장·마스터가 ‘학원 주소·학교 평가’에서 넣어 주세요.') : '';
+}
+// 캠퍼스를 바꾸면 그 학원 기준 시간이 아니게 된 자동 조회 값(학교→학원·학원→집)을 비우고, 상담표 이름도 기본값이면 바꾼다
+function changeCampus(previous) {
+  const s = readForm();
+  if (!s.campusLabel || s.campusLabel === defaultLabel(previous)) form.elements.campusLabel.value = s.campusLabel = defaultLabel(s.campusId);
+  for (const c of Object.values(s.commute.schools)) if (c.academy?.auto) c.academy = null;
+  if (s.commute.back?.auto) s.commute.back = null;
+  state.current = s; renderAcademyAddr(); renderCommute(s); renderBand();
 }
 function refreshDerived() { const s = readForm(); state.current = s; renderCommute(s); renderBand(); }
 // 통학 칸을 고칠 때는 표를 다시 그리지 않고(입력 중인 칸이 사라지지 않게) 하루 합계만 바꾼다
@@ -224,7 +246,7 @@ async function autoRoutes() {
   $('hsRouteStatus').textContent = '카카오맵에서 경로를 찾는 중…';
   $('hsRouteBtn').disabled = true;
   try {
-    const r = await api('/routes', { method: 'POST', body: JSON.stringify({ address: s.address, schools: names }) });
+    const r = await api('/routes', { method: 'POST', body: JSON.stringify({ address: s.address, campusId: s.campusId, schools: names }) });
     const fails = [];
     for (const name of names) {
       const got = r.schools[name];
@@ -257,6 +279,7 @@ window.addEventListener('resize', fitReport);
 // ── 학교 정보(원장·마스터) ──
 function renderSchools() {
   const can = state.canManage;
+  $('hsAcademies').innerHTML = academyList().map((a) => `<div class="hs-academy" data-campus="${esc(a.campusId)}"><span>${esc(a.name)}</span><input maxlength="120" value="${esc(a.address)}" aria-label="${esc(a.name)} 학원 주소"${can ? '' : ' readonly'}>${can ? '<button class="secondary-btn" type="button" data-save-academy>저장</button>' : ''}</div>`).join('');
   $('hsSchools').innerHTML = schoolList().map((s) => {
     const def = academyDefault(s);
     return `<div class="hs-school" data-name="${esc(s.name)}"><h3>${esc(s.display || s.name)} <small>${esc(s.region)}${s.special ? ' · 특성화고' : ''}</small></h3>
@@ -313,13 +336,22 @@ document.addEventListener('click', async (event) => {
   } catch (error) { notice(error.message, 'warn'); }
   const drop = event.target.closest('[data-drop-sem]')?.dataset.dropSem;
   if (drop) { const s = readForm(); delete s.grades[drop]; state.extraSems?.delete(drop); state.current = s; renderGrades(s); state.dirty = true; }
+  const saveAcademy = event.target.closest('[data-save-academy]');
+  if (saveAcademy) {
+    const box = saveAcademy.closest('.hs-academy');
+    try {
+      const r = await api('/academies', { method: 'PATCH', body: JSON.stringify({ campusId: box.dataset.campus, address: box.querySelector('input').value }) });
+      state.schools = { ...state.schools, academies: r.academies };
+      saveAcademy.textContent = '저장됨';
+    } catch (error) { alert(error.message); }
+  }
   const saveSchool = event.target.closest('[data-save-school]');
   if (saveSchool) {
     const box = saveSchool.closest('.hs-school');
     try {
       const academy = readSeg(box.querySelector('.hs-seg'));
       const r = await api('/schools', { method: 'PATCH', body: JSON.stringify({ name: box.dataset.name, review: box.querySelector('[data-f=review]').value, academy }) });
-      state.schools = r.schools;
+      state.schools = { ...r.schools, academies: academyList() };
       saveSchool.textContent = '저장됨';
     } catch (error) { alert(error.message); }
   }
@@ -333,6 +365,9 @@ $('hsRouteBtn').addEventListener('click', autoRoutes);
 $('hsWithGuide').addEventListener('change', () => state.current && showReport(state.current));
 form.addEventListener('input', (e) => { state.dirty = true; if (e.target.name === 'address') renderRegion(); if (e.target.closest('#hsGrades') || e.target.name === 'bandManual') renderBand(); });
 form.addEventListener('change', (e) => { state.dirty = true; if (e.target.matches('[data-wish],[data-extra]') || e.target.name === 'region' || e.target.name === 'address') refreshDerived(); else if (e.target.closest('#hsCommute .hs-seg')) refreshTotals(); if (e.target.name === 'bandManual') renderBand(); });
+let campusBefore = '';
+$('hsCampus').addEventListener('focus', () => { campusBefore = $('hsCampus').value; });
+$('hsCampus').addEventListener('change', () => { changeCampus(campusBefore || state.current?.campusId || ''); campusBefore = $('hsCampus').value; });
 form.addEventListener('submit', (e) => e.preventDefault());
 window.addEventListener('hashchange', route);
 window.addEventListener('beforeunload', (e) => { if (state.dirty) { e.preventDefault(); e.returnValue = ''; } });
@@ -342,7 +377,7 @@ window.addEventListener('afterprint', () => { document.body.classList.remove('hs
 (async () => {
   try {
     const r = await api('');
-    Object.assign(state, { students: r.students || [], schools: r.schools, canManage: r.canManage, me: r.me, kakao: r.kakao });
+    Object.assign(state, { students: r.students || [], schools: r.schools, canManage: r.canManage, me: r.me, myCampusId: r.myCampusId || '', kakao: r.kakao });
     route();
   } catch (error) { $('hsRows').innerHTML = `<p class="hs-empty">${esc(error.message)}</p>`; }
 })();

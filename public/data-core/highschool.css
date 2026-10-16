@@ -98,3 +98,8 @@
   .hs-page .hs-topbar h1{font-size:22px}
   .hs-actions{width:100%}.hs-actions>*{flex:1 1 auto;justify-content:center}
 }
+.hs-sub{font-size:14px;margin:14px 0 6px;color:#1E4B3E}
+.hs-academies{display:grid;gap:6px}
+.hs-academy{display:grid;grid-template-columns:150px minmax(0,1fr) auto;gap:8px;align-items:center;font-size:13px}
+.hs-academy input{min-height:38px;width:100%}
+@media (max-width:720px){.hs-academy{grid-template-columns:1fr}}
