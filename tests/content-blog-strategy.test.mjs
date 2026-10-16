@@ -242,3 +242,31 @@ test('홈피드 품질검사: 재시도 결과마저 파싱할 수 없으면 첫
     assert.ok(Array.isArray(result.body.generated.warnings) && result.body.generated.warnings.length > 0);
   } finally { globalThis.fetch = originalFetch; await h.mf.dispose(); }
 });
+
+
+test('SEO/AEO/GEO: 선택한 작성 방식과 사실·출처·권한 기준이 실제 생성 요청에 전달된다', async () => {
+  const h = await libraryHarness(), originalFetch = globalThis.fetch;
+  try {
+    h.env.OPENAI_API_KEY = 'synthetic-test-only';
+    const file = await fixture(h);
+    for (const mode of ['seo', 'aeo', 'geo', 'invalid']) {
+      let instructions = '';
+      globalThis.fetch = async (url, options) => {
+        if (!String(url).startsWith('https://api.openai.com/')) return originalFetch(url, options);
+        instructions = JSON.parse(options.body).instructions;
+        return textResponse(blogResult('search'));
+      };
+      const result = await h.request('POST', '/api/data-core/content/generate', users.staff, multipartInput([file], { writingMode: mode, strategyMode: 'search' }));
+      assert.equal(result.status, 200, JSON.stringify(result.body));
+      const expected = mode === 'invalid' ? 'seo' : mode;
+      assert.equal(result.body.generated.writingMode, expected);
+      assert.ok(instructions.includes(expected.toUpperCase() + ' 작성 방식'));
+      for (const rule of ['반복 횟수나 밀도를 목표로', '출처 URL·통계·확인일을 만들지', '개인정보·작품 사용 동의', 'missingInfo', '발행 보류']) {
+        // GEO-specific sourcing instruction is exclusive to GEO.
+        if (rule.startsWith('출처 URL') && mode !== 'geo') continue;
+        assert.ok(instructions.includes(rule), rule);
+      }
+      assert.ok(!instructions.includes('합쳐 3~5번'));
+    }
+  } finally { globalThis.fetch = originalFetch; await h.mf.dispose(); }
+});

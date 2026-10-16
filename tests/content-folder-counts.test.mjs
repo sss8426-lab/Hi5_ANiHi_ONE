@@ -14,5 +14,5 @@ test('블로그·인스타 photo folders show the same 사진 totals as 자료�
   assert.match(content, /<small data-folder-count><\/small>/);
   // The breadcrumb placeholder keeps the folder name only, not the count.
   assert.match(content, /crumb\.textContent=\(button\.querySelector\('strong'\)\|\|button\)\.textContent\.trim\(\)/);
-  assert.match(fs.readFileSync('public/data-core/content.html', 'utf8'), /content\.js\?v=20261015-convert/);
+  assert.match(fs.readFileSync('public/data-core/content.html', 'utf8'), /content\.js\?v=20261016-writing-modes/);
 });

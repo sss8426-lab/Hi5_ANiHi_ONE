@@ -30,6 +30,7 @@ export type ContentGenerationInput = {
   brandContext?: string | null;
   requestId?: string;
   strategyMode?: BlogStrategyMode;
+  writingMode?: 'seo' | 'aeo' | 'geo';
   recentTitles?: string[];
   // Which brand's 캠퍼스 고정 키워드 the post uses (hi5 | anihi); the keywords themselves are read on the server.
   keywordBrand?: string | null;
@@ -56,6 +57,7 @@ export type ContentGenerationOutput = {
   lead?: string;
   nextTopics?: string[];
   strategyMode?: BlogStrategyMode;
+  writingMode?: 'seo' | 'aeo' | 'geo';
   warnings?: string[];
   // Titles of the same campus's past posts the AI was shown as references (blog only).
   referenceTitles?: string[];
@@ -75,6 +77,7 @@ export type ContentGenerationProviderRequest = {
   coreMessage: string;
   brandContext: typeof HI5_CONTENT_BRAND_CONTEXT;
   strategyMode?: BlogStrategyMode;
+  writingMode?: 'seo' | 'aeo' | 'geo';
   recentTitles?: string[];
   // SEO words for the text: campus regions + region-free keywords from the campus's saved fixed keywords.
   seo?: { regions: string[]; keywords: string[]; regionTags?: string[]; brandName?: string } | null;
@@ -284,7 +287,7 @@ export async function generateContentDraft(
     notes: cleanText(input.notes, 4000),
     coreMessage: cleanText(input.coreMessage, 1200),
     brandContext: HI5_CONTENT_BRAND_CONTEXT,
-    ...(sourceApp === 'blog' ? { strategyMode: normalizeStrategyMode(input.strategyMode), recentTitles: normalizeRecentTitles(input.recentTitles),
+    ...(sourceApp === 'blog' ? { writingMode: ['aeo','geo'].includes(String(input.writingMode)) ? input.writingMode : 'seo', strategyMode: normalizeStrategyMode(input.strategyMode), recentTitles: normalizeRecentTitles(input.recentTitles),
       templateId, references: provider ? await blogReferences(db, campusId, templateId) : [] } : {}),
     selectedFiles,
   };
