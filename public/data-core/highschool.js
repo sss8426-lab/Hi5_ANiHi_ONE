@@ -1,6 +1,6 @@
 // 고교 진학 상담 화면: 상담 학생 목록 → 입력(학생·지망·성적표 사진·통학) → A4 9쪽 상담 자료(인쇄·PDF).
 // 화면 상태는 주소 #의 뒷부분으로 나눈다(#new, #edit=ID, #report=ID). 뒤로 가기가 한 단계씩 돌아간다.
-import { renderReport, analyze, gradeBook, bandOf, academyDefault, segment, regionFromAddress, SEMS, SUBJECTS, ACHIEVEMENTS, esc } from './highschool-report.js?v=20261016-hs1';
+import { renderReport, analyze, gradeBook, bandOf, academyDefault, segment, regionFromAddress, SEMS, SUBJECTS, ACHIEVEMENTS, esc } from './highschool-report.js?v=20261016-hs2';
 
 const API = '/api/data-core/highschool';
 const $ = (id) => document.getElementById(id);

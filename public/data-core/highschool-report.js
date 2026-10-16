@@ -35,7 +35,9 @@ export function segment(v) {
   if (min == null) return null;
   if (v.mode === 'walk') return { min, head: `도보 ${min}분`, sub: num(v.alt) != null ? `버스로는 ${num(v.alt)}분` : '' };
   const bus = String(v.bus || '').split(',').map((s) => s.trim()).filter(Boolean);
-  const head = bus.length ? `버스 ${bus[0]}${bus.length > 1 ? ' 등' : ''} / ${min}분` : `대중교통 ${min}분`;
+  // 지하철(카카오 자동 조회의 '7호선' 등)은 '버스'를 붙이지 않는다
+  const first = bus[0] && (/(호선|선|철)$/.test(bus[0]) ? bus[0] : `버스 ${bus[0]}`);
+  const head = bus.length ? `${first}${bus.length > 1 ? ' 등' : ''} / ${min}분` : `대중교통 ${min}분`;
   const parts = [];
   if (num(v.transfers) != null) parts.push(`환승 ${num(v.transfers)}회`);
   if (num(v.walk) != null) parts.push(`도보 ${num(v.walk)}분 포함`);
