@@ -216,7 +216,7 @@ function blogInstructions(brandContext: ContentGenerationProviderRequest['brandC
     `3) 제목 후보 5개(titles)를 만드세요. ${BLOG_STRATEGY_GUIDE.search} ${BLOG_STRATEGY_GUIDE.homefeed} ${BLOG_STRATEGY_GUIDE.balanced} ${BLOG_STRATEGY_GUIDE.list} ${BLOG_STRATEGY_GUIDE.curious} selectedTitleKind는 "${strategyMode}"로 하고, lead와 body는 titles.${strategyMode}에 맞춰 작성하세요.`,
     '4) 제목에서 질문하거나 약속한 내용은 본문 초반(lead, 3~5문장)에서 먼저 답하세요. 그 다음 근거와 실제 수업 사례를 설명하세요. 학원 소개부터 시작해 마지막에야 답을 설명하는 구성은 금지합니다.',
     '5) body는 정보/교육 내용 위주(약 70~80%)로 쓰고, 학원·브랜드 설명은 15~20%, 상담 유도는 마지막 5~10% 정도로 자연스럽게 배분하세요. "애니하이는 최고입니다" 같은 광고 문구를 반복하지 마세요.',
-    '6) 문단은 2~4문장 단위로 나누고, 문장마다 줄바꿈하지 마세요. 소제목은 26번처럼 질문형으로 쓰고, 키워드만 나열한 소제목은 쓰지 마세요.',
+    '6) 문단은 2~4문장 단위로 나누고, 문장마다 줄바꿈하지 마세요. 소제목 형식은 선택한 SEO·AEO·GEO 작성 방식에 따르고, 키워드만 나열하지 마세요.',
     seoRule(campusName, seo),
     '8) 검색 키워드는 문맥에 필요한 만큼만 자연스럽게 사용하고, 같은 단어를 과도하게 반복하지 마세요(keyword stuffing 금지).',
     '9) 사진은 선택한 순서대로 제공됩니다. 순서를 설명→과정→피드백→결과 같은 본문 구성의 힌트로 참고하되, 사진에서 실제로 확인할 수 없는 사실은 만들지 마세요.',

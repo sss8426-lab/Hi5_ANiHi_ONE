@@ -44,7 +44,7 @@
 .workflow-command textarea { margin-top: 5px; }
 .defaults-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 22px; }
 .defaults-actions { justify-content: flex-end; margin: 8px 0 20px; }
-.ai-actions { justify-content: flex-start; }
+.content-workspace .ai-actions { justify-content: flex-start; gap: 16px; }
 .content-workspace .ai-actions .primary-btn { min-height: 48px; min-width: min(280px, 100%); padding-inline: 30px; }
 #aiStatus { min-height: 24px; font-size: 14px; }
 #aiStatus.busy::before { content: ''; display: inline-block; width: 14px; height: 14px; margin-right: 9px; border: 2px solid #adbcb6; border-top-color: var(--core-brand); border-radius: 50%; animation: ai-spin 1s linear infinite; }
