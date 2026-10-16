@@ -1,7 +1,7 @@
 // 고교 진학 상담 자료 저장: 화면에 그린 A4 쪽을 그대로 그림(1588×2246, 예전 자료와 같은 크기)으로 만들어
 // PDF 한 파일, 또는 쪽별 PNG 묶음(zip)으로 바로 내려받는다. 서버에 보내지 않고 이 컴퓨터에서만 만든다.
 import { zipSync } from './vendor/fflate-0.8.3.js';
-import { LOGO } from './highschool-report.js?v=20261017-hs8';
+import { LOGO } from './highschool-report.js?v=20261017-hs9';
 
 const W = 794, H = 1123, SCALE = 2; // A4 210×297mm를 96dpi로, 2배로 그린다
 

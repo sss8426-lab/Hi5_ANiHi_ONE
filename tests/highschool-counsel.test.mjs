@@ -174,7 +174,7 @@ test('화면: 이름·학교·주소·캠퍼스·지망·성적표 사진만, �
   assert.ok(a > 0 && a < b && b < c, '대학합격 로드맵 바로 아래');
   const page = fs.readFileSync('public/data-core/highschool.html', 'utf8');
   const js = fs.readFileSync('public/data-core/highschool.js', 'utf8');
-  assert.match(page, /highschool\.js\?v=20261017-hs8/);
+  assert.match(page, /highschool\.js\?v=20261017-hs9/);
   assert.deepEqual([...page.matchAll(/<input name="(\w+)"/g)].map((m) => m[1]), ['name', 'middleSchool', 'address']);
   assert.match(page, /id="hsCampus" role="radiogroup"/);
   assert.match(page, /id="hsPhoto"/);
@@ -268,4 +268,31 @@ test('인쇄 모양: 2·3쪽 설명 목록(ul.bl)은 9쪽 막대 이름 폭(34mm
   assert.ok(!css.includes('.hs-report .bl{'), '막대 이름은 .bar 안에서만');
   assert.ok(css.includes('.hs-report .bar .bl{width:34mm'));
   assert.match(css, /\.gp \.fl\{[^}]*white-space:nowrap/);
+});
+
+test('로고 선택: 고른 로고가 쪽 위·1~4쪽 띠·5~9쪽 아래에 들어가고, 고르지 않으면 예전 로고, 서버는 정해진 값만 저장', async () => {
+  const base = renderReport(student(), data);
+  assert.ok(base.html.includes('src="/data-core/assets/anihi-academy-logo.png"'), '고르지 않으면 예전 ANiHi 만화학원 로고');
+  const logo = { src: 'data:image/png;base64,TOP', band: 'data:image/png;base64,BAND' };
+  const out = renderReport(student(), data, { logo });
+  assert.ok(!out.html.includes('anihi-academy-logo.png') && !out.html.includes('<span>ANiHi 만화학원</span>'));
+  assert.equal((out.pages[0].html.match(/class="logo2" src="data:image\/png;base64,TOP"/g) || []).length, 1, '표지 왼쪽 위');
+  assert.ok(out.pages.slice(0, 4).every((p) => p.html.includes('<img class="fl-img" src="data:image/png;base64,BAND"')), '1~4쪽 어두운 띠에는 흰 로고');
+  assert.ok(out.pages.slice(4).every((p) => /class="logo(13)?" src="data:image\/png;base64,TOP"/.test(p.html) && p.html.includes('<img class="fm" src="data:image/png;base64,TOP"')), '5~9쪽 위·아래');
+  assert.ok(renderReport(student(), data, { logo: { ...logo, tall: true } }).pages[0].html.includes('class="logo2 tall"'), '두 줄 로고는 조금 크게');
+  const none = renderReport(student(), data, { logo: { none: true } });
+  assert.ok(!/<img class="(logo|fl-img|fm)/.test(none.html), '로고 없음');
+  const css = fs.readFileSync('public/data-core/highschool-report.css', 'utf8');
+  assert.match(css, /\.hs-report \.logo,\.hs-report \.logo2,\.hs-report \.logo13\{max-width:95mm;object-fit:contain\}/, '비율 유지');
+  const page = fs.readFileSync('public/data-core/highschool.html', 'utf8'), js = fs.readFileSync('public/data-core/highschool.js', 'utf8');
+  assert.ok(page.indexOf('id="hsCampus"') < page.indexOf('id="hsLogos"') && page.indexOf('id="hsLogos"') < page.indexOf('id="hsWishes"'), '학생 칸과 지망 칸 사이');
+  assert.match(page, /id="hsLogoUpload">로고 올리기/);
+  assert.ok(js.includes("/api/data-core/content/instagram-logos"), '인스타그램 로고 목록을 같이 쓴다');
+  const h = await libraryHarness();
+  try {
+    const save = (v) => h.request('POST', '/api/data-core/highschool/students', users.teacher, { student: student({ campusId: A, logo: v }) });
+    assert.equal((await save('slogan')).body.student.logo, 'slogan');
+    assert.equal((await save('custom:12345678-1234-1234-1234-123456789abc')).body.student.logo, 'custom:12345678-1234-1234-1234-123456789abc');
+    assert.equal((await save('javascript:alert(1)')).body.student.logo, '', '정해진 값이 아니면 버림');
+  } finally { await h.mf.dispose(); }
 });

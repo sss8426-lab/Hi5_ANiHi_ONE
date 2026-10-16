@@ -106,3 +106,10 @@
   .hs-report *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 @media screen and (max-width:860px){.hs-report-scroll{overflow-x:auto}}
+/* 로고 선택: 고른 로고는 원래 로고 자리 높이에 맞추고, 가로로 긴 로고는 폭을 넘지 않게(비율 유지) */
+.hs-report .logo,.hs-report .logo2,.hs-report .logo13{max-width:95mm;object-fit:contain}
+.hs-report .cv .logo2{max-width:120mm;object-position:left center}
+.hs-report .ip .ft .fl-img{display:block;height:8mm;max-width:130mm;object-fit:contain}
+.hs-report footer .fm{display:block;height:4.2mm;max-width:40mm;object-fit:contain;object-position:right center}
+.hs-report .logo.tall{height:15mm}.hs-report .logo13.tall{height:17mm}.hs-report .cv .logo2.tall{height:24mm}
+.hs-report .ip .ft .fl-img.tall{height:11mm}.hs-report footer .fm.tall{height:6mm}

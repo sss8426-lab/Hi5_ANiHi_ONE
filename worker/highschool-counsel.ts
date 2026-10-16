@@ -105,6 +105,8 @@ export function cleanStudent(input: unknown) {
     wishRules: Array.from({ length: 5 }, (_, i) => (['high', 'low', 'near'].includes(String((Array.isArray(v.wishRules) ? v.wishRules : [])[i])) ? String((v.wishRules as unknown[])[i]) : '')),
     // 집에서 가까운 같은 지역 일반고(자동으로 채운 비교 학교)
     extras: (Array.isArray(v.extras) ? v.extras : []).map((s) => text(s, 30)).filter(Boolean).slice(0, 5),
+    // 로고 선택: '' = 예전 ANiHi 만화학원 로고, 인스타그램과 같은 기본 로고, custom:<파일 id> = 캠퍼스가 올린 로고
+    logo: /^(anihi|hi5|combined|slogan|horizontal|none|custom:[0-9a-f-]{36})$/i.test(String(v.logo ?? '')) ? String(v.logo) : '',
     grades: cleanGrades(v.grades),
     // 통학은 카카오 자동 조회 결과만. key = 조회한 주소·캠퍼스(바뀌면 다시 조회)
     commute: { key: text(commute.key, 200), checkedAt: text(commute.checkedAt, 20), back: cleanSegment(commute.back), schools },
