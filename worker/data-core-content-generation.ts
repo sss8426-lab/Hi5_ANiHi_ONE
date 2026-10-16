@@ -31,6 +31,8 @@ export type ContentGenerationInput = {
   requestId?: string;
   strategyMode?: BlogStrategyMode;
   writingMode?: 'seo' | 'aeo' | 'geo';
+  // 같은 사진·입력으로 이미 만든 다른 작성 방식 후보(차별화 검수용, 최대 2개).
+  compareWith?: Array<{ mode?: string; title?: string; lead?: string; body?: string }>;
   recentTitles?: string[];
   // Which brand's 캠퍼스 고정 키워드 the post uses (hi5 | anihi); the keywords themselves are read on the server.
   keywordBrand?: string | null;
@@ -65,6 +67,11 @@ export type ContentGenerationOutput = {
   photoCaptions?: Array<{ fileId: string; caption: string }>;
   // What the AI said it still needs (e.g. "대회명과 수상 부문"); shown to the writer, never put in the post.
   missingInfo?: string[];
+  // 편집 설계, 문체·진정성 편집 결과, 발행 판정(생성 성공과 별개). 공개 원고에는 들어가지 않는다.
+  modePlan?: { readerQuestion: string; introRole: string; flow: string[]; keyUnit: string; outcome: string };
+  editorial?: { status: string; label: string; changes: Array<{ before: string; after: string; reason: string }>; factChecks: string[]; operatorQuestions: string[]; problems: string[] };
+  differentiation?: string[];
+  publish?: { status: string; label: string; reasons: string[] };
 };
 
 export type ContentGenerationProviderRequest = {
@@ -78,6 +85,7 @@ export type ContentGenerationProviderRequest = {
   brandContext: typeof HI5_CONTENT_BRAND_CONTEXT;
   strategyMode?: BlogStrategyMode;
   writingMode?: 'seo' | 'aeo' | 'geo';
+  compareWith?: Array<{ mode: string; title: string; lead: string; body: string }>;
   recentTitles?: string[];
   // SEO words for the text: campus regions + region-free keywords from the campus's saved fixed keywords.
   seo?: { regions: string[]; keywords: string[]; regionTags?: string[]; brandName?: string } | null;
@@ -182,6 +190,13 @@ const BLOG_STRATEGY_MODES = ["search","homefeed","balanced"] as const;
 function normalizeStrategyMode(value: unknown): BlogStrategyMode {
   return (BLOG_STRATEGY_MODES as readonly string[]).includes(String(value)) ? (value as BlogStrategyMode) : "balanced";
 }
+// 다른 작성 방식 후보: 이번 방식이 아닌 SEO·AEO·GEO 후보 최대 2개, 각 원고는 잘라서 받는다(참고 데이터).
+function normalizeCompareWith(value: unknown, mode: unknown) {
+  const current = ['aeo','geo'].includes(String(mode)) ? String(mode) : 'seo';
+  return (Array.isArray(value) ? value : []).filter((c): c is Record<string, unknown> => Boolean(c) && typeof c === 'object' && ['seo','aeo','geo'].includes(String((c as Record<string, unknown>).mode)) && (c as Record<string, unknown>).mode !== current)
+    .slice(0, 2).map((c) => ({ mode: String(c.mode), title: cleanText(c.title, 300), lead: cleanText(c.lead, 2000), body: String(c.body ?? '').slice(0, 12000) }));
+}
+
 // Only used to steer the AI away from exact repeats (see BLOG_STRATEGY_GUIDE's recentTitles rule);
 // never used for authorization or file lookups, so it is capped and trimmed rather than validated.
 function normalizeRecentTitles(value: unknown): string[] {
@@ -287,7 +302,7 @@ export async function generateContentDraft(
     notes: cleanText(input.notes, 4000),
     coreMessage: cleanText(input.coreMessage, 1200),
     brandContext: HI5_CONTENT_BRAND_CONTEXT,
-    ...(sourceApp === 'blog' ? { writingMode: ['aeo','geo'].includes(String(input.writingMode)) ? input.writingMode : 'seo', strategyMode: normalizeStrategyMode(input.strategyMode), recentTitles: normalizeRecentTitles(input.recentTitles),
+    ...(sourceApp === 'blog' ? { writingMode: ['aeo','geo'].includes(String(input.writingMode)) ? input.writingMode : 'seo', compareWith: normalizeCompareWith(input.compareWith, input.writingMode), strategyMode: normalizeStrategyMode(input.strategyMode), recentTitles: normalizeRecentTitles(input.recentTitles),
       templateId, references: provider ? await blogReferences(db, campusId, templateId) : [] } : {}),
     selectedFiles,
   };

@@ -891,6 +891,38 @@ function mainTextGuide() {
   return `\n\n[작성 기준] 브랜드 방향: ${BRAND_GUIDE[brand]||'확인 필요'}. 확인되지 않은 과정·성과·수치·주소는 쓰지 마세요. 인사말·링크·상담전화·주소·마지막 문구·해시태그는 앱이 따로 붙이므로 본문에 넣지 마세요.`;
 }
 
+// 생성 결과의 검수 메모: 발행 판정(생성 성공과 별개) · 편집 설계 · 차별화 지적 · 문체 편집 내역 · 사실 확인 · 운영자 질문.
+// 공개 원고에는 넣지 않는다.
+function renderEditorial(generated) {
+  const box = $('blogEditorial');
+  if (!box) return;
+  const e = generated?.editorial, p = generated?.publish, plan = generated?.modePlan;
+  if (!e && !p) { box.hidden = true; box.innerHTML = ''; return; }
+  const list = (items) => items?.length ? `<ul>${items.map((t) => `<li>${h(t)}</li>`).join('')}</ul>` : '';
+  box.innerHTML = [
+    p ? `<p class="blog-editorial-status" data-status="${h(p.status)}"><b>발행 판정: ${h(p.label)}</b> <small>생성은 끝났지만 발행 여부는 담당자가 확인한 뒤 정합니다.</small></p>${list(p.reasons)}` : '',
+    plan ? `<details><summary>편집 설계 (${h(String(generated.writingMode || 'seo').toUpperCase())})</summary>${list([plan.readerQuestion && `해결할 질문: ${plan.readerQuestion}`, plan.introRole && `도입부 역할: ${plan.introRole}`, plan.flow?.length && `전개: ${plan.flow.join(' → ')}`, plan.keyUnit && `핵심 설명 단위: ${plan.keyUnit}`, plan.outcome && `독자가 얻는 것: ${plan.outcome}`].filter(Boolean))}</details>` : '',
+    generated.differentiation?.length ? `<details open><summary>다른 작성 방식 후보와 차별화 부족</summary>${list(generated.differentiation)}</details>` : '',
+    e ? `<details><summary>문체 편집: ${h(e.label)}</summary>${e.changes?.length ? `<ul>${e.changes.map((c) => `<li><s>${h(c.before)}</s> → ${c.after ? h(c.after) : '(삭제)'} <small>${h(c.reason)}</small></li>`).join('')}</ul>` : ''}${e.problems?.length ? `<p>편집하지 않은 이유</p>${list(e.problems)}` : ''}</details>` : '',
+    e?.factChecks?.length ? `<details open><summary>사실 확인이 필요한 부분</summary>${list(e.factChecks)}</details>` : '',
+    e?.operatorQuestions?.length ? `<details open><summary>운영자가 답해 주면 글이 구체적이 되는 질문</summary>${list(e.operatorQuestions)}</details>` : '',
+  ].join('');
+  box.hidden = false;
+}
+
+// 문체·진정성 편집 단계. 실패하면 생성된 원고를 그대로 쓴다(원고를 잃지 않음).
+async function styleEdit(generated, direction, campusId, signal) {
+  const facts = JSON.stringify({ request: direction, photoInstructions: blogWorkflow?.instructions() || null }).slice(0, 6000);
+  try {
+    return await api('/api/data-core/content/blog/style-edit', { method: 'POST', signal, headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ campusId, writingMode: generated.writingMode || 'seo', title: generated.title, lead: generated.lead, body: generated.body, facts,
+        missingInfo: generated.missingInfo || [], warnings: generated.warnings || [], requestId: crypto.randomUUID() }) });
+  } catch (error) {
+    if (error.name === 'AbortError') throw error;
+    return { editorial: { status: 'failed', label: '문체 편집 못 함(원고 그대로)', changes: [], factChecks: [], operatorQuestions: [], problems: [error.message] } };
+  }
+}
+
 async function runAi(captionOnly = false, quick = false, writingMode = state.blogWritingMode || 'seo') {
   if (state.busy || !canWrite()) return;
   if(state.sourceApp==='blog'&&$('draftContent').value.trim()&&!confirm('본문 전체를 새로 작성할까요? 기존 본문을 교체합니다.'))return;
@@ -915,6 +947,7 @@ async function runAi(captionOnly = false, quick = false, writingMode = state.blo
   $('retryCaption').hidden = true;
   $('aiStatus').textContent = captionOnly ? '홍보 문구를 작성하고 있습니다…' : instagram ? '사진을 분석하고 홍보 이미지를 편집하고 있습니다…' : '사진을 AI 분석에 맞게 준비하고 있습니다…';
   let imageSaved = false;
+  renderEditorial(null);
   const post = (path, body) => api('/api/data-core/content/' + path, { method: 'POST', headers: { 'content-type': 'application/json' }, signal, body: JSON.stringify({ ...body, sourceApp, campusId, requestId: crypto.randomUUID() }) });
   try {
     if (instagram && !captionOnly) {
@@ -945,7 +978,11 @@ async function runAi(captionOnly = false, quick = false, writingMode = state.blo
       const form = new FormData();
       const keywordSettings = textPresets?.values();
       state.blogTitlePrefix = titlePrefix(keywordSettings?.keywords || [], keywordSettings?.keywordBrand, state.blogRecentRawTitles || []);
-      form.set('input', JSON.stringify({ selectedFileIds: ids, notes: direction + mainTextGuide(), sourceApp, campusId, writingMode: state.blogWritingMode || 'seo', strategyMode: $('strategyMode').value, recentTitles, keywordBrand: keywordSettings?.keywordBrand, keywordTags: normalizeTags(keywordSettings?.userHashtags || ''), templateId: $('blogTemplate')?.value, photoInstructions:blogWorkflow?.instructions(),requestId: crypto.randomUUID() }));
+      // 같은 사진·요청으로 이미 만든 다른 작성 방식 후보: 서버가 제목만 바꾼 유사 본문인지 비교한다.
+      const candidateKey = JSON.stringify([[...ids].sort(), direction, $('blogTemplate')?.value || '']);
+      if (state.blogCandidates?.key !== candidateKey) state.blogCandidates = { key: candidateKey, byMode: {} };
+      const compareWith = Object.entries(state.blogCandidates.byMode).filter(([mode]) => mode !== (state.blogWritingMode || 'seo')).map(([mode, c]) => ({ mode, ...c }));
+      form.set('input', JSON.stringify({ selectedFileIds: ids, notes: direction + mainTextGuide(), sourceApp, campusId, writingMode: state.blogWritingMode || 'seo', strategyMode: $('strategyMode').value, recentTitles, keywordBrand: keywordSettings?.keywordBrand, keywordTags: normalizeTags(keywordSettings?.userHashtags || ''), templateId: $('blogTemplate')?.value, photoInstructions:blogWorkflow?.instructions(), compareWith, requestId: crypto.randomUUID() }));
       for (const [id, blob] of photos) form.set(`photo:${id}`, blob, `${id}.jpg`);
       result = await api('/api/data-core/content/generate', { method: 'POST', signal, body: form });
     }
@@ -962,6 +999,9 @@ async function runAi(captionOnly = false, quick = false, writingMode = state.blo
     } else {
       // Blog: strategy + 3 title candidates + a body already fitted to generated.selectedTitleKind.
       // "바로 글 만들기" applies it immediately; the default flow shows the title picker first.
+      // 생성 → 사실 검수(서버 자동 검사·missingInfo) → 문체 편집 → 사실 보존 확인 → 사람 승인.
+      $('aiStatus').textContent = '문체를 다듬고 사실이 그대로인지 확인하고 있습니다…';
+      Object.assign(generated, await styleEdit(generated, direction, campusId, signal));
       state.blogStrategy = generated.strategy; state.blogTitles = generated.titles;
       state.pendingBlogGeneration=true;
       state.blogSelectedTitleKind = generated.selectedTitleKind; state.blogFittedKind = generated.selectedTitleKind;
@@ -969,8 +1009,10 @@ async function runAi(captionOnly = false, quick = false, writingMode = state.blo
       state.lastHashtags = generated.hashtags || []; state.lastCta = generated.cta || '';state.blogAiTags = generated.hashtags || [];
       state.blogNextTopics = generated.nextTopics || []; state.blogWarnings = generated.warnings || [];
       blogWorkflow?.setAiCaptions(generated.photoCaptions || []);
+      if (state.blogCandidates) state.blogCandidates.byMode[generated.writingMode || 'seo'] = { title: generated.title, lead: generated.lead, body: generated.body };
+      renderEditorial(generated);
       const needed = generated.missingInfo?.length ? ` · 더 적으면 좋은 정보: ${generated.missingInfo.join(', ')}` : '';
-      const referenced = needed + (generated.referenceTitles?.length ? ` · 우리 캠퍼스 잘된 글 ${generated.referenceTitles.length}편 참고` : '');
+      const referenced = (generated.publish ? ` · 발행 판정: ${generated.publish.label}` : '') + needed + (generated.referenceTitles?.length ? ` · 우리 캠퍼스 잘된 글 ${generated.referenceTitles.length}편 참고` : '');
       if (quick) {
         applyBlogTitleAndBody(state.blogSelectedTitleKind);
         assembleBlogResult();
