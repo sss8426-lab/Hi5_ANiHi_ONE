@@ -5,18 +5,22 @@ import test from 'node:test';
 const content = fs.readFileSync('public/data-core/content.js', 'utf8').replace(/\r\n/g, '\n');
 const html = fs.readFileSync('public/data-core/content.html', 'utf8');
 
-test('글 방향 선택(균형형 기본)은 블로그에서만 보이고, 인스타에서는 숨는다. 생성 버튼은 "블로그 글 만들기" 하나로 통일되어 있다', () => {
+test('글 방향 선택(균형형 기본)은 블로그에서만 보이고, 인스타에서는 숨는다. SEO·AEO·GEO 생성 버튼을 제공한다', () => {
   assert.match(html, /<select id="strategyMode"><option value="balanced" selected>균형형<\/option>/u);
   assert.match(content, /\$\('strategyModeField'\)\.hidden = instagram;/u);
-  // "바로 글 만들기" was a second, role-overlapping generate button; it was removed so exactly one
-  // generate action ("블로그 글 만들기") remains on screen.
+  // Separate editorial modes share the existing generation workflow.
   assert.doesNotMatch(html, /id="quickGenerateAi"/u);
   assert.doesNotMatch(content, /quickGenerateAi/u);
-  assert.match(content, /\$\('generateAi'\)\.textContent = instagram \? 'AI 보조 이미지 편집' : '블로그 글 만들기';/u);
+  for (const [id, mode] of [['generateAeo','aeo'],['generateGeo','geo']]) {
+    assert.ok(html.includes(`id="${id}"`));
+    assert.ok(content.includes(`$('${id}').onclick = () => runAi(false, true, '${mode}')`));
+    assert.ok(content.includes(`$('${id}').hidden = instagram`));
+  }
+  assert.match(content, /\$\('generateAi'\)\.textContent = instagram \? 'AI 보조 이미지 편집' : 'SEO 글 만들기';/u);
 });
 
 test('runAi는 quick 파라미터로 바로 글 만들기와 단계별(제목 선택) 흐름을 분기하고, 인스타 경로는 그대로 유지한다', () => {
-  assert.match(content, /async function runAi\(captionOnly = false, quick = false\) \{/u);
+  assert.match(content, /async function runAi\(captionOnly = false, quick = false, writingMode = state\.blogWritingMode \|\| 'seo'\) \{/u);
   // Instagram remains JSON-based, with additive material/consent policy.
   assert.match(content, /if \(instagram\) \{\s*\n\s*result = await post\('generate', \{ selectedFileIds: ids, notes: direction, material \}\);/u);
   // Blog sends strategyMode/recentTitles (and the 고정 키워드 brand) alongside the existing fields; multipart shape otherwise unchanged.
@@ -67,5 +71,5 @@ test('다음 콘텐츠 아이디어 클릭은 명령창을 채우고, 초안 저
 });
 
 test('busy 상태는 생성/제목 재생성 버튼들도 함께 비활성화한다', () => {
-  assert.match(content, /'generateAi','regenerateAi','regenerateTitles'/u);
+  assert.match(content, /'generateAi','generateAeo','generateGeo','regenerateAi','regenerateTitles'/u);
 });

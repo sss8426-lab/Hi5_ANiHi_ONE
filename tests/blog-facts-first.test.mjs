@@ -33,7 +33,7 @@ test('수상 글에 사실이 없어 AI가 "자료가 없다"는 말을 본문�
     assert.equal(result.status, 200, JSON.stringify(result.body));
     assert.equal(calls.length, 2, 'one corrective retry, even with photo instructions');
     assert.match(calls[0].instructions, /32\) 입력에 필요한 사실.*missingInfo에 짧게 적고/);
-    assert.match(calls[0].instructions, /핵심 키워드 하나를 골라 제목·상단 답변·본문·하단 요약을 합쳐 3~5번/);
+    assert.match(calls[0].instructions, /반복 횟수나 밀도를 목표로 삼지/);
     assert.match(calls[1].instructions, /본문에 자료가 부족하다는 설명이 들어갔습니다/);
     assert.ok(calls[0].text.format.schema.required.includes('missingInfo'));
     assert.equal(result.body.generated.body, '학생들은 장면을 먼저 나누는 연습으로 작품을 시작했어요.');
@@ -71,7 +71,7 @@ test('지침이 금지한 표현(무료 체험·전원 합격 등)은 입력에 
 
 test('블로그 글 만들기는 추천 제목으로 바로 완성본을 보여 주고, 다른 제목은 위의 칩으로 바꾼다', () => {
   const content = fs.readFileSync('public/data-core/content.js', 'utf8');
-  assert.match(content, /\$\('generateAi'\)\.onclick = \(\) => runAi\(false, state\.sourceApp === 'blog'\);/);
+  assert.match(content, /\$\('generateAi'\)\.onclick = \(\) => runAi\(false, state\.sourceApp === 'blog', 'seo'\);/);
 });
 
 test('흔한 오해 바로잡기는 입시·진로 정보 글에만 들어간다', () => {

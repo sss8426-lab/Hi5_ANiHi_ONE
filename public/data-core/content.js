@@ -4,7 +4,7 @@ import {mountTextPresets} from './content-text-presets.js?v=20260929-seo';
 import {postHashtags,hashtagText,titlePrefix,withTitlePrefix,stripTitlePrefix} from './campus-seo-keywords.js?v=20260929-seo';
 import {normalizeTags} from './content-preset-catalog.js';
 import {captionTail,assemblePost} from './content-caption.js?v=20260924-order';
-import {mountBlogWorkflow,TITLE_KIND_LABELS} from './blog-workflow.js?v=20261001-guide';
+import {mountBlogWorkflow,TITLE_KIND_LABELS} from './blog-workflow.js?v=20261016-writing-modes';
 import {optimizeImageForAi} from './image-ai-optimize.js?v=20260923-imgfix';
 
 const state = {
@@ -216,7 +216,8 @@ function setSourceApp(sourceApp) {
   $('draftContent').rows = instagram ? 5 : 12;
   $('commandLabel').textContent = instagram ? '어떤 느낌으로 편집할까요?' : '어떤 글을 만들까요?';
   $('aiCommand').placeholder = instagram ? 'AI 보조 배경을 밝고 차분하게 보정해줘. 실제 수업·학생 작품·성과처럼 보이는 내용과 글자는 추가하지 말아줘.' : '고1 칸만화 수업 사진입니다. 인체와 장면 연출을 연습한 내용을 학부모가 이해하기 쉽게 작성해줘.';
-  $('generateAi').textContent = instagram ? 'AI 보조 이미지 편집' : '블로그 글 만들기';
+  $('generateAi').textContent = instagram ? 'AI 보조 이미지 편집' : 'SEO 글 만들기';
+  $('generateAeo').hidden = instagram; $('generateGeo').hidden = instagram;
   $('regenerateAi').textContent = instagram ? '다시 편집' : '전체 다시 작성';
   $('copyContent').textContent = instagram ? '문구 복사' : '글 복사';
   $('aiPrivacy').textContent = instagram ? 'AI 이미지 편집은 선택한 대표 사진 1장에 대해 실행됩니다.' : '선택한 사진은 AI 분석에 맞게 자동 최적화되어 전송됩니다. 자료보관함 원본 파일은 변경되지 않습니다.';
@@ -394,6 +395,7 @@ function draftPayload() {
   if (state.sourceApp === 'instagram') metadata.instagramDesign = instagramProduction?.read();
   if (state.sourceApp === 'blog') {
     metadata.strategyMode = $('strategyMode').value;
+    metadata.writingMode = state.blogWritingMode || 'seo';
     if (state.blogStrategy) metadata.strategy = state.blogStrategy;
     if (state.blogTitles) metadata.titles = state.blogTitles;
     if (state.blogSelectedTitleKind) metadata.selectedTitleKind = state.blogSelectedTitleKind;
@@ -472,7 +474,7 @@ function resetDraftForm(clearSource = true) {
   $('existingDraftBadge').classList.add('hidden');
   state.blogStrategy = null; state.blogTitles = null; state.blogSelectedTitleKind = null; state.blogFittedKind = null;
   state.currentLead = ''; state.currentBody = ''; state.lastHashtags = []; state.lastCta = ''; state.blogNextTopics = []; state.blogWarnings = [];
-  $('strategyMode').value = 'balanced';
+  $('strategyMode').value = 'balanced'; state.blogWritingMode = 'seo';
   $('titlePicker').hidden = true;
   $('titlePickerStatus').textContent = '';
   $('nextTopics').hidden = true;
@@ -504,7 +506,7 @@ function loadDraftIntoForm(draft) {
   state.selectedDerivedFileIds = Array.isArray(metadata.derivedFileIds) ? metadata.derivedFileIds.map(String) : [];
   // Additive, optional fields from the homefeed/search content-strategy work — absent on any draft
   // saved before this feature, which must still open normally (see AGENTS.md 기존 draft 호환).
-  $('strategyMode').value = metadata.strategyMode || 'balanced';
+  $('strategyMode').value = metadata.strategyMode || 'balanced'; state.blogWritingMode = metadata.blogPost?.writingMode || metadata.writingMode || 'seo';
   state.blogStrategy = metadata.strategy || null;
   state.blogTitles = metadata.titles || null;
   state.blogSelectedTitleKind = metadata.selectedTitleKind || null;
@@ -626,7 +628,9 @@ function bindEvents() {
   $('closeDraftsBtn').onclick = () => $('draftsDialog').close();
   // Blog: the writing guide asks for one ready title, so the recommended title is applied at once;
   // the other candidates stay one click away as chips above the title.
-  $('generateAi').onclick = () => runAi(false, state.sourceApp === 'blog');
+  $('generateAi').onclick = () => runAi(false, state.sourceApp === 'blog', 'seo');
+  $('generateAeo').onclick = () => runAi(false, true, 'aeo');
+  $('generateGeo').onclick = () => runAi(false, true, 'geo');
   $('regenerateAi').onclick = () => runAi(false, state.sourceApp === 'blog');
   $('retryCaption').onclick = () => runAi(true);
   $('cancelAi').onclick = () => state.aiController?.abort();
@@ -715,7 +719,7 @@ async function loadAiStatus() {
 function setAiBusy(busy) {
   state.busy = busy;
   $('manualWork').inert = busy;
-  for (const id of ['generateAi','regenerateAi','regenerateTitles','draftCampus','saveDraftBtn','newDraftBtn','deleteDraftBtn','manualDraft','clearFilesBtn','makeInstagramImage','saveDerivative']) $(id).disabled = busy || !canWrite();
+  for (const id of ['generateAi','generateAeo','generateGeo','regenerateAi','regenerateTitles','draftCampus','saveDraftBtn','newDraftBtn','deleteDraftBtn','manualDraft','clearFilesBtn','makeInstagramImage','saveDerivative']) $(id).disabled = busy || !canWrite();
   $('cancelAi').hidden = !busy;
   $('aiStatus').classList.toggle('busy', busy);
   if (!busy) derivativeEditor?.update(selectedFiles(), state.sourceApp === 'instagram');
@@ -887,9 +891,10 @@ function mainTextGuide() {
   return `\n\n[작성 기준] 브랜드 방향: ${BRAND_GUIDE[brand]||'확인 필요'}. 확인되지 않은 과정·성과·수치·주소는 쓰지 마세요. 인사말·링크·상담전화·주소·마지막 문구·해시태그는 앱이 따로 붙이므로 본문에 넣지 마세요.`;
 }
 
-async function runAi(captionOnly = false, quick = false) {
+async function runAi(captionOnly = false, quick = false, writingMode = state.blogWritingMode || 'seo') {
   if (state.busy || !canWrite()) return;
   if(state.sourceApp==='blog'&&$('draftContent').value.trim()&&!confirm('본문 전체를 새로 작성할까요? 기존 본문을 교체합니다.'))return;
+  state.blogWritingMode = writingMode;
   const generationStarted=performance.now();
   const priorDraft=draftSnapshot();
   const ids = [...state.selectedFileIds], direction = $('aiCommand').value.trim();
@@ -940,7 +945,7 @@ async function runAi(captionOnly = false, quick = false) {
       const form = new FormData();
       const keywordSettings = textPresets?.values();
       state.blogTitlePrefix = titlePrefix(keywordSettings?.keywords || [], keywordSettings?.keywordBrand, state.blogRecentRawTitles || []);
-      form.set('input', JSON.stringify({ selectedFileIds: ids, notes: direction + mainTextGuide(), sourceApp, campusId, strategyMode: $('strategyMode').value, recentTitles, keywordBrand: keywordSettings?.keywordBrand, keywordTags: normalizeTags(keywordSettings?.userHashtags || ''), templateId: $('blogTemplate')?.value, photoInstructions:blogWorkflow?.instructions(),requestId: crypto.randomUUID() }));
+      form.set('input', JSON.stringify({ selectedFileIds: ids, notes: direction + mainTextGuide(), sourceApp, campusId, writingMode: state.blogWritingMode || 'seo', strategyMode: $('strategyMode').value, recentTitles, keywordBrand: keywordSettings?.keywordBrand, keywordTags: normalizeTags(keywordSettings?.userHashtags || ''), templateId: $('blogTemplate')?.value, photoInstructions:blogWorkflow?.instructions(),requestId: crypto.randomUUID() }));
       for (const [id, blob] of photos) form.set(`photo:${id}`, blob, `${id}.jpg`);
       result = await api('/api/data-core/content/generate', { method: 'POST', signal, body: form });
     }
