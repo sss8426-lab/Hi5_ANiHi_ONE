@@ -217,7 +217,8 @@ export function recommendation(A, C) {
 }
 
 // ── 쪽별 HTML ──
-const FOOT = '<div class="ft"><b class="fl">ANiHi</b><span>부천입시본원 · WEBTOON &amp; ANIMATION</span></div>';
+// 1~4쪽 아래 띠: 고른 캠퍼스 이름(renderReport가 {{CAMPUS}}를 바꿔 넣는다. 캠퍼스를 고르기 전 상담은 부천입시본원)
+const FOOT = '<div class="ft"><b class="fl">ANiHi</b><span>{{CAMPUS}} · WEBTOON &amp; ANIMATION</span></div>';
 const logoImg = (cls = 'logo') => `<img class="${cls}" src="${LOGO}" alt="ANiHi 만화학원">`;
 const minText = (v) => (v == null ? '통학 미확인' : `하루 이동 ${v}분`);
 
@@ -558,10 +559,11 @@ export function renderReport(student, data, { withGuide = true } = {}) {
   const A = analyze(student, data);
   const C = compare(A, student);
   const rec = recommendation(A, C);
-  const pages = [{ name: '표지', html: coverPage(student) }];
+  const foot = (html) => html.replaceAll('{{CAMPUS}}', esc(academyOf(student, data)?.name || '부천입시본원'));
+  const pages = [{ name: '표지', html: foot(coverPage(student)) }];
   if (withGuide) {
     const guide = INFO_PAGES.split(/\n(?=<section)/);
-    ['수능변화', '내신변화', '등급제개편'].forEach((name, i) => pages.push({ name, html: guide[i] }));
+    ['수능변화', '내신변화', '등급제개편'].forEach((name, i) => pages.push({ name, html: foot(guide[i]) }));
   }
   pages.push({ name: '상담표', html: counselPage(student, A, data) });
   if (A.rows.length) pages.push({ name: '학교비교표', html: comparePage(student, A, C, data) });

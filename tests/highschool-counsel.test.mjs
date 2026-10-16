@@ -29,6 +29,12 @@ test('상담 자료: 예전 자료와 같은 9쪽, 저장 파일 이름 순서',
   assert.equal(out.analysis.band, '상위권', '국어·영어·사탐 점수−평균 평균 +9.5');
   assert.equal(out.analysis.rows[0].s, '중원고', '하루 이동이 가장 짧은 학교가 통학 1위');
   assert.equal(out.recommendation.list.at(-1).s, '부천정산고', '특성화고는 맨 아래');
+  // 1~4쪽 아래 띠는 고른 캠퍼스 이름
+  assert.ok(out.pages.slice(0, 4).every((p) => p.html.includes('<span>부천 애니 입시본원 · WEBTOON &amp; ANIMATION</span>')));
+  assert.ok(!out.html.includes('{{CAMPUS}}') && !out.html.includes('부천입시본원'));
+  const ansan = renderReport(student({ campusId: 'campus-ansan' }), data);
+  assert.equal(ansan.pages.slice(0, 4).filter((p) => p.html.includes('<span>안산 입시본원 · WEBTOON &amp; ANIMATION</span>')).length, 4);
+  assert.ok(renderReport(student({ campusId: '' }), data).pages[0].html.includes('<span>부천입시본원 · WEBTOON'), '캠퍼스를 고르기 전 상담');
 });
 
 test('상담 자료: 통학 미확인 학교는 뒤로, 다른 지역 희망은 빼고, 이름은 글자로', () => {
@@ -168,7 +174,7 @@ test('화면: 이름·학교·주소·캠퍼스·지망·성적표 사진만, �
   assert.ok(a > 0 && a < b && b < c, '대학합격 로드맵 바로 아래');
   const page = fs.readFileSync('public/data-core/highschool.html', 'utf8');
   const js = fs.readFileSync('public/data-core/highschool.js', 'utf8');
-  assert.match(page, /highschool\.js\?v=20261017-hs7/);
+  assert.match(page, /highschool\.js\?v=20261017-hs8/);
   assert.deepEqual([...page.matchAll(/<input name="(\w+)"/g)].map((m) => m[1]), ['name', 'middleSchool', 'address']);
   assert.match(page, /id="hsCampus" role="radiogroup"/);
   assert.match(page, /id="hsPhoto"/);
