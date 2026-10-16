@@ -1,8 +1,8 @@
 // 고교 진학 상담 화면: 이름·학교·주소·캠퍼스·1~5지망·성적표 사진만 넣으면 → A4 9쪽 상담 자료 → PDF·이미지로 바로 저장.
 // 성적표 사진은 학년·학기를 스스로 나눠 채우고, 통학은 상담 자료를 만들 때 카카오맵으로 자동 계산한다.
 // 화면 상태는 주소 #의 뒷부분으로 나눈다(#new, #edit=ID, #report=ID). 뒤로 가기가 한 단계씩 돌아간다.
-import { renderReport, gradeBook, pickByAverage, isGirlsMiddle, WISH_RULES, SEMS, SUBJECTS, esc } from './highschool-report.js?v=20261016-hs6';
-import { savePdf, saveImages } from './highschool-export.js?v=20261016-hs6';
+import { renderReport, gradeBook, pickByAverage, isGirlsMiddle, WISH_RULES, SEMS, SUBJECTS, esc } from './highschool-report.js?v=20261017-hs7';
+import { savePdf, saveImages } from './highschool-export.js?v=20261017-hs7';
 
 const API = '/api/data-core/highschool';
 const $ = (id) => document.getElementById(id);
@@ -47,7 +47,8 @@ function renderList() {
 // ── 입력 ──
 // 4·5지망(slot 3·4)은 학교 대신 '내신평균 높은 학교 / 낮은 학교 / 거리 최우선'을 고를 수 있다(자료를 만들 때 학교를 고름).
 function schoolOptions(selected, slot = 0, rule = '') {
-  const groups = [['부천', (s) => s.region === '부천' && !s.special], ['인천', (s) => s.region === '인천' && !s.special], ['특성화고', (s) => s.special]];
+  const regions = [...new Set(schoolList().filter((s) => !s.special).map((s) => s.region))];
+  const groups = [...regions.map((r) => [r, (s) => s.region === r && !s.special]), ['특성화·예술고', (s) => s.special]];
   const known = rule || !selected || schoolList().some((s) => s.name === selected);
   const auto = slot >= 3 ? `<optgroup label="자동으로 고르기">${Object.entries(WISH_RULES).map(([k, label]) => `<option value="auto:${k}"${rule === k ? ' selected' : ''}>${label}</option>`).join('')}</optgroup>` : '';
   if (rule) selected = '';
@@ -192,7 +193,7 @@ async function makeReport() {
     if (state.reading) { notice('성적표 사진을 다 읽을 때까지 기다리는 중…'); await state.reading; s = readForm(); }
     notice('통학 시간을 찾고 자료를 만드는 중…');
     s = resolveAverageWishes(s);
-    if ((s.wishRules || []).some((r, i) => (r === 'high' || r === 'low') && !s.wishes[i])) notice('주소에서 부천·인천 지역을 알 수 없어 내신평균으로 학교를 고르지 못했습니다. 도로명주소를 확인해 주세요.', 'warn');
+    if ((s.wishRules || []).some((r, i) => (r === 'high' || r === 'low') && !s.wishes[i])) notice('주소에서 지역(부천·인천·파주·안산·울산·광진)을 알 수 없어 내신평균으로 학교를 고르지 못했습니다. 도로명주소를 확인해 주세요.', 'warn');
     try { s = await ensureRoutes(s); } catch (error) { notice(`통학 시간을 찾지 못했습니다: ${error.message} (통학은 ‘미확인’으로 나옵니다)`, 'warn'); }
     const saved = await save(s);
     location.hash = `report=${encodeURIComponent(saved.id)}`;

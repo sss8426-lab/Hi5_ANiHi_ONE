@@ -154,6 +154,11 @@ test('API: 카카오맵 대중교통 길찾기 (가짜 응답) — 캠퍼스 학
     assert.ok([...girlsAllowed.body.extras].length === 4 && [...boys.body.extras].every((n) => !data.schools.find((x) => x.name === n).girls));
     const ansan = await h.request('POST', '/api/data-core/highschool/routes', users.master, body('campus-ansan'));
     assert.ok(ansan.body.schools.상원고.academy, '다른 캠퍼스는 학교→학원도 카카오로 찾는다');
+    // 파주 학생: 비교 학교는 파주 일반고에서 채운다(2026-10-17 추가팩)
+    const paju = await h.request('POST', '/api/data-core/highschool/routes', users.master, { address: '경기도 파주시 가상로 1', campusId: 'campus-paju', schools: ['교하고'] });
+    assert.equal(paju.status, 200, JSON.stringify(paju.body));
+    assert.equal(paju.body.extras.length, 4);
+    assert.ok(paju.body.extras.every((n) => data.schools.find((x) => x.name === n).region === '파주'), JSON.stringify(paju.body.extras));
   } finally { globalThis.fetch = realFetch; await h.mf.dispose(); }
 });
 
@@ -163,7 +168,7 @@ test('화면: 이름·학교·주소·캠퍼스·지망·성적표 사진만, �
   assert.ok(a > 0 && a < b && b < c, '대학합격 로드맵 바로 아래');
   const page = fs.readFileSync('public/data-core/highschool.html', 'utf8');
   const js = fs.readFileSync('public/data-core/highschool.js', 'utf8');
-  assert.match(page, /highschool\.js\?v=20261016-hs6/);
+  assert.match(page, /highschool\.js\?v=20261017-hs7/);
   assert.deepEqual([...page.matchAll(/<input name="(\w+)"/g)].map((m) => m[1]), ['name', 'middleSchool', 'address']);
   assert.match(page, /id="hsCampus" role="radiogroup"/);
   assert.match(page, /id="hsPhoto"/);
@@ -218,7 +223,7 @@ test('4·5지망 자동으로 고르기: 내신평균 높은/낮은 학교는 �
   assert.ok(!data.schools.find((s) => s.name === high).girls && !data.schools.find((s) => s.name === low).girls, '남녀를 모르면 여고 제외');
   const girl = pickByAverage(data, { ...st, middleSchool: '가상여중' }, 'high', [], 20);
   assert.ok(girl.some((n) => data.schools.find((s) => s.name === n).girls), '여중이면 여고도 후보');
-  assert.deepEqual(pickByAverage(data, { address: '울산광역시 북구', wishes: [] }, 'high', []), [], '지역을 모르면 고르지 않음');
+  assert.deepEqual(pickByAverage(data, { address: '강원특별자치도 춘천시', wishes: [] }, 'high', []), [], '지역을 모르면 고르지 않음');
   const html = renderReport({ ...student(), wishes: ['상원고', '중원고', '부명고', high, ''], wishRules: ['', '', '', 'high', ''] }, data).html;
   assert.ok(html.includes(`→ ${high}(내신평균 높은 학교)`), '상담표에 고른 기준을 함께 적는다');
 });
@@ -228,4 +233,33 @@ test('화면: 4·5지망에 자동으로 고르기, 성적표 칸에 끌어다 �
   assert.match(page, /id="hsPhotoBox"/);
   assert.ok(js.includes("photoBox.addEventListener('drop'"));
   assert.ok(js.includes("slot >= 3 ? `<optgroup label=\"자동으로 고르기\">"));
+});
+
+test('4개 캠퍼스 학교 자료(2026-10-17 추가팩): 파주·안산·울산·광진 35교, 주소로 지역을 찾고 같은 지역끼리 비교', () => {
+  const by = (r) => data.schools.filter((s) => s.region === r);
+  assert.deepEqual(['파주', '안산', '울산', '광진'].map((r) => by(r).length), [9, 9, 9, 8]);
+  assert.equal(new Set(data.schools.map((s) => s.name)).size, data.schools.length, '학교 이름이 겹치지 않음');
+  assert.deepEqual(data.schools.filter((s) => ['파주', '안산', '울산', '광진'].includes(s.region) && s.special).map((s) => s.name).sort(), ['고양예고', '선화예고', '안산디자인문화고', '울산애니원고'].sort());
+  assert.ok(data.schools.find((s) => s.name === '대원여고').girls);
+  assert.deepEqual(Object.keys(data.schools.find((s) => s.name === '다율고').sem), ['2026-1'], '없는 학기는 비워 둠(0으로 채우지 않음)');
+  for (const [addr, r] of [['경기도 파주시 가상로 1', '파주'], ['경기도 안산시 단원구 가상로 1', '안산'], ['울산광역시 북구 가상로 1', '울산'], ['서울특별시 광진구 가상로 1', '광진'], ['서울특별시 강남구 가상로 1', '서울']]) {
+    assert.equal(regionFromAddress(addr), r, addr);
+  }
+  const M = model(data);
+  assert.ok(M.regAvg['파주'] != null && M.regAvg['광진'] != null, '지역 평균');
+  const st = { address: '경기도 파주시 가상로 1', middleSchool: '가상중학교', wishes: ['교하고'] };
+  const [high] = pickByAverage(data, st, 'high', ['교하고']);
+  assert.equal(data.schools.find((s) => s.name === high).region, '파주', '파주 학생은 파주 일반고 중에서');
+  const out = renderReport(student({ address: '경기도 파주시 가상로 1', campusId: 'campus-ansan', wishes: ['교하고', '운정고', '한빛고', '', ''], commute: {} }), data);
+  assert.ok(out.html.includes('파주 고등학교 고1·고2 국어·영어·수학 평균표'));
+  const yerim = data.schools.find((x) => x.name === '예림디자인고');
+  assert.deepEqual(Object.keys(yerim.sem), ['2026-1', '2025-2'], '예림디자인고 공시 성적(별도 추가팩)');
+  assert.ok(yerim.special && yerim.address.includes('구로구'));
+});
+
+test('인쇄 모양: 2·3쪽 설명 목록(ul.bl)은 9쪽 막대 이름 폭(34mm)을 물려받지 않고, 8쪽 흐름 글자는 한 줄', () => {
+  const css = fs.readFileSync(new URL('../public/data-core/highschool-report.css', import.meta.url), 'utf8');
+  assert.ok(!css.includes('.hs-report .bl{'), '막대 이름은 .bar 안에서만');
+  assert.ok(css.includes('.hs-report .bar .bl{width:34mm'));
+  assert.match(css, /\.gp \.fl\{[^}]*white-space:nowrap/);
 });
