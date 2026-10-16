@@ -63,6 +63,20 @@ export function usesSangdongTimes(student, data) {
   return /상동로\s*109/.test(academyOf(student, data)?.address || '');
 }
 
+// 4·5지망 자동으로 고르기: 내신평균(고1·고2 국·영·수) 높은 학교 / 낮은 학교 / 거리 최우선(서버가 집에서 가까운 순으로 고름)
+export const WISH_RULES = { high: '내신평균 높은 학교', low: '내신평균 낮은 학교', near: '거리 최우선' };
+// 여중 학생이면 여고도 후보에 넣는다(성별 입력이 없어 중학교 이름으로만 본다)
+export const isGirlsMiddle = (middleSchool) => /여중|여자중/.test(String(middleSchool || ''));
+export function pickByAverage(data, student, rule, exclude, count = 1) {
+  const M = model(data);
+  const region = student.region || regionFromAddress(student.address);
+  if (!region || !['high', 'low'].includes(rule)) return [];
+  const female = isGirlsMiddle(student.middleSchool);
+  return (data.schools || []).filter((s) => s.region === region && !s.special && (female || !s.girls) && !exclude.includes(s.name))
+    .map((s) => ({ name: s.name, base: M.baseOf(s.name) })).filter((s) => s.base != null)
+    .sort((a, b) => (rule === 'high' ? b.base - a.base : a.base - b.base)).slice(0, count).map((s) => s.name);
+}
+
 export function model(data) {
   const schools = new Map((data.schools || []).map((s) => [s.name, s]));
   const semesters = data.semesters || [];
@@ -256,7 +270,7 @@ export function counselPage(student, A, data) {
   const head = `${logoImg()}
 <div class="tt"><h1>고교 진학 상담표</h1><span>${esc(academyOf(student, data)?.name || academy)}</span></div>
 <div class="meta"><div><i>학생</i><b>${esc(student.name)}</b></div><div><i>학교</i>${esc(`${String(student.middleSchool || '').replace(/중학교$/, '중')} ${student.grade || 3}학년`.trim())}</div><div class="ad"><i>주소</i>${esc(student.address || '')}</div></div>
-<p class="info">기존 희망순서: ${wishes.length ? wishes.map((s) => esc(M.dn(s))).join(' → ') : '미기재'}</p>`;
+<p class="info">기존 희망순서: ${wishes.length ? (student.wishes || []).map((s, i) => (s ? esc(M.dn(s)) + (WISH_RULES[student.wishRules?.[i]] ? `(${WISH_RULES[student.wishRules[i]]})` : '') : '')).filter(Boolean).join(' → ') : '미기재'}</p>`;
   if (!rows.length) return `<section class="page">${head}<p class="box">희망 학교가 아직 없어 통학·성적 비교를 하지 못했습니다. 희망 학교(1~5지망)를 넣으면 바로 작성합니다.</p></section>`;
   const cellHtml = (c) => (c ? `<b>${esc(c.head)}</b>${c.sub ? `<small>${esc(c.sub)}</small>` : ''}` : '<span class="na">미확인</span>');
   const unknown = rows.filter((x) => x.total == null).map((x) => M.dn(x.s));

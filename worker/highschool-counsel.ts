@@ -101,6 +101,8 @@ export function cleanStudent(input: unknown) {
     address: text(v.address, 120), campusId: text(v.campusId, 60),
     entryYear: Number.isInteger(entryYear) && entryYear >= 2020 && entryYear <= 2100 ? entryYear : '',
     wishes: (Array.isArray(v.wishes) ? v.wishes : []).map((s) => text(s, 30)).slice(0, 5),
+    // 지망 칸별 자동으로 고르기(내신평균 높은/낮은 학교, 거리 최우선). 고른 학교 이름은 wishes에 들어간다.
+    wishRules: Array.from({ length: 5 }, (_, i) => (['high', 'low', 'near'].includes(String((Array.isArray(v.wishRules) ? v.wishRules : [])[i])) ? String((v.wishRules as unknown[])[i]) : '')),
     // 집에서 가까운 같은 지역 일반고(자동으로 채운 비교 학교)
     extras: (Array.isArray(v.extras) ? v.extras : []).map((s) => text(s, 30)).filter(Boolean).slice(0, 5),
     grades: cleanGrades(v.grades),
@@ -286,18 +288,22 @@ async function findRoutes(request: Request, env: HighschoolEnv, input: Row) {
   // 성별 정보가 없으므로 여고는 자동으로 넣지 않는다(희망하면 지망에 넣으면 된다).
   const region = regionOfAddress(address);
   const inRegion = names.filter((n) => { const s = data.schools.find((x) => x.name === n); return !s || s.special || !region || s.region === region; }).length;
-  const extras: string[] = [];
-  if (region && input.fill !== false && inRegion < 5) {
-    const pool = data.schools.filter((s) => s.region === region && !s.special && !s.girls && !names.includes(s.name));
+  // 4·5지망 '거리 최우선'은 같은 지역 일반고 중 집에서 가장 가까운 학교로 고른다(여중 학생이면 여고 포함).
+  const nearCount = Math.max(0, Math.min(2, Number(input.near) || 0));
+  const extras: string[] = [], picked: string[] = [];
+  if (region && (nearCount || (input.fill !== false && inRegion < 5))) {
+    const pool = data.schools.filter((s) => s.region === region && !s.special && (input.female === true || !s.girls) && !names.includes(s.name));
     const near: Array<{ name: string; d: number }> = [];
     for (const s of pool) {
       try { const at = await pointOf(s.name); if (at) near.push({ name: s.name, d: walkMinutes(home, at) }); } catch (error) { if (error instanceof DataCoreAccessError && error.status === 503) throw error; }
     }
-    for (const { name } of near.sort((a, b) => a.d - b.d).slice(0, 5 - inRegion)) { result[name] = await routeTo(name); extras.push(name); }
+    const order = near.sort((a, b) => a.d - b.d).map((x) => x.name);
+    for (const name of order.slice(0, nearCount)) { result[name] = await routeTo(name); picked.push(name); }
+    if (input.fill !== false) for (const name of order.slice(nearCount, nearCount + Math.max(0, 5 - inRegion - picked.length))) { result[name] = await routeTo(name); extras.push(name); }
   }
   const back = academy ? await transit(env, academy, home, request.signal) : null;
   const d = new Date(Date.now() + 9 * 3600e3);
-  return { schools: result, extras, back, checkedAt: `${d.getUTCFullYear()}.${String(d.getUTCMonth() + 1).padStart(2, '0')}.${String(d.getUTCDate()).padStart(2, '0')}` };
+  return { schools: result, near: picked, extras, back, checkedAt: `${d.getUTCFullYear()}.${String(d.getUTCMonth() + 1).padStart(2, '0')}.${String(d.getUTCDate()).padStart(2, '0')}` };
 }
 // 학교 위치는 바뀌지 않으니 작업자(인스턴스)마다 한 번만 찾는다.
 const SCHOOL_POINTS = new Map<string, Point | null>();

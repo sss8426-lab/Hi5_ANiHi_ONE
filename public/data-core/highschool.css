@@ -110,3 +110,6 @@
 .hs-campus-chip:hover{border-color:#7fb79a}
 .hs-campus-chip[aria-checked=true]{background:#1E4B3E;border-color:#1E4B3E;color:#fff;font-weight:700}
 .hs-row{grid-template-columns:minmax(120px,1fr) minmax(160px,2fr) auto}
+
+.hs-photo-box{transition:background .15s,border-color .15s}
+.hs-photo-box.hs-drop-active{border:2px dashed #1E4B3E;background:#E9F5EE}

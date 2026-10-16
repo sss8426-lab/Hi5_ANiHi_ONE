@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { encode } from 'fast-png';
 import { libraryHarness, users, A, B } from './support/library-harness.mjs';
-import { renderReport, analyze, compare, gradeBook, bandOf, regionFromAddress, segment } from '../public/data-core/highschool-report.js';
+import { renderReport, analyze, compare, gradeBook, bandOf, regionFromAddress, segment, pickByAverage, model } from '../public/data-core/highschool-report.js';
 import { makePdf } from '../public/data-core/highschool-export.js';
 
 // 고교 진학 상담 (2026-10-16). 가상 학생만 씁니다.
@@ -144,6 +144,14 @@ test('API: 카카오맵 대중교통 길찾기 (가짜 응답) — 캠퍼스 학
     }
     const five = await h.request('POST', '/api/data-core/highschool/routes', users.teacher, body(A, ['상원고', '중원고', '부명고', '상일고', '심원고']));
     assert.deepEqual(five.body.extras, [], '희망이 5곳이면 채우지 않는다');
+    // 4·5지망 '거리 최우선': 가까운 같은 지역 일반고를 골라 돌려주고, 비교 학교는 그만큼 덜 채운다
+    const nearPick = await h.request('POST', '/api/data-core/highschool/routes', users.teacher, { ...body(A, ['상원고', '중원고', '부명고']), near: 2 });
+    assert.equal(nearPick.body.near.length, 2, JSON.stringify(nearPick.body));
+    assert.deepEqual(nearPick.body.extras, [], '희망 3 + 거리 최우선 2 = 5곳');
+    assert.ok(nearPick.body.near.every((n) => !data.schools.find((x) => x.name === n).girls && nearPick.body.schools[n].home));
+    const girlsAllowed = await h.request('POST', '/api/data-core/highschool/routes', users.teacher, { ...body(A, ['상원고']), near: 0, female: true });
+    const boys = await h.request('POST', '/api/data-core/highschool/routes', users.teacher, { ...body(A, ['상원고']), near: 0 });
+    assert.ok([...girlsAllowed.body.extras].length === 4 && [...boys.body.extras].every((n) => !data.schools.find((x) => x.name === n).girls));
     const ansan = await h.request('POST', '/api/data-core/highschool/routes', users.master, body('campus-ansan'));
     assert.ok(ansan.body.schools.상원고.academy, '다른 캠퍼스는 학교→학원도 카카오로 찾는다');
   } finally { globalThis.fetch = realFetch; await h.mf.dispose(); }
@@ -155,7 +163,7 @@ test('화면: 이름·학교·주소·캠퍼스·지망·성적표 사진만, �
   assert.ok(a > 0 && a < b && b < c, '대학합격 로드맵 바로 아래');
   const page = fs.readFileSync('public/data-core/highschool.html', 'utf8');
   const js = fs.readFileSync('public/data-core/highschool.js', 'utf8');
-  assert.match(page, /highschool\.js\?v=20261016-hs5/);
+  assert.match(page, /highschool\.js\?v=20261016-hs6/);
   assert.deepEqual([...page.matchAll(/<input name="(\w+)"/g)].map((m) => m[1]), ['name', 'middleSchool', 'address']);
   assert.match(page, /id="hsCampus" role="radiogroup"/);
   assert.match(page, /id="hsPhoto"/);
@@ -197,4 +205,27 @@ test('성적표 사진 읽기: 찍힌 칸 그대로("82/77.0", "B(168)")로 점�
     assert.match(sent.instructions, /성적증명서·생활기록부 형식/);
     assert.ok(sent.text.format.schema.required.includes('rotation'));
   } finally { globalThis.fetch = realFetch; await h.mf.dispose(); }
+});
+
+test('4·5지망 자동으로 고르기: 내신평균 높은/낮은 학교는 같은 지역 일반고 중 고1·고2 국·영·수 평균으로, 여중이면 여고도 후보', () => {
+  const M = model(data);
+  const base = (n) => M.baseOf(n);
+  const st = { address: '경기도 부천시 원미구 가상로 1', middleSchool: '가상중학교', wishes: ['상원고'] };
+  const [high] = pickByAverage(data, st, 'high', ['상원고']), [low] = pickByAverage(data, st, 'low', ['상원고']);
+  const pool = data.schools.filter((s) => s.region === '부천' && !s.special && !s.girls && s.name !== '상원고' && base(s.name) != null);
+  assert.equal(base(high), Math.max(...pool.map((s) => base(s.name))));
+  assert.equal(base(low), Math.min(...pool.map((s) => base(s.name))));
+  assert.ok(!data.schools.find((s) => s.name === high).girls && !data.schools.find((s) => s.name === low).girls, '남녀를 모르면 여고 제외');
+  const girl = pickByAverage(data, { ...st, middleSchool: '가상여중' }, 'high', [], 20);
+  assert.ok(girl.some((n) => data.schools.find((s) => s.name === n).girls), '여중이면 여고도 후보');
+  assert.deepEqual(pickByAverage(data, { address: '울산광역시 북구', wishes: [] }, 'high', []), [], '지역을 모르면 고르지 않음');
+  const html = renderReport({ ...student(), wishes: ['상원고', '중원고', '부명고', high, ''], wishRules: ['', '', '', 'high', ''] }, data).html;
+  assert.ok(html.includes(`→ ${high}(내신평균 높은 학교)`), '상담표에 고른 기준을 함께 적는다');
+});
+
+test('화면: 4·5지망에 자동으로 고르기, 성적표 칸에 끌어다 놓기', () => {
+  const page = fs.readFileSync('public/data-core/highschool.html', 'utf8'), js = fs.readFileSync('public/data-core/highschool.js', 'utf8');
+  assert.match(page, /id="hsPhotoBox"/);
+  assert.ok(js.includes("photoBox.addEventListener('drop'"));
+  assert.ok(js.includes("slot >= 3 ? `<optgroup label=\"자동으로 고르기\">"));
 });
