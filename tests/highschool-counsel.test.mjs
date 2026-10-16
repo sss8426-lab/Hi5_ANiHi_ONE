@@ -252,4 +252,14 @@ test('4개 캠퍼스 학교 자료(2026-10-17 추가팩): 파주·안산·울산
   assert.equal(data.schools.find((s) => s.name === high).region, '파주', '파주 학생은 파주 일반고 중에서');
   const out = renderReport(student({ address: '경기도 파주시 가상로 1', campusId: 'campus-ansan', wishes: ['교하고', '운정고', '한빛고', '', ''], commute: {} }), data);
   assert.ok(out.html.includes('파주 고등학교 고1·고2 국어·영어·수학 평균표'));
+  const yerim = data.schools.find((x) => x.name === '예림디자인고');
+  assert.deepEqual(Object.keys(yerim.sem), ['2026-1', '2025-2'], '예림디자인고 공시 성적(별도 추가팩)');
+  assert.ok(yerim.special && yerim.address.includes('구로구'));
+});
+
+test('인쇄 모양: 2·3쪽 설명 목록(ul.bl)은 9쪽 막대 이름 폭(34mm)을 물려받지 않고, 8쪽 흐름 글자는 한 줄', () => {
+  const css = fs.readFileSync(new URL('../public/data-core/highschool-report.css', import.meta.url), 'utf8');
+  assert.ok(!css.includes('.hs-report .bl{'), '막대 이름은 .bar 안에서만');
+  assert.ok(css.includes('.hs-report .bar .bl{width:34mm'));
+  assert.match(css, /\.gp \.fl\{[^}]*white-space:nowrap/);
 });
