@@ -1,6 +1,6 @@
 import baseWorker from "./index";
 import {resolveBlogFiles,saveBlogPost,saveBlogImage} from './blog-workflow';
-import {blogTextAction} from './content-openai-provider';
+import {blogTextAction,blogStyleEdit} from './content-openai-provider';
 import {aiUsage,saveAiBudget} from './content-ai-usage';
 import {
   DataCoreAccessError,
@@ -565,6 +565,11 @@ async function handleContentApi(request: Request, env: Env) {
   if(url.pathname==='/api/data-core/content/blog/image'&&request.method==='POST'){
     if(!env.FILES)throw new DataCoreAccessError(503,'파일 저장소를 확인하세요.');
     return jsonResponse({file:await saveBlogImage(request,env.DB,env.FILES,context)});
+  }
+  // 문체·진정성 편집: 생성 직후 화면이 부르는 텍스트 전용 단계(사실 보존 확인 포함).
+  if(url.pathname==='/api/data-core/content/blog/style-edit'&&request.method==='POST'){
+    const input=await contentJson(request,65000),scope=contentScope(context,{sourceApp:'blog',campusId:input.campusId});
+    return jsonResponse(await withAiRequest(env.DB,context,input.requestId,scope.campusId,()=>blogStyleEdit(env,env.DB!,context,input,request.signal)));
   }
   if(url.pathname==='/api/data-core/content/blog/text-action'&&request.method==='POST'){
     const input=await contentJson(request,65000),scope=contentScope(context,{sourceApp:'blog',campusId:input.campusId});

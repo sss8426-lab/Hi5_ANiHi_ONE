@@ -108,3 +108,8 @@
 .instagram-production #igChecks{padding-left:22px;line-height:1.8;overflow-wrap:anywhere}
 .instagram-production .form-actions{flex-wrap:wrap}
 @media(max-width:600px){.instagram-production .instagram-fields{grid-template-columns:1fr}}
+/* 생성 결과 검수 메모(발행 판정·편집 설계·문체 편집·사실 확인) — 공개 원고와 분리해 보여 준다 */
+.blog-editorial{margin:10px 0 0;padding:12px 14px;border:1px solid #dfe3df;border-radius:10px;background:#fbfcfa;font-size:13px;line-height:1.6}
+.blog-editorial ul{margin:4px 0 8px;padding-left:20px}.blog-editorial details{margin:6px 0}.blog-editorial summary{cursor:pointer;font-weight:700;color:#1E4B3E}
+.blog-editorial small{color:#6b7a72}.blog-editorial s{color:#8a4b00}
+.blog-editorial-status{margin:0}.blog-editorial-status[data-status=hold] b{color:#a52b25}.blog-editorial-status[data-status=fix] b{color:#8a4b00}.blog-editorial-status[data-status=review] b{color:#1E4B3E}
