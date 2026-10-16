@@ -1,8 +1,8 @@
 // 고교 진학 상담 화면: 이름·학교·주소·캠퍼스·1~5지망·성적표 사진만 넣으면 → A4 9쪽 상담 자료 → PDF·이미지로 바로 저장.
 // 성적표 사진은 학년·학기를 스스로 나눠 채우고, 통학은 상담 자료를 만들 때 카카오맵으로 자동 계산한다.
 // 화면 상태는 주소 #의 뒷부분으로 나눈다(#new, #edit=ID, #report=ID). 뒤로 가기가 한 단계씩 돌아간다.
-import { renderReport, gradeBook, pickByAverage, isGirlsMiddle, WISH_RULES, SEMS, SUBJECTS, esc } from './highschool-report.js?v=20261017-hs7';
-import { savePdf, saveImages } from './highschool-export.js?v=20261017-hs7';
+import { renderReport, gradeBook, pickByAverage, isGirlsMiddle, WISH_RULES, SEMS, SUBJECTS, esc } from './highschool-report.js?v=20261017-hs8';
+import { savePdf, saveImages } from './highschool-export.js?v=20261017-hs8';
 
 const API = '/api/data-core/highschool';
 const $ = (id) => document.getElementById(id);
