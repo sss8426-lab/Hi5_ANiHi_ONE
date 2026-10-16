@@ -52,7 +52,7 @@ test('saved hashtags become body keywords with the brand name, many photos ask f
     assert.equal(result.status, 200, JSON.stringify(result.body));
     assert.match(sent.instructions, /검색 키워드 "[^"]*만화입시, 애니입시, 웹툰학원/, 'the saved tags are the search keywords (region-glued ones go through the region rule)');
     assert.doesNotMatch(sent.instructions, /본문 문단 3개 이상에 서로 다른 키워드/, 'no keyword weaving into every paragraph (guide: no keyword stuffing)');
-    assert.match(sent.instructions, /핵심 키워드 하나를 골라 제목·상단 답변·본문·하단 요약을 합쳐 3~5번/);
+    assert.match(sent.instructions, /반복 횟수나 밀도를 목표로 삼지/);
     assert.match(sent.instructions, /18\) 사진이 6장입니다\. .*비슷한 사진끼리 묶어.*최소 2개/);
     // The academy's writing guide.
     assert.match(sent.instructions, /\[원고 지침\]/);
