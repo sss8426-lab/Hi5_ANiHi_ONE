@@ -60,12 +60,12 @@ test('saved hashtags become body keywords with the brand name, many photos ask f
     assert.match(sent.instructions, /23\) 문체: .*"~합니다", "~할 수 있습니다"를 중심에/);
     assert.match(sent.instructions, /24\) 문단: 한 문단은 2~4문장.*문장마다 줄을 끊지 마세요.*1,200~1,800자/);
     assert.match(sent.instructions, /25\) 상단\(lead\): 독자의 핵심 질문 1개와 그에 대한 직접적인 답 2~3문장/);
-    assert.match(sent.instructions, /26\) 본문: 소제목\(## \)은 "Q\. …인가요\?"/);
+    assert.match(sent.instructions, /26\) 본문: 소제목\(## \)과 전개 방식은 선택한 SEO·AEO·GEO 지침/);
     assert.match(sent.instructions, /29\) 하단\(마지막 문단\): .*"부천 만화학원"/);
     assert.match(sent.instructions, /30\) 금지 표현: "무료 체험", "상시 모집", "전원 합격", "마감 임박"/);
     assert.match(sent.instructions, /6\) 문단은 2~4문장 단위로 나누고, 문장마다 줄바꿈하지 마세요/);
     assert.doesNotMatch(sent.instructions, /15~25자|"~인데요", "~답니다"|학원 이름 문구 "#/, 'the earlier short-line style is replaced by the guide');
-    assert.match(sent.instructions, /"Q\. …\?" 질문형 소제목으로 바꿔 쓰고/);
+    assert.match(sent.instructions, /선택한 SEO·AEO·GEO 작성 방식에 맞게 재배치/);
     assert.match(sent.instructions, /19\) photoCaptions에는/);
     assert.ok(sent.text.format.schema.required.includes('photoCaptions'));
     assert.deepEqual(result.body.generated.photoCaptions, [{ fileId: files[0].id, caption: '바다 생물을 그린 수채 작품' }], 'empty, oversized and unselected captions are dropped');

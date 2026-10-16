@@ -261,6 +261,10 @@ test('SEO/AEO/GEO: 선택한 작성 방식과 사실·출처·권한 기준이 �
       const expected = mode === 'invalid' ? 'seo' : mode;
       assert.equal(result.body.generated.writingMode, expected);
       assert.ok(instructions.includes(expected.toUpperCase() + ' 작성 방식'));
+      const structure = { seo: '주제별 설명형 소제목', aeo: '직접 답 1~2문장', geo: '확인된 관찰·자료 → 그 근거로 가능한 해석' };
+      assert.ok(instructions.includes(structure[expected]));
+      assert.ok(!instructions.includes('소제목은 26번처럼 질문형'));
+      assert.ok(!instructions.includes('질문형 소제목으로 바꿔 쓰고'));
       for (const rule of ['반복 횟수나 밀도를 목표로', '출처 URL·통계·확인일을 만들지', '개인정보·작품 사용 동의', 'missingInfo', '발행 보류']) {
         // GEO-specific sourcing instruction is exclusive to GEO.
         if (rule.startsWith('출처 URL') && mode !== 'geo') continue;
