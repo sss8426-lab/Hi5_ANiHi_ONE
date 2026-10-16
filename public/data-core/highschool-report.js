@@ -254,7 +254,7 @@ export function counselPage(student, A, data) {
   const { M, rows, back, out, book, latest, cur, wishes } = A;
   const academy = data.academyName || '상동 본원';
   const head = `${logoImg()}
-<div class="tt"><h1>고교 진학 상담표</h1><span>${esc(student.campusLabel || `${academyOf(student, data)?.name || academy} · 입시기초반`)}</span></div>
+<div class="tt"><h1>고교 진학 상담표</h1><span>${esc(academyOf(student, data)?.name || academy)}</span></div>
 <div class="meta"><div><i>학생</i><b>${esc(student.name)}</b></div><div><i>학교</i>${esc(`${String(student.middleSchool || '').replace(/중학교$/, '중')} ${student.grade || 3}학년`.trim())}</div><div class="ad"><i>주소</i>${esc(student.address || '')}</div></div>
 <p class="info">기존 희망순서: ${wishes.length ? wishes.map((s) => esc(M.dn(s))).join(' → ') : '미기재'}</p>`;
   if (!rows.length) return `<section class="page">${head}<p class="box">희망 학교가 아직 없어 통학·성적 비교를 하지 못했습니다. 희망 학교(1~5지망)를 넣으면 바로 작성합니다.</p></section>`;
@@ -535,18 +535,21 @@ ${body}
 </section>`;
 }
 
-// 9쪽 전체(또는 안내 3쪽을 뺀 6쪽)
+// 9쪽 전체. pages의 name은 이미지로 저장할 때 파일 이름(01_표지.png …)이 된다.
 export function renderReport(student, data, { withGuide = true } = {}) {
   const A = analyze(student, data);
   const C = compare(A, student);
   const rec = recommendation(A, C);
-  const pages = [coverPage(student)];
-  if (withGuide) pages.push(INFO_PAGES);
-  pages.push(counselPage(student, A, data));
-  if (A.rows.length) pages.push(comparePage(student, A, C, data));
+  const pages = [{ name: '표지', html: coverPage(student) }];
+  if (withGuide) {
+    const guide = INFO_PAGES.split(/\n(?=<section)/);
+    ['수능변화', '내신변화', '등급제개편'].forEach((name, i) => pages.push({ name, html: guide[i] }));
+  }
+  pages.push({ name: '상담표', html: counselPage(student, A, data) });
+  if (A.rows.length) pages.push({ name: '학교비교표', html: comparePage(student, A, C, data) });
   const region = regionPage(student, A, data);
-  if (region) pages.push(region);
-  pages.push(gradeReportPage(student, A, rec));
-  if (A.rows.length) pages.push(timePage(student, rec));
-  return { html: pages.join('\n'), analysis: A, comparison: C, recommendation: rec };
+  if (region) pages.push({ name: '지역평균표', html: region });
+  pages.push({ name: '성적변화_추천학교', html: gradeReportPage(student, A, rec) });
+  if (A.rows.length) pages.push({ name: '통학시간_차이', html: timePage(student, rec) });
+  return { html: pages.map((p) => p.html).join('\n'), pages, analysis: A, comparison: C, recommendation: rec };
 }
