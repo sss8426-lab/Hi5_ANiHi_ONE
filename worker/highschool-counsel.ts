@@ -62,7 +62,7 @@ function cleanSegment(v: unknown) {
   const s = v as Row;
   const min = numOrEmpty(s.min, 0, 300);
   if (min === '') return null;
-  return { min, mode: s.mode === 'walk' ? 'walk' : 'transit', bus: text(s.bus, 60), transfers: numOrEmpty(s.transfers, 0, 9), walk: numOrEmpty(s.walk, 0, 300), auto: true };
+  return { min, mode: s.mode === 'walk' ? 'walk' : 'transit', bus: text(s.bus, 60), transfers: numOrEmpty(s.transfers, 0, 9), walk: numOrEmpty(s.walk, 0, 300), alt: numOrEmpty(s.alt, 0, 300), auto: true };
 }
 function cleanGrades(v: unknown) {
   const out: Row = {};
@@ -224,10 +224,22 @@ export function transitSegment(body: Row) {
   const min = Math.max(1, Math.round(Number(p.totalTime || 0) / 60));
   return onlyWalk ? { min, mode: 'walk', auto: true } : { min, mode: 'transit', bus: buses.slice(0, 3).join(','), transfers: Number(p.transfers || 0), walk: Math.round(walkSec / 60), auto: true };
 }
+// 걸어서 가는 시간 추정: 두 곳 사이 직선거리 × 1.3(길 굽음)을 분당 67m로 걷는다고 본다
+export function walkMinutes(from: Point, to: Point) {
+  const rad = (d: number) => (d * Math.PI) / 180;
+  const [x1, y1, x2, y2] = [from.x, from.y, to.x, to.y].map(Number);
+  const a = Math.sin(rad(y2 - y1) / 2) ** 2 + Math.cos(rad(y1)) * Math.cos(rad(y2)) * Math.sin(rad(x2 - x1) / 2) ** 2;
+  const meters = 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.max(1, Math.round((meters * 1.3) / 67));
+}
+// 대중교통과 걷기 중 빠른 쪽(예전 상담 자료와 같은 규칙). 너무 가까워 대중교통 경로가 없으면 걷기로.
 async function transit(env: HighschoolEnv, from: Point, to: Point, signal: AbortSignal) {
   const body = await kakaoGet(env, '/v2/routing/publictraffic', { start_x: from.x, start_y: from.y, end_x: to.x, end_y: to.y }, signal);
   if (body.status === 'EQUAL_POINTS') return { min: 1, mode: 'walk', auto: true };
-  return transitSegment(body);
+  const walk = walkMinutes(from, to);
+  const bus = transitSegment(body);
+  if (bus && (bus.mode === 'walk' || bus.min < walk)) return bus;
+  return { min: walk, mode: 'walk', alt: bus ? bus.min : '', auto: true };
 }
 async function findRoutes(request: Request, env: HighschoolEnv, input: Row) {
   if (!env.KAKAO_REST_KEY) throw new DataCoreAccessError(503, '카카오 길찾기 키가 아직 연결되지 않았습니다.');

@@ -45,6 +45,8 @@ test('성적대·지역·캠퍼스 학원 기준', () => {
   assert.equal(bandOf(gradeBook(student({ grades: { '3-1': { 국어: { a: 'B' } } } }))), null, '성취도만 있으면 점수 성적대 없음');
   assert.equal(regionFromAddress('인천광역시 부평구 가상로 2'), '인천');
   assert.equal(segment({ min: 18, mode: 'transit', bus: '7호선,16' }).head, '7호선 등 / 18분', '지하철에는 버스를 붙이지 않는다');
+  assert.equal(segment({ min: 17, mode: 'transit', bus: '5', transfers: 0, walk: 0 }).sub, '환승 0회', '도보 0분은 적지 않는다');
+  assert.deepEqual(segment({ min: 4, mode: 'walk', alt: 9 }), { min: 4, head: '도보 4분', sub: '버스로는 9분' });
   assert.ok(analyze(student(), data).rows.every((x) => x.total != null), '부천 애니 입시본원(상동로 109)은 정리해 둔 학교→학원 시간을 쓴다');
   const ansan = analyze(student({ campusId: 'campus-ansan' }), data);
   assert.equal(ansan.sangdong, false);
@@ -113,7 +115,10 @@ test('API: 카카오맵 대중교통 길찾기 (가짜 응답) — 캠퍼스 학
     const url = new URL(typeof input === 'string' ? input : input.url ?? String(input));
     if (url.hostname !== 'dapi.kakao.com') return realFetch(input, init);
     seen.push([url.pathname, url.searchParams.get('query'), init?.headers?.authorization]);
-    if (url.pathname.startsWith('/v2/local/search/')) return Response.json({ documents: [{ x: '126.7', y: '37.5' }] });
+    // 집 126.70 · 학원(상동로) 126.75 · 학교 126.72(약 1.8km) · 가까운고 126.7001(집 바로 옆)
+    const q = url.searchParams.get('query') || '';
+    if (url.pathname.startsWith('/v2/local/search/')) return Response.json({ documents: [{ x: q.includes('상동로') ? '126.75' : q.includes('가상로') ? '126.70' : q.includes('가까운') ? '126.7001' : '126.72', y: '37.5' }] });
+    if (url.searchParams.get('end_x') === '126.7001') return Response.json({ status: 'NO_RESULTS' }); // 너무 가까워 대중교통 경로 없음
     return Response.json({ status: 'OK', routes: [{ properties: { totalTime: 1500, transfers: 1 }, steps: [
       { properties: { type: 'WALKING', time: 300 } }, { properties: { type: 'BUS', time: 900, vehicles: [{ name: '83' }] } }, { properties: { type: 'WALKING', time: 300 } }] }] });
   };
@@ -121,9 +126,10 @@ test('API: 카카오맵 대중교통 길찾기 (가짜 응답) — 캠퍼스 학
     h.env.KAKAO_REST_KEY = 'test-key';
     const body = (campusId, schools = ['상원고']) => ({ address: '경기도 부천시 원미구 가상로 1', campusId, schools });
     assert.equal((await h.request('POST', '/api/data-core/highschool/routes', users.teacher, body('campus-ansan'))).status, 400, '자기 캠퍼스가 아니면 못 찾는다');
-    const r = await h.request('POST', '/api/data-core/highschool/routes', users.teacher, body(A, ['상원고', '없는고']));
+    const r = await h.request('POST', '/api/data-core/highschool/routes', users.teacher, body(A, ['상원고', '없는고', '가까운고']));
     assert.equal(r.status, 200, JSON.stringify(r.body));
     assert.deepEqual(r.body.schools.상원고.home, { min: 25, mode: 'transit', bus: '83', transfers: 1, walk: 10, auto: true });
+    assert.deepEqual(r.body.schools.가까운고.home, { min: 1, mode: 'walk', alt: '', auto: true }, '너무 가까워 대중교통 경로가 없으면 걷는 시간으로');
     assert.equal(r.body.schools.상원고.academy, null, '상동 본원은 정리해 둔 학교→학원 시간을 쓴다');
     assert.ok(r.body.schools.없는고.academy, '목록에 없는 학교는 학교→학원도 찾는다');
     assert.ok(seen.some(([path, q]) => path === '/v2/local/search/address.json' && q === '경기도 부천시 원미구 상동로 109'), '학원 주소로 위치를 찾는다');

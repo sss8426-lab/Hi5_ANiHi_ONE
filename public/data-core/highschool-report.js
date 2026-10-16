@@ -40,7 +40,7 @@ export function segment(v) {
   const head = bus.length ? `${first}${bus.length > 1 ? ' 등' : ''} / ${min}분` : `대중교통 ${min}분`;
   const parts = [];
   if (num(v.transfers) != null) parts.push(`환승 ${num(v.transfers)}회`);
-  if (num(v.walk) != null) parts.push(`도보 ${num(v.walk)}분 포함`);
+  if (num(v.walk)) parts.push(`도보 ${num(v.walk)}분 포함`);
   return { min, head, sub: parts.join(' · ') };
 }
 
