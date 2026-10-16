@@ -85,12 +85,16 @@
 .hs-cell{grid-template-columns:56px 58px 60px}
 .hs-page .hs-inline.wide{grid-template-columns:auto minmax(0,1fr)}
 .hs-home{display:none}
-@media (max-width:760px){
+/* 태블릿·휴대폰(≤1100px): 공용 레이아웃이 왼쪽 메뉴를 위로 올리며 화면을 덮으므로, 메뉴 대신 '← 상담용 홈'만 둔다 */
+@media (max-width:1100px){
   .hs-page .app-shell{display:block}
   .hs-page .sidebar{display:none!important}
-  .hs-page .main{padding:12px 16px 40px;min-width:0}
+  .hs-page .main{padding:12px 24px 40px;min-width:0}
   .hs-page .hs-topbar{min-height:0;padding:6px 0 12px;gap:10px}
-  .hs-page .hs-topbar h1{font-size:22px}
   .hs-home{display:inline-flex;min-height:40px;align-items:center;color:#1E4B3E;font-weight:700;text-decoration:none;font-size:14px}
+}
+@media (max-width:760px){
+  .hs-page .main{padding:12px 16px 40px}
+  .hs-page .hs-topbar h1{font-size:22px}
   .hs-actions{width:100%}.hs-actions>*{flex:1 1 auto;justify-content:center}
 }

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { libraryHarness, users } from './support/library-harness.mjs';
-import { renderReport, analyze, compare, gradeBook, bandOf, regionFromAddress } from '../public/data-core/highschool-report.js';
+import { renderReport, analyze, compare, gradeBook, bandOf, regionFromAddress, segment } from '../public/data-core/highschool-report.js';
 
 // 고교 진학 상담 (2026-10-16). 가상 학생만 씁니다.
 const data = JSON.parse(fs.readFileSync(new URL('../worker/highschool-schools.json', import.meta.url), 'utf8'));
@@ -48,6 +48,8 @@ test('성적대·지역: 최근 두 학기 국어·영어·사탐, 성취도만 
   assert.equal(bandOf(gradeBook(letters)), null);
   assert.equal(analyze(letters, data).band, '하위권', '상담 때 확인한 수준을 쓴다');
   assert.equal(regionFromAddress('인천광역시 부평구 가상로 2'), '인천');
+  assert.equal(segment({ min: 18, mode: 'transit', bus: '7호선,16', transfers: 1, walk: 4 }).head, '7호선 등 / 18분', '지하철에는 버스를 붙이지 않는다');
+  assert.equal(segment({ min: 17, mode: 'transit', bus: '5' }).head, '버스 5 / 17분');
   const fixed = student({ fixedOrder: true });
   const C = compare(analyze(fixed, data), fixed);
   assert.deepEqual(C.genList.map((x) => x.s), ['상원고', '중원고', '부명고', '상일고'], '상담에서 확정한 희망 순서');
@@ -119,6 +121,8 @@ test('메뉴와 화면: 대학합격 로드맵 바로 아래 고교 진학 상�
   assert.ok(a > 0 && a < b && b < c);
   assert.match(index, /href="\/data-core\/highschool"/);
   const page = fs.readFileSync('public/data-core/highschool.html', 'utf8');
-  assert.match(page, /highschool\.js\?v=20261016-hs1/);
+  assert.match(page, /highschool\.js\?v=20261016-hs2/);
+  const css = fs.readFileSync('public/data-core/highschool.css', 'utf8');
+  assert.match(css, /@media \(max-width:1100px\)\{[^}]*\.hs-page \.app-shell\{display:block\}\s*\.hs-page \.sidebar\{display:none!important\}/, '태블릿에서 왼쪽 메뉴가 화면을 덮지 않게');
   assert.match(page, /aria-current="page"><span class="nav-icon">▣<\/span><span>고교 진학 상담/);
 });
