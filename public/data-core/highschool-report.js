@@ -25,6 +25,10 @@ export function regionFromAddress(address) {
   const a = String(address || '');
   if (/인천/.test(a)) return '인천';
   if (/부천/.test(a)) return '부천';
+  if (/파주/.test(a)) return '파주';
+  if (/안산/.test(a)) return '안산';
+  if (/울산/.test(a)) return '울산';
+  if (/광진구/.test(a)) return '광진';
   if (/서울/.test(a)) return '서울';
   return '';
 }

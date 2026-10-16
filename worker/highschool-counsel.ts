@@ -307,7 +307,9 @@ async function findRoutes(request: Request, env: HighschoolEnv, input: Row) {
 }
 // 학교 위치는 바뀌지 않으니 작업자(인스턴스)마다 한 번만 찾는다.
 const SCHOOL_POINTS = new Map<string, Point | null>();
-export const regionOfAddress = (address: string) => (/인천/.test(address) ? '인천' : /부천/.test(address) ? '부천' : '');
+// 학교 자료의 지역(일반고끼리 비교·가까운 학교 찾기). 광진은 광진구 학교만 모아 둠.
+const REGIONS: [RegExp, string][] = [[/인천/, '인천'], [/부천/, '부천'], [/파주/, '파주'], [/안산/, '안산'], [/울산/, '울산'], [/광진구/, '광진']];
+export const regionOfAddress = (address: string) => REGIONS.find(([re]) => re.test(address))?.[1] || '';
 
 export async function handleHighschoolApi(request: Request, env: HighschoolEnv, db: D1Database, context: DataCoreAccessContext) {
   const url = new URL(request.url);
