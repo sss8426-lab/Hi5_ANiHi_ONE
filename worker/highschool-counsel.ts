@@ -295,10 +295,10 @@ async function findRoutes(request: Request, env: HighschoolEnv, input: Row) {
   const extras: string[] = [], picked: string[] = [];
   if (region && (nearCount || (input.fill !== false && inRegion < 5))) {
     const pool = data.schools.filter((s) => s.region === region && !s.special && (input.female === true || !s.girls) && !names.includes(s.name));
-    const near: Array<{ name: string; d: number }> = [];
-    for (const s of pool) {
-      try { const at = await pointOf(s.name); if (at) near.push({ name: s.name, d: walkMinutes(home, at) }); } catch (error) { if (error instanceof DataCoreAccessError && error.status === 503) throw error; }
-    }
+    // 지역 전체 일반고(20곳 남짓)의 위치를 한꺼번에 찾는다(한 곳씩 기다리면 처음 한 번이 느림)
+    const near = (await Promise.all(pool.map(async (s) => {
+      try { const at = await pointOf(s.name); return at ? { name: s.name, d: walkMinutes(home, at) } : null; } catch (error) { if (error instanceof DataCoreAccessError && error.status === 503) throw error; return null; }
+    }))).filter((x): x is { name: string; d: number } => x !== null);
     const order = near.sort((a, b) => a.d - b.d).map((x) => x.name);
     for (const name of order.slice(0, nearCount)) { result[name] = await routeTo(name); picked.push(name); }
     if (input.fill !== false) for (const name of order.slice(nearCount, nearCount + Math.max(0, 5 - inRegion - picked.length))) { result[name] = await routeTo(name); extras.push(name); }

@@ -24,7 +24,7 @@ test('상담 자료: 예전 자료와 같은 9쪽, 저장 파일 이름 순서',
   assert.deepEqual(out.pages.map((p) => p.name), ['표지', '수능변화', '내신변화', '등급제개편', '상담표', '학교비교표', '지역평균표', '성적변화_추천학교', '통학시간_차이']);
   assert.ok(out.pages.every((p) => (p.html.match(/<section class="/g) || []).length === 1), '쪽마다 section 하나');
   for (const text of ['2027학년도 고등학교 진학', '가상중학교 3학년', '2028 대입 수능 변화', '2028 대입 내신 변화', '9등급제에서 5등급제로의 변환', '고교 진학 상담표', '<span>부천 애니 입시본원</span>',
-    '부천 고등학교 고1·고2 국어·영어·수학 평균표', '전체 평균은 <b>69.3점', '중학교 성적 변화 정리', '통학 시간에 따른 공부·그림 시간 차이', '최종 추천 순위', '재원생 학교 평가'])
+    '부천 고등학교 고1·고2 국어·영어·수학 평균표', '전체 평균은 <b>68.6점', '중학교 성적 변화 정리', '통학 시간에 따른 공부·그림 시간 차이', '최종 추천 순위', '재원생 학교 평가'])
     assert.ok(out.html.includes(text), text);
   assert.equal(out.analysis.band, '상위권', '국어·영어·사탐 점수−평균 평균 +9.5');
   assert.equal(out.analysis.rows[0].s, '중원고', '하루 이동이 가장 짧은 학교가 통학 1위');
@@ -243,9 +243,11 @@ test('화면: 4·5지망에 자동으로 고르기, 성적표 칸에 끌어다 �
 
 test('4개 캠퍼스 학교 자료(2026-10-17 추가팩): 파주·안산·울산·광진 35교, 주소로 지역을 찾고 같은 지역끼리 비교', () => {
   const by = (r) => data.schools.filter((s) => s.region === r);
-  assert.deepEqual(['파주', '안산', '울산', '광진'].map((r) => by(r).length), [9, 9, 9, 8]);
+  // 2026-10-17 추가수집(93교)으로 캠퍼스 지역 전체 고교가 들어가 학교 수가 늘었다
+  assert.deepEqual(['파주', '안산', '울산', '광진'].map((r) => by(r).length), [21, 23, 22, 9]);
   assert.equal(new Set(data.schools.map((s) => s.name)).size, data.schools.length, '학교 이름이 겹치지 않음');
-  assert.deepEqual(data.schools.filter((s) => ['파주', '안산', '울산', '광진'].includes(s.region) && s.special).map((s) => s.name).sort(), ['고양예고', '선화예고', '안산디자인문화고', '울산애니원고'].sort());
+  const specials = data.schools.filter((s) => ['파주', '안산', '울산', '광진'].includes(s.region) && s.special).map((s) => s.name);
+  for (const n of ['고양예고', '선화예고', '안산디자인문화고', '울산애니원고']) assert.ok(specials.includes(n), n);
   assert.ok(data.schools.find((s) => s.name === '대원여고').girls);
   assert.deepEqual(Object.keys(data.schools.find((s) => s.name === '다율고').sem), ['2026-1'], '없는 학기는 비워 둠(0으로 채우지 않음)');
   for (const [addr, r] of [['경기도 파주시 가상로 1', '파주'], ['경기도 안산시 단원구 가상로 1', '안산'], ['울산광역시 북구 가상로 1', '울산'], ['서울특별시 광진구 가상로 1', '광진'], ['서울특별시 강남구 가상로 1', '서울']]) {
@@ -295,4 +297,27 @@ test('로고 선택: 고른 로고가 쪽 위·1~4쪽 띠·5~9쪽 아래에 들�
     assert.equal((await save('custom:12345678-1234-1234-1234-123456789abc')).body.student.logo, 'custom:12345678-1234-1234-1234-123456789abc');
     assert.equal((await save('javascript:alert(1)')).body.student.logo, '', '정해진 값이 아니면 버림');
   } finally { await h.mf.dispose(); }
+});
+
+test('고교 추가수집 93교(2026-10-17): 캠퍼스 지역 전체 고교 + 미술 관련 학교, 새 지역은 특성화·예술고로만, 자동 고르기는 같은 지역 일반고만', () => {
+  assert.equal(data.schools.length, 156);
+  const find = (n) => data.schools.find((s) => s.name === n);
+  for (const n of ['경기예술고', '한국애니메이션고', '서울웹툰애니메이션고', '계원예술고', '인천예술고', '부천고', '계산고', '문산고', '안산고', '울산고', '대원외국어고']) assert.ok(find(n), n);
+  assert.ok(!find('인천금융고'), "인천금융고는 기존 '인천애니고'(표시 인천금융고)와 같은 학교라 다시 넣지 않음");
+  assert.equal(find('인천애니고').girls, true);
+  assert.deepEqual(Object.keys(find('경기경영고').sem), ['2026-1', '2025-2'], '경기경영고는 기존 항목의 빈 성적을 채움');
+  assert.equal(data.schools.filter((s) => s.name === '경기경영고').length, 1);
+  assert.equal(find('범박고').address, '경기도 부천시 소사구 범박로 27-1');
+  assert.deepEqual(Object.keys(find('옥길새길고').sem['2026-1']), ['1'], '신설 학교: 공시 없는 학년은 비워 둠(0점 아님)');
+  assert.ok(find('울산예술고').special && find('홍익디자인고(마포)') && find('홍익디자인고(화성)'));
+  // 새 지역(하남·성남·안양·화성·고양·서울)은 특성화·예술고뿐 → 일반고 비교·자동 고르기에 들어가지 않음
+  for (const r of ['하남', '성남', '안양', '화성', '고양', '서울']) assert.ok(data.schools.filter((s) => s.region === r).every((s) => s.special), r);
+  const M = model(data);
+  assert.deepEqual(Object.keys(M.regAvg).sort(), ['광진', '부천', '안산', '울산', '인천', '파주'].sort(), '지역 평균은 일반고가 있는 캠퍼스 지역만');
+  for (const [addr, region] of [['경기도 부천시 원미구 가상로 1', '부천'], ['인천광역시 계양구 가상로 1', '인천'], ['울산광역시 중구 가상로 1', '울산']]) {
+    const st = { address: addr, middleSchool: '가상여중', wishes: [] };
+    for (const rule of ['high', 'low']) for (const n of pickByAverage(data, st, rule, [], 50)) { const s = find(n); assert.ok(s.region === region && !s.special, `${addr} ${rule} ${n}`); }
+  }
+  const js = fs.readFileSync('public/data-core/highschool.js', 'utf8');
+  assert.ok(js.includes("['특성화·예술고', (s) => s.special]") && js.includes('schoolList().filter((s) => !s.special).map((s) => s.region)'), '지망 선택칸: 지역 묶음은 일반고 지역만, 나머지는 특성화·예술고 묶음');
 });
